@@ -28,6 +28,9 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
   const pageSize = parseInt(req.query.pageSize as string) || 20
   const status = req.query.status as string | undefined
   const model = req.query.model as string | undefined
+  const featureId = req.query.feature_id as string | undefined
+  const startDate = req.query.start_date as string | undefined
+  const endDate = req.query.end_date as string | undefined
 
   let where = 'WHERE user_id = ?'
   const params: any[] = [req.user!.userId]
@@ -39,6 +42,18 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
   if (model) {
     where += ' AND model = ?'
     params.push(model)
+  }
+  if (featureId) {
+    where += ' AND feature_id = ?'
+    params.push(featureId)
+  }
+  if (startDate) {
+    where += ' AND created_at >= ?'
+    params.push(startDate)
+  }
+  if (endDate) {
+    where += ' AND created_at <= ?'
+    params.push(endDate)
   }
 
   const countRow = db.prepare(`SELECT COUNT(*) as total FROM generation_tasks ${where}`).get(...params) as any
@@ -76,7 +91,7 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
   const {
     toapis_task_id, client_business_id, model, prompt, size, resolution,
     aspect_ratio, n, template_image_ids, input_image_urls, status, progress,
-    feature_id,
+    feature_id, user_prompt,
   } = req.body
 
   if (!toapis_task_id || !model || !prompt) {
@@ -85,15 +100,16 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     req.user!.userId, toapis_task_id, client_business_id || null, model, prompt,
     size || null, resolution || null, aspect_ratio || null, n || 1,
     template_image_ids ? JSON.stringify(template_image_ids) : null,
     input_image_urls ? JSON.stringify(input_image_urls) : null,
     status || 'submitted', progress || 0,
-    feature_id || null
+    feature_id || null,
+    user_prompt || ''
   )
 
   res.json({ success: true, data: { id: result.lastInsertRowid } })

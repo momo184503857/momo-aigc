@@ -1,16 +1,23 @@
 /**
- * ToAPIs 浏览器客户端
+ * ToAPIs 客户端 — 支持双模式
  *
- * 所有请求从浏览器直接发到 ToAPIs，使用用户本地保存的 API Key。
- * 浏览器无 Node.js 依赖，使用 fetch() + FormData。
+ * user 模式：浏览器直接调 ToAPIs，使用用户本地 API Key
+ * shared 模式：走服务器代理，使用管理员配置的共享 Key
  */
 
 import type { ModelId } from '@/types/adapter'
 import { buildGptImage2Request } from './buildGptImage2Request'
 import { buildGeminiRequest } from './buildGeminiRequest'
 import { translateError } from '@/utils/errors'
+import { toapisProxyApi } from '@/services/toapisProxyApi'
+import { useServerStatusStore } from '@/stores/serverStatus'
 
 const BASE_URL = 'https://toapis.com'
+
+function isSharedMode(): boolean {
+  const store = useServerStatusStore()
+  return store.isSharedMode
+}
 
 export interface CreateTaskParams {
   model: ModelId
@@ -72,6 +79,11 @@ function buildRequestBody(model: ModelId, params: CreateTaskParams): Record<stri
  * 上传图片到 ToAPIs
  */
 export async function uploadImage(apiKey: string, file: File): Promise<string> {
+  if (isSharedMode()) {
+    const res = await toapisProxyApi.upload(file)
+    return res.data.data.url
+  }
+
   const formData = new FormData()
   formData.append('file', file)
 
@@ -103,6 +115,11 @@ export async function uploadImage(apiKey: string, file: File): Promise<string> {
 export async function createTask(apiKey: string, params: CreateTaskParams): Promise<string> {
   const body = buildRequestBody(params.model, params)
 
+  if (isSharedMode()) {
+    const res = await toapisProxyApi.createTask(body)
+    return res.data.data.id
+  }
+
   const res = await fetch(`${BASE_URL}/v1/images/generations`, {
     method: 'POST',
     headers: {
@@ -132,6 +149,22 @@ export async function getTaskStatus(
   apiKey: string,
   taskId: string
 ): Promise<TaskStatusResult> {
+  if (isSharedMode()) {
+    const res = await toapisProxyApi.getTaskStatus(taskId)
+    const data = res.data.data
+    const result: TaskStatusResult = {
+      status: data.status as 'queued' | 'in_progress' | 'completed' | 'failed',
+      progress: data.progress,
+      resultUrls: data.resultUrls,
+      expiresAt: data.expiresAt,
+    }
+    if (data.status === 'failed') {
+      result.errorMessage = data.errorMessage || '未知错误'
+      result.errorCode = data.errorCode
+    }
+    return result
+  }
+
   const res = await fetch(`${BASE_URL}/v1/images/generations/${taskId}`, {
     method: 'GET',
     headers: authHeader(apiKey),

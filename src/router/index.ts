@@ -74,6 +74,12 @@ const router = createRouter({
       component: () => import('@/views/admin/AdminStats.vue'),
       meta: { title: '生成统计', requiresAuth: true, requiresAdmin: true },
     },
+    {
+      path: '/admin/toapis-key',
+      name: 'AdminToApisKey',
+      component: () => import('@/views/admin/AdminToApisKey.vue'),
+      meta: { title: 'API Key 管理', requiresAuth: true, requiresAdmin: true },
+    },
   ],
 })
 

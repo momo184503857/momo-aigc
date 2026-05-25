@@ -11,7 +11,10 @@ import {
   List,
   DataAnalysis,
   EditPen,
+  Key,
 } from '@element-plus/icons-vue'
+
+defineProps<{ collapsed?: boolean }>()
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -57,6 +60,7 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
         { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
         { path: '/admin/stats', title: '生成统计', icon: DataAnalysis },
+        { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
       ],
     })
   }
@@ -74,14 +78,15 @@ function navigate(path: string) {
 </script>
 
 <template>
-  <aside class="sidebar">
+  <aside class="sidebar" :class="{ collapsed }">
     <div class="sidebar-brand" @click="router.push('/workspace')">
-      <span class="brand-text">墨墨 AI 生图</span>
+      <span v-if="!collapsed" class="brand-text">墨墨 AI 生图</span>
+      <span v-else class="brand-text-short">墨墨</span>
     </div>
 
     <nav class="sidebar-nav">
       <template v-for="section in menuSections" :key="section.title">
-        <div v-if="section.title" class="section-title">{{ section.title }}</div>
+        <div v-if="section.title && !collapsed" class="section-title">{{ section.title }}</div>
         <div
           v-for="item in section.items"
           :key="item.path"
@@ -90,7 +95,7 @@ function navigate(path: string) {
           @click="navigate(item.path)"
         >
           <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
-          <span class="nav-title">{{ item.title }}</span>
+          <span v-if="!collapsed" class="nav-title">{{ item.title }}</span>
         </div>
       </template>
     </nav>
@@ -105,19 +110,37 @@ function navigate(path: string) {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  transition: width var(--tf-sidebar-transition, 0.3s ease);
+}
+
+.sidebar.collapsed {
+  width: var(--tf-sidebar-collapsed-width, 64px);
 }
 
 .sidebar-brand {
   height: 56px;
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 0 20px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   cursor: pointer;
 }
 
+.collapsed .sidebar-brand {
+  padding: 0 8px;
+}
+
 .brand-text {
   font-size: 18px;
+  font-weight: 700;
+  color: var(--el-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.brand-text-short {
+  font-size: 16px;
   font-weight: 700;
   color: var(--el-color-primary);
 }
@@ -172,5 +195,14 @@ function navigate(path: string) {
 .nav-title {
   font-size: 14px;
   white-space: nowrap;
+}
+
+.collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.collapsed .nav-icon {
+  font-size: 20px;
 }
 </style>

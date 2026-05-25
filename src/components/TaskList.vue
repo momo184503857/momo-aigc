@@ -21,6 +21,7 @@ export interface TaskItem {
   created_at: string
   completed_at: string | null
   feature_id?: string
+  user_prompt?: string
 }
 
 const props = defineProps<{
@@ -88,6 +89,22 @@ function promptSummary(text: string, maxLen = 60): string {
   return text.length > maxLen ? text.slice(0, maxLen) + '...' : text
 }
 
+function displayPrompt(task: TaskItem): string {
+  if (task.feature_id && task.feature_id !== 'free-gen') {
+    return task.user_prompt || ''
+  }
+  return task.prompt
+}
+
+// Parse DB timestamp as UTC (SQLite strings lack timezone, default to local)
+function parseUTC(s: string): number {
+  let t = s
+  if (t && !t.endsWith('Z') && !t.includes('+') && !t.includes('T')) {
+    t = t.replace(' ', 'T') + 'Z'
+  }
+  return new Date(t).getTime()
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 0) return ''
   if (seconds < 60) return `${seconds}秒`
@@ -98,12 +115,12 @@ function formatDuration(seconds: number): string {
 function statusDuration(task: TaskItem): string {
   if (task.status === 'completed' || task.status === 'failed') {
     if (!task.completed_at) return ''
-    const start = new Date(task.created_at).getTime()
-    const end = new Date(task.completed_at).getTime()
+    const start = parseUTC(task.created_at)
+    const end = parseUTC(task.completed_at)
     return formatDuration(Math.floor((end - start) / 1000))
   }
   // Active task: show elapsed (now is reactive, updates every second)
-  const start = new Date(task.created_at).getTime()
+  const start = parseUTC(task.created_at)
   return formatDuration(Math.floor((now.value - start) / 1000))
 }
 
@@ -136,6 +153,16 @@ function handleImageDragStart(e: DragEvent, url: string) {
   e.dataTransfer.setData('text/plain', url)
   e.dataTransfer.effectAllowed = 'copy'
 }
+
+function toBeijingTime(isoStr: string): string {
+  const d = new Date(parseUTC(isoStr) + 8 * 60 * 60 * 1000)
+  const y = d.getUTCFullYear()
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  const h = String(d.getUTCHours()).padStart(2, '0')
+  const mi = String(d.getUTCMinutes()).padStart(2, '0')
+  return `${y}-${mo}-${day} ${h}:${mi}`
+}
 </script>
 
 <template>
@@ -165,6 +192,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
         <div class="task-body">
           <!-- Task ID at top -->
           <div v-if="task.toapis_task_id" class="task-id">
+            <span class="task-id-label">任务ID：</span>
             <span class="task-id-text">{{ task.toapis_task_id }}</span>
             <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.toapis_task_id)" title="复制任务ID" />
           </div>
@@ -177,11 +205,11 @@ function handleImageDragStart(e: DragEvent, url: string) {
             </span>
             <span class="task-model">{{ modelDisplayName(task.model) }}</span>
             <span class="task-res">{{ aspectLabel(task) }}</span>
-            <span class="task-time">{{ task.created_at?.slice(0, 16) }}</span>
+            <span class="task-time">{{ toBeijingTime(task.created_at) }}</span>
           </div>
           <!-- Prompt -->
           <div class="task-prompt">
-            <span class="task-prompt-text" :title="task.prompt">{{ promptSummary(task.prompt) }}</span>
+            <span class="task-prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task)) }}</span>
             <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.prompt)" title="复制提示词" />
           </div>
         </div>
@@ -220,21 +248,21 @@ function handleImageDragStart(e: DragEvent, url: string) {
         <!-- Info area -->
         <div class="grid-card-info">
           <div class="grid-info-row prompt-row">
-            <span class="gi-value prompt-text" :title="task.prompt">{{ promptSummary(task.prompt, 40) }}</span>
+            <span class="gi-value prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task), 40) }}</span>
             <el-button size="small" text :icon="CopyDocument" @click="copyToClipboard(task.prompt)" />
           </div>
           <div class="grid-info-row">
             <span class="gi-value">
               <el-tag :type="statusType(task.status)" size="small">{{ statusText(task.status) }}</el-tag>
               <span v-if="task.status === 'failed'" class="grid-error-msg">{{ task.error_message || '生成失败' }}</span>
-              <span v-else style="margin-left:6px;font-size:11px;color:var(--el-text-color-secondary)">{{ statusLabel(task) }}</span>
+              <span v-else class="grid-duration">{{ statusLabel(task) }}</span>
             </span>
           </div>
           <div class="grid-info-row">
             <span class="gi-value">{{ modelDisplayName(task.model) }} · {{ aspectLabel(task) }}</span>
           </div>
           <div class="grid-info-row">
-            <span class="gi-value time">{{ task.created_at?.slice(0, 16) }}</span>
+            <span class="gi-value time">{{ toBeijingTime(task.created_at) }}</span>
           </div>
         </div>
 
@@ -309,32 +337,36 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .task-id {
   display: flex; align-items: center; gap: 4px;
 }
+.task-id-label {
+  font-size: 12px; color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
 .task-id-text {
   font-family: monospace; font-size: 12px;
-  color: var(--el-text-color-primary); font-weight: 500;
+  color: var(--el-text-color-secondary);
   word-break: break-all;
 }
 
 /* Header row */
 .task-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.task-status-group { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.task-duration { font-size: 11px; color: var(--el-text-color-secondary); font-family: monospace; }
-.task-model { font-weight: 500; color: var(--el-text-color-primary); font-size: 13px; }
-.task-res { color: var(--el-text-color-secondary); font-size: 12px; }
-.task-time { color: var(--el-text-color-placeholder); font-size: 12px; margin-left: auto; }
+.task-status-group { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.task-duration { font-size: 12px; color: var(--el-text-color-secondary); }
+.task-model { font-size: 12px; color: var(--el-text-color-secondary); }
+.task-res { font-size: 12px; color: var(--el-text-color-secondary); }
+.task-time { font-size: 12px; color: var(--el-text-color-placeholder); margin-left: auto; }
 
 /* Prompt */
 .task-prompt {
   font-size: 13px; color: var(--el-text-color-regular);
   word-break: break-all; display: flex; align-items: flex-start; gap: 4px;
 }
-.task-prompt-text { flex: 1; min-width: 0; }
+.task-prompt-text { min-width: 0; }
 .task-error-msg {
-  font-size: 11px; color: var(--el-color-danger); max-width: 200px;
+  font-size: 12px; color: var(--el-color-danger); max-width: 200px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .grid-error-msg {
-  font-size: 11px; color: var(--el-color-danger); margin-left: 6px;
+  font-size: 12px; color: var(--el-color-danger); margin-left: 6px;
   max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -384,7 +416,8 @@ function handleImageDragStart(e: DragEvent, url: string) {
   flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--el-text-color-primary);
 }
-.gi-value.time { color: var(--el-text-color-placeholder); font-size: 11px; }
+.gi-value.time { color: var(--el-text-color-placeholder); }
+.grid-duration { margin-left: 6px; font-size: 12px; color: var(--el-text-color-secondary); }
 
 .grid-card-actions {
   display: flex; gap: 4px; padding: 6px 10px;

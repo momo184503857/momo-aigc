@@ -69,14 +69,17 @@ import TaskList from '@/components/TaskList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import { useKeyConfigStore } from '@/stores/keyConfig'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { taskApi } from '@/services/taskApi'
 import * as toapisClient from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
 import type { ModelId } from '@/types/adapter'
+import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { TaskItem } from '@/components/TaskList.vue'
 import JSZip from 'jszip'
 
 const keyStore = useKeyConfigStore()
+const serverStatus = useServerStatusStore()
 const generationForm = ref<InstanceType<typeof GenerationForm>>()
 const featureForm = ref<InstanceType<typeof FeatureForm>>()
 
@@ -156,10 +159,59 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 
+// Filter state
+const filterFeatureId = ref('')
+const filterStartDate = ref('')
+const filterEndDate = ref('')
+
+const filterFeature = ref('')
+const filterDateRange = ref<[Date, Date] | null>(null)
+
+const featureOptions = computed(() => {
+  const opts = [{ id: '', label: '全部功能' }, { id: 'free-gen', label: '自由生图' }]
+  for (const key of Object.keys(FEATURE_CONFIGS)) {
+    opts.push({ id: key, label: FEATURE_CONFIGS[key].label })
+  }
+  return opts
+})
+
+const dateShortcuts = [
+  { text: '当天', value: () => { const d = new Date(); return [d, d] as [Date, Date] } },
+  { text: '近三天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 2); return [s, e] as [Date, Date] } },
+  { text: '近七天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 6); return [s, e] as [Date, Date] } },
+  { text: '当月', value: () => { const d = new Date(); return [new Date(d.getFullYear(), d.getMonth(), 1), new Date(d.getFullYear(), d.getMonth() + 1, 0)] as [Date, Date] } },
+]
+
+function formatDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function applyFilters() {
+  filterFeatureId.value = filterFeature.value
+  if (filterDateRange.value) {
+    filterStartDate.value = formatDate(filterDateRange.value[0])
+    filterEndDate.value = formatDate(filterDateRange.value[1]) + ' 23:59:59'
+  } else {
+    filterStartDate.value = ''
+    filterEndDate.value = ''
+  }
+  page.value = 1
+  loadHistory()
+}
+
 async function loadHistory() {
   loading.value = true
   try {
-    const res = await taskApi.list({ page: page.value, pageSize: pageSize.value })
+    const res = await taskApi.list({
+      page: page.value,
+      pageSize: pageSize.value,
+      feature_id: filterFeatureId.value || undefined,
+      start_date: filterStartDate.value || undefined,
+      end_date: filterEndDate.value || undefined,
+    })
     const records = res.data.data?.records || []
     total.value = res.data.data?.total || 0
     tasks.value = records.map((r: any) => ({ ...r }))
@@ -192,10 +244,18 @@ async function handleGenerate(params: {
   templateUrls: string[]
   tempImageFiles: File[]
   featureId?: string
+  userPrompt?: string
 }) {
-  if (!keyStore.hasKey) {
-    ElMessage.warning('请先填写你的 ToAPIs API Key')
-    return
+  if (serverStatus.isSharedMode) {
+    if (!serverStatus.sharedKeyConfigured) {
+      ElMessage.warning('管理员尚未配置共享 API Key')
+      return
+    }
+  } else {
+    if (!keyStore.hasKey) {
+      ElMessage.warning('请先填写你的 ToAPIs API Key')
+      return
+    }
   }
 
   const cnt = Math.max(1, Math.min(5, params.count))
@@ -218,7 +278,11 @@ async function handleGenerate(params: {
       created_at: new Date().toISOString(),
       completed_at: null,
       feature_id: params.featureId,
+      user_prompt: params.userPrompt || '',
     }
+
+    // Add to list immediately so user sees instant feedback
+    tasks.value.unshift(newTask)
 
     try {
       // 1. Upload temp images to ToAPIs
@@ -252,13 +316,11 @@ async function handleGenerate(params: {
         status: 'submitted',
         progress: 0,
         feature_id: params.featureId,
+        user_prompt: params.userPrompt || '',
       })
       newTask.id = res.data.data.id
 
-      // 4. Add to local list
-      tasks.value.unshift(newTask)
-
-      // 5. Poll immediately
+      // 4. Poll immediately
       await pollTask(newTask)
 
     } catch (e: any) {
@@ -290,7 +352,7 @@ async function pollAllTasks() {
 }
 
 async function pollTask(task: TaskItem) {
-  if (!keyStore.hasKey) return
+  if (!serverStatus.isSharedMode && !keyStore.hasKey) return
   try {
     const result = await toapisClient.getTaskStatus(keyStore.apiKey, task.toapis_task_id)
 
@@ -509,6 +571,7 @@ onMounted(async () => {
   document.addEventListener('touchmove', onPointerMove)
   document.addEventListener('touchend', onPointerUp)
 
+  await serverStatus.fetchStatus()
   await loadHistory()
   if (hasActiveJobs.value) startPolling()
 
@@ -539,6 +602,7 @@ onDeactivated(() => {
 })
 
 onActivated(async () => {
+  await serverStatus.fetchStatus()
   await loadHistory()
   if (hasActiveJobs.value) startPolling()
 })
@@ -583,7 +647,31 @@ function sleep(ms: number): Promise<void> {
       <!-- Right Panel: Tasks -->
       <div class="right-panel">
         <div class="right-header">
-          <span class="panel-title">任务列表</span>
+          <div class="right-header-left">
+            <span class="panel-title">任务列表</span>
+            <div class="right-header-filters">
+            <el-select
+              v-model="filterFeature"
+              placeholder="功能筛选"
+              size="small"
+              style="width: 130px"
+              clearable
+              @change="applyFilters"
+            >
+              <el-option v-for="opt in featureOptions" :key="opt.id" :label="opt.label" :value="opt.id" />
+            </el-select>
+            <el-date-picker
+              v-model="filterDateRange"
+              type="daterange"
+              size="small"
+              placeholder="日期范围"
+              :shortcuts="dateShortcuts"
+              style="width: 220px"
+              format="YYYY-MM-DD"
+              @change="applyFilters"
+            />
+          </div>
+          </div>
           <div class="right-header-actions">
             <template v-if="bulkMode">
               <span class="bulk-count">已选 {{ selectedIds.size }} 项</span>
@@ -726,6 +814,14 @@ function sleep(ms: number): Promise<void> {
 .panel-title {
   font-size: 16px; font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.right-header-left {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.right-header-filters {
+  display: flex; align-items: center; gap: 8px;
 }
 
 .right-header-actions {

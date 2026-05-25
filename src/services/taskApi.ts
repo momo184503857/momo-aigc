@@ -14,6 +14,7 @@ export interface CreateTaskParams {
   status?: string
   progress?: number
   feature_id?: string
+  user_prompt?: string
 }
 
 export interface UpdateTaskParams {
@@ -28,7 +29,7 @@ export interface UpdateTaskParams {
 }
 
 export const taskApi = {
-  list(params?: { page?: number; pageSize?: number; status?: string; model?: string }) {
+  list(params?: { page?: number; pageSize?: number; status?: string; model?: string; feature_id?: string; start_date?: string; end_date?: string }) {
     return http.get('/tasks', { params })
   },
   get(id: number) {

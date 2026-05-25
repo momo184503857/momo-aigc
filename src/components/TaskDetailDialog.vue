@@ -66,7 +66,9 @@ const statusMap: Record<string, string> = {
         <el-descriptions-item label="提交时间">{{ task.created_at }}</el-descriptions-item>
         <el-descriptions-item label="完成时间">{{ task.completed_at || '-' }}</el-descriptions-item>
         <el-descriptions-item label="提示词" :span="2">
-          <div class="prompt-block">{{ task.prompt }}</div>
+          <div class="prompt-block">
+            {{ task.feature_id && task.feature_id !== 'free-gen' ? (task.user_prompt || '') : task.prompt }}
+          </div>
         </el-descriptions-item>
         <el-descriptions-item label="错误信息" :span="2" v-if="task.error_message">
           <span style="color: var(--el-color-danger)">{{ task.error_message }}</span>

@@ -25,7 +25,6 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     imageSlots: [
       { key: 'model', label: '模特图', maxCount: 1, required: true, section: 'reference' },
       { key: 'garment', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
-      { key: 'detail', label: '', maxCount: 5, required: false, section: 'supplementary' },
     ],
     hasUserPrompt: true,
   },
@@ -34,10 +33,9 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     label: '换背景',
     imageSlots: [
       { key: 'model', label: '模特图', maxCount: 1, required: true, section: 'reference' },
-      { key: 'bg-ref', label: '背景参考', maxCount: 3, required: false, section: 'supplementary' },
+      { key: 'bg-ref', label: '背景参考', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
-    defaultAspectRatio: '3:4',
   },
   'change-face': {
     id: 'change-face',
@@ -52,8 +50,8 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     id: 'detail-pic',
     label: '细节图',
     imageSlots: [
-      { key: 'product', label: '商品图', maxCount: 1, required: true, section: 'reference' },
-      { key: 'detail-ref', label: '细节参考', maxCount: 3, required: false, section: 'supplementary' },
+      { key: 'product', label: '模板图', maxCount: 1, required: true, section: 'reference' },
+      { key: 'detail-ref', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
   },
@@ -61,7 +59,8 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     id: 'fabric-pic',
     label: '面料图',
     imageSlots: [
-      { key: 'fabric', label: '面料样图', maxCount: 1, required: true, section: 'reference' },
+      { key: 'product', label: '模板图', maxCount: 1, required: true, section: 'reference' },
+      { key: 'fabric-ref', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
   },
@@ -69,7 +68,8 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     id: 'flat-pic',
     label: '平铺图',
     imageSlots: [
-      { key: 'product', label: '商品图', maxCount: 1, required: true, section: 'reference' },
+      { key: 'product', label: '模板图', maxCount: 1, required: true, section: 'reference' },
+      { key: 'scene-ref', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
   },
@@ -77,16 +77,15 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     id: '3d-pic',
     label: '3D图',
     imageSlots: [
-      { key: 'product', label: '商品图', maxCount: 1, required: true, section: 'reference' },
+      { key: 'product', label: '模板图', maxCount: 1, required: true, section: 'reference' },
+      { key: 'angle-ref', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
   },
   'model-gen': {
     id: 'model-gen',
     label: '模特生成',
-    imageSlots: [
-      { key: 'ref-model', label: '参考模特', maxCount: 3, required: false, section: 'reference' },
-    ],
+    imageSlots: [],
     hasUserPrompt: true,
   },
   'three-view': {
@@ -94,8 +93,6 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     label: '三视图',
     imageSlots: [
       { key: 'front', label: '正面图', maxCount: 1, required: true, section: 'reference' },
-      { key: 'side', label: '侧面图', maxCount: 1, required: false, section: 'supplementary' },
-      { key: 'back', label: '背面图', maxCount: 1, required: false, section: 'supplementary' },
     ],
     hasUserPrompt: true,
   },

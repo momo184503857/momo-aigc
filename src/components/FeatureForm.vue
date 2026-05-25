@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import type { ModelId } from '@/types/adapter'
 import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
 import { useKeyConfigStore } from '@/stores/keyConfig'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
@@ -22,16 +23,17 @@ const emit = defineEmits<{
     count: number
     templateUrls: string[]
     tempImageFiles: File[]
+    userPrompt: string
   }): void
 }>()
 
 const keyStore = useKeyConfigStore()
+const serverStatus = useServerStatusStore()
 
 // Feature config
 const config = computed<FeatureConfig | undefined>(() => FEATURE_CONFIGS[props.featureId])
 
-const referenceSlots = computed(() => config.value?.imageSlots.filter(s => s.section === 'reference') || [])
-const supplementarySlots = computed(() => config.value?.imageSlots.filter(s => s.section === 'supplementary') || [])
+const slots = computed(() => config.value?.imageSlots || [])
 
 // Per-slot images: key -> SlotImage[]
 const slotImages = ref<Record<string, SlotImage[]>>({})
@@ -132,8 +134,13 @@ function handleResolutionChange() {
 
 // Validation
 const canGenerate = computed(() => {
-  if (!keyStore.hasKey) return false
+  if (!serverStatus.loaded) return false
   if (!config.value) return false
+  if (serverStatus.isSharedMode) {
+    if (!serverStatus.sharedKeyConfigured) return false
+  } else {
+    if (!keyStore.hasKey) return false
+  }
   for (const slot of config.value.imageSlots) {
     if (slot.required && getSlotImages(slot.key).length === 0) return false
   }
@@ -174,6 +181,7 @@ function handleGenerate() {
     count: count.value,
     templateUrls,
     tempImageFiles,
+    userPrompt: userPrompt.value.trim(),
   })
 }
 
@@ -213,15 +221,21 @@ function setParams(params: {
   userPrompt.value = params.prompt
   if (params.referenceImages?.length) {
     initSlots()
-    // Put all images into the first reference slot
-    const firstRefSlot = referenceSlots.value[0]
-    if (firstRefSlot) {
-      const images: SlotImage[] = params.referenceImages.map((img, i) => ({
-        id: `copy-${Date.now()}-${i}`,
-        dataUrl: img.dataUrl,
-        sourceUrl: img.sourceUrl,
-      }))
-      setSlotImages(firstRefSlot.key, images.slice(0, firstRefSlot.maxCount))
+    let imgIdx = 0
+    for (const slot of slots.value) {
+      if (imgIdx >= params.referenceImages.length) break
+      const count = Math.min(slot.maxCount, params.referenceImages.length - imgIdx)
+      const images: SlotImage[] = []
+      for (let i = 0; i < count; i++) {
+        const img = params.referenceImages[imgIdx]
+        images.push({
+          id: `copy-${Date.now()}-${imgIdx}`,
+          dataUrl: img.dataUrl,
+          sourceUrl: img.sourceUrl,
+        })
+        imgIdx++
+      }
+      setSlotImages(slot.key, images)
     }
   }
 }
@@ -234,7 +248,15 @@ defineExpose({ setParams })
     <div class="form-scroll-area">
       <!-- API Key warning -->
       <el-alert
-        v-if="!keyStore.hasKey"
+        v-if="serverStatus.loaded && serverStatus.isSharedMode && !serverStatus.sharedKeyConfigured"
+        title="管理员尚未配置共享 API Key，生图功能暂不可用"
+        type="warning"
+        show-icon
+        :closable="false"
+        style="margin-bottom: 16px"
+      />
+      <el-alert
+        v-else-if="serverStatus.loaded && !serverStatus.isSharedMode && !keyStore.hasKey"
         title="请先设置 ToAPIs API Key 才能生成图片"
         type="warning"
         show-icon
@@ -253,38 +275,21 @@ defineExpose({ setParams })
       />
 
       <!-- Reference Images Section -->
-      <div v-if="referenceSlots.length > 0" class="form-row-inline">
+      <div v-if="slots.length > 0" class="form-row-inline">
         <label class="form-label-left">上传图片</label>
         <div class="form-control-right">
           <div class="reference-slots">
             <ImageSlotUpload
-              v-for="slot in referenceSlots" :key="slot.key"
+              v-for="(slot, i) in slots" :key="slot.key"
               :label="slot.label"
               :max-count="slot.maxCount"
               :required="slot.required"
               :model-value="getSlotImages(slot.key)"
-              :show-template-btn="slot.key === 'model'"
+              :show-template-btn="i === 0"
               @update:model-value="setSlotImages(slot.key, $event)"
               @template-select="handleTemplateSelect(slot.key)"
             />
           </div>
-        </div>
-      </div>
-
-      <!-- Supplementary Images Section -->
-      <div v-if="supplementarySlots.length > 0" class="form-row-inline">
-        <label class="form-label-left">补充细节</label>
-        <div class="form-control-right">
-          <ImageSlotUpload
-            v-for="slot in supplementarySlots" :key="slot.key"
-            :label="slot.label"
-            :max-count="slot.maxCount"
-            :required="slot.required"
-            :size="80"
-            :align-left="true"
-            :model-value="getSlotImages(slot.key)"
-            @update:model-value="setSlotImages(slot.key, $event)"
-          />
         </div>
       </div>
 

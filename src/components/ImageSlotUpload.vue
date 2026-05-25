@@ -58,7 +58,24 @@ function handleFileInput(e: Event) {
 }
 
 function handleDrop(e: DragEvent) {
-  if (e.dataTransfer?.files.length) addFromFiles(e.dataTransfer.files)
+  // Files from OS
+  if (e.dataTransfer?.files.length) {
+    addFromFiles(e.dataTransfer.files)
+    return
+  }
+  // URL or data URL dragged from task list / browser
+  const text = e.dataTransfer?.getData('text/plain') || e.dataTransfer?.getData('text/uri-list')
+  if (!text) return
+  const url = text.trim()
+  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:image/')) return
+  const remaining = props.maxCount - props.modelValue.length
+  if (remaining <= 0) return
+  const img: SlotImage = {
+    id: generateId(),
+    dataUrl: url,
+    sourceUrl: url.startsWith('http') ? url : undefined,
+  }
+  emit('update:modelValue', [...props.modelValue, img])
 }
 
 function handleRemove(index: number) {

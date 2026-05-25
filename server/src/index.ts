@@ -14,11 +14,14 @@ import { adminTemplatesRouter } from './routes/admin/templates.js'
 import { adminStatsRouter } from './routes/admin/stats.js'
 import { featurePromptsRouter, adminFeaturePromptsRouter } from './routes/featurePrompts.js'
 import { proxyRouter } from './routes/proxy.js'
+import { toapisProxyRouter } from './routes/toapis-proxy.js'
+import { adminToapisKeyRouter } from './routes/admin/toapis-key.js'
 
 const app = express()
 
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
 // Initialize database
 seed()
@@ -37,6 +40,8 @@ app.use('/api/admin/stats', adminStatsRouter)
 app.use('/api/feature-prompts', featurePromptsRouter)
 app.use('/api/admin/feature-prompts', adminFeaturePromptsRouter)
 app.use('/api/proxy', proxyRouter)
+app.use('/api/toapis', toapisProxyRouter)
+app.use('/api/admin/toapis', adminToapisKeyRouter)
 
 app.listen(config.port, () => {
   console.log(`[Server] momoAigc server running on http://localhost:${config.port}`)

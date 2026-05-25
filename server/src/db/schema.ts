@@ -98,6 +98,11 @@ export function initSchema(): void {
     db.exec(`ALTER TABLE generation_tasks ADD COLUMN feature_id TEXT DEFAULT NULL`)
   } catch { /* column already exists */ }
 
+  // Migration: add user_prompt column if missing
+  try {
+    db.exec(`ALTER TABLE generation_tasks ADD COLUMN user_prompt TEXT DEFAULT ''`)
+  } catch { /* column already exists */ }
+
   // Feature prompts table (per-feature per-model system prompts)
   db.exec(`
     CREATE TABLE IF NOT EXISTS feature_prompts (
@@ -105,13 +110,24 @@ export function initSchema(): void {
       feature_id          TEXT NOT NULL,
       model_id            TEXT NOT NULL,
       system_prompt       TEXT NOT NULL DEFAULT '',
-      user_prompt_label   TEXT DEFAULT '补充描述',
+      user_prompt_label   TEXT DEFAULT '补充提示词',
       user_prompt_placeholder TEXT DEFAULT '',
       created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(feature_id, model_id)
     );
   `)
+
+  // System config KV table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS system_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL DEFAULT ''
+    );
+  `)
+  const insertCfg = db.prepare(`INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)`)
+  insertCfg.run('key_mode', 'user')
+  insertCfg.run('toapis_api_key', '')
 
   // Seed feature prompts for all feature × model combinations
   const featureIds = [
