@@ -25,7 +25,7 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     imageSlots: [
       { key: 'model', label: '模特图', maxCount: 1, required: true, section: 'reference' },
       { key: 'garment', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
-      { key: 'detail', label: '细节图片', maxCount: 5, required: false, section: 'supplementary' },
+      { key: 'detail', label: '', maxCount: 5, required: false, section: 'supplementary' },
     ],
     hasUserPrompt: true,
   },

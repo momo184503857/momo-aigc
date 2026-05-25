@@ -273,14 +273,14 @@ defineExpose({ setParams })
 
       <!-- Supplementary Images Section -->
       <div v-if="supplementarySlots.length > 0" class="form-row-inline">
-        <label class="form-label-left">补充图片</label>
+        <label class="form-label-left">补充细节</label>
         <div class="form-control-right">
           <ImageSlotUpload
             v-for="slot in supplementarySlots" :key="slot.key"
             :label="slot.label"
             :max-count="slot.maxCount"
             :required="slot.required"
-            :size="60"
+            :size="80"
             :align-left="true"
             :model-value="getSlotImages(slot.key)"
             @update:model-value="setSlotImages(slot.key, $event)"

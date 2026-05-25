@@ -91,7 +91,7 @@ function showPreview(dataUrl: string) {
         <span class="add-hint">点击上传</span>
       </label>
     </div>
-    <div class="slot-label">
+    <div v-if="label" class="slot-label">
       <span v-if="required" class="required">*</span>
       {{ label }}
     </div>

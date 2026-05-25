@@ -35,8 +35,6 @@ async function loadList() {
   } catch { /* silent */ }
 }
 
-import { computed } from 'vue'
-
 function openCreate() {
   isEditing.value = false
   editingId.value = null

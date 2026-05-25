@@ -25,6 +25,10 @@ function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
 }
 
+function openImage(url: string) {
+  window.open(url, '_blank')
+}
+
 function handleDownload(url: string) {
   const a = document.createElement('a')
   a.href = url
@@ -74,7 +78,7 @@ const statusMap: Record<string, string> = {
         <h4>生成结果</h4>
         <div class="result-images">
           <div v-for="(url, i) in task.result_image_urls" :key="i" class="result-img-wrap">
-            <img :src="url" class="result-img" @click="window.open(url, '_blank')" />
+            <img :src="url" class="result-img" @click="openImage(url)" />
             <el-button size="small" :icon="Download" @click="handleDownload(url)">下载</el-button>
           </div>
         </div>
