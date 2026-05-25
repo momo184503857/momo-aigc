@@ -88,7 +88,7 @@ const tabGroups: TabGroup[] = [
   {
     name: '常用功能',
     tabs: [
-      { id: 'change-clothes', label: '换衣' },
+      { id: 'change-clothes', label: '换衣服' },
       { id: 'change-bg', label: '换背景' },
       { id: 'change-face', label: '换脸' },
     ],

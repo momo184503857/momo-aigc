@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import { CircleCheckFilled } from '@element-plus/icons-vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
 
-const props = defineProps<{ visible: boolean }>()
+const props = defineProps<{ visible: boolean; single?: boolean }>()
 const emit = defineEmits<{
   'update:visible': [value: boolean]
   'select': [templates: Array<{ name: string; url: string; previewUrl: string }>]
@@ -52,10 +52,14 @@ function filterByTag(tagId: number | undefined) {
 }
 
 function toggleSelect(id: number) {
-  const s = new Set(selected.value)
-  if (s.has(id)) s.delete(id)
-  else s.add(id)
-  selected.value = s
+  if (props.single) {
+    selected.value = new Set(selected.value.has(id) ? [] : [id])
+  } else {
+    const s = new Set(selected.value)
+    if (s.has(id)) s.delete(id)
+    else s.add(id)
+    selected.value = s
+  }
 }
 
 function confirm() {

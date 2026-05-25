@@ -21,12 +21,13 @@ export interface FeatureConfig {
 export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
   'change-clothes': {
     id: 'change-clothes',
-    label: '换衣',
+    label: '换衣服',
     imageSlots: [
       { key: 'model', label: '模特图', maxCount: 1, required: true, section: 'reference' },
       { key: 'garment', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
+      { key: 'detail', label: '细节图片', maxCount: 5, required: false, section: 'supplementary' },
     ],
-    hasUserPrompt: false,
+    hasUserPrompt: true,
   },
   'change-bg': {
     id: 'change-bg',

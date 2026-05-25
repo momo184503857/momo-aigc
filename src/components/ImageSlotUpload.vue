@@ -13,10 +13,12 @@ const props = defineProps<{
   maxCount: number
   required: boolean
   modelValue: SlotImage[]
+  showTemplateBtn?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [images: SlotImage[]]
+  'template-select': []
 }>()
 
 function generateId(): string {
@@ -70,14 +72,8 @@ function showPreview(dataUrl: string) {
 
 <template>
   <div class="slot-upload">
-    <div class="slot-label">
-      <span v-if="required" class="required">*</span>
-      {{ label }}
-      <span class="limit-hint">{{ modelValue.length }}/{{ maxCount }}</span>
-    </div>
     <div
       class="slot-images"
-      :class="{ 'drag-over': false }"
       @dragover.prevent
       @drop.prevent="handleDrop"
     >
@@ -89,36 +85,45 @@ function showPreview(dataUrl: string) {
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
           @change="handleFileInput" />
         <span class="add-icon">+</span>
+        <span class="add-hint">点击上传</span>
       </label>
     </div>
+    <div class="slot-label">
+      <span v-if="required" class="required">*</span>
+      {{ label }}
+    </div>
+    <el-button
+      v-if="showTemplateBtn && modelValue.length < maxCount"
+      size="small"
+      class="template-btn"
+      @click="emit('template-select')"
+    >
+      从模板库选择
+    </el-button>
   </div>
 </template>
 
 <style scoped>
 .slot-upload {
   margin-bottom: 14px;
+  display: flex; flex-direction: column; align-items: center;
 }
 
 .slot-label {
-  font-size: 13px; color: var(--el-text-color-regular);
-  margin-bottom: 8px; display: flex; align-items: center; gap: 4px;
+  font-size: 14px; color: var(--el-text-color-secondary);
+  margin-top: 8px; text-align: center;
 }
 
 .required { color: var(--el-color-danger); }
 
-.limit-hint {
-  margin-left: auto; font-size: 12px;
-  color: var(--el-text-color-placeholder);
-}
-
 .slot-images {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  min-height: 56px; align-items: flex-start;
+  display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+  min-height: 200px; align-items: flex-start;
 }
 
 .slot-thumb-wrap {
-  position: relative; width: 80px; height: 80px;
-  border-radius: 6px; overflow: hidden;
+  position: relative; width: 200px; height: 200px;
+  border-radius: 8px; overflow: hidden;
   border: 1px solid var(--el-border-color);
 }
 
@@ -127,19 +132,25 @@ function showPreview(dataUrl: string) {
 }
 
 .slot-remove {
-  position: absolute; top: 2px; right: 2px;
-  width: 18px; height: 18px; line-height: 16px; text-align: center;
+  position: absolute; top: 6px; right: 6px;
+  width: 24px; height: 24px; line-height: 22px; text-align: center;
   background: rgba(0,0,0,0.55); color: #fff; border-radius: 50%;
-  font-size: 14px; cursor: pointer;
+  font-size: 16px; cursor: pointer;
 }
 
 .slot-add-btn {
-  width: 80px; height: 80px;
-  border: 1px dashed var(--el-border-color-dark);
-  border-radius: 6px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: border-color 0.2s;
+  width: 200px; height: 200px;
+  border: 2px dashed var(--el-border-color-dark);
+  border-radius: 8px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px;
+  transition: border-color 0.2s, border-style 0.2s;
 }
 .slot-add-btn:hover { border-color: var(--el-color-primary); }
-.add-icon { font-size: 24px; color: var(--el-text-color-placeholder); }
+.add-icon { font-size: 36px; color: var(--el-text-color-placeholder); }
+.add-hint { font-size: 13px; color: var(--el-text-color-placeholder); }
+
+.template-btn {
+  margin-top: 4px;
+}
 </style>

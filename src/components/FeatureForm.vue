@@ -9,6 +9,7 @@ import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { FeatureConfig } from '@/configs/featureConfig'
 import ImageSlotUpload from './ImageSlotUpload.vue'
 import type { SlotImage } from './ImageSlotUpload.vue'
+import TemplateSelector from './TemplateSelector.vue'
 
 const props = defineProps<{ featureId: string }>()
 
@@ -56,6 +57,10 @@ const aspectRatio = ref(DEFAULT_ASPECT_RATIO)
 const count = ref(1)
 const userPrompt = ref('')
 
+// Template selector state
+const showTemplateSelector = ref(false)
+const templateTargetSlot = ref('')
+
 // Prompts from server
 const promptLoading = ref(false)
 const promptError = ref(false)
@@ -63,7 +68,7 @@ const modelPrompts = ref<Record<string, FeaturePromptItem>>({})
 
 const currentPrompt = computed(() => modelPrompts.value[selectedModelId.value])
 const systemPrompt = computed(() => currentPrompt.value?.system_prompt || '')
-const userPromptLabel = computed(() => currentPrompt.value?.user_prompt_label || '补充描述')
+const userPromptLabel = computed(() => currentPrompt.value?.user_prompt_label || '补充提示词')
 const userPromptPlaceholder = computed(() => currentPrompt.value?.user_prompt_placeholder || '')
 
 async function fetchPrompts() {
@@ -172,6 +177,28 @@ function handleGenerate() {
   })
 }
 
+function handleTemplateSelect(slotKey: string) {
+  templateTargetSlot.value = slotKey
+  showTemplateSelector.value = true
+}
+
+function handleTemplateConfirm(templates: Array<{ name: string; url: string; previewUrl: string }>) {
+  if (!templates.length) return
+  const slotKey = templateTargetSlot.value
+  const slot = config.value?.imageSlots.find(s => s.key === slotKey)
+  if (!slot) return
+  const existing = getSlotImages(slotKey)
+  const remaining = slot.maxCount - existing.length
+  if (remaining <= 0) return
+  const toAdd = templates.slice(0, remaining)
+  const newImages: SlotImage[] = toAdd.map((t, i) => ({
+    id: `tpl-${Date.now()}-${i}`,
+    dataUrl: t.previewUrl || t.url,
+    sourceUrl: t.url,
+  }))
+  setSlotImages(slotKey, [...existing, ...newImages])
+}
+
 // Exposed for copyParams
 function setParams(params: {
   modelId: ModelId
@@ -227,15 +254,19 @@ defineExpose({ setParams })
 
       <!-- Reference Images Section -->
       <div v-if="referenceSlots.length > 0" class="slot-section">
-        <div class="section-header">参考图片</div>
-        <ImageSlotUpload
-          v-for="slot in referenceSlots" :key="slot.key"
-          :label="slot.label"
-          :max-count="slot.maxCount"
-          :required="slot.required"
-          :model-value="getSlotImages(slot.key)"
-          @update:model-value="setSlotImages(slot.key, $event)"
-        />
+        <div class="section-header">上传图片</div>
+        <div class="reference-slots">
+          <ImageSlotUpload
+            v-for="slot in referenceSlots" :key="slot.key"
+            :label="slot.label"
+            :max-count="slot.maxCount"
+            :required="slot.required"
+            :model-value="getSlotImages(slot.key)"
+            :show-template-btn="slot.key === 'model'"
+            @update:model-value="setSlotImages(slot.key, $event)"
+            @template-select="handleTemplateSelect(slot.key)"
+          />
+        </div>
       </div>
 
       <!-- Supplementary Images Section -->
@@ -324,6 +355,13 @@ defineExpose({ setParams })
     <span class="placeholder-text">未知功能</span>
     <span class="placeholder-hint">该功能尚未配置</span>
   </div>
+
+  <!-- Template selector dialog -->
+  <TemplateSelector
+    v-model:visible="showTemplateSelector"
+    :single="true"
+    @select="handleTemplateConfirm"
+  />
 </template>
 
 <style scoped>
@@ -337,6 +375,13 @@ defineExpose({ setParams })
 }
 
 .slot-section { margin-bottom: 8px; }
+
+.reference-slots {
+  display: flex; gap: 16px;
+}
+.reference-slots :deep(.slot-upload) {
+  flex: 1; min-width: 0;
+}
 
 .section-header {
   font-size: 14px; font-weight: 600;
