@@ -110,8 +110,6 @@ async function saveFeature(feature: FeatureBlock) {
     try {
       await featurePromptApi.update(p.id, {
         system_prompt: p.system_prompt,
-        user_prompt_label: p.user_prompt_label,
-        user_prompt_placeholder: p.user_prompt_placeholder,
       })
       p._dirty = false
       ok++
@@ -171,20 +169,6 @@ onMounted(() => load())
               </div>
 
               <div class="feature-footer">
-                <span class="footer-label">输入框标签</span>
-                <el-input
-                  v-model="feat.prompts[0].user_prompt_label"
-                  size="small"
-                  style="width: 140px"
-                  @input="markDirty(feat.prompts[0])"
-                />
-                <span class="footer-label">占位文字</span>
-                <el-input
-                  v-model="feat.prompts[0].user_prompt_placeholder"
-                  size="small"
-                  style="width: 220px"
-                  @input="markDirty(feat.prompts[0])"
-                />
                 <el-button
                   size="small"
                   type="primary"
@@ -302,8 +286,4 @@ onMounted(() => load())
   border-top: 1px dashed var(--el-border-color-lighter);
 }
 
-.footer-label {
-  font-size: 13px; color: var(--el-text-color-secondary);
-  white-space: nowrap;
-}
 </style>

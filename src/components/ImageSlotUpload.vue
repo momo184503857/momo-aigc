@@ -8,13 +8,15 @@ export interface SlotImage {
   file?: File
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   label: string
   maxCount: number
   required: boolean
   modelValue: SlotImage[]
   showTemplateBtn?: boolean
-}>()
+  size?: number
+  alignLeft?: boolean
+}>(), { size: 200 })
 
 const emit = defineEmits<{
   'update:modelValue': [images: SlotImage[]]
@@ -71,17 +73,18 @@ function showPreview(dataUrl: string) {
 </script>
 
 <template>
-  <div class="slot-upload">
+  <div class="slot-upload" :class="{ 'align-left': alignLeft }">
     <div
       class="slot-images"
+      :class="{ 'align-left': alignLeft }"
       @dragover.prevent
       @drop.prevent="handleDrop"
     >
-      <div v-for="(img, i) in modelValue" :key="img.id" class="slot-thumb-wrap">
+      <div v-for="(img, i) in modelValue" :key="img.id" class="slot-thumb-wrap" :style="{ width: size + 'px', height: size + 'px' }">
         <img :src="img.dataUrl" class="slot-thumb" @click="showPreview(img.dataUrl)" />
         <span class="slot-remove" @click="handleRemove(i)">&times;</span>
       </div>
-      <label v-if="modelValue.length < maxCount" class="slot-add-btn">
+      <label v-if="modelValue.length < maxCount" class="slot-add-btn" :style="{ width: size + 'px', height: size + 'px' }">
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
           @change="handleFileInput" />
         <span class="add-icon">+</span>
@@ -118,13 +121,13 @@ function showPreview(dataUrl: string) {
 
 .slot-images {
   display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
-  min-height: 200px; align-items: flex-start;
+  align-items: flex-start;
 }
 
 .slot-thumb-wrap {
-  position: relative; width: 200px; height: 200px;
-  border-radius: 8px; overflow: hidden;
+  position: relative; border-radius: 8px; overflow: hidden;
   border: 1px solid var(--el-border-color);
+  flex-shrink: 0;
 }
 
 .slot-thumb {
@@ -139,12 +142,12 @@ function showPreview(dataUrl: string) {
 }
 
 .slot-add-btn {
-  width: 200px; height: 200px;
   border: 2px dashed var(--el-border-color-dark);
   border-radius: 8px; cursor: pointer;
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 8px;
   transition: border-color 0.2s, border-style 0.2s;
+  flex-shrink: 0;
 }
 .slot-add-btn:hover { border-color: var(--el-color-primary); }
 .add-icon { font-size: 36px; color: var(--el-text-color-placeholder); }
@@ -152,5 +155,12 @@ function showPreview(dataUrl: string) {
 
 .template-btn {
   margin-top: 4px;
+}
+
+.align-left {
+  align-items: flex-start;
+}
+.slot-images.align-left {
+  justify-content: flex-start;
 }
 </style>

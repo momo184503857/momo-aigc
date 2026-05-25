@@ -253,33 +253,39 @@ defineExpose({ setParams })
       />
 
       <!-- Reference Images Section -->
-      <div v-if="referenceSlots.length > 0" class="slot-section">
-        <div class="section-header">上传图片</div>
-        <div class="reference-slots">
-          <ImageSlotUpload
-            v-for="slot in referenceSlots" :key="slot.key"
-            :label="slot.label"
-            :max-count="slot.maxCount"
-            :required="slot.required"
-            :model-value="getSlotImages(slot.key)"
-            :show-template-btn="slot.key === 'model'"
-            @update:model-value="setSlotImages(slot.key, $event)"
-            @template-select="handleTemplateSelect(slot.key)"
-          />
+      <div v-if="referenceSlots.length > 0" class="form-row-inline">
+        <label class="form-label-left">上传图片</label>
+        <div class="form-control-right">
+          <div class="reference-slots">
+            <ImageSlotUpload
+              v-for="slot in referenceSlots" :key="slot.key"
+              :label="slot.label"
+              :max-count="slot.maxCount"
+              :required="slot.required"
+              :model-value="getSlotImages(slot.key)"
+              :show-template-btn="slot.key === 'model'"
+              @update:model-value="setSlotImages(slot.key, $event)"
+              @template-select="handleTemplateSelect(slot.key)"
+            />
+          </div>
         </div>
       </div>
 
       <!-- Supplementary Images Section -->
-      <div v-if="supplementarySlots.length > 0" class="slot-section">
-        <div class="section-header">补充图片</div>
-        <ImageSlotUpload
-          v-for="slot in supplementarySlots" :key="slot.key"
-          :label="slot.label"
-          :max-count="slot.maxCount"
-          :required="slot.required"
-          :model-value="getSlotImages(slot.key)"
-          @update:model-value="setSlotImages(slot.key, $event)"
-        />
+      <div v-if="supplementarySlots.length > 0" class="form-row-inline">
+        <label class="form-label-left">补充图片</label>
+        <div class="form-control-right">
+          <ImageSlotUpload
+            v-for="slot in supplementarySlots" :key="slot.key"
+            :label="slot.label"
+            :max-count="slot.maxCount"
+            :required="slot.required"
+            :size="60"
+            :align-left="true"
+            :model-value="getSlotImages(slot.key)"
+            @update:model-value="setSlotImages(slot.key, $event)"
+          />
+        </div>
       </div>
 
       <!-- User Prompt -->
@@ -374,19 +380,11 @@ defineExpose({ setParams })
   padding-bottom: 8px;
 }
 
-.slot-section { margin-bottom: 8px; }
-
 .reference-slots {
   display: flex; gap: 16px;
 }
 .reference-slots :deep(.slot-upload) {
   flex: 1; min-width: 0;
-}
-
-.section-header {
-  font-size: 14px; font-weight: 600;
-  color: var(--el-text-color-primary);
-  padding: 4px 0 8px;
 }
 
 .form-row-inline {
