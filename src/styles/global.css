@@ -1,0 +1,38 @@
+/* 全局样式重置 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: var(--tf-scrollbar-size, 8px);
+  height: var(--tf-scrollbar-size, 8px);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--el-fill-color-lighter, #f1f1f1);
+  border-radius: var(--tf-radius-sm, 4px);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--el-text-color-placeholder, #c1c1c1);
+  border-radius: var(--tf-radius-sm, 4px);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--el-text-color-secondary, #a8a8a8);
+}

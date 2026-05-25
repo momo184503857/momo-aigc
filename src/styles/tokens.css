@@ -1,0 +1,46 @@
+/**
+ * 墨墨 AI 生图 Design Tokens
+ *
+ * 核心原则：使用 Element Plus 内置变量，仅定义应用特定变量
+ */
+
+:root {
+  /* 侧边栏 */
+  --tf-sidebar-bg: var(--el-bg-color);
+  --tf-sidebar-text: var(--el-text-color-regular);
+  --tf-sidebar-text-hover: var(--el-text-color-primary);
+  --tf-sidebar-active-bg: rgba(64, 158, 255, 0.1);
+  --tf-sidebar-width: 220px;
+  --tf-sidebar-collapsed-width: 64px;
+  --tf-sidebar-transition: 0.3s ease;
+  --tf-sidebar-menu-height: 48px;
+  --tf-sidebar-menu-radius: 8px;
+
+  /* 页面布局 */
+  --tf-page-padding: 20px;
+  --tf-card-padding: 24px;
+  --tf-card-radius: 12px;
+  --tf-page-title-size: 22px;
+
+  /* 对话框宽度分级 */
+  --tf-dialog-xs: 480px;
+  --tf-dialog-sm: 600px;
+  --tf-dialog-md: 800px;
+  --tf-dialog-lg: 1000px;
+  --tf-dialog-xl: 80%;
+
+  /* 圆角 */
+  --tf-radius-sm: 4px;
+  --tf-radius-md: 8px;
+  --tf-radius-lg: 12px;
+  --tf-radius-xl: 10px;
+
+  /* 叠加层 */
+  --tf-overlay-bg: rgba(0, 0, 0, 0.7);
+  --tf-overlay-text: #ffffff;
+  --tf-overlay-dim: rgba(0, 0, 0, 0.5);
+  --tf-overlay-light: rgba(0, 0, 0, 0.3);
+
+  /* 滚动条 */
+  --tf-scrollbar-size: 8px;
+}
