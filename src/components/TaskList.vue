@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Refresh, Delete, View, Loading, Picture } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
+import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ModelId } from '@/types/adapter'
 import { MODELS } from '@/types/adapter'
 
 export interface TaskItem {
-  id: number                // server record id
+  id: number
   toapis_task_id: string
   model: ModelId
   prompt: string
   resolution: string
   aspectRatio: string
-  status: string            // submitted | queued | in_progress | completed | failed
+  status: string
   progress: number
   result_image_urls: string[]
   input_image_urls: string[]
@@ -20,43 +20,60 @@ export interface TaskItem {
   error_message: string
   created_at: string
   completed_at: string | null
+  feature_id?: string
 }
 
 const props = defineProps<{
   tasks: TaskItem[]
   viewMode?: 'list' | 'grid'
   loading?: boolean
+  bulkMode?: boolean
+  selectedIds?: Set<number>
 }>()
 
 const emit = defineEmits<{
   'regenerate': [task: TaskItem]
   'delete': [task: TaskItem]
   'viewDetail': [task: TaskItem]
+  'download': [task: TaskItem]
+  'copyParams': [task: TaskItem]
+  'compareImages': [index: number]
+  'toggleSelect': [id: number]
 }>()
 
 const statusText = computed(() => (status: string) => {
   const map: Record<string, string> = {
-    submitted: '已提交',
-    queued: '排队中',
-    in_progress: '生成中',
-    completed: '已完成',
-    failed: '生成失败',
-    unknown: '状态未知',
+    submitted: '已提交', queued: '排队中', in_progress: '生成中',
+    completed: '已完成', failed: '生成失败', unknown: '状态未知',
   }
   return map[status] || status
 })
 
 const statusType = computed(() => (status: string) => {
   const map: Record<string, string> = {
-    submitted: 'info',
-    queued: 'info',
-    in_progress: 'warning',
-    completed: 'success',
-    failed: 'danger',
-    unknown: 'info',
+    submitted: 'info', queued: 'info', in_progress: 'warning',
+    completed: 'success', failed: 'danger', unknown: 'info',
   }
   return map[status] || 'info'
 })
+
+// Reactive clock for live elapsed-time updates on active tasks
+const now = ref(Date.now())
+let tickTimer: ReturnType<typeof setInterval> | null = null
+
+function startTick() {
+  if (tickTimer) return
+  tickTimer = setInterval(() => { now.value = Date.now() }, 1000)
+}
+
+function stopTick() {
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
+}
+
+onMounted(() => { startTick() })
+onDeactivated(() => { stopTick() })
+onActivated(() => { startTick() })
+onUnmounted(() => { stopTick() })
 
 function modelDisplayName(modelId: string): string {
   const m = MODELS.find((m) => m.id === modelId)
@@ -67,8 +84,57 @@ function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
 }
 
-function promptSummary(text: string): string {
-  return text.length > 60 ? text.slice(0, 60) + '...' : text
+function promptSummary(text: string, maxLen = 60): string {
+  return text.length > maxLen ? text.slice(0, maxLen) + '...' : text
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 0) return ''
+  if (seconds < 60) return `${seconds}秒`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
+  return `${Math.floor(seconds / 3600)}时${Math.floor((seconds % 3600) / 60)}分`
+}
+
+function statusDuration(task: TaskItem): string {
+  if (task.status === 'completed' || task.status === 'failed') {
+    if (!task.completed_at) return ''
+    const start = new Date(task.created_at).getTime()
+    const end = new Date(task.completed_at).getTime()
+    return formatDuration(Math.floor((end - start) / 1000))
+  }
+  // Active task: show elapsed (now is reactive, updates every second)
+  const start = new Date(task.created_at).getTime()
+  return formatDuration(Math.floor((now.value - start) / 1000))
+}
+
+function statusLabel(task: TaskItem): string {
+  if (task.status === 'completed') {
+    const dur = statusDuration(task)
+    return dur ? `耗时 ${dur}` : ''
+  }
+  if (task.status === 'failed') {
+    return task.error_message || '生成失败'
+  }
+  return statusDuration(task)
+}
+
+function isActive(status: string): boolean {
+  return ['submitted', 'queued', 'in_progress'].includes(status)
+}
+
+function aspectLabel(task: TaskItem): string {
+  const parts = [task.resolution, task.aspectRatio].filter(Boolean)
+  return parts.join(' / ') || '-'
+}
+
+function isSelected(id: number): boolean {
+  return props.selectedIds?.has(id) ?? false
+}
+
+function handleImageDragStart(e: DragEvent, url: string) {
+  if (!e.dataTransfer) return
+  e.dataTransfer.setData('text/plain', url)
+  e.dataTransfer.effectAllowed = 'copy'
 }
 </script>
 
@@ -78,54 +144,144 @@ function promptSummary(text: string): string {
 
     <!-- List View -->
     <div v-if="viewMode !== 'grid'" class="task-cards">
-      <div v-for="task in tasks" :key="task.id" class="task-card">
-        <div class="task-thumb">
-          <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt="" />
+      <div
+          v-for="(task, idx) in tasks"
+          :key="task.id"
+          class="task-card"
+          :class="{ 'bulk-selected': bulkMode && isSelected(task.id) }"
+          @click="bulkMode && emit('toggleSelect', task.id)"
+        >
+        <!-- Selection circle -->
+        <div v-if="bulkMode" class="task-select-circle" :class="{ checked: isSelected(task.id) }" @click.stop="emit('toggleSelect', task.id)">
+          <el-icon v-if="isSelected(task.id)" size="14"><Check /></el-icon>
+        </div>
+        <div class="task-thumb" @click="!bulkMode && emit('compareImages', idx)">
+          <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
+            draggable="true"
+            @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <el-icon v-else-if="task.status === 'in_progress'" class="is-loading spin" size="28"><Loading /></el-icon>
           <el-icon v-else size="28"><Picture /></el-icon>
         </div>
         <div class="task-body">
+          <!-- Task ID at top -->
+          <div v-if="task.toapis_task_id" class="task-id">
+            <span class="task-id-text">{{ task.toapis_task_id }}</span>
+            <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.toapis_task_id)" title="复制任务ID" />
+          </div>
+          <!-- Status + duration + model + params + time -->
           <div class="task-header">
-            <el-tag :type="statusType(task.status)" size="small">{{ statusText(task.status) }}</el-tag>
+            <span class="task-status-group">
+              <el-tag :type="statusType(task.status)" size="small">{{ statusText(task.status) }}</el-tag>
+              <span v-if="task.status === 'failed'" class="task-duration task-error-msg">{{ task.error_message || '生成失败' }}</span>
+              <span v-else class="task-duration">{{ statusLabel(task) }}</span>
+            </span>
             <span class="task-model">{{ modelDisplayName(task.model) }}</span>
-            <span class="task-res">{{ task.resolution }} / {{ task.aspectRatio }}</span>
+            <span class="task-res">{{ aspectLabel(task) }}</span>
             <span class="task-time">{{ task.created_at?.slice(0, 16) }}</span>
           </div>
-          <div class="task-prompt" @click="copyToClipboard(task.prompt)" title="点击复制">
-            {{ promptSummary(task.prompt) }}
+          <!-- Prompt -->
+          <div class="task-prompt">
+            <span class="task-prompt-text" :title="task.prompt">{{ promptSummary(task.prompt) }}</span>
+            <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.prompt)" title="复制提示词" />
           </div>
-          <div v-if="task.toapis_task_id" class="task-id" @click="copyToClipboard(task.toapis_task_id)" title="点击复制">
-            ID: {{ task.toapis_task_id.slice(0, 20) }}...
-          </div>
-          <div v-if="task.error_message" class="task-error">{{ task.error_message }}</div>
         </div>
-        <div class="task-actions">
-          <el-button text :icon="Refresh" size="small" @click="emit('regenerate', task)" title="重新生成" />
-          <el-button text :icon="View" size="small" @click="emit('viewDetail', task)" title="查看详情" />
-          <el-button text :icon="Delete" size="small" type="danger" @click="emit('delete', task)" title="删除" />
+        <div v-if="!bulkMode" class="task-actions">
+          <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
+          <el-button size="small" :icon="View" @click="emit('viewDetail', task)">详情</el-button>
+          <el-button size="small" :icon="Download" @click="emit('download', task)" v-if="task.result_image_urls?.[0]">下载</el-button>
+          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">复制参数</el-button>
+          <el-button size="small" :icon="Delete" type="danger" @click="emit('delete', task)">删除</el-button>
         </div>
       </div>
     </div>
 
     <!-- Grid View -->
     <div v-else class="task-grid">
-      <div v-for="task in tasks" :key="task.id" class="task-grid-item">
-        <div class="grid-thumb" @click="emit('viewDetail', task)">
-          <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt="" />
-          <el-icon v-else-if="task.status === 'in_progress'" class="is-loading spin" size="32"><Loading /></el-icon>
-          <el-icon v-else size="32"><Picture /></el-icon>
+      <div
+          v-for="(task, idx) in tasks"
+          :key="task.id"
+          class="task-grid-item"
+          :class="{ 'bulk-selected': bulkMode && isSelected(task.id) }"
+          @click="bulkMode && emit('toggleSelect', task.id)"
+        >
+        <!-- Selection circle -->
+        <div v-if="bulkMode" class="task-select-circle" :class="{ checked: isSelected(task.id) }" @click.stop="emit('toggleSelect', task.id)">
+          <el-icon v-if="isSelected(task.id)" size="14"><Check /></el-icon>
         </div>
-        <div class="grid-footer">
-          <el-tag :type="statusType(task.status)" size="small">{{ statusText(task.status) }}</el-tag>
-          <el-button text :icon="Refresh" size="small" @click="emit('regenerate', task)" />
+        <div class="grid-thumb" @click="!bulkMode && emit('compareImages', idx)">
+          <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
+            draggable="true"
+            @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
+          <el-icon v-else-if="task.status === 'in_progress'" class="is-loading spin" size="36"><Loading /></el-icon>
+          <el-icon v-else size="36"><Picture /></el-icon>
+          <div v-if="task.status === 'in_progress'" class="grid-progress-bar" :style="{ width: task.progress + '%' }" />
+        </div>
+
+        <!-- Info area -->
+        <div class="grid-card-info">
+          <div class="grid-info-row prompt-row">
+            <span class="gi-value prompt-text" :title="task.prompt">{{ promptSummary(task.prompt, 40) }}</span>
+            <el-button size="small" text :icon="CopyDocument" @click="copyToClipboard(task.prompt)" />
+          </div>
+          <div class="grid-info-row">
+            <span class="gi-value">
+              <el-tag :type="statusType(task.status)" size="small">{{ statusText(task.status) }}</el-tag>
+              <span v-if="task.status === 'failed'" class="grid-error-msg">{{ task.error_message || '生成失败' }}</span>
+              <span v-else style="margin-left:6px;font-size:11px;color:var(--el-text-color-secondary)">{{ statusLabel(task) }}</span>
+            </span>
+          </div>
+          <div class="grid-info-row">
+            <span class="gi-value">{{ modelDisplayName(task.model) }} · {{ aspectLabel(task) }}</span>
+          </div>
+          <div class="grid-info-row">
+            <span class="gi-value time">{{ task.created_at?.slice(0, 16) }}</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div v-if="!bulkMode" class="grid-card-actions">
+          <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
+          <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Download" @click="emit('download', task)">下载</el-button>
+          <el-button v-else size="small" disabled>下载</el-button>
+          <el-dropdown trigger="click">
+            <el-button size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="emit('viewDetail', task)">详情</el-dropdown-item>
+                <el-dropdown-item @click="emit('copyParams', task)">复制参数</el-dropdown-item>
+                <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)">复制ID</el-dropdown-item>
+                <el-dropdown-item @click="emit('delete', task)">删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
 <style scoped>
 .task-list { min-height: 200px; }
+
+/* ─── Bulk selection ─── */
+.task-select-circle {
+  position: absolute; top: 10px; left: 10px; z-index: 3;
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.9);
+  background: rgba(0,0,0,0.25);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.task-select-circle.checked {
+  background: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+}
+.task-select-circle .el-icon { color: #fff; }
+.task-card.bulk-selected { box-shadow: 0 0 0 2px var(--el-color-primary); }
+.task-grid-item.bulk-selected { box-shadow: 0 0 0 2px var(--el-color-primary); }
 
 .task-cards { display: flex; flex-direction: column; gap: 10px; }
 
@@ -134,6 +290,7 @@ function promptSummary(text: string): string {
   background: var(--el-fill-color-lighter);
   border-radius: var(--tf-radius-md, 8px);
   transition: box-shadow 0.2s;
+  position: relative;
 }
 .task-card:hover { box-shadow: var(--el-box-shadow-light); }
 
@@ -142,44 +299,100 @@ function promptSummary(text: string): string {
   border-radius: 6px; overflow: hidden;
   background: var(--el-fill-color);
   display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
 }
 .task-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
-.task-body { flex: 1; min-width: 0; }
-.task-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+
+/* Task ID at top */
+.task-id {
+  display: flex; align-items: center; gap: 4px;
+}
+.task-id-text {
+  font-family: monospace; font-size: 12px;
+  color: var(--el-text-color-primary); font-weight: 500;
+  word-break: break-all;
+}
+
+/* Header row */
+.task-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.task-status-group { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.task-duration { font-size: 11px; color: var(--el-text-color-secondary); font-family: monospace; }
 .task-model { font-weight: 500; color: var(--el-text-color-primary); font-size: 13px; }
 .task-res { color: var(--el-text-color-secondary); font-size: 12px; }
 .task-time { color: var(--el-text-color-placeholder); font-size: 12px; margin-left: auto; }
+
+/* Prompt */
 .task-prompt {
   font-size: 13px; color: var(--el-text-color-regular);
-  cursor: pointer; word-break: break-all;
+  word-break: break-all; display: flex; align-items: flex-start; gap: 4px;
 }
-.task-id {
-  font-size: 11px; color: var(--el-text-color-placeholder);
-  cursor: pointer; margin-top: 4px;
+.task-prompt-text { flex: 1; min-width: 0; }
+.task-error-msg {
+  font-size: 11px; color: var(--el-color-danger); max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.task-error { font-size: 12px; color: var(--el-color-danger); margin-top: 4px; }
-.task-actions { display: flex; flex-direction: column; gap: 2px; }
+.grid-error-msg {
+  font-size: 11px; color: var(--el-color-danger); margin-left: 6px;
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
+/* Actions */
+.task-actions {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  flex-shrink: 0; align-content: start; min-width: 160px;
+}
+.task-actions .el-button { width: 100%; margin-left: 0; }
+
+/* ─── Grid View ─── */
 .task-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
 }
 .task-grid-item {
   border-radius: 8px; overflow: hidden;
   background: var(--el-fill-color-lighter);
+  transition: box-shadow 0.2s;
+  display: flex; flex-direction: column;
+  position: relative;
 }
+.task-grid-item:hover { box-shadow: var(--el-box-shadow-light); }
+
 .grid-thumb {
   aspect-ratio: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   background: var(--el-fill-color);
+  position: relative; overflow: hidden;
 }
 .grid-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.grid-footer {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px;
+.grid-progress-bar {
+  position: absolute; bottom: 0; left: 0; height: 3px;
+  background: var(--el-color-primary);
+  transition: width 0.3s ease;
 }
+
+.grid-card-info {
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
+  flex: 1;
+}
+.grid-info-row { display: flex; align-items: center; }
+.grid-info-row.prompt-row { align-items: flex-start; }
+.gi-value { font-size: 12px; color: var(--el-text-color-regular); }
+.gi-value.prompt-text {
+  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--el-text-color-primary);
+}
+.gi-value.time { color: var(--el-text-color-placeholder); font-size: 11px; }
+
+.grid-card-actions {
+  display: flex; gap: 4px; padding: 6px 10px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.grid-card-actions > .el-button { flex: 1; }
+.grid-card-actions > .el-dropdown { flex: 1; }
+.grid-card-actions > .el-dropdown > .el-button { width: 100%; }
 
 .spin { animation: spin-anim 1s linear infinite; }
 @keyframes spin-anim { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

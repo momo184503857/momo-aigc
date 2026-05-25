@@ -27,16 +27,17 @@ const router = createRouter({
       meta: { title: '模板图库', requiresAuth: true },
     },
     {
-      path: '/tasks',
-      name: 'Tasks',
-      component: () => import('@/views/tasks/TasksPage.vue'),
-      meta: { title: '任务历史', requiresAuth: true },
+      path: '/results',
+      name: 'Results',
+      component: () => import('@/views/results/ResultsPage.vue'),
+      meta: { title: '生图结果', requiresAuth: true },
     },
+
     {
-      path: '/settings/key',
-      name: 'KeySettings',
-      component: () => import('@/views/settings/KeySettingsPage.vue'),
-      meta: { title: 'API Key 设置', requiresAuth: true },
+      path: '/prompts',
+      name: 'PromptLibrary',
+      component: () => import('@/views/prompts/PromptLibraryPage.vue'),
+      meta: { title: '提示词库', requiresAuth: true },
     },
     {
       path: '/admin',
@@ -60,6 +61,12 @@ const router = createRouter({
       name: 'AdminTemplates',
       component: () => import('@/views/admin/AdminTemplates.vue'),
       meta: { title: '模板管理', requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/feature-prompts',
+      name: 'AdminFeaturePrompts',
+      component: () => import('@/views/admin/AdminFeaturePrompts.vue'),
+      meta: { title: '功能提示词', requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/admin/stats',

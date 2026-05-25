@@ -1,6 +1,6 @@
 /**
  * 构建 Gemini 系列模型的 ToAPIs 请求体
- * 对应 PRD 第 8.2 节 Gemini 请求格式
+ * image_urls 格式为 [{url: "..."}] 对象数组（非 string[]）
  */
 export function buildGeminiRequest(params: {
   model: string
@@ -20,7 +20,7 @@ export function buildGeminiRequest(params: {
   }
 
   if (params.imageUrls.length > 0) {
-    body.image_urls = params.imageUrls
+    body.image_urls = params.imageUrls.map((url) => ({ url }))
   }
 
   return body

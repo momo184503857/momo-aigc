@@ -50,3 +50,38 @@ export function generateOssUploadToken(opts: {
     },
   }
 }
+
+// Server-side upload to OSS via presigned PUT URL
+export async function uploadToOss(
+  buffer: Buffer,
+  objectKey: string,
+  mimeType: string
+): Promise<string> {
+  const { bucket, endpoint, accessKeyId, accessKeySecret } = config.oss
+  const host = `${bucket}.${endpoint}`
+  const expires = Math.floor(Date.now() / 1000) + 3600 // 1 hour
+
+  const stringToSign = `PUT\n\n${mimeType}\n${expires}\n/${bucket}/${objectKey}`
+
+  const signature = crypto
+    .createHmac('sha1', accessKeySecret)
+    .update(stringToSign)
+    .digest('base64')
+
+  const encodedSig = encodeURIComponent(signature)
+
+  const url = `https://${host}/${objectKey}?OSSAccessKeyId=${accessKeyId}&Expires=${expires}&Signature=${encodedSig}`
+
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': mimeType },
+    body: buffer,
+  })
+
+  if (resp.status !== 200) {
+    const text = await resp.text()
+    throw new Error(`OSS upload failed: HTTP ${resp.status} - ${text}`)
+  }
+
+  return `https://${host}/${objectKey}`
+}

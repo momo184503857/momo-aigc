@@ -3,6 +3,21 @@ import { db } from '../../db/index.js'
 import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
 
+function parseRow(row: any): any {
+  if (!row) return row
+  const parsed = { ...row }
+  for (const key of ['template_image_ids', 'input_image_urls', 'result_image_urls', 'raw_error']) {
+    if (typeof parsed[key] === 'string') {
+      try { parsed[key] = JSON.parse(parsed[key]) } catch { /* keep as-is */ }
+    }
+  }
+  if ('aspect_ratio' in parsed) {
+    parsed.aspectRatio = parsed.aspect_ratio
+    delete parsed.aspect_ratio
+  }
+  return parsed
+}
+
 export const adminTasksRouter = Router()
 
 adminTasksRouter.use(authMiddleware, adminMiddleware)
@@ -41,7 +56,7 @@ adminTasksRouter.get('/', (req: AuthRequest, res) => {
 
   res.json({
     success: true,
-    data: { records: rows, total: countRow.total, page, pageSize },
+    data: { records: (rows as any[]).map(parseRow), total: countRow.total, page, pageSize },
   })
 })
 

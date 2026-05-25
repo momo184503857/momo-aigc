@@ -8,6 +8,7 @@
 import type { ModelId } from '@/types/adapter'
 import { buildGptImage2Request } from './buildGptImage2Request'
 import { buildGeminiRequest } from './buildGeminiRequest'
+import { translateError } from '@/utils/errors'
 
 const BASE_URL = 'https://toapis.com'
 
@@ -84,12 +85,12 @@ export async function uploadImage(apiKey: string, file: File): Promise<string> {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.message || err.error?.message || `上传失败: HTTP ${res.status}`)
+    throw new Error(translateError({ status: res.status, message: err.message || err.error?.message }))
   }
 
   const data = await res.json()
   if (!data.success || !data.data?.url) {
-    throw new Error('上传响应中缺少图片 URL')
+    throw new Error(translateError('上传响应中缺少图片 URL'))
   }
 
   return data.data.url
@@ -114,11 +115,11 @@ export async function createTask(apiKey: string, params: CreateTaskParams): Prom
   const data = await res.json()
 
   if (!res.ok) {
-    throw new Error(data.message || data.error?.message || `创建任务失败: HTTP ${res.status}`)
+    throw new Error(translateError({ status: res.status, message: data.message || data.error?.message }))
   }
 
   if (!data.id) {
-    throw new Error('创建任务响应中缺少 task ID')
+    throw new Error(translateError('创建任务响应中缺少 task ID'))
   }
 
   return data.id
@@ -139,7 +140,7 @@ export async function getTaskStatus(
   const data: ToapisStatusResponse = await res.json()
 
   if (!res.ok) {
-    throw new Error(data.error?.message || `查询失败: HTTP ${res.status}`)
+    throw new Error(translateError({ status: res.status, message: data.error?.message }))
   }
 
   const result: TaskStatusResult = {

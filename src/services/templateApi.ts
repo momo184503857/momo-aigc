@@ -10,11 +10,25 @@ export interface CreateTemplateParams {
   size_bytes?: number
   width?: number
   height?: number
+  tagIds?: number[]
+}
+
+export interface ListTemplatesParams {
+  page?: number
+  pageSize?: number
+  tagId?: number
+}
+
+export interface TemplateTag {
+  id: number
+  name: string
+  usage_count: number
+  created_at: string
 }
 
 export const templateApi = {
-  list() {
-    return http.get('/templates')
+  list(params?: ListTemplatesParams) {
+    return http.get('/templates', { params })
   },
   create(data: CreateTemplateParams) {
     return http.post('/templates', data)
@@ -24,5 +38,14 @@ export const templateApi = {
   },
   delete(id: number) {
     return http.delete(`/templates/${id}`)
+  },
+  updateTags(id: number, tagIds: number[]) {
+    return http.patch(`/templates/${id}/tags`, { tagIds })
+  },
+  listTags() {
+    return http.get('/templates/tags')
+  },
+  createTag(name: string) {
+    return http.post('/templates/tags', { name })
   },
 }

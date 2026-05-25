@@ -1,7 +1,11 @@
 import http from './http'
 
 export const ossApi = {
-  getUploadToken(filename: string, mime_type: string, size_bytes: number) {
-    return http.post('/oss/upload-token', { filename, mime_type, size_bytes })
+  async upload(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    // Don't set Content-Type — axios sets it with proper boundary for FormData
+    const res = await http.post('/oss/upload', formData, { timeout: 60000 })
+    return res.data.data as { objectKey: string; publicUrl: string }
   },
 }

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { Download } from '@element-plus/icons-vue'
 import type { TaskItem } from './TaskList.vue'
 import { MODELS } from '@/types/adapter'
+import { getFeatureLabel } from '@/configs/featureConfig'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{ task: TaskItem | null }>()
@@ -21,6 +23,14 @@ function modelDisplayName(modelId: string): string {
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
+}
+
+function handleDownload(url: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'result.png'
+  a.target = '_blank'
+  a.click()
 }
 
 const statusMap: Record<string, string> = {
@@ -44,6 +54,7 @@ const statusMap: Record<string, string> = {
             {{ statusMap[task.status] || task.status }}
           </el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="功能">{{ task.feature_id ? getFeatureLabel(task.feature_id) : '-' }}</el-descriptions-item>
         <el-descriptions-item label="模型">{{ modelDisplayName(task.model) }}</el-descriptions-item>
         <el-descriptions-item label="分辨率">{{ task.resolution }}</el-descriptions-item>
         <el-descriptions-item label="宽高比">{{ task.aspectRatio }}</el-descriptions-item>
@@ -62,13 +73,10 @@ const statusMap: Record<string, string> = {
       <div v-if="task.result_image_urls?.length" class="result-section">
         <h4>生成结果</h4>
         <div class="result-images">
-          <img
-            v-for="(url, i) in task.result_image_urls"
-            :key="i"
-            :src="url"
-            class="result-img"
-            @click="window.open(url, '_blank')"
-          />
+          <div v-for="(url, i) in task.result_image_urls" :key="i" class="result-img-wrap">
+            <img :src="url" class="result-img" @click="window.open(url, '_blank')" />
+            <el-button size="small" :icon="Download" @click="handleDownload(url)">下载</el-button>
+          </div>
         </div>
       </div>
 
@@ -95,6 +103,7 @@ const statusMap: Record<string, string> = {
 .result-section h4 { margin-bottom: 12px; color: var(--el-text-color-primary); }
 
 .result-images { display: flex; gap: 12px; flex-wrap: wrap; }
+.result-img-wrap { display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .result-img {
   max-width: 400px; max-height: 400px;
   border-radius: 8px; cursor: pointer;

@@ -12,11 +12,10 @@ const props = withDefaults(defineProps<Props>(), {
   <div class="page-container">
     <div class="page-card">
       <div v-if="$slots.header || $slots.extra" class="page-header">
-        <slot name="header">
-          <div v-if="$slots.extra" class="page-header-extra">
-            <slot name="extra" />
-          </div>
-        </slot>
+        <slot name="header" />
+        <div v-if="$slots.extra" class="page-header-extra">
+          <slot name="extra" />
+        </div>
       </div>
 
       <div class="page-content" :style="{ padding: contentPadding }">

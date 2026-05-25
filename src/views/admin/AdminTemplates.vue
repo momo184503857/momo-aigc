@@ -18,11 +18,13 @@ interface TmplRow {
 
 const templates = ref<TmplRow[]>([])
 const loading = ref(false)
+const filterUserId = ref<string>('')
 
 async function loadTemplates() {
   loading.value = true
   try {
-    const res = await adminApi.listTemplates()
+    const userId = filterUserId.value ? parseInt(filterUserId.value) : undefined
+    const res = await adminApi.listTemplates(userId)
     templates.value = res.data.data || []
   } catch {
     ElMessage.error('加载失败')
@@ -52,7 +54,21 @@ onMounted(() => loadTemplates())
 
 <template>
   <PageLayout>
-    <template #header><h2>模板管理（全部用户）</h2></template>
+    <template #header>
+      <div style="display:flex;align-items:center;gap:16px">
+        <h2>模板管理（全部用户）</h2>
+        <el-input
+          v-model="filterUserId"
+          placeholder="按用户ID筛选"
+          size="small"
+          style="width:160px"
+          clearable
+          @keyup.enter="loadTemplates"
+          @clear="loadTemplates"
+        />
+        <el-button size="small" @click="loadTemplates">搜索</el-button>
+      </div>
+    </template>
 
     <el-table :data="templates" v-loading="loading" stripe>
       <el-table-column prop="id" label="ID" width="60" />

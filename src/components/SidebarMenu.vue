@@ -5,12 +5,12 @@ import { useAuthStore } from '@/stores/auth'
 import {
   MagicStick,
   PictureFilled,
-  Document,
-  Setting,
+  Picture,
+  Collection,
   UserFilled,
   List,
   DataAnalysis,
-  SwitchButton,
+  EditPen,
 } from '@element-plus/icons-vue'
 
 const auth = useAuthStore()
@@ -21,26 +21,47 @@ interface MenuItem {
   path: string
   title: string
   icon: any
-  adminOnly?: boolean
 }
 
-const menuItems = computed<MenuItem[]>(() => {
-  const items: MenuItem[] = [
-    { path: '/workspace', title: '生图工作台', icon: MagicStick },
-    { path: '/templates', title: '模板图库', icon: PictureFilled },
-    { path: '/tasks', title: '任务历史', icon: Document },
-    { path: '/settings/key', title: 'API Key 设置', icon: Setting },
+interface MenuSection {
+  title: string
+  adminOnly?: boolean
+  items: MenuItem[]
+}
+
+const menuSections = computed<MenuSection[]>(() => {
+  const sections: MenuSection[] = [
+    {
+      title: '',
+      items: [
+        { path: '/workspace', title: '生图工作台', icon: MagicStick },
+      ],
+    },
+    {
+      title: '资产管理',
+      items: [
+        { path: '/templates', title: '模板图库', icon: PictureFilled },
+        { path: '/prompts', title: '提示词库', icon: Collection },
+        { path: '/results', title: '生图结果', icon: Picture },
+      ],
+    },
   ]
 
   if (auth.isAdmin) {
-    items.push(
-      { path: '/admin/users', title: '用户管理', icon: UserFilled, adminOnly: true },
-      { path: '/admin/tasks', title: '任务管理', icon: List, adminOnly: true },
-      { path: '/admin/stats', title: '生成统计', icon: DataAnalysis, adminOnly: true },
-    )
+    sections.push({
+      title: '管理员',
+      adminOnly: true,
+      items: [
+        { path: '/admin/users', title: '用户管理', icon: UserFilled },
+        { path: '/admin/tasks', title: '任务管理', icon: List },
+        { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
+        { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
+        { path: '/admin/stats', title: '生成统计', icon: DataAnalysis },
+      ],
+    })
   }
 
-  return items
+  return sections
 })
 
 function isActive(path: string): boolean {
@@ -59,24 +80,20 @@ function navigate(path: string) {
     </div>
 
     <nav class="sidebar-nav">
-      <div
-        v-for="item in menuItems"
-        :key="item.path"
-        class="nav-item"
-        :class="{ active: isActive(item.path), 'admin-item': item.adminOnly }"
-        @click="navigate(item.path)"
-      >
-        <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
-        <span class="nav-title">{{ item.title }}</span>
-      </div>
+      <template v-for="section in menuSections" :key="section.title">
+        <div v-if="section.title" class="section-title">{{ section.title }}</div>
+        <div
+          v-for="item in section.items"
+          :key="item.path"
+          class="nav-item"
+          :class="{ active: isActive(item.path) }"
+          @click="navigate(item.path)"
+        >
+          <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
+          <span class="nav-title">{{ item.title }}</span>
+        </div>
+      </template>
     </nav>
-
-    <div class="sidebar-footer">
-      <div class="nav-item" @click="auth.logout(); router.push('/login')">
-        <el-icon class="nav-icon"><SwitchButton /></el-icon>
-        <span class="nav-title">退出登录</span>
-      </div>
-    </div>
   </aside>
 </template>
 
@@ -111,13 +128,20 @@ function navigate(path: string) {
   overflow-y: auto;
 }
 
-.sidebar-footer {
-  padding: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--el-text-color-placeholder);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 16px 16px 6px 16px;
+}
+.section-title:first-child {
+  padding-top: 4px;
 }
 
 .nav-item {
-  height: var(--tf-sidebar-menu-height, 48px);
+  height: var(--tf-sidebar-menu-height, 42px);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -126,7 +150,7 @@ function navigate(path: string) {
   color: var(--tf-sidebar-text);
   cursor: pointer;
   transition: all 0.2s;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .nav-item:hover {
@@ -138,15 +162,6 @@ function navigate(path: string) {
   background: var(--tf-sidebar-active-bg);
   color: var(--el-color-primary);
   font-weight: 500;
-}
-
-.admin-item {
-  margin-top: 8px;
-}
-
-.admin-item::before {
-  content: '';
-  display: block;
 }
 
 .nav-icon {

@@ -1,21 +1,34 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { encryptApiKey, decryptApiKey, maskApiKey } from '@/utils/crypto'
 
 const STORAGE_KEY = 'toapis_api_key'
 
 export const useKeyConfigStore = defineStore('keyConfig', () => {
-  const apiKey = ref(localStorage.getItem(STORAGE_KEY) || '')
+  function loadKey(): string {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) return ''
+    // Try to decrypt (new encrypted format), fallback to plaintext (old format)
+    const decrypted = decryptApiKey(stored)
+    if (decrypted) return decrypted
+    // Old plaintext format — migrate to encrypted
+    if (stored && !stored.includes('=') === false) {
+      // Looks like it might already be encrypted but corrupted
+    }
+    const key = stored
+    // Migrate old plaintext to encrypted
+    localStorage.setItem(STORAGE_KEY, encryptApiKey(key))
+    return key
+  }
+
+  const apiKey = ref(loadKey())
 
   const hasKey = computed(() => !!apiKey.value)
-  const maskedKey = computed(() => {
-    if (!apiKey.value) return ''
-    if (apiKey.value.length <= 8) return '***'
-    return apiKey.value.slice(0, 4) + '****' + apiKey.value.slice(-4)
-  })
+  const maskedKey = computed(() => maskApiKey(apiKey.value))
 
   function saveKey(key: string) {
     apiKey.value = key
-    localStorage.setItem(STORAGE_KEY, key)
+    localStorage.setItem(STORAGE_KEY, encryptApiKey(key))
   }
 
   function deleteKey() {

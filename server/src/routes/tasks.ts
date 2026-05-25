@@ -2,6 +2,22 @@ import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 
+function parseRow(row: any): any {
+  if (!row) return row
+  const parsed = { ...row }
+  for (const key of ['template_image_ids', 'input_image_urls', 'result_image_urls', 'raw_error']) {
+    if (typeof parsed[key] === 'string') {
+      try { parsed[key] = JSON.parse(parsed[key]) } catch { /* keep as-is */ }
+    }
+  }
+  // Map snake_case DB column to camelCase frontend field
+  if ('aspect_ratio' in parsed) {
+    parsed.aspectRatio = parsed.aspect_ratio
+    delete parsed.aspect_ratio
+  }
+  return parsed
+}
+
 export const tasksRouter = Router()
 
 tasksRouter.use(authMiddleware)
@@ -33,7 +49,7 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
   res.json({
     success: true,
     data: {
-      records: rows,
+      records: (rows as any[]).map(parseRow),
       total: countRow.total,
       page,
       pageSize,
@@ -52,14 +68,15 @@ tasksRouter.get('/:id', (req: AuthRequest, res) => {
     return
   }
 
-  res.json({ success: true, data: task })
+  res.json({ success: true, data: parseRow(task) })
 })
 
 // Create task record (after getting toapis_task_id)
 tasksRouter.post('/', (req: AuthRequest, res) => {
   const {
     toapis_task_id, client_business_id, model, prompt, size, resolution,
-    n, template_image_ids, input_image_urls, status, progress,
+    aspect_ratio, n, template_image_ids, input_image_urls, status, progress,
+    feature_id,
   } = req.body
 
   if (!toapis_task_id || !model || !prompt) {
@@ -68,14 +85,15 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, n, template_image_ids, input_image_urls, status, progress)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     req.user!.userId, toapis_task_id, client_business_id || null, model, prompt,
-    size || null, resolution || null, n || 1,
+    size || null, resolution || null, aspect_ratio || null, n || 1,
     template_image_ids ? JSON.stringify(template_image_ids) : null,
     input_image_urls ? JSON.stringify(input_image_urls) : null,
-    status || 'submitted', progress || 0
+    status || 'submitted', progress || 0,
+    feature_id || null
   )
 
   res.json({ success: true, data: { id: result.lastInsertRowid } })
@@ -122,5 +140,20 @@ tasksRouter.patch('/:id', (req: AuthRequest, res) => {
 
   db.prepare(`UPDATE generation_tasks SET ${fields.join(', ')} WHERE id = ?`).run(...params)
 
+  res.json({ success: true, data: { id: req.params.id } })
+})
+
+// Delete task
+tasksRouter.delete('/:id', (req: AuthRequest, res) => {
+  const task = db.prepare('SELECT * FROM generation_tasks WHERE id = ? AND user_id = ?').get(
+    req.params.id, req.user!.userId
+  ) as any
+
+  if (!task) {
+    res.status(404).json({ success: false, error: '任务不存在' })
+    return
+  }
+
+  db.prepare('DELETE FROM generation_tasks WHERE id = ?').run(req.params.id)
   res.json({ success: true, data: { id: req.params.id } })
 })
