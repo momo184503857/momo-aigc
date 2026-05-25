@@ -5,4 +5,4 @@ server/data/momo.db*
 server/data/database.sqlite*
 .env
 *.log
-tsconfig.*.tsbuildinfo
+*.tsbuildinfo
