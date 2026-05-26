@@ -305,7 +305,7 @@ npm run dev
 
 ## 11. 相关参考
 
-- PRD 文档：`docs/prd.md` — 完整需求规格
+- PRD 文档：`docs/product/prd.md` — 完整需求规格
 - ToolFlux 源码：`C:\code\ToolFlux` — 前端组件复用的来源项目（Electron 桌面应用）
 - ToAPIs 文档：https://docs.toapis.com （图像生成 API）
 - 阿里云 OSS PostObject：https://help.aliyun.com/document_detail/31988.html

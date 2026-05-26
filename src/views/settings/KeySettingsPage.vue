@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error } = useUiFeedback()
 import { useKeyConfigStore } from '@/stores/keyConfig'
 import { testConnection } from '@/adapter/toapisClient'
 import PageLayout from '@/components/PageLayout.vue'
@@ -12,35 +13,35 @@ const testing = ref(false)
 
 function handleSave() {
   if (!keyInput.value.trim()) {
-    ElMessage.warning('请输入 ToAPIs API Key')
+    warning('请输入 ToAPIs API Key')
     return
   }
   store.saveKey(keyInput.value.trim())
   keyInput.value = ''
-  ElMessage.success('API Key 已保存到本地浏览器')
+  success('API Key 已保存到本地浏览器')
 }
 
 function handleDelete() {
   store.deleteKey()
-  ElMessage.info('已删除本地保存的 API Key')
+  info('已删除本地保存的 API Key')
 }
 
 async function handleTest() {
   const key = keyInput.value.trim() || store.apiKey
   if (!key) {
-    ElMessage.warning('请先填写 API Key')
+    warning('请先填写 API Key')
     return
   }
   testing.value = true
   try {
     const ok = await testConnection(key)
     if (ok) {
-      ElMessage.success('连接成功，API Key 有效')
+      success('连接成功，API Key 有效')
     } else {
-      ElMessage.error('连接失败，请检查 Key 是否正确')
+      error('连接失败，请检查 Key 是否正确')
     }
   } catch {
-    ElMessage.error('连接测试失败，请检查网络')
+    error('连接测试失败，请检查网络')
   } finally {
     testing.value = false
   }
@@ -102,7 +103,7 @@ async function handleTest() {
   display: flex; flex-direction: column; gap: 16px;
 }
 .form-item label {
-  display: block; font-size: 14px; color: var(--el-text-color-regular); margin-bottom: 8px;
+  display: block; font-size: var(--momo-font-size-base); color: var(--el-text-color-regular); margin-bottom: 8px;
 }
 .form-actions {
   display: flex; gap: 12px;

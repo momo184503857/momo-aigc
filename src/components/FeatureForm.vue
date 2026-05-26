@@ -402,7 +402,7 @@ defineExpose({ setParams })
 
 .form-label-left {
   width: 72px; flex-shrink: 0; text-align: right;
-  font-size: 13px; color: var(--el-text-color-regular);
+  font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular);
   padding-top: 6px;
 }
 
@@ -421,6 +421,6 @@ defineExpose({ setParams })
   align-items: center; justify-content: center; gap: 12px;
   color: var(--el-text-color-secondary);
 }
-.placeholder-text { font-size: 18px; font-weight: 500; color: var(--el-text-color-regular); }
-.placeholder-hint { font-size: 14px; }
+.placeholder-text { font-size: var(--momo-font-size-xl); font-weight: 500; color: var(--el-text-color-regular); }
+.placeholder-hint { font-size: var(--momo-font-size-base); }
 </style>

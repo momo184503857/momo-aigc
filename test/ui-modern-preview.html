@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>墨墨 AI 生图 - 现代版 UI 方向稿</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --surface-soft: #f9fafb;
+      --line: #e6e9ef;
+      --line-soft: #eef1f5;
+      --text: #182230;
+      --muted: #667085;
+      --faint: #98a2b3;
+      --brand: #2f80ed;
+      --brand-strong: #1769d1;
+      --brand-soft: #eaf3ff;
+      --success: #16a34a;
+      --success-soft: #eaf8ef;
+      --warning: #d97706;
+      --warning-soft: #fff4e5;
+      --danger: #dc2626;
+      --danger-soft: #fef2f2;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-pop: 0 18px 40px rgba(15, 23, 42, 0.10);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 22px;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 224px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 20px 14px;
+      border-right: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .brand {
+      padding: 4px 10px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      color: var(--brand);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .nav-section {
+      display: grid;
+      gap: 4px;
+    }
+
+    .nav-title {
+      padding: 0 10px 6px;
+      color: var(--faint);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 38px;
+      padding: 0 10px;
+      border-radius: var(--radius-md);
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .nav-item.active {
+      background: var(--brand-soft);
+      color: var(--brand);
+      font-weight: 600;
+    }
+
+    .main {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+    }
+
+    .page-title {
+      margin: 0;
+      font-size: 22px;
+      line-height: 30px;
+      font-weight: 700;
+    }
+
+    .account {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 168px 452px minmax(520px, 1fr);
+      gap: 0;
+      min-height: calc(100vh - 64px);
+      padding: 24px;
+    }
+
+    .panel {
+      min-width: 0;
+      background: var(--surface);
+    }
+
+    .feature-panel {
+      border: 1px solid var(--line);
+      border-right: 0;
+      border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+      background: var(--surface-soft);
+      overflow: hidden;
+    }
+
+    .feature-title,
+    .form-title,
+    .result-title {
+      margin: 0;
+      color: var(--text);
+      font-size: 16px;
+      line-height: 24px;
+      font-weight: 700;
+    }
+
+    .feature-title {
+      padding: 18px 16px 14px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .feature-list {
+      padding: 12px 0;
+    }
+
+    .feature-group {
+      margin-bottom: 10px;
+    }
+
+    .feature-group-title {
+      padding: 8px 16px 4px;
+      color: var(--faint);
+      font-size: 12px;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      height: 34px;
+      padding: 0 16px;
+      border-left: 2px solid transparent;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .feature-item.active {
+      border-left-color: var(--brand);
+      background: #fff;
+      color: var(--brand);
+      font-weight: 600;
+    }
+
+    .form-panel {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .form-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .form-body {
+      flex: 1;
+      overflow: auto;
+      padding: 18px 20px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .link-button {
+      border: 0;
+      background: transparent;
+      color: var(--brand);
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    .input,
+    .select {
+      height: 38px;
+      padding: 0 12px;
+    }
+
+    .textarea {
+      min-height: 112px;
+      padding: 10px 12px;
+      resize: vertical;
+    }
+
+    .upload-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 8px;
+      width: 116px;
+      height: 116px;
+      border: 1px dashed #cfd6e2;
+      border-radius: var(--radius-md);
+      color: var(--faint);
+      background: #fbfcfe;
+    }
+
+    .segmented {
+      display: inline-grid;
+      grid-template-columns: repeat(3, 1fr);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: #fff;
+    }
+
+    .segment {
+      min-width: 64px;
+      height: 36px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .segment:last-child { border-right: 0; }
+
+    .segment.active {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .form-footer {
+      padding: 16px 20px 20px;
+      border-top: 1px solid var(--line-soft);
+      background: #fff;
+    }
+
+    .preflight {
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border: 1px solid #f3d19e;
+      border-radius: var(--radius-md);
+      background: var(--warning-soft);
+      color: #92400e;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 36px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+    }
+
+    .btn.primary {
+      width: 100%;
+      height: 42px;
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      border-color: var(--brand-strong);
+      background: var(--brand-strong);
+    }
+
+    .btn.ghost {
+      height: 32px;
+      background: transparent;
+    }
+
+    .btn.icon {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+    }
+
+    .result-panel {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      border: 1px solid var(--line);
+      border-left: 0;
+      border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .result-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter {
+      height: 32px;
+      min-width: 132px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--muted);
+      padding: 0 10px;
+    }
+
+    .result-body {
+      flex: 1;
+      overflow: auto;
+      padding: 18px 20px;
+      background: #fff;
+    }
+
+    .task-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .task-card {
+      display: grid;
+      grid-template-columns: 104px minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-lg);
+      background: var(--surface-soft);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .task-card:hover {
+      border-color: #dbe4f0;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+      transform: translateY(-1px);
+    }
+
+    .thumb {
+      position: relative;
+      width: 104px;
+      height: 104px;
+      overflow: hidden;
+      border-radius: var(--radius-md);
+      background: #edf1f6;
+      cursor: pointer;
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .thumb-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.48);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .thumb:hover .thumb-overlay { opacity: 1; }
+
+    .task-content {
+      min-width: 0;
+    }
+
+    .task-main-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      min-width: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge.success {
+      background: var(--success-soft);
+      color: var(--success);
+    }
+
+    .badge.warning {
+      background: var(--warning-soft);
+      color: var(--warning);
+    }
+
+    .task-prompt {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .task-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .task-id {
+      margin-top: 4px;
+      color: var(--faint);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .task-actions {
+      display: grid;
+      gap: 8px;
+      min-width: 120px;
+    }
+
+    .result-footer {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--line-soft);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .page-size {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--muted);
+      padding: 0 10px;
+    }
+
+    .page-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      color: var(--brand);
+      font-weight: 700;
+    }
+
+    @media (max-width: 1180px) {
+      .app {
+        grid-template-columns: 72px minmax(0, 1fr);
+      }
+
+      .brand,
+      .nav-title,
+      .nav-text {
+        display: none;
+      }
+
+      .workspace {
+        grid-template-columns: 150px minmax(360px, 440px);
+      }
+
+      .result-panel {
+        grid-column: 1 / -1;
+        border-left: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        margin-top: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">墨墨 AI 生图</div>
+      <nav class="nav-section">
+        <a class="nav-item active" href="#"><span>✦</span><span class="nav-text">生图工作台</span></a>
+        <a class="nav-item" href="#"><span>▧</span><span class="nav-text">模板图库</span></a>
+        <a class="nav-item" href="#"><span>✎</span><span class="nav-text">提示词库</span></a>
+        <a class="nav-item" href="#"><span>◫</span><span class="nav-text">生图结果</span></a>
+      </nav>
+      <nav class="nav-section">
+        <div class="nav-title">管理员</div>
+        <a class="nav-item" href="#"><span>●</span><span class="nav-text">用户管理</span></a>
+        <a class="nav-item" href="#"><span>▤</span><span class="nav-text">任务管理</span></a>
+        <a class="nav-item" href="#"><span>⚙</span><span class="nav-text">API Key 管理</span></a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <h1 class="page-title">生图工作台</h1>
+        <div class="account">
+          <span>管理员：admin</span>
+          <button class="btn ghost">退出登录</button>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <aside class="panel feature-panel">
+          <h2 class="feature-title">功能</h2>
+          <div class="feature-list">
+            <div class="feature-group">
+              <div class="feature-group-title">常用功能</div>
+              <div class="feature-item">换衣服</div>
+              <div class="feature-item">换背景</div>
+              <div class="feature-item">换脸</div>
+            </div>
+            <div class="feature-group">
+              <div class="feature-group-title">商品素材</div>
+              <div class="feature-item">细节图</div>
+              <div class="feature-item">面料图</div>
+              <div class="feature-item">平铺图</div>
+              <div class="feature-item">3D图</div>
+            </div>
+            <div class="feature-group">
+              <div class="feature-group-title">高级</div>
+              <div class="feature-item active">自由生图</div>
+            </div>
+          </div>
+        </aside>
+
+        <section class="panel form-panel">
+          <div class="form-head">
+            <h2 class="form-title">生成参数</h2>
+            <button class="link-button">从提示词库选择</button>
+          </div>
+          <div class="form-body">
+            <div class="field">
+              <div class="label-row">
+                <label>参考图片</label>
+                <button class="link-button">从模板库选择</button>
+              </div>
+              <div class="upload-box">
+                <div style="font-size: 30px">＋</div>
+                <div>添加图片</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label-row">
+                <label>提示词 *</label>
+                <span>0/32000</span>
+              </div>
+              <textarea class="textarea" placeholder="描述你想要生成的图片..."></textarea>
+            </div>
+
+            <div class="field">
+              <div class="label-row"><label>模型</label></div>
+              <select class="select">
+                <option>GPT-Image-2</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <div class="label-row"><label>分辨率</label></div>
+              <div class="segmented">
+                <button class="segment">1K</button>
+                <button class="segment active">2K</button>
+                <button class="segment">4K</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label-row"><label>宽高比</label></div>
+              <select class="select">
+                <option>1:1</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <div class="label-row"><label>生成数量</label></div>
+              <select class="select">
+                <option>1张</option>
+              </select>
+            </div>
+          </div>
+
+          <footer class="form-footer">
+            <div class="preflight">请先设置 ToAPIs API Key，设置后即可生成图片。</div>
+            <button class="btn primary">生成图片 · ¥0.140</button>
+          </footer>
+        </section>
+
+        <section class="panel result-panel">
+          <div class="result-head">
+            <h2 class="result-title">任务与结果</h2>
+            <div class="toolbar">
+              <select class="filter"><option>全部功能</option></select>
+              <select class="filter"><option>最近 7 天</option></select>
+              <button class="btn ghost">批量操作</button>
+              <button class="btn icon">▤</button>
+              <button class="btn icon">▦</button>
+            </div>
+          </div>
+
+          <div class="result-body">
+            <div class="task-list">
+              <article class="task-card">
+                <div class="thumb">
+                  <img src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=400&q=80" alt="结果图" />
+                  <div class="thumb-overlay">查看大图</div>
+                </div>
+                <div class="task-content">
+                  <div class="task-main-line">
+                    <span class="badge success">已完成</span>
+                    <div class="task-prompt">将图一的白色改成红色</div>
+                  </div>
+                  <div class="task-meta">GPT-Image-2 / 1K / 1:1 / 耗时 1分25秒 / 2026-05-26 00:20</div>
+                  <div class="task-id">任务 ID：tsk_img_01KSFZ0Y6635QJTFYY042FR3NN</div>
+                </div>
+                <div class="task-actions">
+                  <button class="btn">下载</button>
+                  <button class="btn">重新生成</button>
+                  <button class="btn icon">⋯</button>
+                </div>
+              </article>
+
+              <article class="task-card">
+                <div class="thumb">
+                  <img src="https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=400&q=80" alt="结果图" />
+                  <div class="thumb-overlay">查看大图</div>
+                </div>
+                <div class="task-content">
+                  <div class="task-main-line">
+                    <span class="badge success">已完成</span>
+                    <div class="task-prompt">改成坐姿，保持服装质感和背景光线</div>
+                  </div>
+                  <div class="task-meta">GPT-Image-2 / 1K / 1:1 / 耗时 57秒 / 2026-05-25 23:45</div>
+                  <div class="task-id">任务 ID：tsk_img_01KSFY0VMHRGDR406PQQ7CQDYV</div>
+                </div>
+                <div class="task-actions">
+                  <button class="btn">下载</button>
+                  <button class="btn">重新生成</button>
+                  <button class="btn icon">⋯</button>
+                </div>
+              </article>
+
+              <article class="task-card">
+                <div class="thumb">
+                  <img src="https://images.unsplash.com/photo-1502716119720-b23a93e5fe1b?auto=format&fit=crop&w=400&q=80" alt="结果图" />
+                  <div class="thumb-overlay">查看大图</div>
+                </div>
+                <div class="task-content">
+                  <div class="task-main-line">
+                    <span class="badge warning">生成中</span>
+                    <div class="task-prompt">生成一张同色系商品细节图</div>
+                  </div>
+                  <div class="task-meta">GPT-Image-2 / 2K / 3:4 / 已等待 18秒</div>
+                  <div class="task-id">任务 ID：tsk_img_01KSFZLIVE000RUNNINGTASK</div>
+                </div>
+                <div class="task-actions">
+                  <button class="btn" disabled>下载</button>
+                  <button class="btn">详情</button>
+                  <button class="btn icon">⋯</button>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <footer class="result-footer">
+            <span>共 96 条</span>
+            <select class="page-size"><option>20条/页</option></select>
+            <button class="btn icon">‹</button>
+            <span class="page-num">1</span>
+            <button class="btn icon">›</button>
+          </footer>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

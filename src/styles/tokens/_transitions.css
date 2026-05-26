@@ -1,0 +1,9 @@
+/* ============================================
+   墨墨 AI 生图 — Transition Tokens
+   ============================================ */
+
+:root {
+  --momo-transition-fast: 0.15s ease;
+  --momo-transition-base: 0.2s ease;
+  --momo-transition-slow: 0.3s ease;
+}

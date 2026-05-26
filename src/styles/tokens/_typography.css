@@ -1,0 +1,30 @@
+/* ============================================
+   墨墨 AI 生图 — Typography Tokens
+   字体 / 字号 / 字重 / 行高
+   ============================================ */
+
+:root {
+  --momo-font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --momo-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  --momo-font-size-xs: 11px;
+  --momo-font-size-sm: 12px;
+  --momo-font-size-base: 14px;
+  --momo-font-size-lg: 16px;
+  --momo-font-size-xl: 18px;
+  --momo-font-size-2xl: 22px;
+  --momo-font-size-3xl: 28px;
+
+  --momo-font-weight-normal: 400;
+  --momo-font-weight-medium: 500;
+  --momo-font-weight-semibold: 600;
+  --momo-font-weight-bold: 700;
+
+  --momo-leading-tight: 1.25;
+  --momo-leading-normal: 1.5;
+  --momo-leading-relaxed: 1.75;
+
+  --momo-tracking-tight: -0.01em;
+  --momo-tracking-normal: 0;
+  --momo-tracking-wide: 0.02em;
+}

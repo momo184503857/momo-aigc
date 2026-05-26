@@ -165,7 +165,7 @@ function close() {
 .template-item {
   position: relative;
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: var(--momo-radius-md);
   overflow: hidden;
   border: 3px solid transparent;
   cursor: pointer;
@@ -181,14 +181,14 @@ function close() {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   padding: 6px 8px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  background: linear-gradient(transparent, var(--momo-color-overlay-heavy));
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .template-name {
-  color: #fff; font-size: 12px; font-weight: 500;
+  color: var(--momo-color-text-inverse); font-size: var(--momo-font-size-sm); font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 

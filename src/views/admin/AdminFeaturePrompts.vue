@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error } = useUiFeedback()
 import { ArrowDown } from '@element-plus/icons-vue'
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
@@ -92,7 +93,7 @@ async function load() {
       }),
     }))
   } catch {
-    ElMessage.error('加载失败')
+    error('加载失败')
   } finally {
     loading.value = false
   }
@@ -116,7 +117,7 @@ async function saveFeature(feature: FeatureBlock) {
     } catch { /* skip */ }
   }
   saving.value = false
-  if (ok > 0) ElMessage.success(`已保存 ${ok} 条`)
+  if (ok > 0) success(`已保存 ${ok} 条`)
 }
 
 onMounted(() => load())
@@ -201,7 +202,7 @@ onMounted(() => load())
 
 .category-card {
   border: 1px solid var(--el-border-color);
-  border-radius: 10px;
+  border-radius: var(--momo-radius-md);
   overflow: hidden;
   background: var(--el-bg-color);
 }
@@ -224,20 +225,20 @@ onMounted(() => load())
 
 .chevron {
   transition: transform 0.25s;
-  font-size: 14px; color: var(--el-text-color-secondary);
+  font-size: var(--momo-font-size-base); color: var(--el-text-color-secondary);
 }
 .chevron.rotated {
   transform: rotate(180deg);
 }
 
 .category-name {
-  font-size: 16px; font-weight: 600;
+  font-size: var(--momo-font-size-lg); font-weight: 600;
   color: var(--el-text-color-primary);
   letter-spacing: 1px;
 }
 
 .category-count {
-  font-size: 13px;
+  font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 
@@ -275,7 +276,7 @@ onMounted(() => load())
 
 .prompt-model {
   width: 170px; flex-shrink: 0;
-  font-size: 13px; font-weight: 500;
+  font-size: var(--momo-font-size-sm); font-weight: 500;
   color: var(--el-text-color-regular);
   padding-top: 8px;
 }

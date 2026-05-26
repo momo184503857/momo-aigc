@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import PageLayout from '@/components/PageLayout.vue'
 
@@ -38,7 +39,7 @@ async function loadUsers() {
     const res = await adminApi.listUsers()
     users.value = res.data.data || []
   } catch {
-    ElMessage.error('加载用户列表失败')
+    error('加载用户列表失败')
   } finally {
     loading.value = false
   }
@@ -46,19 +47,19 @@ async function loadUsers() {
 
 async function handleCreate() {
   if (!createUsername.value || !createPassword.value) {
-    ElMessage.warning('请输入用户名和密码')
+    warning('请输入用户名和密码')
     return
   }
   createLoading.value = true
   try {
     await adminApi.createUser(createUsername.value, createPassword.value)
-    ElMessage.success('创建成功')
+    success('创建成功')
     createVisible.value = false
     createUsername.value = ''
     createPassword.value = ''
     await loadUsers()
   } catch (e: any) {
-    ElMessage.error(e.response?.data?.error || '创建失败')
+    error(e.response?.data?.error || '创建失败')
   } finally {
     createLoading.value = false
   }
@@ -73,15 +74,15 @@ function openReset(user: UserItem) {
 
 async function handleReset() {
   if (!resetPassword.value) {
-    ElMessage.warning('请输入新密码')
+    warning('请输入新密码')
     return
   }
   try {
     await adminApi.resetPassword(resetUserId.value, resetPassword.value)
-    ElMessage.success('密码已重置')
+    success('密码已重置')
     resetVisible.value = false
   } catch (e: any) {
-    ElMessage.error(e.response?.data?.error || '重置失败')
+    error(e.response?.data?.error || '重置失败')
   }
 }
 
@@ -89,9 +90,9 @@ async function handleToggleStatus(user: UserItem) {
   const newStatus = user.status === 'active' ? 'disabled' : 'active'
   const action = newStatus === 'disabled' ? '禁用' : '启用'
   try {
-    await ElMessageBox.confirm(`确定${action}用户 "${user.username}" 吗？`, `确认${action}`)
+    await confirmDanger({ title: `确认${action}`, message: `确定${action}用户 "${user.username}" 吗？` })
     await adminApi.updateUserStatus(user.id, newStatus)
-    ElMessage.success(`已${action}`)
+    success(`已${action}`)
     await loadUsers()
   } catch { /* cancelled */ }
 }

@@ -130,7 +130,7 @@ function showPreview(dataUrl: string) {
 }
 
 .slot-label {
-  font-size: 14px; color: var(--el-text-color-secondary);
+  font-size: var(--momo-font-size-base); color: var(--el-text-color-secondary);
   margin-top: 8px; text-align: center;
 }
 
@@ -142,7 +142,7 @@ function showPreview(dataUrl: string) {
 }
 
 .slot-thumb-wrap {
-  position: relative; border-radius: 8px; overflow: hidden;
+  position: relative; border-radius: var(--momo-radius-md); overflow: hidden;
   border: 1px solid var(--el-border-color);
   flex-shrink: 0;
 }
@@ -154,13 +154,13 @@ function showPreview(dataUrl: string) {
 .slot-remove {
   position: absolute; top: 6px; right: 6px;
   width: 24px; height: 24px; line-height: 22px; text-align: center;
-  background: rgba(0,0,0,0.55); color: #fff; border-radius: 50%;
-  font-size: 16px; cursor: pointer;
+  background: var(--momo-color-overlay); color: var(--momo-color-text-inverse); border-radius: 50%;
+  font-size: var(--momo-font-size-lg); cursor: pointer;
 }
 
 .slot-add-btn {
   border: 2px dashed var(--el-border-color-dark);
-  border-radius: 8px; cursor: pointer;
+  border-radius: var(--momo-radius-md); cursor: pointer;
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 8px;
   transition: border-color 0.2s, border-style 0.2s;
@@ -168,7 +168,7 @@ function showPreview(dataUrl: string) {
 }
 .slot-add-btn:hover { border-color: var(--el-color-primary); }
 .add-icon { font-size: 36px; color: var(--el-text-color-placeholder); }
-.add-hint { font-size: 13px; color: var(--el-text-color-placeholder); }
+.add-hint { font-size: var(--momo-font-size-sm); color: var(--el-text-color-placeholder); }
 
 .template-btn {
   margin-top: 4px;

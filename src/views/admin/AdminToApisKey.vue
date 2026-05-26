@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error } = useUiFeedback()
 import http from '@/services/http'
 
 defineOptions({ name: 'AdminToApisKey' })
@@ -19,7 +20,7 @@ async function loadConfig() {
     mode.value = res.data.data.mode
     maskedKey.value = res.data.data.maskedKey || ''
   } catch (e: any) {
-    ElMessage.error('加载配置失败: ' + (e.response?.data?.error || e.message))
+    error('加载配置失败: ' + (e.response?.data?.error || e.message))
   } finally {
     loading.value = false
   }
@@ -33,11 +34,11 @@ async function handleSave() {
       body.apiKey = apiKey.value
     }
     await http.put('/admin/toapis/config', body)
-    ElMessage.success('保存成功')
+    success('保存成功')
     apiKey.value = ''
     await loadConfig()
   } catch (e: any) {
-    ElMessage.error('保存失败: ' + (e.response?.data?.error || e.message))
+    error('保存失败: ' + (e.response?.data?.error || e.message))
   } finally {
     saving.value = false
   }
@@ -46,19 +47,19 @@ async function handleSave() {
 async function handleTest() {
   const key = apiKey.value || ''
   if (!key) {
-    ElMessage.warning('请先输入 API Key')
+    warning('请先输入 API Key')
     return
   }
   testing.value = true
   try {
     const res = await http.post('/admin/toapis/test', { apiKey: key })
     if (res.data.data.ok) {
-      ElMessage.success('连接成功，API Key 有效')
+      success('连接成功，API Key 有效')
     } else {
-      ElMessage.error('连接失败，API Key 无效')
+      error('连接失败，API Key 无效')
     }
   } catch (e: any) {
-    ElMessage.error('测试失败: ' + (e.response?.data?.error || e.message))
+    error('测试失败: ' + (e.response?.data?.error || e.message))
   } finally {
     testing.value = false
   }
@@ -67,11 +68,11 @@ async function handleTest() {
 async function handleDeleteKey() {
   try {
     await http.delete('/admin/toapis/key')
-    ElMessage.success('共享 Key 已清空')
+    success('共享 Key 已清空')
     apiKey.value = ''
     await loadConfig()
   } catch (e: any) {
-    ElMessage.error('清空失败: ' + (e.response?.data?.error || e.message))
+    error('清空失败: ' + (e.response?.data?.error || e.message))
   }
 }
 
@@ -158,13 +159,13 @@ onMounted(() => {
 
 .page-desc {
   margin: 0 0 24px 0;
-  font-size: 14px;
+  font-size: var(--momo-font-size-base);
   color: var(--el-text-color-secondary);
 }
 
 .config-section {
   background: var(--el-bg-color);
-  border-radius: 8px;
+  border-radius: var(--momo-radius-md);
   padding: 24px;
   border: 1px solid var(--el-border-color-lighter);
 }
@@ -184,7 +185,7 @@ onMounted(() => {
   width: 80px;
   flex-shrink: 0;
   text-align: right;
-  font-size: 14px;
+  font-size: var(--momo-font-size-base);
   font-weight: 500;
   color: var(--el-text-color-primary);
   padding-top: 6px;
@@ -202,13 +203,13 @@ onMounted(() => {
 
 .mode-hint {
   margin: 8px 0 0 0;
-  font-size: 13px;
+  font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 
 .current-key-info {
   margin: 6px 0 0 0;
-  font-size: 13px;
+  font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-secondary);
   font-family: monospace;
 }

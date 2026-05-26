@@ -1,0 +1,12 @@
+/* ============================================
+   墨墨 AI 生图 — Design Tokens Entry
+   按顺序导入所有 token 分类文件
+   ============================================ */
+
+@import './_colors.css';
+@import './_typography.css';
+@import './_spacing.css';
+@import './_shadows.css';
+@import './_radii.css';
+@import './_transitions.css';
+@import './_layout.css';

@@ -53,7 +53,7 @@ const emit = defineEmits<{
 
 .nav-header {
   padding: 16px 16px 12px;
-  font-size: 14px;
+  font-size: var(--momo-font-size-base);
   font-weight: 600;
   color: var(--el-text-color-primary);
   flex-shrink: 0;
@@ -72,13 +72,13 @@ const emit = defineEmits<{
 
 .group-title {
   padding: 8px 16px 4px;
-  font-size: 12px;
+  font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 
 .nav-tab {
   padding: 8px 16px 8px 24px;
-  font-size: 13px;
+  font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-regular);
   cursor: pointer;
   transition: all 0.15s;

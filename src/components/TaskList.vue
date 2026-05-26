@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error } = useUiFeedback()
 import type { ModelId } from '@/types/adapter'
 import { MODELS } from '@/types/adapter'
 
@@ -82,7 +83,7 @@ function modelDisplayName(modelId: string): string {
 }
 
 function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
+  navigator.clipboard.writeText(text).then(() => success('已复制'))
 }
 
 function promptSummary(text: string, maxLen = 60): string {
@@ -307,7 +308,7 @@ function toBeijingTime(isoStr: string): string {
   background: var(--el-color-primary);
   border-color: var(--el-color-primary);
 }
-.task-select-circle .el-icon { color: #fff; }
+.task-select-circle .el-icon { color: var(--momo-color-text-inverse); }
 .task-card.bulk-selected { box-shadow: 0 0 0 2px var(--el-color-primary); }
 .task-grid-item.bulk-selected { box-shadow: 0 0 0 2px var(--el-color-primary); }
 
@@ -324,7 +325,7 @@ function toBeijingTime(isoStr: string): string {
 
 .task-thumb {
   width: 80px; height: 80px; flex-shrink: 0;
-  border-radius: 6px; overflow: hidden;
+  border-radius: var(--momo-radius-sm); overflow: hidden;
   background: var(--el-fill-color);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
@@ -338,11 +339,11 @@ function toBeijingTime(isoStr: string): string {
   display: flex; align-items: center; gap: 4px;
 }
 .task-id-label {
-  font-size: 12px; color: var(--el-text-color-secondary);
+  font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary);
   white-space: nowrap;
 }
 .task-id-text {
-  font-family: monospace; font-size: 12px;
+  font-family: monospace; font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-secondary);
   word-break: break-all;
 }
@@ -350,23 +351,23 @@ function toBeijingTime(isoStr: string): string {
 /* Header row */
 .task-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .task-status-group { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.task-duration { font-size: 12px; color: var(--el-text-color-secondary); }
-.task-model { font-size: 12px; color: var(--el-text-color-secondary); }
-.task-res { font-size: 12px; color: var(--el-text-color-secondary); }
-.task-time { font-size: 12px; color: var(--el-text-color-placeholder); margin-left: auto; }
+.task-duration { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
+.task-model { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
+.task-res { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
+.task-time { font-size: var(--momo-font-size-sm); color: var(--el-text-color-placeholder); margin-left: auto; }
 
 /* Prompt */
 .task-prompt {
-  font-size: 13px; color: var(--el-text-color-regular);
+  font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular);
   word-break: break-all; display: flex; align-items: flex-start; gap: 4px;
 }
 .task-prompt-text { min-width: 0; }
 .task-error-msg {
-  font-size: 12px; color: var(--el-color-danger); max-width: 200px;
+  font-size: var(--momo-font-size-sm); color: var(--el-color-danger); max-width: 200px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .grid-error-msg {
-  font-size: 12px; color: var(--el-color-danger); margin-left: 6px;
+  font-size: var(--momo-font-size-sm); color: var(--el-color-danger); margin-left: 6px;
   max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -384,7 +385,7 @@ function toBeijingTime(isoStr: string): string {
   gap: 12px;
 }
 .task-grid-item {
-  border-radius: 8px; overflow: hidden;
+  border-radius: var(--momo-radius-md); overflow: hidden;
   background: var(--el-fill-color-lighter);
   transition: box-shadow 0.2s;
   display: flex; flex-direction: column;
@@ -411,13 +412,13 @@ function toBeijingTime(isoStr: string): string {
 }
 .grid-info-row { display: flex; align-items: center; }
 .grid-info-row.prompt-row { align-items: flex-start; }
-.gi-value { font-size: 12px; color: var(--el-text-color-regular); }
+.gi-value { font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); }
 .gi-value.prompt-text {
   flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--el-text-color-primary);
 }
 .gi-value.time { color: var(--el-text-color-placeholder); }
-.grid-duration { margin-left: 6px; font-size: 12px; color: var(--el-text-color-secondary); }
+.grid-duration { margin-left: 6px; font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 
 .grid-card-actions {
   display: flex; gap: 4px; padding: 6px 10px;

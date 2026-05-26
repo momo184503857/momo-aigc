@@ -1,0 +1,17 @@
+/* ============================================
+   墨墨 AI 生图 — Spacing Tokens
+   4px 基准间距阶梯
+   ============================================ */
+
+:root {
+  --momo-space-1: 4px;
+  --momo-space-2: 8px;
+  --momo-space-3: 12px;
+  --momo-space-4: 16px;
+  --momo-space-5: 20px;
+  --momo-space-6: 24px;
+  --momo-space-8: 32px;
+  --momo-space-10: 40px;
+  --momo-space-12: 48px;
+  --momo-space-16: 64px;
+}

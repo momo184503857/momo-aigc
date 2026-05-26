@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import PageLayout from '@/components/PageLayout.vue'
 
@@ -25,7 +26,7 @@ async function loadStats() {
     const res = await adminApi.getStats()
     stats.value = res.data.data || []
   } catch {
-    ElMessage.error('加载统计失败')
+    error('加载统计失败')
   } finally {
     loading.value = false
   }

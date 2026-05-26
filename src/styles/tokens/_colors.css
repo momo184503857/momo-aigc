@@ -1,0 +1,44 @@
+/* ============================================
+   墨墨 AI 生图 — Color Tokens
+   品牌色 / 中性色 / 语义色
+   ============================================ */
+
+:root {
+  /* Brand */
+  --momo-color-brand: #4f46e5;
+  --momo-color-brand-hover: #4338ca;
+  --momo-color-brand-active: #3730a3;
+  --momo-color-brand-subtle: #eef2ff;
+  --momo-color-brand-border: #c7d2fe;
+
+  /* Neutral — backgrounds */
+  --momo-color-bg: #ffffff;
+  --momo-color-bg-soft: #f8fafc;
+  --momo-color-bg-muted: #f1f5f9;
+  --momo-color-bg-page: #f1f5f9;
+
+  /* Neutral — text */
+  --momo-color-text: #0f172a;
+  --momo-color-text-secondary: #475569;
+  --momo-color-text-tertiary: #94a3b8;
+  --momo-color-text-inverse: #ffffff;
+
+  /* Neutral — border */
+  --momo-color-border: #e2e8f0;
+  --momo-color-border-strong: #cbd5e1;
+  --momo-color-border-light: #f1f5f9;
+
+  /* Semantic */
+  --momo-color-success: #10b981;
+  --momo-color-success-subtle: #ecfdf5;
+  --momo-color-warning: #f59e0b;
+  --momo-color-warning-subtle: #fffbeb;
+  --momo-color-danger: #ef4444;
+  --momo-color-danger-subtle: #fef2f2;
+  --momo-color-info: #6b7280;
+  --momo-color-info-subtle: #f3f4f6;
+
+  /* Overlay */
+  --momo-color-overlay: rgba(15, 23, 42, 0.5);
+  --momo-color-overlay-heavy: rgba(15, 23, 42, 0.75);
+}

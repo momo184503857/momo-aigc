@@ -1,46 +1,46 @@
-/**
- * 墨墨 AI 生图 Design Tokens
- *
- * 核心原则：使用 Element Plus 内置变量，仅定义应用特定变量
- */
+/* ============================================
+   墨墨 AI 生图 — Design Tokens (backward-compat entry)
+   导入新的 token 分类文件，并保留旧 --tf-* 别名
+   ============================================ */
+
+@import './tokens/index.css';
 
 :root {
-  /* 侧边栏 */
-  --tf-sidebar-bg: var(--el-bg-color);
-  --tf-sidebar-text: var(--el-text-color-regular);
-  --tf-sidebar-text-hover: var(--el-text-color-primary);
-  --tf-sidebar-active-bg: rgba(64, 158, 255, 0.1);
-  --tf-sidebar-width: 220px;
-  --tf-sidebar-collapsed-width: 64px;
-  --tf-sidebar-transition: 0.3s ease;
-  --tf-sidebar-menu-height: 48px;
-  --tf-sidebar-menu-radius: 8px;
+  /* 侧边栏 — 别名 */
+  --tf-sidebar-bg: var(--momo-sidebar-bg);
+  --tf-sidebar-text: var(--momo-color-text-secondary);
+  --tf-sidebar-text-hover: var(--momo-color-text);
+  --tf-sidebar-active-bg: var(--momo-color-brand-subtle);
+  --tf-sidebar-width: var(--momo-sidebar-width);
+  --tf-sidebar-collapsed-width: var(--momo-sidebar-collapsed-width);
+  --tf-sidebar-transition: var(--momo-transition-slow);
+  --tf-sidebar-menu-height: var(--momo-sidebar-menu-height);
+  --tf-sidebar-menu-radius: var(--momo-sidebar-menu-radius);
 
-  /* 页面布局 */
-  --tf-page-padding: 20px;
-  --tf-card-padding: 24px;
-  --tf-card-radius: 12px;
-  --tf-page-title-size: 22px;
+  /* 页面布局 — 别名 */
+  --tf-page-padding: var(--momo-page-padding);
+  --tf-card-padding: var(--momo-card-padding);
+  --tf-card-radius: var(--momo-card-radius);
 
-  /* 对话框宽度分级 */
-  --tf-dialog-xs: 480px;
-  --tf-dialog-sm: 600px;
-  --tf-dialog-md: 800px;
-  --tf-dialog-lg: 1000px;
-  --tf-dialog-xl: 80%;
+  /* 对话框 — 别名 */
+  --tf-dialog-xs: var(--momo-dialog-xs);
+  --tf-dialog-sm: var(--momo-dialog-sm);
+  --tf-dialog-md: var(--momo-dialog-md);
+  --tf-dialog-lg: var(--momo-dialog-lg);
+  --tf-dialog-xl: var(--momo-dialog-xl);
 
-  /* 圆角 */
-  --tf-radius-sm: 4px;
-  --tf-radius-md: 8px;
-  --tf-radius-lg: 12px;
-  --tf-radius-xl: 10px;
+  /* 圆角 — 别名 */
+  --tf-radius-sm: var(--momo-radius-sm);
+  --tf-radius-md: var(--momo-radius-md);
+  --tf-radius-lg: var(--momo-radius-lg);
+  --tf-radius-xl: var(--momo-radius-xl);
 
-  /* 叠加层 */
-  --tf-overlay-bg: rgba(0, 0, 0, 0.7);
-  --tf-overlay-text: #ffffff;
-  --tf-overlay-dim: rgba(0, 0, 0, 0.5);
-  --tf-overlay-light: rgba(0, 0, 0, 0.3);
+  /* 叠加层 — 别名 */
+  --tf-overlay-bg: var(--momo-overlay-bg);
+  --tf-overlay-text: var(--momo-overlay-text);
+  --tf-overlay-dim: var(--momo-overlay-dim);
+  --tf-overlay-light: var(--momo-overlay-light);
 
-  /* 滚动条 */
-  --tf-scrollbar-size: 8px;
+  /* 滚动条 — 别名 */
+  --tf-scrollbar-size: var(--momo-scrollbar-size);
 }

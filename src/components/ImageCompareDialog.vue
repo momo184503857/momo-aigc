@@ -254,7 +254,7 @@ defineExpose({ open })
   font-family: inherit;
   background: var(--el-fill-color);
   border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  border-radius: var(--momo-radius-sm);
   line-height: 1;
 }
 .compare-nav-pos {
@@ -293,7 +293,7 @@ defineExpose({ open })
   overflow: hidden;
   position: relative;
   background: var(--el-fill-color);
-  border-radius: 8px;
+  border-radius: var(--momo-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -311,11 +311,11 @@ defineExpose({ open })
   position: absolute;
   bottom: 8px;
   right: 8px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
+  background: var(--momo-color-overlay);
+  color: var(--momo-color-text-inverse);
   padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: var(--momo-radius-sm);
+  font-size: var(--momo-font-size-sm);
   pointer-events: none;
   z-index: 2;
 }
@@ -329,7 +329,7 @@ defineExpose({ open })
   display: flex;
   gap: 4px;
   padding: 6px 8px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+  background: linear-gradient(transparent, var(--momo-color-overlay));
   pointer-events: auto;
   flex-wrap: wrap;
 }
@@ -337,7 +337,7 @@ defineExpose({ open })
   width: 40px;
   height: 40px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--momo-radius-sm);
   border: 2px solid transparent;
   cursor: pointer;
 }
@@ -356,8 +356,8 @@ defineExpose({ open })
   gap: 12px;
   padding: 6px 10px;
   font-size: var(--el-font-size-small);
-  color: rgba(255, 255, 255, 0.9);
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+  color: var(--momo-color-text-inverse);
+  background: linear-gradient(transparent, var(--momo-color-overlay));
   pointer-events: none;
 }
 

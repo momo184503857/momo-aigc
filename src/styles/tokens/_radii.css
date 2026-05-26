@@ -1,0 +1,11 @@
+/* ============================================
+   墨墨 AI 生图 — Border Radius Tokens
+   ============================================ */
+
+:root {
+  --momo-radius-sm: 4px;
+  --momo-radius-md: 8px;
+  --momo-radius-lg: 12px;
+  --momo-radius-xl: 16px;
+  --momo-radius-full: 9999px;
+}

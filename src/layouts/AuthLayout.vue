@@ -43,7 +43,7 @@
 }
 
 .auth-subtitle {
-  font-size: 14px;
+  font-size: var(--momo-font-size-base);
   color: var(--el-text-color-secondary);
 }
 </style>

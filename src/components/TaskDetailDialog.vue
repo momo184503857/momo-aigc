@@ -4,7 +4,8 @@ import { Download } from '@element-plus/icons-vue'
 import type { TaskItem } from './TaskList.vue'
 import { MODELS } from '@/types/adapter'
 import { getFeatureLabel } from '@/configs/featureConfig'
-import { ElMessage } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error } = useUiFeedback()
 
 const props = defineProps<{ task: TaskItem | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -22,7 +23,7 @@ function modelDisplayName(modelId: string): string {
 }
 
 function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
+  navigator.clipboard.writeText(text).then(() => success('已复制'))
 }
 
 function openImage(url: string) {
@@ -112,12 +113,12 @@ const statusMap: Record<string, string> = {
 .result-img-wrap { display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .result-img {
   max-width: 400px; max-height: 400px;
-  border-radius: 8px; cursor: pointer;
+  border-radius: var(--momo-radius-md); cursor: pointer;
   object-fit: contain; background: var(--el-fill-color);
 }
 .ref-images { display: flex; gap: 8px; flex-wrap: wrap; }
 .ref-img {
   width: 120px; height: 120px;
-  border-radius: 6px; object-fit: cover;
+  border-radius: var(--momo-radius-sm); object-fit: cover;
 }
 </style>

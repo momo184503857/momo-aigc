@@ -2,7 +2,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { ElMessage } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error } = useUiFeedback()
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -13,7 +14,7 @@ const loading = ref(false)
 
 async function handleLogin() {
   if (!username.value || !password.value) {
-    ElMessage.warning('请输入用户名和密码')
+    warning('请输入用户名和密码')
     return
   }
 
@@ -25,7 +26,7 @@ async function handleLogin() {
     }
   } catch (err: any) {
     const msg = err.response?.data?.error || '登录失败，请重试'
-    ElMessage.error(msg)
+    error(msg)
   } finally {
     loading.value = false
   }

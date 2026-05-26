@@ -1,0 +1,110 @@
+/* ============================================
+   墨墨 AI 生图 — Element Plus Overrides
+   将 --momo-* token 映射到 --el-* 变量，
+   使得所有 Element Plus 组件自动跟随设计 token。
+   此文件必须在 element-plus/dist/index.css 之后加载。
+   ============================================ */
+
+:root {
+  /* ---- Brand / Primary ---- */
+  --el-color-primary: var(--momo-color-brand);
+  --el-color-primary-light-3: color-mix(in srgb, var(--momo-color-brand) 70%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--momo-color-brand) 50%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--momo-color-brand) 30%, white);
+  --el-color-primary-light-8: color-mix(in srgb, var(--momo-color-brand) 20%, white);
+  --el-color-primary-light-9: color-mix(in srgb, var(--momo-color-brand) 10%, white);
+  --el-color-primary-dark-2: var(--momo-color-brand-hover);
+
+  /* ---- Semantic ---- */
+  --el-color-success: var(--momo-color-success);
+  --el-color-success-light-3: color-mix(in srgb, var(--momo-color-success) 70%, white);
+  --el-color-success-light-5: color-mix(in srgb, var(--momo-color-success) 50%, white);
+  --el-color-success-light-7: color-mix(in srgb, var(--momo-color-success) 30%, white);
+  --el-color-success-light-8: color-mix(in srgb, var(--momo-color-success) 20%, white);
+  --el-color-success-light-9: color-mix(in srgb, var(--momo-color-success) 10%, white);
+  --el-color-success-dark-2: color-mix(in srgb, var(--momo-color-success) 80%, black);
+
+  --el-color-warning: var(--momo-color-warning);
+  --el-color-warning-light-3: color-mix(in srgb, var(--momo-color-warning) 70%, white);
+  --el-color-warning-light-5: color-mix(in srgb, var(--momo-color-warning) 50%, white);
+  --el-color-warning-light-7: color-mix(in srgb, var(--momo-color-warning) 30%, white);
+  --el-color-warning-light-8: color-mix(in srgb, var(--momo-color-warning) 20%, white);
+  --el-color-warning-light-9: color-mix(in srgb, var(--momo-color-warning) 10%, white);
+  --el-color-warning-dark-2: color-mix(in srgb, var(--momo-color-warning) 80%, black);
+
+  --el-color-danger: var(--momo-color-danger);
+  --el-color-danger-light-3: color-mix(in srgb, var(--momo-color-danger) 70%, white);
+  --el-color-danger-light-5: color-mix(in srgb, var(--momo-color-danger) 50%, white);
+  --el-color-danger-light-7: color-mix(in srgb, var(--momo-color-danger) 30%, white);
+  --el-color-danger-light-8: color-mix(in srgb, var(--momo-color-danger) 20%, white);
+  --el-color-danger-light-9: color-mix(in srgb, var(--momo-color-danger) 10%, white);
+  --el-color-danger-dark-2: color-mix(in srgb, var(--momo-color-danger) 80%, black);
+
+  --el-color-info: var(--momo-color-info);
+  --el-color-info-light-3: color-mix(in srgb, var(--momo-color-info) 70%, white);
+  --el-color-info-light-5: color-mix(in srgb, var(--momo-color-info) 50%, white);
+  --el-color-info-light-7: color-mix(in srgb, var(--momo-color-info) 30%, white);
+  --el-color-info-light-8: color-mix(in srgb, var(--momo-color-info) 20%, white);
+  --el-color-info-light-9: color-mix(in srgb, var(--momo-color-info) 10%, white);
+  --el-color-info-dark-2: color-mix(in srgb, var(--momo-color-info) 80%, black);
+
+  /* ---- Text ---- */
+  --el-text-color-primary: var(--momo-color-text);
+  --el-text-color-regular: var(--momo-color-text-secondary);
+  --el-text-color-secondary: var(--momo-color-text-tertiary);
+  --el-text-color-placeholder: var(--momo-color-text-tertiary);
+  --el-text-color-disabled: var(--momo-color-text-tertiary);
+
+  /* ---- Background ---- */
+  --el-bg-color: var(--momo-color-bg);
+  --el-bg-color-page: var(--momo-color-bg-page);
+  --el-bg-color-overlay: var(--momo-color-bg);
+
+  /* ---- Fill ---- */
+  --el-fill-color: var(--momo-color-bg-muted);
+  --el-fill-color-light: var(--momo-color-bg-muted);
+  --el-fill-color-lighter: var(--momo-color-bg-soft);
+  --el-fill-color-blank: var(--momo-color-bg);
+  --el-fill-color-dark: var(--momo-color-bg-muted);
+
+  /* ---- Border ---- */
+  --el-border-color: var(--momo-color-border);
+  --el-border-color-light: var(--momo-color-border-light);
+  --el-border-color-lighter: var(--momo-color-border-light);
+  --el-border-color-dark: var(--momo-color-border-strong);
+  --el-border-color-extra-light: var(--momo-color-border-light);
+
+  /* ---- Border Radius ---- */
+  --el-border-radius-base: var(--momo-radius-sm);
+  --el-border-radius-small: 2px;
+  --el-border-radius-round: var(--momo-radius-full);
+  --el-border-radius-circle: 50%;
+
+  /* ---- Shadow ---- */
+  --el-box-shadow: var(--momo-shadow-md);
+  --el-box-shadow-light: var(--momo-shadow-sm);
+  --el-box-shadow-lighter: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --el-box-shadow-dark: var(--momo-shadow-lg);
+
+  /* ---- Typography ---- */
+  --el-font-size-extra-large: var(--momo-font-size-xl);
+  --el-font-size-large: var(--momo-font-size-lg);
+  --el-font-size-base: var(--momo-font-size-base);
+  --el-font-size-small: var(--momo-font-size-sm);
+  --el-font-weight-primary: var(--momo-font-weight-medium);
+
+  /* ---- Disabled ---- */
+  --el-disabled-bg-color: var(--momo-color-bg-muted);
+  --el-disabled-text-color: var(--momo-color-text-tertiary);
+  --el-disabled-border-color: var(--momo-color-border-light);
+
+  /* ---- Transition ---- */
+  --el-transition-duration: 0.2s;
+  --el-transition-duration-fast: 0.15s;
+  --el-transition-function-ease-in-out-bezier: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---- Component: Menu (sidebar) ---- */
+  --el-menu-item-height: var(--momo-sidebar-menu-height);
+  --el-menu-base-level-padding: 8px;
+  --el-menu-sub-item-height: 36px;
+}

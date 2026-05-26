@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { Download, Delete, Picture, Check, Close } from '@element-plus/icons-vue'
 import PageLayout from '@/components/PageLayout.vue'
 import { taskApi } from '@/services/taskApi'
@@ -77,14 +78,14 @@ function downloadBlob(blob: Blob, filename: string) {
 
 async function handleDownload(task: TaskItem) {
   const url = task.result_image_urls?.[0]
-  if (!url) { ElMessage.warning('没有可下载的图片'); return }
+  if (!url) { warning('没有可下载的图片'); return }
   try {
     const blob = await fetchAsBlob(url)
     const ext = blob.type === 'image/png' ? 'png' : 'jpg'
     downloadBlob(blob, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.${ext}`)
-    ElMessage.success('下载完成')
+    success('下载完成')
   } catch {
-    ElMessage.error('下载失败')
+    error('下载失败')
   }
 }
 
@@ -93,7 +94,7 @@ async function handleDelete(task: TaskItem) {
     await taskApi.delete(task.id)
     tasks.value = tasks.value.filter((t) => t.id !== task.id)
     total.value--
-    ElMessage.success('已删除')
+    success('已删除')
   } catch { /* cancelled */ }
 }
 
@@ -102,11 +103,12 @@ async function handleDelete(task: TaskItem) {
 async function handleBatchDelete() {
   const count = selectedIds.value.size
   try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${count} 项结果吗？此操作不可恢复。`,
-      '批量删除',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
-    )
+    await confirmDanger({
+      title: '批量删除',
+      message: `确定要删除选中的 ${count} 项结果吗？此操作不可恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
+    })
   } catch { return }
 
   loading.value = true
@@ -118,12 +120,12 @@ async function handleBatchDelete() {
   bulkMode.value = false
   await loadResults()
   loading.value = false
-  ElMessage.success(`已删除 ${deleted} 项`)
+  success(`已删除 ${deleted} 项`)
 }
 
 async function handleBatchDownload() {
   const selected = tasks.value.filter((t) => selectedIds.value.has(t.id) && t.result_image_urls?.[0])
-  if (selected.length === 0) { ElMessage.warning('所选结果没有可下载的图片'); return }
+  if (selected.length === 0) { warning('所选结果没有可下载的图片'); return }
 
   loading.value = true
   let count = 0
@@ -138,12 +140,12 @@ async function handleBatchDownload() {
     } catch { /* skip */ }
   }
   loading.value = false
-  ElMessage.success(`已下载 ${count} 张图片`)
+  success(`已下载 ${count} 张图片`)
 }
 
 async function handlePackDownload() {
   const selected = tasks.value.filter((t) => selectedIds.value.has(t.id) && t.result_image_urls?.[0])
-  if (selected.length === 0) { ElMessage.warning('所选结果没有可下载的图片'); return }
+  if (selected.length === 0) { warning('所选结果没有可下载的图片'); return }
 
   loading.value = true
   const zip = new JSZip()
@@ -158,12 +160,12 @@ async function handlePackDownload() {
     } catch { /* skip */ }
   }
 
-  if (fetched === 0) { ElMessage.error('打包失败：无法获取图片'); loading.value = false; return }
+  if (fetched === 0) { error('打包失败：无法获取图片'); loading.value = false; return }
 
   const zipBlob = await zip.generateAsync({ type: 'blob' })
   downloadBlob(zipBlob, `momo-results-${new Date().toISOString().slice(0, 10)}.zip`)
   loading.value = false
-  ElMessage.success(`已打包 ${fetched} 张图片`)
+  success(`已打包 ${fetched} 张图片`)
 }
 
 // ─── Preview ───
@@ -300,7 +302,7 @@ onMounted(() => { loadResults() })
 }
 
 .bulk-count {
-  font-size: 14px; font-weight: 500;
+  font-size: var(--momo-font-size-base); font-weight: 500;
   color: var(--el-color-primary); margin-right: 4px;
 }
 
@@ -314,7 +316,7 @@ onMounted(() => { loadResults() })
 
 .result-card {
   background: var(--el-fill-color-lighter);
-  border-radius: 8px;
+  border-radius: var(--momo-radius-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -340,7 +342,7 @@ onMounted(() => { loadResults() })
   border-color: var(--el-color-primary);
 }
 .select-circle .el-icon {
-  color: #fff;
+  color: var(--momo-color-text-inverse);
 }
 
 /* Semi-transparent overlay on card when hovered in bulk mode */
@@ -382,7 +384,7 @@ onMounted(() => { loadResults() })
 }
 
 .result-prompt {
-  font-size: 13px;
+  font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -393,7 +395,7 @@ onMounted(() => { loadResults() })
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--momo-font-size-xs);
   color: var(--el-text-color-secondary);
 }
 
@@ -411,13 +413,13 @@ onMounted(() => { loadResults() })
 /* ─── Preview overlay ─── */
 .preview-overlay {
   position: fixed; inset: 0; z-index: 3000;
-  background: rgba(0,0,0,0.85);
+  background: var(--momo-color-overlay-heavy);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
 }
 .preview-close {
   position: absolute; top: 20px; right: 20px; z-index: 1;
-  color: #fff; cursor: pointer;
+  color: var(--momo-color-text-inverse); cursor: pointer;
   width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
@@ -428,7 +430,7 @@ onMounted(() => { loadResults() })
 .preview-image {
   max-width: 90vw; max-height: 90vh;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--momo-radius-sm);
   cursor: default;
 }
 </style>

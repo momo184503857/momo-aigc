@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import PageLayout from '@/components/PageLayout.vue'
@@ -59,15 +60,15 @@ async function handleSave() {
   try {
     if (isEditing.value && editingId.value) {
       await promptLibraryApi.update(editingId.value, form.value)
-      ElMessage.success('已更新')
+      success('已更新')
     } else {
       await promptLibraryApi.create(form.value)
-      ElMessage.success('已创建')
+      success('已创建')
     }
     dialogVisible.value = false
     await loadList()
   } catch (e: any) {
-    ElMessage.error(e.response?.data?.error || e.message || '保存失败')
+    error(e.response?.data?.error || e.message || '保存失败')
   } finally {
     saving.value = false
   }
@@ -75,18 +76,14 @@ async function handleSave() {
 
 async function handleDelete(item: PromptLibraryItem) {
   try {
-    await ElMessageBox.confirm(`确定删除「${item.name}」吗？`, '确认删除', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
+    await confirmDanger({ title: '确认删除', message: `确定删除「${item.name}」吗？`, confirmText: '删除', cancelText: '取消' })
   } catch { return }
   try {
     await promptLibraryApi.delete(item.id)
-    ElMessage.success('已删除')
+    success('已删除')
     await loadList()
   } catch (e: any) {
-    ElMessage.error(e.message || '删除失败')
+    error(e.message || '删除失败')
   }
 }
 
@@ -181,12 +178,12 @@ onMounted(loadList)
 .prompt-item {
   display: flex; align-items: flex-start; gap: 12px;
   padding: 12px; background: var(--el-fill-color-lighter);
-  border-radius: 8px; border: 1px solid var(--el-border-color-light);
+  border-radius: var(--momo-radius-md); border: 1px solid var(--el-border-color-light);
 }
 .item-main { flex: 1; min-width: 0; }
-.item-name { font-weight: 600; font-size: 14px; color: var(--el-text-color-primary); margin-bottom: 4px; }
+.item-name { font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary); margin-bottom: 4px; }
 .item-content {
-  font-size: 13px; color: var(--el-text-color-regular); white-space: pre-wrap; word-break: break-all;
+  font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); white-space: pre-wrap; word-break: break-all;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 .item-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }

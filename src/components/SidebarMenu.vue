@@ -132,7 +132,7 @@ function navigate(path: string) {
 }
 
 .brand-text {
-  font-size: 18px;
+  font-size: var(--momo-font-size-xl);
   font-weight: 700;
   color: var(--el-color-primary);
   white-space: nowrap;
@@ -140,7 +140,7 @@ function navigate(path: string) {
 }
 
 .brand-text-short {
-  font-size: 16px;
+  font-size: var(--momo-font-size-lg);
   font-weight: 700;
   color: var(--el-color-primary);
 }
@@ -152,7 +152,7 @@ function navigate(path: string) {
 }
 
 .section-title {
-  font-size: 11px;
+  font-size: var(--momo-font-size-xs);
   font-weight: 600;
   color: var(--el-text-color-placeholder);
   text-transform: uppercase;
@@ -188,12 +188,12 @@ function navigate(path: string) {
 }
 
 .nav-icon {
-  font-size: 18px;
+  font-size: var(--momo-font-size-xl);
   flex-shrink: 0;
 }
 
 .nav-title {
-  font-size: 14px;
+  font-size: var(--momo-font-size-base);
   white-space: nowrap;
 }
 

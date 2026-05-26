@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import PageLayout from '@/components/PageLayout.vue'
 import { MODELS } from '@/types/adapter'
@@ -43,7 +44,7 @@ async function loadTasks() {
     tasks.value = data.records || []
     total.value = data.total || 0
   } catch {
-    ElMessage.error('加载任务列表失败')
+    error('加载任务列表失败')
   } finally {
     loading.value = false
   }
@@ -51,9 +52,9 @@ async function loadTasks() {
 
 async function handleDelete(task: TaskRow) {
   try {
-    await ElMessageBox.confirm('确定删除该任务记录吗？', '确认删除', { type: 'warning' })
+    await confirmDanger({ title: '确认删除', message: '确定删除该任务记录吗？' })
     await adminApi.deleteTask(task.id)
-    ElMessage.success('已删除')
+    success('已删除')
     await loadTasks()
   } catch { /* cancelled */ }
 }

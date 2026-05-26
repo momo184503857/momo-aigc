@@ -58,7 +58,8 @@ function onPointerLeave() {
 }
 
 defineOptions({ name: 'Workspace' })
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { List, Grid, Document, Close } from '@element-plus/icons-vue'
 import PageLayout from '@/components/PageLayout.vue'
 import GenerationForm from '@/components/GenerationForm.vue'
@@ -248,12 +249,12 @@ async function handleGenerate(params: {
 }) {
   if (serverStatus.isSharedMode) {
     if (!serverStatus.sharedKeyConfigured) {
-      ElMessage.warning('管理员尚未配置共享 API Key')
+      warning('管理员尚未配置共享 API Key')
       return
     }
   } else {
     if (!keyStore.hasKey) {
-      ElMessage.warning('请先填写你的 ToAPIs API Key')
+      warning('请先填写你的 ToAPIs API Key')
       return
     }
   }
@@ -329,7 +330,7 @@ async function handleGenerate(params: {
       if (!newTask.id && newTask.toapis_task_id) {
         tasks.value.unshift(newTask)
       }
-      ElMessage.error(translateError(e))
+      error(e)
     }
 
     // Delay between batch items
@@ -434,20 +435,16 @@ async function handleRegenerate(task: TaskItem) {
 
 async function handleDelete(task: TaskItem) {
   try {
-    await ElMessageBox.confirm('确定要删除该任务记录吗？', '确认删除', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
+    await confirmDanger({ title: '确认删除', message: '确定要删除该任务记录吗？', confirmText: '删除', cancelText: '取消' })
     tasks.value = tasks.value.filter((t) => t.id !== task.id)
-    ElMessage.success('已移除')
+    success('已移除')
   } catch { /* cancelled */ }
 }
 
 // ─── 下载 ───
 function handleDownload(task: TaskItem) {
   const url = task.result_image_urls?.[0]
-  if (!url) { ElMessage.warning('没有可下载的图片'); return }
+  if (!url) { warning('没有可下载的图片'); return }
   const a = document.createElement('a')
   a.href = url
   a.download = `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.png`
@@ -471,7 +468,7 @@ function handleCopyParams(task: TaskItem) {
         sourceUrl: url,
       })),
     })
-    ElMessage.success('参数已复制到表单')
+    success('参数已复制到表单')
   })
 }
 
@@ -502,7 +499,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 async function handleBatchDownload() {
   const selected = tasks.value.filter((t) => selectedIds.value.has(t.id) && t.result_image_urls?.[0])
-  if (selected.length === 0) { ElMessage.warning('所选任务没有可下载的图片'); return }
+  if (selected.length === 0) { warning('所选任务没有可下载的图片'); return }
 
   loading.value = true
   let count = 0
@@ -516,12 +513,12 @@ async function handleBatchDownload() {
     } catch { /* skip */ }
   }
   loading.value = false
-  ElMessage.success(`已下载 ${count} 张图片`)
+  success(`已下载 ${count} 张图片`)
 }
 
 async function handleBatchPackDownload() {
   const selected = tasks.value.filter((t) => selectedIds.value.has(t.id) && t.result_image_urls?.[0])
-  if (selected.length === 0) { ElMessage.warning('所选任务没有可下载的图片'); return }
+  if (selected.length === 0) { warning('所选任务没有可下载的图片'); return }
 
   loading.value = true
   const zip = new JSZip()
@@ -536,12 +533,12 @@ async function handleBatchPackDownload() {
     } catch { /* skip */ }
   }
 
-  if (fetched === 0) { ElMessage.error('打包失败：无法获取图片'); loading.value = false; return }
+  if (fetched === 0) { error('打包失败：无法获取图片'); loading.value = false; return }
 
   const zipBlob = await zip.generateAsync({ type: 'blob' })
   downloadBlob(zipBlob, `momo-results-${new Date().toISOString().slice(0, 10)}.zip`)
   loading.value = false
-  ElMessage.success(`已打包 ${fetched} 张图片`)
+  success(`已打包 ${fetched} 张图片`)
 }
 
 // ─── 详情 ───
@@ -592,7 +589,7 @@ onMounted(async () => {
           sourceUrl: url,
         })),
       })
-      ElMessage.success('已加载历史任务参数，点击生成按钮即可重新生成')
+      success('已加载历史任务参数，点击生成按钮即可重新生成')
     } catch { /* ignore parse errors */ }
   }
 })
@@ -796,7 +793,7 @@ function sleep(ms: number): Promise<void> {
 .panel-splitter:hover::after,
 .panel-splitter.dragging::before,
 .panel-splitter.dragging::after {
-  background: #fff;
+  background: var(--momo-color-bg);
   height: 40px;
 }
 
@@ -812,7 +809,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 .panel-title {
-  font-size: 16px; font-weight: 600;
+  font-size: var(--momo-font-size-lg); font-weight: 600;
   color: var(--el-text-color-primary);
 }
 
@@ -829,7 +826,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 .bulk-count {
-  font-size: 14px; font-weight: 500;
+  font-size: var(--momo-font-size-base); font-weight: 500;
   color: var(--el-color-primary); margin-right: 4px;
 }
 

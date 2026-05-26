@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>墨墨 AI 生图 - UI 标准组件预览</title>
+  <style>
+    :root {
+      --primary: #409eff;
+      --primary-hover: #66b1ff;
+      --primary-light: #ecf5ff;
+      --success: #67c23a;
+      --warning: #e6a23c;
+      --danger: #f56c6c;
+      --page-bg: #f5f7fa;
+      --surface: #ffffff;
+      --subtle-surface: #f8fafc;
+      --border: #e4e7ed;
+      --border-light: #ebeef5;
+      --text-primary: #1f2937;
+      --text-regular: #606266;
+      --text-secondary: #909399;
+      --text-placeholder: #a8abb2;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-panel: 0 8px 24px rgba(15, 23, 42, 0.08);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--page-bg);
+      color: var(--text-primary);
+      font-size: 14px;
+      line-height: 22px;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+
+    .page-title {
+      margin: 0 0 6px;
+      font-size: 22px;
+      line-height: 30px;
+      font-weight: 600;
+    }
+
+    .page-subtitle {
+      margin: 0 0 24px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+      padding: 20px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      box-shadow: var(--shadow-panel);
+    }
+
+    .section-title {
+      margin: 0 0 16px;
+      font-size: 16px;
+      line-height: 24px;
+      font-weight: 600;
+    }
+
+    .demo-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .demo-row:last-child { margin-bottom: 0; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text-regular);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      border-color: var(--primary-hover);
+      color: var(--primary);
+    }
+
+    .btn.primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      border-color: var(--primary-hover);
+      background: var(--primary-hover);
+      color: #fff;
+    }
+
+    .btn.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .btn.text {
+      border-color: transparent;
+      background: transparent;
+      color: var(--primary);
+    }
+
+    .btn.icon {
+      width: 32px;
+      padding: 0;
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      border-color: var(--border-light);
+      background: #f2f3f5;
+      color: var(--text-placeholder);
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      background: var(--subtle-surface);
+    }
+
+    .status-bar.warning {
+      border-color: #f3d19e;
+      background: #fdf6ec;
+    }
+
+    .status-title {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .status-desc {
+      margin-top: 2px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .notice {
+      display: flex;
+      gap: 10px;
+      padding: 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid #f3d19e;
+      background: #fdf6ec;
+      color: var(--text-regular);
+    }
+
+    .notice strong {
+      display: block;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .notice span {
+      display: block;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 18px;
+      border: 1px solid transparent;
+    }
+
+    .tag.success {
+      border-color: #b3e19d;
+      background: #f0f9eb;
+      color: var(--success);
+    }
+
+    .tag.warning {
+      border-color: #f3d19e;
+      background: #fdf6ec;
+      color: var(--warning);
+    }
+
+    .tag.danger {
+      border-color: #fab6b6;
+      background: #fef0f0;
+      color: var(--danger);
+    }
+
+    .tag.info {
+      border-color: #dcdfe6;
+      background: #f4f4f5;
+      color: var(--text-secondary);
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
+    .image-tile {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      background: var(--subtle-surface);
+      cursor: pointer;
+    }
+
+    .image-tile img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .image-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      background: rgba(15, 23, 42, 0.48);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .image-tile:hover .image-overlay { opacity: 1; }
+
+    .image-empty {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 8px;
+      color: var(--text-placeholder);
+      font-size: 12px;
+    }
+
+    .task-card {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      background: var(--subtle-surface);
+    }
+
+    .task-thumb {
+      width: 88px;
+      height: 88px;
+      border-radius: var(--radius-md);
+      object-fit: cover;
+    }
+
+    .task-main {
+      min-width: 0;
+    }
+
+    .task-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      margin-bottom: 6px;
+    }
+
+    .task-prompt {
+      overflow: hidden;
+      color: var(--text-primary);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    .task-meta {
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .task-id {
+      margin-top: 4px;
+      color: var(--text-placeholder);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .task-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .page-size {
+      height: 32px;
+      padding: 0 28px 0 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--text-regular);
+    }
+
+    .page-num {
+      display: inline-flex;
+      width: 32px;
+      height: 32px;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+    }
+
+    .page-num.active {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .message-stack {
+      display: grid;
+      gap: 10px;
+      max-width: 420px;
+    }
+
+    .message {
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    }
+
+    .message.success { color: var(--success); }
+    .message.warning { color: var(--warning); }
+    .message.danger { color: var(--danger); }
+
+    .modal {
+      max-width: 420px;
+      padding: 20px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      background: #fff;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+    }
+
+    .modal h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 24px;
+    }
+
+    .modal p {
+      margin: 0 0 18px;
+      color: var(--text-regular);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    @media (max-width: 760px) {
+      .task-card {
+        grid-template-columns: 72px minmax(0, 1fr);
+      }
+
+      .task-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1 class="page-title">UI 标准组件预览</h1>
+    <p class="page-subtitle">这些是为墨墨 AI 生图沉淀的标准模块效果，后续 Vue 组件会按这个风格复用。</p>
+
+    <section class="section">
+      <h2 class="section-title">按钮样式</h2>
+      <div class="demo-row">
+        <button class="btn primary">生成图片</button>
+        <button class="btn">详情</button>
+        <button class="btn">复制参数</button>
+        <button class="btn text">复制 ID</button>
+        <button class="btn icon" title="切换视图">▦</button>
+        <button class="btn danger">删除</button>
+        <button class="btn primary" disabled>生成图片</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">状态栏与警告提示</h2>
+      <div class="status-bar warning">
+        <div>
+          <div class="status-title">请先设置 ToAPIs API Key</div>
+          <div class="status-desc">设置后即可生成图片。禁用按钮必须说明原因，不能只显示灰色状态。</div>
+        </div>
+        <button class="btn primary">管理 API Key</button>
+      </div>
+      <div style="height: 12px"></div>
+      <div class="notice">
+        <div>⚠</div>
+        <div>
+          <strong>管理员尚未配置共享 API Key</strong>
+          <span>当前无法使用共享模式生成图片，请联系管理员处理。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">状态标签</h2>
+      <div class="demo-row">
+        <span class="tag info">已提交</span>
+        <span class="tag warning">排队中</span>
+        <span class="tag warning">生成中</span>
+        <span class="tag success">已完成</span>
+        <span class="tag danger">生成失败</span>
+        <span class="tag info">状态未知</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">图片预览点击效果</h2>
+      <div class="image-grid">
+        <div class="image-tile">
+          <img src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=600&q=80" alt="预览图" />
+          <div class="image-overlay">⌕ 查看大图</div>
+        </div>
+        <div class="image-tile">
+          <img src="https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=600&q=80" alt="预览图" />
+          <div class="image-overlay">⌕ 查看大图</div>
+        </div>
+        <div class="image-tile">
+          <div class="image-empty">
+            <div style="font-size: 28px">◌</div>
+            <div>生成中</div>
+          </div>
+        </div>
+        <div class="image-tile">
+          <div class="image-empty">
+            <div style="font-size: 28px">□</div>
+            <div>暂无图片</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">任务卡片标准结构</h2>
+      <div class="task-card">
+        <img class="task-thumb" src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=300&q=80" alt="任务缩略图" />
+        <div class="task-main">
+          <div class="task-title">
+            <span class="tag success">已完成</span>
+            <span class="task-prompt">将白色裙装改成浅粉色，保持人物姿态和场景一致</span>
+          </div>
+          <div class="task-meta">GPT-Image-2 / 1K / 1:1 / 耗时 1分25秒 / 2026-05-26 00:20</div>
+          <div class="task-id">任务 ID：tsk_img_01KSFZ0Y6635QJTFYY042FR3NN</div>
+        </div>
+        <div class="task-actions">
+          <button class="btn primary">重新生成</button>
+          <button class="btn">下载</button>
+          <button class="btn icon" title="更多">⋯</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">翻页器</h2>
+      <div class="pagination">
+        <span>共 96 条</span>
+        <select class="page-size">
+          <option>20条/页</option>
+          <option>50条/页</option>
+        </select>
+        <button class="btn icon">‹</button>
+        <span class="page-num active">1</span>
+        <span class="page-num">2</span>
+        <span class="page-num">3</span>
+        <button class="btn icon">›</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">消息提醒与危险确认</h2>
+      <div class="demo-row" style="align-items: flex-start">
+        <div class="message-stack">
+          <div class="message success">已复制</div>
+          <div class="message warning">请先上传参考图片</div>
+          <div class="message danger">生成失败，可复制参数后重试</div>
+        </div>
+        <div class="modal">
+          <h3>确认删除</h3>
+          <p>确定要删除该任务记录吗？删除后无法在列表中恢复。</p>
+          <div class="modal-actions">
+            <button class="btn">取消</button>
+            <button class="btn danger">删除</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

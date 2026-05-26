@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { Upload, Edit, Delete, Check, Close } from '@element-plus/icons-vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
 import { ossApi } from '@/services/ossApi'
@@ -55,7 +56,7 @@ async function loadTemplates() {
     templates.value = data.records || []
     total.value = data.total || 0
   } catch {
-    ElMessage.error('加载图库失败')
+    error('加载图库失败')
   } finally {
     loading.value = false
   }
@@ -89,11 +90,11 @@ async function handleUpload() {
     if (files.length === 0) return
 
     uploading.value = true
-    let success = 0
+    let uploaded = 0
     for (const file of files) {
       try {
         if (file.size > 10 * 1024 * 1024) {
-          ElMessage.warning(`${file.name} 超过 10MB，已跳过`)
+          warning(`${file.name} 超过 10MB，已跳过`)
           continue
         }
         const { objectKey, publicUrl } = await ossApi.upload(file)
@@ -114,12 +115,12 @@ async function handleUpload() {
           width: img.naturalWidth,
           height: img.naturalHeight,
         })
-        success++
+        uploaded++
       } catch (e: any) {
-        ElMessage.error(`${file.name}: ${e.message || '上传失败'}`)
+        error(`${file.name}: ${e.message || '上传失败'}`)
       }
     }
-    if (success > 0) ElMessage.success(`成功上传 ${success} 张图片`)
+    if (uploaded > 0) success(`成功上传 ${uploaded} 张图片`)
     uploading.value = false
     await loadTemplates()
   }
@@ -136,30 +137,27 @@ function openEdit(tmpl: TemplateItem) {
 async function saveEdit() {
   if (!editingImage.value) return
   const newName = editingFileName.value.trim()
-  if (!newName) { ElMessage.warning('文件名不能为空'); return }
+  if (!newName) { warning('文件名不能为空'); return }
 
   try {
     if (newName !== editingImage.value.name) {
       await templateApi.rename(editingImage.value.id, newName)
     }
     await templateApi.updateTags(editingImage.value.id, editingTagIds.value)
-    ElMessage.success('保存成功')
+    success('保存成功')
     showEditDialog.value = false
     await loadTemplates()
     await loadTags()
   } catch (e: any) {
-    ElMessage.error(e.message || '保存失败')
+    error(e.message || '保存失败')
   }
 }
 
 async function handleDelete(tmpl: TemplateItem) {
   try {
-    await ElMessageBox.confirm('确定删除该图片吗？', '确认删除', {
-      type: 'warning',
-      confirmButtonText: '删除',
-    })
+    await confirmDanger({ title: '确认删除', message: '确定删除该图片吗？', confirmText: '删除' })
     await templateApi.delete(tmpl.id)
-    ElMessage.success('已删除')
+    success('已删除')
     await loadTemplates()
     await loadTags()
   } catch { /* cancelled */ }
@@ -168,11 +166,12 @@ async function handleDelete(tmpl: TemplateItem) {
 async function batchDelete() {
   if (selectedIds.value.size === 0) return
   try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedIds.value.size} 张图片吗？此操作不可恢复。`,
-      '批量删除',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
-    )
+    await confirmDanger({
+      title: '批量删除',
+      message: `确定要删除选中的 ${selectedIds.value.size} 张图片吗？此操作不可恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
+    })
   } catch { return }
 
   let deleted = 0
@@ -180,7 +179,7 @@ async function batchDelete() {
     try { await templateApi.delete(id); deleted++ } catch { /* skip */ }
   }
   clearSelection()
-  ElMessage.success(`已删除 ${deleted} 张图片`)
+  success(`已删除 ${deleted} 张图片`)
   await loadTemplates()
   await loadTags()
 }
@@ -370,7 +369,7 @@ function formatSize(bytes: number): string {
   border: 1px solid var(--el-color-primary-light-5);
   border-radius: var(--el-border-radius-base);
 }
-.batch-info { font-size: 14px; color: var(--el-color-primary); margin-right: auto; }
+.batch-info { font-size: var(--momo-font-size-base); color: var(--el-color-primary); margin-right: auto; }
 
 /* ─── Grid ─── */
 .tpl-grid {
@@ -380,7 +379,7 @@ function formatSize(bytes: number): string {
 }
 .tpl-card {
   background: var(--el-fill-color-lighter);
-  border-radius: 8px;
+  border-radius: var(--momo-radius-md);
   overflow: hidden;
   border: 1px solid var(--el-border-color-light);
   transition: box-shadow 0.2s, border-color 0.2s;
@@ -405,7 +404,7 @@ function formatSize(bytes: number): string {
   background: var(--el-color-primary);
   border-color: var(--el-color-primary);
 }
-.select-circle .el-icon { color: #fff; }
+.select-circle .el-icon { color: var(--momo-color-text-inverse); }
 
 /* Thumb */
 .tpl-thumb {
@@ -426,13 +425,13 @@ function formatSize(bytes: number): string {
   flex: 1;
 }
 .tpl-name {
-  font-weight: 600; font-size: 14px; color: var(--el-text-color-primary);
+  font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary);
   margin-bottom: 4px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tpl-meta {
   display: flex; gap: 6px;
-  font-size: 11px; color: var(--el-text-color-secondary);
+  font-size: var(--momo-font-size-xs); color: var(--el-text-color-secondary);
   margin-top: 4px;
 }
 .tpl-tags {
@@ -450,18 +449,18 @@ function formatSize(bytes: number): string {
   margin-top: 14px;
   display: flex; justify-content: space-between; align-items: center;
 }
-.total-count { font-size: 13px; color: var(--el-text-color-secondary); }
+.total-count { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 
 /* ─── Preview overlay ─── */
 .preview-overlay {
   position: fixed; inset: 0; z-index: 3000;
-  background: rgba(0, 0, 0, 0.85);
+  background: var(--momo-color-overlay-heavy);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
 }
 .preview-close {
   position: absolute; top: 20px; right: 20px; z-index: 1;
-  color: #fff; cursor: pointer;
+  color: var(--momo-color-text-inverse); cursor: pointer;
   width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
@@ -471,7 +470,7 @@ function formatSize(bytes: number): string {
 .preview-close:hover { background: rgba(255, 255, 255, 0.3); }
 .preview-image {
   max-width: 90vw; max-height: 90vh;
-  object-fit: contain; border-radius: 4px;
+  object-fit: contain; border-radius: var(--momo-radius-sm);
   cursor: default;
 }
 </style>

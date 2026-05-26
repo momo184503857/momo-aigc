@@ -567,7 +567,7 @@ defineExpose({ setParams })
   width: 72px;
   flex-shrink: 0;
   text-align: right;
-  font-size: 13px;
+  font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-regular);
   line-height: 32px;
 }
@@ -592,7 +592,7 @@ defineExpose({ setParams })
 /* ─── Images ─── */
 .images-container {
   display: flex; flex-wrap: wrap; gap: 8px;
-  min-height: 104px; border-radius: 8px; padding: 4px;
+  min-height: 104px; border-radius: var(--momo-radius-md); padding: 4px;
   transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
   border: 2px dashed transparent;
 }
@@ -603,7 +603,7 @@ defineExpose({ setParams })
 }
 .image-item {
   position: relative; width: 100px; height: 100px;
-  border-radius: 8px; overflow: hidden;
+  border-radius: var(--momo-radius-md); overflow: hidden;
   border: 2px solid var(--el-border-color);
   cursor: grab;
   transition: border-color 0.2s, opacity 0.2s;
@@ -620,24 +620,24 @@ defineExpose({ setParams })
 
 .add-image-btn {
   width: 100px; height: 100px;
-  border: 2px dashed var(--el-border-color); border-radius: 8px;
+  border: 2px dashed var(--el-border-color); border-radius: var(--momo-radius-md);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   cursor: pointer; color: var(--el-text-color-secondary);
   transition: border-color 0.2s, color 0.2s;
 }
 .add-image-btn:hover { border-color: var(--el-color-primary); color: var(--el-color-primary); }
-.add-image-btn span { font-size: 12px; margin-top: 4px; }
+.add-image-btn span { font-size: var(--momo-font-size-sm); margin-top: 4px; }
 
 .image-hint {
-  font-size: 11px; color: var(--el-text-color-placeholder); margin-top: 6px;
+  font-size: var(--momo-font-size-xs); color: var(--el-text-color-placeholder); margin-top: 6px;
 }
 
 /* ─── Prompt ─── */
 .prompt-footer { display: flex; justify-content: space-between; margin-top: 4px; }
-.prompt-count { font-size: 11px; color: var(--el-text-color-placeholder); }
+.prompt-count { font-size: var(--momo-font-size-xs); color: var(--el-text-color-placeholder); }
 .prompt-count.exceeded { color: var(--el-color-danger); font-weight: 500; }
-.prompt-limit-exceeded { font-size: 11px; color: var(--el-color-danger); }
+.prompt-limit-exceeded { font-size: var(--momo-font-size-xs); color: var(--el-color-danger); }
 .prompt-exceeded :deep(.el-textarea__inner) { border-color: var(--el-color-danger); }
 
 .pl-tag-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
@@ -651,13 +651,13 @@ defineExpose({ setParams })
 }
 .prompt-select-item {
   padding: 10px 12px; border: 1px solid var(--el-border-color-light);
-  border-radius: 8px; cursor: pointer;
+  border-radius: var(--momo-radius-md); cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
 }
 .prompt-select-item:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-.psi-name { font-weight: 600; font-size: 14px; color: var(--el-text-color-primary); margin-bottom: 4px; }
+.psi-name { font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary); margin-bottom: 4px; }
 .psi-content {
-  font-size: 13px; color: var(--el-text-color-regular); white-space: pre-wrap; word-break: break-all;
+  font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); white-space: pre-wrap; word-break: break-all;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .psi-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
@@ -666,12 +666,12 @@ defineExpose({ setParams })
 .preview-overlay {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--momo-color-overlay);
   cursor: pointer;
 }
 .preview-overlay img {
   max-width: 90vw; max-height: 90vh;
-  object-fit: contain; border-radius: 4px;
+  object-fit: contain; border-radius: var(--momo-radius-sm);
   cursor: default;
 }
 </style>
