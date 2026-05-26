@@ -1,6 +1,6 @@
 /**
  * 构建 Gemini 系列模型的 ToAPIs 请求体
- * image_urls 格式为 [{url: "..."}] 对象数组（非 string[]）
+ * image_urls 格式为 string[] 纯字符串数组
  */
 export function buildGeminiRequest(params: {
   model: string
@@ -20,7 +20,7 @@ export function buildGeminiRequest(params: {
   }
 
   if (params.imageUrls.length > 0) {
-    body.image_urls = params.imageUrls.map((url) => ({ url }))
+    body.image_urls = params.imageUrls
   }
 
   return body
