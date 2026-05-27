@@ -126,7 +126,6 @@ export function initSchema(): void {
     );
   `)
   const insertCfg = db.prepare(`INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)`)
-  insertCfg.run('key_mode', 'user')
   insertCfg.run('toapis_api_key', '')
 
   // Seed feature prompts for all feature × model combinations

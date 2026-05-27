@@ -213,13 +213,25 @@ function toBeijingTime(isoStr: string): string {
             <span class="task-prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task)) }}</span>
             <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.prompt)" title="复制提示词" />
           </div>
+          <!-- Input image thumbs -->
+          <div v-if="task.input_image_urls?.length" class="task-input-thumbs">
+            <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
+          </div>
         </div>
         <div v-if="!bulkMode" class="task-actions">
           <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
-          <el-button size="small" :icon="View" @click="emit('viewDetail', task)">详情</el-button>
-          <el-button size="small" :icon="Download" @click="emit('download', task)" v-if="task.result_image_urls?.[0]">下载</el-button>
-          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">复制参数</el-button>
-          <el-button size="small" :icon="Delete" type="danger" @click="emit('delete', task)">删除</el-button>
+          <el-button size="small" :icon="Download" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)">下载</el-button>
+          <el-dropdown trigger="click">
+            <el-button size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="emit('viewDetail', task)"><el-icon><View /></el-icon>详情</el-dropdown-item>
+                <el-dropdown-item @click="emit('copyParams', task)"><el-icon><CopyDocument /></el-icon>重新编辑</el-dropdown-item>
+                <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)"><el-icon><CopyDocument /></el-icon>复制ID</el-dropdown-item>
+                <el-dropdown-item @click="emit('delete', task)"><el-icon><Delete /></el-icon>删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </div>
@@ -248,6 +260,10 @@ function toBeijingTime(isoStr: string): string {
 
         <!-- Info area -->
         <div class="grid-card-info">
+          <!-- Input image thumbs -->
+          <div v-if="task.input_image_urls?.length" class="grid-input-thumbs">
+            <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
+          </div>
           <div class="grid-info-row prompt-row">
             <span class="gi-value prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task), 40) }}</span>
             <el-button size="small" text :icon="CopyDocument" @click="copyToClipboard(task.prompt)" />
@@ -277,7 +293,7 @@ function toBeijingTime(isoStr: string): string {
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)">详情</el-dropdown-item>
-                <el-dropdown-item @click="emit('copyParams', task)">复制参数</el-dropdown-item>
+                <el-dropdown-item @click="emit('copyParams', task)">重新编辑</el-dropdown-item>
                 <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)">复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)">删除</el-dropdown-item>
               </el-dropdown-menu>
@@ -324,7 +340,7 @@ function toBeijingTime(isoStr: string): string {
 .task-card:hover { box-shadow: var(--el-box-shadow-light); }
 
 .task-thumb {
-  width: 80px; height: 80px; flex-shrink: 0;
+  width: 140px; height: 140px; flex-shrink: 0;
   border-radius: var(--momo-radius-sm); overflow: hidden;
   background: var(--el-fill-color);
   display: flex; align-items: center; justify-content: center;
@@ -373,10 +389,12 @@ function toBeijingTime(isoStr: string): string {
 
 /* Actions */
 .task-actions {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
-  flex-shrink: 0; align-content: start; min-width: 160px;
+  display: flex; flex-direction: column; gap: 4px;
+  flex-shrink: 0; min-width: 80px;
 }
-.task-actions .el-button { width: 100%; margin-left: 0; }
+.task-actions .el-button { margin-left: 0; width: 100%; }
+.task-actions .el-dropdown { margin-left: 0; width: 100%; }
+.task-actions .el-dropdown .el-button { width: 100%; margin-left: 0; }
 
 /* ─── Grid View ─── */
 .task-grid {
@@ -427,6 +445,25 @@ function toBeijingTime(isoStr: string): string {
 .grid-card-actions > .el-button { flex: 1; }
 .grid-card-actions > .el-dropdown { flex: 1; }
 .grid-card-actions > .el-dropdown > .el-button { width: 100%; }
+
+/* Input image thumbnails */
+.task-input-thumbs {
+  display: flex; gap: 4px; margin-top: 4px;
+  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+}
+.task-input-thumbs::-webkit-scrollbar { display: none; }
+
+.grid-input-thumbs {
+  display: flex; gap: 4px; margin-bottom: 4px;
+  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+}
+.grid-input-thumbs::-webkit-scrollbar { display: none; }
+
+.input-thumb-img {
+  width: 56px; height: 56px; object-fit: cover; flex-shrink: 0;
+  border-radius: var(--momo-radius-sm);
+  border: 1px solid var(--el-border-color-lighter);
+}
 
 .spin { animation: spin-anim 1s linear infinite; }
 @keyframes spin-anim { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

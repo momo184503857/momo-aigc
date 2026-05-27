@@ -7,11 +7,6 @@ export function getKey(): string {
   return row?.value || ''
 }
 
-export function getKeyMode(): string {
-  const row = db.prepare(`SELECT value FROM system_config WHERE key = 'key_mode'`).get() as { value: string } | undefined
-  return row?.value || 'user'
-}
-
 export async function uploadImage(buffer: Buffer, filename: string, mime: string): Promise<string> {
   const apiKey = getKey()
   if (!apiKey) throw new Error('Shared API Key not configured')

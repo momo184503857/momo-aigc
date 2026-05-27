@@ -317,16 +317,17 @@ function formatSize(bytes: number): string {
     <el-dialog
       v-model="showEditDialog"
       title="编辑图片"
-      width="480px"
+      width="960px"
+      class="edit-dialog-lg"
       :close-on-click-modal="false"
       destroy-on-close
     >
       <el-form v-if="editingImage" label-position="top">
-        <el-form-item label="文件名">
-          <el-input v-model="editingFileName" placeholder="输入文件名" />
-        </el-form-item>
         <el-form-item label="标签">
           <GalleryTagInput v-model="editingTagIds" />
+        </el-form-item>
+        <el-form-item label="文件名">
+          <el-input v-model="editingFileName" placeholder="输入文件名" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -472,5 +473,17 @@ function formatSize(bytes: number): string {
   max-width: 90vw; max-height: 90vh;
   object-fit: contain; border-radius: var(--momo-radius-sm);
   cursor: default;
+}
+</style>
+
+<style>
+.edit-dialog-lg .el-dialog {
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.edit-dialog-lg .el-dialog__body {
+  flex: 1;
+  overflow: auto;
 }
 </style>

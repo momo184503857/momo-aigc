@@ -142,14 +142,8 @@ onMounted(loadList)
       </div>
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="isEditing ? '编辑提示词' : '新建提示词'" width="560px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="isEditing ? '编辑提示词' : '新建提示词'" width="1120px" class="edit-dialog-lg" :close-on-click-modal="false">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="60px">
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholder="提示词名称" maxlength="100" />
-        </el-form-item>
-        <el-form-item label="内容" prop="content">
-          <el-input v-model="form.content" type="textarea" :rows="6" placeholder="请输入提示词内容" />
-        </el-form-item>
         <el-form-item label="标签">
           <el-select
             v-model="form.tags" multiple filterable allow-create default-first-option
@@ -157,6 +151,12 @@ onMounted(loadList)
           >
             <el-option v-for="tag in allTags" :key="tag" :label="tag" :value="tag" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="名称" prop="name">
+          <el-input v-model="form.name" placeholder="提示词名称" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="内容" prop="content">
+          <el-input v-model="form.content" type="textarea" :rows="6" placeholder="请输入提示词内容" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -188,4 +188,16 @@ onMounted(loadList)
 }
 .item-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
 .item-actions { flex-shrink: 0; display: flex; gap: 4px; }
+</style>
+
+<style>
+.edit-dialog-lg .el-dialog {
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.edit-dialog-lg .el-dialog__body {
+  flex: 1;
+  overflow: auto;
+}
 </style>

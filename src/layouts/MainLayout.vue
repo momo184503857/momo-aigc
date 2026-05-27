@@ -2,19 +2,15 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useKeyConfigStore } from '@/stores/keyConfig'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { Fold, Expand } from '@element-plus/icons-vue'
 import SidebarMenu from '@/components/SidebarMenu.vue'
-import ApiKeyDialog from '@/components/ApiKeyDialog.vue'
 
 const auth = useAuthStore()
-const keyStore = useKeyConfigStore()
 const serverStatus = useServerStatusStore()
 const router = useRouter()
 const route = useRoute()
 
-const keyDialogVisible = ref(false)
 const sidebarCollapsed = ref(false)
 
 onMounted(() => {
@@ -38,12 +34,6 @@ const pageTitle = computed(() => route.meta.title as string || '')
           <span class="page-title">{{ pageTitle }}</span>
         </div>
         <div class="header-right">
-          <template v-if="serverStatus.loaded && !serverStatus.isSharedMode">
-            <el-tag :type="keyStore.hasKey ? 'success' : 'danger'" size="small" effect="plain">
-              {{ keyStore.hasKey ? 'API Key 已设置' : 'API Key 未设置' }}
-            </el-tag>
-            <el-button size="small" type="primary" plain @click="keyDialogVisible = true">管理 API Key</el-button>
-          </template>
           <el-tag type="info" size="small" v-if="auth.user">
             {{ auth.user.role === 'admin' ? '管理员' : '用户' }}：{{ auth.user.username }}
           </el-tag>
@@ -57,8 +47,6 @@ const pageTitle = computed(() => route.meta.title as string || '')
           </KeepAlive>
         </router-view>
       </div>
-
-      <ApiKeyDialog v-if="serverStatus.loaded && !serverStatus.isSharedMode" v-model="keyDialogVisible" />
     </div>
   </div>
 </template>

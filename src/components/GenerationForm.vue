@@ -7,7 +7,6 @@ import { ref, computed } from 'vue'
 import { Plus, Delete, Picture, Collection } from '@element-plus/icons-vue'
 import type { ModelId } from '@/types/adapter'
 import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
-import { useKeyConfigStore } from '@/stores/keyConfig'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
@@ -25,7 +24,6 @@ const emit = defineEmits<{
   }): void
 }>()
 
-const keyStore = useKeyConfigStore()
 const serverStatus = useServerStatusStore()
 
 const selectedModelId = ref<ModelId>(DEFAULT_MODEL)
@@ -114,8 +112,7 @@ const canAddImage = computed(() => referenceImages.value.length < maxReferenceIm
 const canGenerate = computed(() => {
   if (prompt.value.trim().length === 0 || prompt.value.length > maxPromptChars.value) return false
   if (!serverStatus.loaded) return false
-  if (serverStatus.isSharedMode) return serverStatus.sharedKeyConfigured
-  return keyStore.hasKey
+  return serverStatus.sharedKeyConfigured
 })
 
 // Model change: reset resolution/aspect to valid values
@@ -314,16 +311,8 @@ defineExpose({ setParams })
 
       <!-- Key missing warning -->
       <el-alert
-        v-if="serverStatus.loaded && serverStatus.isSharedMode && !serverStatus.sharedKeyConfigured"
+        v-if="serverStatus.loaded && !serverStatus.sharedKeyConfigured"
         title="管理员尚未配置共享 API Key，生图功能暂不可用"
-        type="warning"
-        :closable="false"
-        show-icon
-        style="margin-bottom: 16px"
-      />
-      <el-alert
-        v-else-if="serverStatus.loaded && !serverStatus.isSharedMode && !keyStore.hasKey"
-        title="请先在 API Key 设置页填写你的 ToAPIs API Key，才能提交生图任务"
         type="warning"
         :closable="false"
         show-icon

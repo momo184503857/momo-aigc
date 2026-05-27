@@ -1,8 +1,7 @@
 /**
- * ToAPIs 客户端 — 支持双模式
+ * ToAPIs 客户端 — 共享模式
  *
- * user 模式：浏览器直接调 ToAPIs，使用用户本地 API Key
- * shared 模式：走服务器代理，使用管理员配置的共享 Key
+ * 走服务器代理，使用管理员配置的共享 Key
  */
 
 import type { ModelId } from '@/types/adapter'
@@ -10,14 +9,6 @@ import { buildGptImage2Request } from './buildGptImage2Request'
 import { buildGeminiRequest } from './buildGeminiRequest'
 import { translateError } from '@/utils/errors'
 import { toapisProxyApi } from '@/services/toapisProxyApi'
-import { useServerStatusStore } from '@/stores/serverStatus'
-
-const BASE_URL = 'https://toapis.com'
-
-function isSharedMode(): boolean {
-  const store = useServerStatusStore()
-  return store.isSharedMode
-}
 
 export interface CreateTaskParams {
   model: ModelId
@@ -25,10 +16,6 @@ export interface CreateTaskParams {
   size: string
   resolution: string
   imageUrls: string[]
-}
-
-export interface ToapisTaskResponse {
-  id: string
 }
 
 export interface ToapisStatusResponse {
@@ -48,12 +35,6 @@ export interface TaskStatusResult {
   errorMessage?: string
   errorCode?: string
   expiresAt?: string
-}
-
-function authHeader(apiKey: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${apiKey}`,
-  }
 }
 
 function buildRequestBody(model: ModelId, params: CreateTaskParams): Record<string, unknown> {
@@ -78,130 +59,35 @@ function buildRequestBody(model: ModelId, params: CreateTaskParams): Record<stri
 /**
  * 上传图片到 ToAPIs
  */
-export async function uploadImage(apiKey: string, file: File): Promise<string> {
-  if (isSharedMode()) {
-    const res = await toapisProxyApi.upload(file)
-    return res.data.data.url
-  }
-
-  const formData = new FormData()
-  formData.append('file', file)
-
-  const res = await fetch(`${BASE_URL}/v1/uploads/images`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: formData,
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(translateError({ status: res.status, message: err.message || err.error?.message }))
-  }
-
-  const data = await res.json()
-  if (!data.success || !data.data?.url) {
-    throw new Error(translateError('上传响应中缺少图片 URL'))
-  }
-
-  return data.data.url
+export async function uploadImage(file: File): Promise<string> {
+  const res = await toapisProxyApi.upload(file)
+  return res.data.data.url
 }
 
 /**
  * 创建图像生成任务
- * 根据模型类型构建不同的请求体（GPT-Image-2 vs Gemini）
  */
-export async function createTask(apiKey: string, params: CreateTaskParams): Promise<string> {
+export async function createTask(params: CreateTaskParams): Promise<string> {
   const body = buildRequestBody(params.model, params)
-
-  if (isSharedMode()) {
-    const res = await toapisProxyApi.createTask(body)
-    return res.data.data.id
-  }
-
-  const res = await fetch(`${BASE_URL}/v1/images/generations`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-
-  const data = await res.json()
-
-  if (!res.ok) {
-    throw new Error(translateError({ status: res.status, message: data.message || data.error?.message }))
-  }
-
-  if (!data.id) {
-    throw new Error(translateError('创建任务响应中缺少 task ID'))
-  }
-
-  return data.id
+  const res = await toapisProxyApi.createTask(body)
+  return res.data.data.id
 }
 
 /**
  * 查询任务状态
  */
-export async function getTaskStatus(
-  apiKey: string,
-  taskId: string
-): Promise<TaskStatusResult> {
-  if (isSharedMode()) {
-    const res = await toapisProxyApi.getTaskStatus(taskId)
-    const data = res.data.data
-    const result: TaskStatusResult = {
-      status: data.status as 'queued' | 'in_progress' | 'completed' | 'failed',
-      progress: data.progress,
-      resultUrls: data.resultUrls,
-      expiresAt: data.expiresAt,
-    }
-    if (data.status === 'failed') {
-      result.errorMessage = data.errorMessage || '未知错误'
-      result.errorCode = data.errorCode
-    }
-    return result
-  }
-
-  const res = await fetch(`${BASE_URL}/v1/images/generations/${taskId}`, {
-    method: 'GET',
-    headers: authHeader(apiKey),
-  })
-
-  const data: ToapisStatusResponse = await res.json()
-
-  if (!res.ok) {
-    throw new Error(translateError({ status: res.status, message: data.error?.message }))
-  }
-
+export async function getTaskStatus(taskId: string): Promise<TaskStatusResult> {
+  const res = await toapisProxyApi.getTaskStatus(taskId)
+  const data = res.data.data
   const result: TaskStatusResult = {
-    status: data.status,
-    progress: data.progress ?? 0,
-    resultUrls: (data.result?.data || []).map((img) => img.url),
-    expiresAt: data.expires_at,
+    status: data.status as 'queued' | 'in_progress' | 'completed' | 'failed',
+    progress: data.progress,
+    resultUrls: data.resultUrls,
+    expiresAt: data.expiresAt,
   }
-
   if (data.status === 'failed') {
-    result.errorMessage = data.error?.message || '未知错误'
-    result.errorCode = data.error?.code
+    result.errorMessage = data.errorMessage || '未知错误'
+    result.errorCode = data.errorCode
   }
-
   return result
-}
-
-/**
- * 测试 API Key 是否有效
- */
-export async function testConnection(apiKey: string): Promise<boolean> {
-  try {
-    // 用模型列表接口测试连通性
-    const res = await fetch(`${BASE_URL}/v1/models`, {
-      headers: authHeader(apiKey),
-    })
-    return res.ok
-  } catch {
-    return false
-  }
 }

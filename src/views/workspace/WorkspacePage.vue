@@ -69,7 +69,6 @@ import type { TabGroup } from '@/components/FeatureNav.vue'
 import TaskList from '@/components/TaskList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
-import { useKeyConfigStore } from '@/stores/keyConfig'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { taskApi } from '@/services/taskApi'
 import * as toapisClient from '@/adapter/toapisClient'
@@ -79,7 +78,6 @@ import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { TaskItem } from '@/components/TaskList.vue'
 import JSZip from 'jszip'
 
-const keyStore = useKeyConfigStore()
 const serverStatus = useServerStatusStore()
 const generationForm = ref<InstanceType<typeof GenerationForm>>()
 const featureForm = ref<InstanceType<typeof FeatureForm>>()
@@ -247,16 +245,9 @@ async function handleGenerate(params: {
   featureId?: string
   userPrompt?: string
 }) {
-  if (serverStatus.isSharedMode) {
-    if (!serverStatus.sharedKeyConfigured) {
-      warning('管理员尚未配置共享 API Key')
-      return
-    }
-  } else {
-    if (!keyStore.hasKey) {
-      warning('请先填写你的 ToAPIs API Key')
-      return
-    }
+  if (!serverStatus.sharedKeyConfigured) {
+    warning('管理员尚未配置共享 API Key')
+    return
   }
 
   const cnt = Math.max(1, Math.min(5, params.count))
@@ -289,13 +280,13 @@ async function handleGenerate(params: {
       // 1. Upload temp images to ToAPIs
       const allImageUrls: string[] = [...params.templateUrls]
       for (const file of params.tempImageFiles) {
-        const url = await toapisClient.uploadImage(keyStore.apiKey, file)
+        const url = await toapisClient.uploadImage(file)
         allImageUrls.push(url)
       }
       newTask.input_image_urls = allImageUrls
 
       // 2. Create ToAPIs task
-      const toapis_task_id = await toapisClient.createTask(keyStore.apiKey, {
+      const toapis_task_id = await toapisClient.createTask({
         model: params.modelId,
         prompt: params.prompt,
         size: params.aspectRatio,
@@ -353,9 +344,8 @@ async function pollAllTasks() {
 }
 
 async function pollTask(task: TaskItem) {
-  if (!serverStatus.isSharedMode && !keyStore.hasKey) return
   try {
-    const result = await toapisClient.getTaskStatus(keyStore.apiKey, task.toapis_task_id)
+    const result = await toapisClient.getTaskStatus(task.toapis_task_id)
 
     // Map ToAPIs status to local status
     const statusMap: Record<string, string> = {
@@ -460,7 +450,7 @@ function handleCopyParams(task: TaskItem) {
     const form = targetTab === 'free-gen' ? generationForm.value : featureForm.value
     form?.setParams({
       modelId: task.model,
-      prompt: task.prompt,
+      prompt: targetTab === 'free-gen' ? task.prompt : (task.user_prompt || ''),
       resolution: task.resolution,
       aspectRatio: task.aspectRatio,
       referenceImages: (task.input_image_urls || []).map((url: string) => ({

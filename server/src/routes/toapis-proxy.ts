@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import multer from 'multer'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
-import { getKey, getKeyMode, uploadImage, createTask, getTaskStatus } from '../utils/toapis.js'
+import { getKey, uploadImage, createTask, getTaskStatus } from '../utils/toapis.js'
 
 export const toapisProxyRouter = Router()
 
@@ -12,11 +12,10 @@ const upload = multer({
 
 toapisProxyRouter.use(authMiddleware)
 
-// Health: returns current mode and whether shared key is configured
+// Health: returns whether shared key is configured
 toapisProxyRouter.get('/health', (_req, res) => {
-  const mode = getKeyMode()
-  const sharedKeyConfigured = mode === 'shared' && !!getKey()
-  res.json({ success: true, data: { mode, sharedKeyConfigured } })
+  const sharedKeyConfigured = !!getKey()
+  res.json({ success: true, data: { sharedKeyConfigured } })
 })
 
 // Upload image (shared mode proxy)

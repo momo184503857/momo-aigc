@@ -2,7 +2,6 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import type { ModelId } from '@/types/adapter'
 import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
-import { useKeyConfigStore } from '@/stores/keyConfig'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
@@ -27,7 +26,6 @@ const emit = defineEmits<{
   }): void
 }>()
 
-const keyStore = useKeyConfigStore()
 const serverStatus = useServerStatusStore()
 
 // Feature config
@@ -136,11 +134,7 @@ function handleResolutionChange() {
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!config.value) return false
-  if (serverStatus.isSharedMode) {
-    if (!serverStatus.sharedKeyConfigured) return false
-  } else {
-    if (!keyStore.hasKey) return false
-  }
+  if (!serverStatus.sharedKeyConfigured) return false
   for (const slot of config.value.imageSlots) {
     if (slot.required && getSlotImages(slot.key).length === 0) return false
   }
@@ -248,16 +242,8 @@ defineExpose({ setParams })
     <div class="form-scroll-area">
       <!-- API Key warning -->
       <el-alert
-        v-if="serverStatus.loaded && serverStatus.isSharedMode && !serverStatus.sharedKeyConfigured"
+        v-if="serverStatus.loaded && !serverStatus.sharedKeyConfigured"
         title="管理员尚未配置共享 API Key，生图功能暂不可用"
-        type="warning"
-        show-icon
-        :closable="false"
-        style="margin-bottom: 16px"
-      />
-      <el-alert
-        v-else-if="serverStatus.loaded && !serverStatus.isSharedMode && !keyStore.hasKey"
-        title="请先设置 ToAPIs API Key 才能生成图片"
         type="warning"
         show-icon
         :closable="false"
