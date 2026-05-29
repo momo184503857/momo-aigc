@@ -83,14 +83,15 @@ const openContextMenu = (event: MouseEvent) => {
 
 const openNodeContextMenu = (event: NodeMouseEvent) => {
   event.event.preventDefault()
+  const me = event.event as MouseEvent
   const position = screenToFlowCoordinate({
-    x: event.event.clientX,
-    y: event.event.clientY,
+    x: me.clientX,
+    y: me.clientY,
   })
 
   contextMenu.visible = true
-  contextMenu.x = event.event.clientX
-  contextMenu.y = event.event.clientY
+  contextMenu.x = me.clientX
+  contextMenu.y = me.clientY
   contextMenu.position = position
   contextMenu.type = 'node'
   contextMenu.nodeId = event.node.id

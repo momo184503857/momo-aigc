@@ -2,7 +2,7 @@ import type { NodeModule, NodeRunResult } from '@/modules/workflow/nodes/types'
 import type { NodePort, PromptSplitterNodeConfig } from '@/modules/workflow/types/workflow'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
 
-function isPromptSplitterConfig(config: Record<string, unknown>): config is PromptSplitterNodeConfig {
+function isPromptSplitterConfig(config: Record<string, unknown>): boolean {
   return typeof config.delimiter === 'string' && typeof config.trimWhitespace === 'boolean' && typeof config.ignoreEmpty === 'boolean' && Boolean(config.editedOutputs) && typeof config.editedOutputs === 'object' && !Array.isArray(config.editedOutputs)
 }
 
@@ -39,7 +39,8 @@ const promptSplitter: NodeModule = {
     }
 
     const cleanText = input.result.value.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-    const pieces = normalizePieces(cleanText, node.config)
+    const config = node.config as unknown as PromptSplitterNodeConfig
+    const pieces = normalizePieces(cleanText, config)
     if (!pieces.length) {
       return { success: false, message: `节点「${node.title}」拆分结果为空。` }
     }
@@ -47,7 +48,7 @@ const promptSplitter: NodeModule = {
     const outputMap: Record<string, string> = {}
     const outputs: NodePort[] = pieces.map((piece, index) => {
       const id = `output_${index + 1}`
-      outputMap[id] = node.config.editedOutputs[id] ?? piece
+      outputMap[id] = config.editedOutputs[id] ?? piece
       return { id, name: `输出${index + 1}`, dataType: 'Text', direction: 'output' }
     })
 

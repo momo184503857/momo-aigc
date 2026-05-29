@@ -169,7 +169,7 @@ const saveCacheResultToAssets = (node: WorkflowNode, workflow: WorkflowModel): v
   // Skip if already saved or no URL to save
   if (value.__assetSaved || !previewUrl) return
 
-  window.electronAPI.canvasAssets
+  ;(window as any).electronAPI?.canvasAssets
     .add({
       fileName: typeof image.fileName === 'string' ? image.fileName : 'image.png',
       sourceUrl: previewUrl,
