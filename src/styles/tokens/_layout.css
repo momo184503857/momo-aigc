@@ -35,4 +35,12 @@
 
   /* 滚动条 */
   --momo-scrollbar-size: 8px;
+
+  /* 终端/日志面板 */
+  --momo-terminal-bg: #1e1e1e;
+  --momo-terminal-text: #d4d4d4;
+  --momo-terminal-text-muted: #808080;
+  --momo-terminal-success: #67c23a;
+  --momo-terminal-warning: #e6a23c;
+  --momo-terminal-error: #f56c6c;
 }

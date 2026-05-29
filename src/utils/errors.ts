@@ -14,7 +14,7 @@ export function translateError(err: any): string {
     const code = err.status
     const map: Record<number, string> = {
       401: 'API Key 不正确或已失效，请重新填写',
-      402: 'ToAPIs 账户余额不足，请先充值',
+      402: '积分不足，请先充值',
       404: '没找到这个任务，可能 Key 不一致或任务 ID 错误',
       422: '图片或提示词可能触发平台限制，请换图或修改提示词',
       429: '请求太频繁，稍等几秒再试',
@@ -27,8 +27,8 @@ export function translateError(err: any): string {
   if (/(?:unauthorized|401|invalid.*key|invalid.*token)/i.test(msg)) {
     return 'API Key 不正确或已失效，请重新填写'
   }
-  if (/(?:insufficient.*quota|402|balance|no.*credit|insufficient.*balance)/i.test(msg)) {
-    return 'ToAPIs 账户余额不足，请先充值'
+  if (/(?:insufficient.*quota|402|balance|no.*credit|insufficient.*balance|积分不足)/i.test(msg)) {
+    return '余额不足，请先充值'
   }
   if (/(?:not.*found|404|task.*not.*found)/i.test(msg)) {
     return '没找到这个任务，可能 Key 不一致或任务 ID 错误'

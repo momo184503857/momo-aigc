@@ -1,8 +1,15 @@
 import http from './http'
 
+export interface UserInfo {
+  id: number
+  username: string
+  role: string
+  points: number
+}
+
 export interface LoginResponse {
   token: string
-  user: { id: number; username: string; role: string }
+  user: UserInfo
 }
 
 export const authApi = {
@@ -13,6 +20,6 @@ export const authApi = {
     return http.post('/auth/logout')
   },
   me() {
-    return http.get<{ success: boolean; data: { id: number; username: string; role: string } }>('/me')
+    return http.get<{ success: boolean; data: UserInfo }>('/me')
   },
 }

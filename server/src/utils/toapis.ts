@@ -90,6 +90,48 @@ export async function getTaskStatus(taskId: string): Promise<{
   }
 }
 
+export async function getBalance(): Promise<{ balance: number; credits: number; currency: string }> {
+  const apiKey = getKey()
+  if (!apiKey) throw new Error('Shared API Key not configured')
+
+  const res = await fetch(`${BASE_URL}/v1/balance`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+
+  const data = await res.json()
+
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || data.error?.message || `Balance query failed (${res.status})`)
+  }
+
+  return {
+    balance: data.remain_balance ?? 0,
+    credits: data.remain_credits ?? 0,
+    currency: 'CNY',
+  }
+}
+
+export async function getUserBalance(): Promise<{ balance: number; credits: number; currency: string }> {
+  const apiKey = getKey()
+  if (!apiKey) throw new Error('Shared API Key not configured')
+
+  const res = await fetch(`${BASE_URL}/v1/user/balance`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+
+  const data = await res.json()
+
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || data.error?.message || `User balance query failed (${res.status})`)
+  }
+
+  return {
+    balance: data.remain_balance ?? 0,
+    credits: data.remain_credits ?? 0,
+    currency: 'CNY',
+  }
+}
+
 export async function testConnection(apiKey: string): Promise<boolean> {
   try {
     const res = await fetch(`${BASE_URL}/v1/models`, {

@@ -47,6 +47,7 @@ authRouter.post('/login', (req, res) => {
         id: user.id,
         username: user.username,
         role: user.role,
+        points: user.points || 0,
       },
     },
   })

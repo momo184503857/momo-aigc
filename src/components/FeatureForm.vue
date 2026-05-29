@@ -23,6 +23,7 @@ const emit = defineEmits<{
     templateUrls: string[]
     tempImageFiles: File[]
     userPrompt: string
+    systemPrompt: string
   }): void
 }>()
 
@@ -176,6 +177,7 @@ function handleGenerate() {
     templateUrls,
     tempImageFiles,
     userPrompt: userPrompt.value.trim(),
+    systemPrompt: systemPrompt.value,
   })
 }
 

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
+import { calculateCost } from '../utils/pricing.js'
 
 function parseRow(row: any): any {
   if (!row) return row
@@ -99,20 +100,69 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
     return
   }
 
-  const result = db.prepare(`
-    INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    req.user!.userId, toapis_task_id, client_business_id || null, model, prompt,
-    size || null, resolution || null, aspect_ratio || null, n || 1,
-    template_image_ids ? JSON.stringify(template_image_ids) : null,
-    input_image_urls ? JSON.stringify(input_image_urls) : null,
-    status || 'submitted', progress || 0,
-    feature_id || null,
-    user_prompt || ''
-  )
+  const userId = req.user!.userId
+  const count = n || 1
+  const cost = calculateCost(model, resolution || '', count)
 
-  res.json({ success: true, data: { id: result.lastInsertRowid } })
+  try {
+    const txn = db.transaction(() => {
+      // Check balance
+      const user = db.prepare('SELECT points FROM users WHERE id = ?').get(userId) as any
+      if (!user) {
+        throw { status: 404, error: '用户不存在' }
+      }
+
+      const currentBalance = user.points ?? 0
+      if (currentBalance < cost) {
+        throw {
+          status: 402,
+          error: `积分不足，需要 ${cost} 积分，当前仅有 ${Math.round(currentBalance * 1000) / 1000} 积分`,
+          data: { required: cost, available: Math.round(currentBalance * 1000) / 1000 }
+        }
+      }
+
+      const newBalance = Math.round((currentBalance - cost) * 1000) / 1000
+
+      // Insert task
+      const result = db.prepare(`
+        INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt, points_cost, points_balance_after)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        userId, toapis_task_id, client_business_id || null, model, prompt,
+        size || null, resolution || null, aspect_ratio || null, count,
+        template_image_ids ? JSON.stringify(template_image_ids) : null,
+        input_image_urls ? JSON.stringify(input_image_urls) : null,
+        status || 'submitted', progress || 0,
+        feature_id || null,
+        user_prompt || '',
+        cost,
+        newBalance
+      )
+
+      const taskId = result.lastInsertRowid
+
+      // Deduct points
+      db.prepare('UPDATE users SET points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(newBalance, userId)
+
+      // Record transaction
+      db.prepare(`
+        INSERT INTO points_transactions (user_id, amount, balance_after, reason, reference_type, reference_id, note, created_at)
+        VALUES (?, ?, ?, 'generation', 'generation_task', ?, '', CURRENT_TIMESTAMP)
+      `).run(userId, -cost, newBalance, taskId)
+
+      return taskId
+    })
+
+    const taskId = txn()
+    res.json({ success: true, data: { id: taskId } })
+  } catch (e: any) {
+    if (e.status && e.error) {
+      res.status(e.status).json({ success: false, error: e.error, data: e.data })
+      return
+    }
+    throw e
+  }
 })
 
 // Update task status/result

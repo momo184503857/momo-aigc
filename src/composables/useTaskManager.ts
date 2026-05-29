@@ -1,0 +1,567 @@
+import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUiFeedback } from '@/composables/useUiFeedback'
+import { useServerStatusStore } from '@/stores/serverStatus'
+import { taskApi } from '@/services/taskApi'
+import { pointsApi } from '@/services/pointsApi'
+import { generateImage } from '@/services/imageGeneration'
+import { getTaskStatus } from '@/adapter/toapisClient'
+import { translateError } from '@/utils/errors'
+import type { ModelId } from '@/types/adapter'
+import { FEATURE_CONFIGS } from '@/configs/featureConfig'
+import type { TaskItem } from '@/components/TaskList.vue'
+import JSZip from 'jszip'
+
+// ─── Module-level singleton state ───
+
+// Listen for canvas task creation events to refresh task list
+let _canvasEventListenerAdded = false
+function ensureCanvasEventListener(loadHistoryFn: () => void) {
+  if (_canvasEventListenerAdded) return
+  _canvasEventListenerAdded = true
+  window.addEventListener('canvas:task-created', () => {
+    // Delay slightly to ensure DB write completes
+    setTimeout(loadHistoryFn, 500)
+  })
+}
+
+const tasks = ref<TaskItem[]>([])
+const loading = ref(false)
+const viewMode = ref<'list' | 'grid'>('list')
+const userPoints = ref(0)
+
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+// Bulk mode
+const bulkMode = ref(false)
+const selectedIds = ref(new Set<number>())
+
+// Pagination
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+
+// Filters
+const filterFeatureId = ref('')
+const filterStartDate = ref('')
+const filterEndDate = ref('')
+const filterFeature = ref('')
+const filterDateRange = ref<[Date, Date] | null>(null)
+
+// Compare dialog
+const compareVisible = ref(false)
+const compareInitialIndex = ref(0)
+
+// Copy params event (for intra-workspace communication)
+const copyParamsEvent = ref<{ task: TaskItem; ts: number } | null>(null)
+
+const hasActiveJobs = computed(() =>
+  tasks.value.some((t) => t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress')
+)
+
+const activeTaskCount = computed(() =>
+  tasks.value.filter((t) => t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress').length
+)
+
+const featureOptions = computed(() => {
+  const opts = [{ id: '', label: '全部功能' }, { id: 'free-gen', label: '自由生图' }]
+  for (const key of Object.keys(FEATURE_CONFIGS)) {
+    opts.push({ id: key, label: FEATURE_CONFIGS[key].label })
+  }
+  return opts
+})
+
+const dateShortcuts = [
+  { text: '当天', value: () => { const d = new Date(); return [d, d] as [Date, Date] } },
+  { text: '近三天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 2); return [s, e] as [Date, Date] } },
+  { text: '近七天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 6); return [s, e] as [Date, Date] } },
+  { text: '当月', value: () => { const d = new Date(); return [new Date(d.getFullYear(), d.getMonth(), 1), new Date(d.getFullYear(), d.getMonth() + 1, 0)] as [Date, Date] } },
+]
+
+// ─── Helpers ───
+
+function formatDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function fetchAsBlob(url: string): Promise<Blob> {
+  const token = localStorage.getItem('auth_token')
+  const resp = await fetch('/api/proxy/image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ url }),
+  })
+  if (!resp.ok) throw new Error('Download failed')
+  return resp.blob()
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const objUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objUrl
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(objUrl)
+}
+
+// ─── Composable ───
+
+export function useTaskManager() {
+  const { success, info, warning, error, confirmDanger } = useUiFeedback()
+  const serverStatus = useServerStatusStore()
+  const router = useRouter()
+
+  // ─── Points ───
+
+  async function loadUserPoints() {
+    try {
+      const res = await pointsApi.getMyBalance()
+      userPoints.value = res.data.data?.balance ?? 0
+    } catch { /* ignore */ }
+  }
+
+  // ─── Bulk mode ───
+
+  function toggleBulkMode() {
+    bulkMode.value = !bulkMode.value
+    if (!bulkMode.value) selectedIds.value.clear()
+  }
+
+  function handleToggleSelect(id: number) {
+    const s = new Set(selectedIds.value)
+    if (s.has(id)) s.delete(id)
+    else s.add(id)
+    selectedIds.value = s
+  }
+
+  function selectAllTasks() {
+    if (selectedIds.value.size === tasks.value.length) {
+      selectedIds.value = new Set()
+    } else {
+      selectedIds.value = new Set(tasks.value.map((t) => t.id))
+    }
+  }
+
+  // ─── Filters ───
+
+  function applyFilters() {
+    filterFeatureId.value = filterFeature.value
+    if (filterDateRange.value) {
+      filterStartDate.value = formatDate(filterDateRange.value[0])
+      filterEndDate.value = formatDate(filterDateRange.value[1]) + ' 23:59:59'
+    } else {
+      filterStartDate.value = ''
+      filterEndDate.value = ''
+    }
+    page.value = 1
+    loadHistory()
+  }
+
+  // ─── Load history ───
+
+  async function loadHistory() {
+    loading.value = true
+    try {
+      const res = await taskApi.list({
+        page: page.value,
+        pageSize: pageSize.value,
+        feature_id: filterFeatureId.value || undefined,
+        start_date: filterStartDate.value || undefined,
+        end_date: filterEndDate.value || undefined,
+      })
+      const records = res.data.data?.records || []
+      total.value = res.data.data?.total || 0
+      tasks.value = records.map((r: any) => ({ ...r }))
+    } catch (e) {
+      console.error('Load history error:', e)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Register canvas task event listener
+  ensureCanvasEventListener(loadHistory)
+
+  function handlePageChange(p: number) {
+    page.value = p
+    loadHistory()
+  }
+
+  function handlePageSizeChange(s: number) {
+    pageSize.value = s
+    page.value = 1
+    loadHistory()
+  }
+
+  // ─── Generate ───
+
+  async function handleGenerate(params: {
+    modelId: ModelId
+    prompt: string
+    resolution: string
+    aspectRatio: string
+    count: number
+    templateUrls: string[]
+    tempImageFiles: File[]
+    featureId?: string
+    userPrompt?: string
+    systemPrompt?: string
+  }) {
+    if (!serverStatus.sharedKeyConfigured) {
+      warning('管理员尚未配置共享 API Key')
+      return
+    }
+
+    const cnt = Math.max(1, Math.min(5, params.count))
+
+    for (let i = 0; i < cnt; i++) {
+      const newTask: TaskItem = {
+        id: 0,
+        toapis_task_id: '',
+        model: params.modelId,
+        prompt: params.prompt,
+        resolution: params.resolution,
+        aspectRatio: params.aspectRatio,
+        status: 'submitted',
+        progress: 0,
+        result_image_urls: [],
+        input_image_urls: [],
+        template_image_ids: [],
+        error_message: '',
+        created_at: new Date().toISOString(),
+        completed_at: null,
+        feature_id: params.featureId,
+        user_prompt: params.userPrompt || '',
+      }
+
+      tasks.value.unshift(newTask)
+
+      try {
+        const result = await generateImage({
+          model: params.modelId,
+          prompt: params.prompt,
+          userPrompt: params.userPrompt,
+          systemPrompt: params.systemPrompt,
+          size: params.aspectRatio,
+          resolution: params.resolution,
+          imageUrls: params.templateUrls,
+          tempImageFiles: params.tempImageFiles,
+          featureId: params.featureId,
+        })
+
+        newTask.toapis_task_id = result.toapisTaskId
+        newTask.id = result.dbTaskId
+        newTask.input_image_urls = [...params.templateUrls]
+
+        await pollTask(newTask)
+
+      } catch (e: any) {
+        if (e?.response?.status === 402) {
+          const msg = e.response.data?.error || '积分不足，请先充值'
+          warning(msg)
+          tasks.value = tasks.value.filter(t => t !== newTask)
+          await loadUserPoints()
+          return
+        }
+        // 验证错误（如缺少提示词）直接提示，不创建失败任务
+        if (e?.message && !e?.response) {
+          warning(e.message)
+          tasks.value = tasks.value.filter(t => t !== newTask)
+          return
+        }
+        newTask.status = 'failed'
+        newTask.error_message = translateError(e)
+        if (!newTask.id && newTask.toapis_task_id) {
+          tasks.value.unshift(newTask)
+        }
+        error(e)
+      }
+
+      if (i < cnt - 1) {
+        await sleep(2000)
+      }
+    }
+  }
+
+  // ─── Polling ───
+
+  async function pollAllTasks() {
+    for (const task of tasks.value) {
+      if (task.status === 'completed' || task.status === 'failed') continue
+      if (!task.toapis_task_id) continue
+      try {
+        await pollTask(task)
+      } catch { /* ignore */ }
+    }
+  }
+
+  async function pollTask(task: TaskItem) {
+    try {
+      const result = await getTaskStatus(task.toapis_task_id)
+
+      const statusMap: Record<string, string> = {
+        queued: 'queued',
+        in_progress: 'in_progress',
+        completed: 'completed',
+        failed: 'failed',
+      }
+      task.status = statusMap[result.status] || result.status
+      task.progress = result.progress
+
+      if (result.status === 'completed') {
+        task.result_image_urls = result.resultUrls
+        task.completed_at = new Date().toISOString()
+        await taskApi.update(task.id, {
+          status: 'completed',
+          progress: 100,
+          result_image_urls: result.resultUrls,
+          completed_at: task.completed_at,
+          expires_at: result.expiresAt,
+        })
+      } else if (result.status === 'failed') {
+        task.error_message = result.errorMessage || ''
+        await taskApi.update(task.id, {
+          status: 'failed',
+          progress: result.progress,
+          error_code: result.errorCode,
+          error_message: result.errorMessage,
+        })
+      } else {
+        await taskApi.update(task.id, {
+          status: task.status,
+          progress: result.progress,
+        })
+      }
+    } catch (e: any) {
+      task.status = 'unknown'
+      task.error_message = translateError(e)
+    }
+  }
+
+  function startPolling() {
+    if (!pollTimer) {
+      pollTimer = setInterval(pollAllTasks, 4000)
+    }
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  // Watch active jobs: start/stop polling
+  watch(hasActiveJobs, (active) => {
+    if (active) {
+      startPolling()
+    } else {
+      stopPolling()
+    }
+  })
+
+  // ─── Task operations ───
+
+  async function handleRegenerate(task: TaskItem) {
+    // Navigate to workspace if not there
+    const currentRoute = router.currentRoute.value
+    if (currentRoute.name !== 'Workspace') {
+      sessionStorage.setItem('regenerate_task', JSON.stringify({
+        model: task.model,
+        prompt: task.prompt,
+        resolution: task.resolution,
+        aspectRatio: task.aspectRatio,
+        input_image_urls: task.input_image_urls || [],
+      }))
+      router.push('/workspace')
+      info('已跳转到工作台，请点击生成按钮')
+      return
+    }
+
+    await handleGenerate({
+      modelId: task.model,
+      prompt: task.prompt,
+      resolution: task.resolution,
+      aspectRatio: task.aspectRatio,
+      count: 1,
+      templateUrls: task.input_image_urls || [],
+      tempImageFiles: [],
+    })
+  }
+
+  async function handleDelete(task: TaskItem) {
+    try {
+      await confirmDanger({ title: '确认删除', message: '确定要删除该任务记录吗？', confirmText: '删除', cancelText: '取消' })
+      tasks.value = tasks.value.filter((t) => t.id !== task.id)
+      success('已移除')
+    } catch { /* cancelled */ }
+  }
+
+  function handleDownload(task: TaskItem) {
+    const url = task.result_image_urls?.[0]
+    if (!url) { warning('没有可下载的图片'); return }
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.png`
+    a.target = '_blank'
+    a.click()
+  }
+
+  function handleCopyParams(task: TaskItem) {
+    const currentRoute = router.currentRoute.value
+    if (currentRoute.name !== 'Workspace') {
+      sessionStorage.setItem('regenerate_task', JSON.stringify({
+        model: task.model,
+        prompt: task.feature_id && task.feature_id !== 'free-gen' ? (task.user_prompt || '') : task.prompt,
+        resolution: task.resolution,
+        aspectRatio: task.aspectRatio,
+        input_image_urls: task.input_image_urls || [],
+        feature_id: task.feature_id,
+      }))
+      router.push('/workspace')
+      info('已跳转到工作台，参数已复制')
+      return
+    }
+    // On workspace: emit event for WorkspacePage to handle
+    copyParamsEvent.value = { task, ts: Date.now() }
+  }
+
+  // ─── Batch operations ───
+
+  async function handleBatchDownload() {
+    const selected = tasks.value.filter((t) => selectedIds.value.has(t.id) && t.result_image_urls?.[0])
+    if (selected.length === 0) { warning('所选任务没有可下载的图片'); return }
+
+    loading.value = true
+    let count = 0
+    for (const task of selected) {
+      try {
+        const blob = await fetchAsBlob(task.result_image_urls[0])
+        const ext = blob.type === 'image/png' ? 'png' : 'jpg'
+        downloadBlob(blob, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.${ext}`)
+        count++
+        await new Promise((r) => setTimeout(r, 300))
+      } catch { /* skip */ }
+    }
+    loading.value = false
+    success(`已下载 ${count} 张图片`)
+  }
+
+  async function handleBatchPackDownload() {
+    const selected = tasks.value.filter((t) => selectedIds.value.has(t.id) && t.result_image_urls?.[0])
+    if (selected.length === 0) { warning('所选任务没有可下载的图片'); return }
+
+    loading.value = true
+    const zip = new JSZip()
+    let fetched = 0
+
+    for (const task of selected) {
+      try {
+        const blob = await fetchAsBlob(task.result_image_urls[0])
+        const ext = blob.type === 'image/png' ? 'png' : 'jpg'
+        zip.file(`${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.${ext}`, blob)
+        fetched++
+      } catch { /* skip */ }
+    }
+
+    if (fetched === 0) { error('打包失败：无法获取图片'); loading.value = false; return }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    downloadBlob(zipBlob, `momo-results-${new Date().toISOString().slice(0, 10)}.zip`)
+    loading.value = false
+    success(`已打包 ${fetched} 张图片`)
+  }
+
+  async function handleBatchDelete() {
+    const selected = tasks.value.filter((t) => selectedIds.value.has(t.id))
+    if (selected.length === 0) { warning('请先选择要删除的任务'); return }
+
+    try {
+      await confirmDanger({
+        title: '批量删除',
+        message: `确定要删除选中的 ${selected.length} 个任务吗？此操作不可撤销。`,
+        confirmText: '删除',
+        cancelText: '取消',
+      })
+    } catch { return }
+
+    const ids = new Set(selected.map((t) => t.id))
+    tasks.value = tasks.value.filter((t) => !ids.has(t.id))
+    selectedIds.value.clear()
+    success(`已删除 ${selected.length} 个任务`)
+  }
+
+  // ─── Detail / Compare ───
+
+  function showCompare(index: number) {
+    compareInitialIndex.value = index
+    compareVisible.value = true
+  }
+
+  // ─── Lifecycle ───
+
+  async function init() {
+    await loadHistory()
+    if (hasActiveJobs.value) startPolling()
+    loadUserPoints()
+  }
+
+  function cleanup() {
+    stopPolling()
+  }
+
+  return {
+    // State
+    tasks,
+    loading,
+    viewMode,
+    userPoints,
+    bulkMode,
+    selectedIds,
+    page,
+    pageSize,
+    total,
+    filterFeature,
+    filterDateRange,
+    featureOptions,
+    dateShortcuts,
+    hasActiveJobs,
+    activeTaskCount,
+    compareVisible,
+    compareInitialIndex,
+    copyParamsEvent,
+
+    // Methods
+    init,
+    cleanup,
+    loadHistory,
+    loadUserPoints,
+    handleGenerate,
+    handleRegenerate,
+    handleDelete,
+    handleDownload,
+    handleCopyParams,
+    handleBatchDownload,
+    handleBatchPackDownload,
+    handleBatchDelete,
+    toggleBulkMode,
+    handleToggleSelect,
+    selectAllTasks,
+    applyFilters,
+    handlePageChange,
+    handlePageSizeChange,
+    showCompare,
+    startPolling,
+    stopPolling,
+  }
+}

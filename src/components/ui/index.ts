@@ -1,6 +1,8 @@
 export { default as UiEmptyState } from './UiEmptyState.vue'
+export { default as UiImagePreview } from './UiImagePreview.vue'
 export { default as UiImagePreviewTile } from './UiImagePreviewTile.vue'
 export { default as UiInlineNotice } from './UiInlineNotice.vue'
+export { default as UiNumberInput } from './UiNumberInput.vue'
 export { default as UiPagination } from './UiPagination.vue'
 export { default as UiStatusBadge } from './UiStatusBadge.vue'
 export { default as UiStatusBar } from './UiStatusBar.vue'

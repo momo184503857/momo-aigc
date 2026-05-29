@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'TemplatesPage' })
 import { ref, onMounted, watch } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
@@ -7,6 +8,8 @@ import { templateApi, type TemplateTag } from '@/services/templateApi'
 import { ossApi } from '@/services/ossApi'
 import PageLayout from '@/components/PageLayout.vue'
 import GalleryTagInput from '@/components/gallery/GalleryTagInput.vue'
+import { UiImagePreview } from '@/components/ui'
+import { useImagePreview } from '@/composables/useImagePreview'
 
 interface TemplateItem {
   id: number
@@ -41,8 +44,7 @@ const showEditDialog = ref(false)
 const editingImage = ref<TemplateItem | null>(null)
 const editingFileName = ref('')
 const editingTagIds = ref<number[]>([])
-const previewVisible = ref(false)
-const previewUrl = ref('')
+const { visible: previewVisible, url: previewUrl, open: openPreview } = useImagePreview()
 
 async function loadTemplates() {
   loading.value = true
@@ -184,19 +186,6 @@ async function batchDelete() {
   await loadTags()
 }
 
-function openPreview(url: string) {
-  previewUrl.value = url
-  previewVisible.value = true
-}
-
-function closePreview() {
-  previewVisible.value = false
-  previewUrl.value = ''
-}
-
-function onPreviewKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') closePreview()
-}
 
 function handlePageChange(p: number) { currentPage.value = p; loadTemplates() }
 function handlePageSizeChange(s: number) { pageSize.value = s; currentPage.value = 1; loadTemplates() }
@@ -336,21 +325,7 @@ function formatSize(bytes: number): string {
       </template>
     </el-dialog>
 
-    <!-- Preview overlay -->
-    <Teleport to="body">
-      <div
-        v-if="previewVisible"
-        class="preview-overlay"
-        @click="closePreview"
-        @keydown="onPreviewKeydown"
-        tabindex="-1"
-      >
-        <div class="preview-close" @click.stop="closePreview">
-          <el-icon size="28"><Close /></el-icon>
-        </div>
-        <img :src="previewUrl" class="preview-image" @click.stop />
-      </div>
-    </Teleport>
+    <UiImagePreview v-model="previewVisible" :url="previewUrl" />
   </PageLayout>
 </template>
 
@@ -452,28 +427,7 @@ function formatSize(bytes: number): string {
 }
 .total-count { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 
-/* ─── Preview overlay ─── */
-.preview-overlay {
-  position: fixed; inset: 0; z-index: 3000;
-  background: var(--momo-color-overlay-heavy);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-}
-.preview-close {
-  position: absolute; top: 20px; right: 20px; z-index: 1;
-  color: var(--momo-color-text-inverse); cursor: pointer;
-  width: 40px; height: 40px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  transition: background 0.2s;
-}
-.preview-close:hover { background: rgba(255, 255, 255, 0.3); }
-.preview-image {
-  max-width: 90vw; max-height: 90vh;
-  object-fit: contain; border-radius: var(--momo-radius-sm);
-  cursor: default;
-}
+
 </style>
 
 <style>

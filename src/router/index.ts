@@ -40,6 +40,42 @@ const router = createRouter({
       meta: { title: '提示词库', requiresAuth: true },
     },
     {
+      path: '/canvas-projects',
+      name: 'CanvasProjects',
+      component: () => import('@/views/canvas/ProjectsPage.vue'),
+      meta: { title: 'AI画布', requiresAuth: true },
+    },
+    {
+      path: '/toolbox',
+      name: 'Toolbox',
+      component: () => import('@/views/tools/ToolboxPage.vue'),
+      meta: { title: 'AI工具箱', requiresAuth: true },
+    },
+    {
+      path: '/toolbox/batch-clothes-swap',
+      name: 'BatchClothesSwap',
+      component: () => import('@/views/tools/BatchClothesSwapPage.vue'),
+      meta: { title: '批量换姿势', requiresAuth: true },
+    },
+    {
+      path: '/toolbox/batch-pose-swap',
+      name: 'BatchPoseSwap',
+      component: () => import('@/views/tools/BatchPoseSwapPage.vue'),
+      meta: { title: '批量换衣服', requiresAuth: true },
+    },
+    {
+      path: '/toolbox/batch-spreadsheet',
+      name: 'BatchSpreadsheet',
+      component: () => import('@/views/tools/BatchSpreadsheetPage.vue'),
+      meta: { title: '批量传表格做图', requiresAuth: true },
+    },
+    {
+      path: '/ai-canvas/:projectId',
+      name: 'AICanvas',
+      component: () => import('@/views/canvas/AICanvasPage.vue'),
+      meta: { title: 'AI画布', requiresAuth: true, hideInMenu: true },
+    },
+    {
       path: '/admin',
       redirect: '/admin/users',
       meta: { requiresAuth: true, requiresAdmin: true },
@@ -51,10 +87,25 @@ const router = createRouter({
       meta: { title: '用户管理', requiresAuth: true, requiresAdmin: true },
     },
     {
+      path: '/admin/dashboard',
+      name: 'AdminDashboard',
+      component: () => import('@/views/admin/AdminDashboard.vue'),
+      meta: { title: '生图日志', requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/admin/tasks',
-      name: 'AdminTasks',
-      component: () => import('@/views/admin/AdminTasks.vue'),
-      meta: { title: '任务管理', requiresAuth: true, requiresAdmin: true },
+      redirect: '/admin/dashboard',
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/stats',
+      redirect: '/admin/dashboard',
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/points/transactions',
+      redirect: '/admin/dashboard',
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/admin/templates',
@@ -69,16 +120,16 @@ const router = createRouter({
       meta: { title: '功能提示词', requiresAuth: true, requiresAdmin: true },
     },
     {
-      path: '/admin/stats',
-      name: 'AdminStats',
-      component: () => import('@/views/admin/AdminStats.vue'),
-      meta: { title: '生成统计', requiresAuth: true, requiresAdmin: true },
-    },
-    {
       path: '/admin/toapis-key',
       name: 'AdminToApisKey',
       component: () => import('@/views/admin/AdminToApisKey.vue'),
       meta: { title: 'API Key 管理', requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/points',
+      name: 'AdminPoints',
+      component: () => import('@/views/admin/AdminPoints.vue'),
+      meta: { title: '积分管理', requiresAuth: true, requiresAdmin: true },
     },
   ],
 })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'AdminFeaturePrompts' })
 import { ref, computed, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error } = useUiFeedback()

@@ -1,9 +1,12 @@
 <script setup lang="ts">
+defineOptions({ name: 'ResultsPage' })
 import { ref, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { Download, Delete, Picture, Check, Close } from '@element-plus/icons-vue'
 import PageLayout from '@/components/PageLayout.vue'
+import { UiImagePreview } from '@/components/ui'
+import { useImagePreview } from '@/composables/useImagePreview'
 import { taskApi } from '@/services/taskApi'
 import type { TaskItem } from '@/components/TaskList.vue'
 import JSZip from 'jszip'
@@ -170,23 +173,8 @@ async function handlePackDownload() {
 
 // ─── Preview ───
 
-const previewVisible = ref(false)
-const previewUrl = ref('')
-
-function openPreview(url: string) {
-  if (bulkMode.value) return
-  previewUrl.value = url
-  previewVisible.value = true
-}
-
-function closePreview() {
-  previewVisible.value = false
-  previewUrl.value = ''
-}
-
-function onPreviewKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') closePreview()
-}
+const { visible: previewVisible, url: previewUrl, open: openPreviewRaw } = useImagePreview()
+function openPreview(url: string) { if (!bulkMode.value) openPreviewRaw(url) }
 
 // ─── Pagination ───
 
@@ -279,21 +267,8 @@ onMounted(() => { loadResults() })
     </template>
   </PageLayout>
 
-  <!-- Preview overlay -->
-  <Teleport to="body">
-    <div
-      v-if="previewVisible"
-      class="preview-overlay"
-      @click="closePreview"
-      @keydown="onPreviewKeydown"
-      tabindex="-1"
-    >
-      <div class="preview-close" @click.stop="closePreview">
-        <el-icon size="28"><Close /></el-icon>
-      </div>
-      <img :src="previewUrl" class="preview-image" @click.stop />
-    </div>
-  </Teleport>
+  <!-- Preview -->
+  <UiImagePreview v-model="previewVisible" :url="previewUrl" />
 </template>
 
 <style scoped>
@@ -410,27 +385,4 @@ onMounted(() => { loadResults() })
   justify-content: flex-end;
 }
 
-/* ─── Preview overlay ─── */
-.preview-overlay {
-  position: fixed; inset: 0; z-index: 3000;
-  background: var(--momo-color-overlay-heavy);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-}
-.preview-close {
-  position: absolute; top: 20px; right: 20px; z-index: 1;
-  color: var(--momo-color-text-inverse); cursor: pointer;
-  width: 40px; height: 40px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.15);
-  transition: background 0.2s;
-}
-.preview-close:hover { background: rgba(255,255,255,0.3); }
-.preview-image {
-  max-width: 90vw; max-height: 90vh;
-  object-fit: contain;
-  border-radius: var(--momo-radius-sm);
-  cursor: default;
-}
 </style>

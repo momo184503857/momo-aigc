@@ -2,21 +2,26 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useTabStore } from '@/stores/tabs'
 import {
   MagicStick,
   PictureFilled,
   Picture,
   Collection,
   UserFilled,
-  List,
-  DataAnalysis,
   EditPen,
   Key,
+  Coin,
+  DataBoard,
+  ArrowDown,
+  Share,
+  Box,
 } from '@element-plus/icons-vue'
 
 defineProps<{ collapsed?: boolean }>()
 
 const auth = useAuthStore()
+const tabStore = useTabStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -35,9 +40,11 @@ interface MenuSection {
 const menuSections = computed<MenuSection[]>(() => {
   const sections: MenuSection[] = [
     {
-      title: '',
+      title: 'AI生图',
       items: [
         { path: '/workspace', title: '生图工作台', icon: MagicStick },
+        { path: '/canvas-projects', title: 'AI画布', icon: Share },
+        { path: '/toolbox', title: 'AI工具箱', icon: Box },
       ],
     },
     {
@@ -56,10 +63,10 @@ const menuSections = computed<MenuSection[]>(() => {
       adminOnly: true,
       items: [
         { path: '/admin/users', title: '用户管理', icon: UserFilled },
-        { path: '/admin/tasks', title: '任务管理', icon: List },
+        { path: '/admin/dashboard', title: '生图日志', icon: DataBoard },
         { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
         { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
-        { path: '/admin/stats', title: '生成统计', icon: DataAnalysis },
+        { path: '/admin/points', title: '积分管理', icon: Coin },
         { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
       ],
     })
@@ -73,7 +80,13 @@ function isActive(path: string): boolean {
 }
 
 function navigate(path: string) {
+  tabStore.syncFromRoute(path)
   router.push(path)
+}
+
+function handleLogout() {
+  auth.logout()
+  router.push('/login')
 }
 </script>
 
@@ -99,6 +112,29 @@ function navigate(path: string) {
         </div>
       </template>
     </nav>
+
+    <!-- User section at bottom -->
+    <div v-if="auth.user" class="sidebar-user">
+      <div class="user-points-row">
+        <el-icon :size="14"><Coin /></el-icon>
+        <span v-if="!collapsed" class="user-points-text">{{ auth.user.points }} 积分</span>
+      </div>
+      <el-dropdown trigger="click" @command="handleLogout" popper-class="sidebar-user-dropdown">
+        <div class="user-account-row">
+          <div class="user-avatar">{{ auth.user.username.charAt(0).toUpperCase() }}</div>
+          <span v-if="!collapsed" class="user-name">{{ auth.user.username }}</span>
+          <el-icon v-if="!collapsed" class="user-arrow"><ArrowDown /></el-icon>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item disabled>
+              {{ auth.user.role === 'admin' ? '管理员' : '用户' }}
+            </el-dropdown-item>
+            <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </div>
   </aside>
 </template>
 
@@ -204,5 +240,80 @@ function navigate(path: string) {
 
 .collapsed .nav-icon {
   font-size: 20px;
+}
+
+/* ─── User section ─── */
+.sidebar-user {
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding: 12px 8px;
+  flex-shrink: 0;
+}
+
+.user-points-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-bottom: 4px;
+  color: var(--el-color-warning-dark-2);
+  font-size: var(--momo-font-size-sm);
+}
+
+.collapsed .user-points-row {
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.user-points-text {
+  white-space: nowrap;
+}
+
+.user-account-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--tf-sidebar-menu-radius, 8px);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.user-account-row:hover {
+  background: var(--el-fill-color-light);
+}
+
+.collapsed .user-account-row {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--el-color-primary);
+  color: var(--el-color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--momo-font-size-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-size: var(--momo-font-size-base);
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.user-arrow {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  flex-shrink: 0;
 }
 </style>

@@ -103,6 +103,75 @@ export function initSchema(): void {
     db.exec(`ALTER TABLE generation_tasks ADD COLUMN user_prompt TEXT DEFAULT ''`)
   } catch { /* column already exists */ }
 
+  // Migration: add points column to users
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN points REAL NOT NULL DEFAULT 0`)
+  } catch { /* column already exists */ }
+
+  // Migration: add tags column to users (JSON array)
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`)
+  } catch { /* column already exists */ }
+
+  // Migration: add points_cost to generation_tasks
+  try {
+    db.exec(`ALTER TABLE generation_tasks ADD COLUMN points_cost REAL NOT NULL DEFAULT 0`)
+  } catch { /* column already exists */ }
+
+  // Migration: add points_balance_after to generation_tasks
+  try {
+    db.exec(`ALTER TABLE generation_tasks ADD COLUMN points_balance_after REAL DEFAULT NULL`)
+  } catch { /* column already exists */ }
+
+  // Points transactions table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS points_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      amount REAL NOT NULL,
+      balance_after REAL NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      reference_type VARCHAR(50),
+      reference_id INTEGER,
+      operator_id INTEGER REFERENCES users(id),
+      note TEXT DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_points_txn_user ON points_transactions(user_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_points_txn_created ON points_transactions(created_at);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_points_txn_reason ON points_transactions(reason);`)
+
+  // User tags definition table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name VARCHAR(64) NOT NULL UNIQUE,
+      color VARCHAR(7) DEFAULT '#409EFF',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+
+  // User-tag mappings (many-to-many)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_tag_mappings (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tag_id INTEGER NOT NULL REFERENCES user_tags(id) ON DELETE CASCADE,
+      PRIMARY KEY (user_id, tag_id)
+    );
+  `)
+
+  // ToAPIs balance check history
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS toapis_balance_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      balance REAL DEFAULT 0,
+      currency VARCHAR(10) DEFAULT 'CNY',
+      raw_response TEXT DEFAULT '',
+      checked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+
   // Feature prompts table (per-feature per-model system prompts)
   db.exec(`
     CREATE TABLE IF NOT EXISTS feature_prompts (
@@ -150,6 +219,41 @@ export function initSchema(): void {
     }
   }
 
+
+  // Canvas projects table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS canvas_projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      name VARCHAR(100) NOT NULL DEFAULT '未命名 AI 画布',
+      description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      thumbnail VARCHAR(7) DEFAULT NULL,
+      workflow_data TEXT DEFAULT '',
+      node_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_projects_user ON canvas_projects(user_id);`)
+
+  // Canvas assets table (images generated/stored in canvas workflows)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS canvas_assets (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      file_name VARCHAR(255) NOT NULL,
+      file_path TEXT NOT NULL,
+      preview_url TEXT DEFAULT '',
+      size INTEGER DEFAULT 0,
+      node_id VARCHAR(100) DEFAULT '',
+      node_title VARCHAR(200) DEFAULT '',
+      project_id INTEGER DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_user ON canvas_assets(user_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_project ON canvas_assets(project_id);`)
 
   console.log('[DB] Schema initialized')
 }

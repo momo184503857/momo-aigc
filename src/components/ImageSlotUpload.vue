@@ -27,27 +27,29 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function addFromFiles(files: FileList) {
-  const remaining = props.maxCount - props.modelValue.length
-  if (remaining <= 0) return
-  const toAdd = Math.min(remaining, files.length)
-  const newImages: SlotImage[] = []
-  for (let i = 0; i < toAdd; i++) {
-    const file = files[i]
-    if (!file.type.startsWith('image/')) continue
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => {
-      const img: SlotImage = {
-        id: generateId(),
-        dataUrl: reader.result as string,
-        file,
-      }
-      const updated = [...props.modelValue, img]
-      if (updated.length <= props.maxCount) {
-        emit('update:modelValue', updated)
-      }
-    }
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(file)
+  })
+}
+
+async function addFromFiles(fileList: FileList | File[]) {
+  const files = Array.from(fileList)
+  let current = [...props.modelValue]
+  for (const file of files) {
+    if (current.length >= props.maxCount) break
+    if (!file.type.startsWith('image/')) continue
+    const dataUrl = await readFileAsDataUrl(file)
+    const img: SlotImage = {
+      id: generateId(),
+      dataUrl,
+      file,
+    }
+    current = [...current, img]
+    emit('update:modelValue', current)
   }
 }
 
@@ -102,7 +104,7 @@ function showPreview(dataUrl: string) {
         <span class="slot-remove" @click="handleRemove(i)">&times;</span>
       </div>
       <label v-if="modelValue.length < maxCount" class="slot-add-btn" :style="{ width: size + 'px', height: size + 'px' }">
-        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
+        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden
           @change="handleFileInput" />
         <span class="add-icon">+</span>
         <span class="add-hint">点击上传</span>

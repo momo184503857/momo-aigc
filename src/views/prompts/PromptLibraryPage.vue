@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'PromptLibraryPage' })
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'

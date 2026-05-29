@@ -69,3 +69,25 @@ The main page (`src/views/workspace/WorkspacePage.vue`) uses a resizable three-p
 ### Design System
 
 All styles must use `--momo-*` CSS custom properties (defined in `src/styles/tokens/`), never hardcoded values. Element Plus components are themed via `src/styles/ep-overrides.css` which maps `--el-*` to `--momo-*` — changing one token propagates everywhere. Messages/dialogs must use `useUiFeedback` composable (`src/composables/useUiFeedback.ts`), never direct `ElMessage`/`ElMessageBox` imports.
+
+## 必读文档
+
+修改本项目代码前，请按需阅读以下文档：
+
+- `docs/ui/ui-design-guidelines.md` — UI 设计规范（信息结构、交互流程、视觉标准）
+- `docs/project/ui-handoff.md` — UI 交接文档（历史上下文）
+
+## 项目文档索引
+
+| 类别 | 文件 |
+|------|------|
+| 产品需求 | `docs/product/prd.md` |
+| UI 设计规范 | `docs/ui/ui-design-guidelines.md` |
+| UI 模块库 | `docs/ui/ui-module-library.md` |
+| API 接口 | `docs/api/api-spec.md` |
+| 系统架构 | `docs/architecture/architecture.md` |
+| 数据库 | `docs/database/schema.md` |
+| 部署运维 | `docs/engineering/deployment.md` |
+| 运维手册 | `docs/operations/runbook.md` |
+| 测试计划 | `docs/testing/test-plan.md` |
+| 项目交接 | `docs/project/handoff.md` |

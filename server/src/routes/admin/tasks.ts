@@ -28,6 +28,8 @@ adminTasksRouter.get('/', (req: AuthRequest, res) => {
   const pageSize = parseInt(req.query.pageSize as string) || 20
   const status = req.query.status as string | undefined
   const userId = req.query.user_id as string | undefined
+  const startDate = req.query.start_date as string | undefined
+  const endDate = req.query.end_date as string | undefined
 
   let where = 'WHERE 1=1'
   const params: any[] = []
@@ -39,6 +41,14 @@ adminTasksRouter.get('/', (req: AuthRequest, res) => {
   if (userId) {
     where += ' AND t.user_id = ?'
     params.push(userId)
+  }
+  if (startDate) {
+    where += ' AND t.created_at >= ?'
+    params.push(startDate)
+  }
+  if (endDate) {
+    where += ' AND t.created_at < ?'
+    params.push(endDate + ' 23:59:59')
   }
 
   const countRow = db.prepare(

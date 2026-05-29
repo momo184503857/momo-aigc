@@ -16,6 +16,9 @@ import { featurePromptsRouter, adminFeaturePromptsRouter } from './routes/featur
 import { proxyRouter } from './routes/proxy.js'
 import { toapisProxyRouter } from './routes/toapis-proxy.js'
 import { adminToapisKeyRouter } from './routes/admin/toapis-key.js'
+import { pointsRouter, adminPointsRouter } from './routes/points.js'
+import { canvasRouter } from './routes/canvas.js'
+import { canvasAiRouter } from './routes/canvas-ai.js'
 
 const app = express()
 
@@ -42,6 +45,10 @@ app.use('/api/admin/feature-prompts', adminFeaturePromptsRouter)
 app.use('/api/proxy', proxyRouter)
 app.use('/api/toapis', toapisProxyRouter)
 app.use('/api/admin/toapis', adminToapisKeyRouter)
+app.use('/api/points', pointsRouter)
+app.use('/api/admin/points', adminPointsRouter)
+app.use('/api/canvas', canvasRouter)
+app.use('/api/canvas-ai', canvasAiRouter)
 
 app.listen(config.port, () => {
   console.log(`[Server] momoAigc server running on http://localhost:${config.port}`)

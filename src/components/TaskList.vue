@@ -353,6 +353,7 @@ function toBeijingTime(isoStr: string): string {
 /* Task ID at top */
 .task-id {
   display: flex; align-items: center; gap: 4px;
+  height: 20px; overflow: hidden; flex-shrink: 0;
 }
 .task-id-label {
   font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary);
@@ -361,23 +362,24 @@ function toBeijingTime(isoStr: string): string {
 .task-id-text {
   font-family: monospace; font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-secondary);
-  word-break: break-all;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Header row */
-.task-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.task-header { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; height: 22px; overflow: hidden; flex-shrink: 0; }
 .task-status-group { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .task-duration { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 .task-model { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 .task-res { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
-.task-time { font-size: var(--momo-font-size-sm); color: var(--el-text-color-placeholder); margin-left: auto; }
+.task-time { font-size: var(--momo-font-size-sm); color: var(--el-text-color-placeholder); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Prompt */
 .task-prompt {
   font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular);
-  word-break: break-all; display: flex; align-items: flex-start; gap: 4px;
+  display: flex; align-items: center; gap: 4px;
+  height: 20px; overflow: hidden; flex-shrink: 0;
 }
-.task-prompt-text { min-width: 0; }
+.task-prompt-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-error-msg {
   font-size: var(--momo-font-size-sm); color: var(--el-color-danger); max-width: 200px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -426,7 +428,7 @@ function toBeijingTime(isoStr: string): string {
 
 .grid-card-info {
   padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
-  flex: 1;
+  flex: 1; overflow: hidden;
 }
 .grid-info-row { display: flex; align-items: center; }
 .grid-info-row.prompt-row { align-items: flex-start; }
