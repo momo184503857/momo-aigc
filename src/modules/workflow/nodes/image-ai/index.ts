@@ -6,6 +6,7 @@ import { toapisProxyApi } from '@/services/toapisProxyApi'
 import { canvasApi } from '@/services/canvasApi'
 import { taskApi } from '@/services/taskApi'
 import { generateImage } from '@/services/imageGeneration'
+import { ossApi } from '@/services/ossApi'
 
 function isLocalImageAsset(value: unknown): value is LocalImageAsset {
   if (!value || typeof value !== 'object') return false
@@ -129,7 +130,13 @@ const imageAi: NodeModule = {
 
       logs.push({ level: 'info', message: `生图完成，耗时 ${(durationMs / 1000).toFixed(1)}s` })
 
-      const imageUrl = pollResult.imageUrl
+      let imageUrl = pollResult.imageUrl
+      try {
+        const imported = await ossApi.importResult(taskId, pollResult.imageUrl)
+        imageUrl = imported.publicUrl
+      } catch (err) {
+        logs.push({ level: 'warn', message: `结果转存 OSS 失败，临时使用 ToAPIs URL: ${err instanceof Error ? err.message : String(err)}` })
+      }
       const image: LocalImageAsset = {
         id: crypto.randomUUID(),
         fileName: `${taskId || 'generated'}.png`,

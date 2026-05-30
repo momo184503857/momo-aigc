@@ -9,6 +9,7 @@ import { buildGptImage2Request } from '@/adapter/buildGptImage2Request'
 import { buildGeminiRequest } from '@/adapter/buildGeminiRequest'
 import { toapisProxyApi } from '@/services/toapisProxyApi'
 import { taskApi } from '@/services/taskApi'
+import { ossApi } from '@/services/ossApi'
 
 export interface GenerateImageParams {
   /** 模型 ID */
@@ -73,8 +74,8 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
   // ─── 上传临时图片 ───
   const allImageUrls = [...imageUrls]
   for (const file of tempImageFiles) {
-    const res = await toapisProxyApi.upload(file)
-    allImageUrls.push(res.data.data.url)
+    const uploaded = await ossApi.upload(file, 'inputs')
+    allImageUrls.push(uploaded.publicUrl)
   }
 
   // ─── 构建请求体 ───

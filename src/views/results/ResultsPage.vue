@@ -9,7 +9,6 @@ import { UiImagePreview } from '@/components/ui'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { taskApi } from '@/services/taskApi'
 import type { TaskItem } from '@/components/TaskList.vue'
-import JSZip from 'jszip'
 
 const tasks = ref<TaskItem[]>([])
 const loading = ref(false)
@@ -56,36 +55,19 @@ function selectAll() {
 
 // ─── Download helpers ───
 
-async function fetchAsBlob(url: string): Promise<Blob> {
-  const token = localStorage.getItem('auth_token')
-  const resp = await fetch('/api/proxy/image', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ url }),
-  })
-  if (!resp.ok) throw new Error('Download failed')
-  return resp.blob()
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const objUrl = URL.createObjectURL(blob)
+function downloadUrl(url: string, filename: string) {
   const a = document.createElement('a')
-  a.href = objUrl
+  a.href = url
   a.download = filename
+  a.rel = 'noopener'
   a.click()
-  URL.revokeObjectURL(objUrl)
 }
 
 async function handleDownload(task: TaskItem) {
   const url = task.result_image_urls?.[0]
   if (!url) { warning('没有可下载的图片'); return }
   try {
-    const blob = await fetchAsBlob(url)
-    const ext = blob.type === 'image/png' ? 'png' : 'jpg'
-    downloadBlob(blob, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.${ext}`)
+    downloadUrl(url, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
     success('下载完成')
   } catch {
     error('下载失败')
@@ -134,9 +116,7 @@ async function handleBatchDownload() {
   let count = 0
   for (const task of selected) {
     try {
-      const blob = await fetchAsBlob(task.result_image_urls[0])
-      const ext = blob.type === 'image/png' ? 'png' : 'jpg'
-      downloadBlob(blob, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.${ext}`)
+      downloadUrl(task.result_image_urls[0], `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
       count++
       // Small delay between downloads to avoid browser throttling
       await new Promise((r) => setTimeout(r, 300))
@@ -147,28 +127,7 @@ async function handleBatchDownload() {
 }
 
 async function handlePackDownload() {
-  const selected = tasks.value.filter((t) => selectedIds.value.has(t.id) && t.result_image_urls?.[0])
-  if (selected.length === 0) { warning('所选结果没有可下载的图片'); return }
-
-  loading.value = true
-  const zip = new JSZip()
-  let fetched = 0
-
-  for (const task of selected) {
-    try {
-      const blob = await fetchAsBlob(task.result_image_urls[0])
-      const ext = blob.type === 'image/png' ? 'png' : 'jpg'
-      zip.file(`${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.${ext}`, blob)
-      fetched++
-    } catch { /* skip */ }
-  }
-
-  if (fetched === 0) { error('打包失败：无法获取图片'); loading.value = false; return }
-
-  const zipBlob = await zip.generateAsync({ type: 'blob' })
-  downloadBlob(zipBlob, `momo-results-${new Date().toISOString().slice(0, 10)}.zip`)
-  loading.value = false
-  success(`已打包 ${fetched} 张图片`)
+  await handleBatchDownload()
 }
 
 // ─── Preview ───

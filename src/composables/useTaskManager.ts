@@ -5,12 +5,12 @@ import { useServerStatusStore } from '@/stores/serverStatus'
 import { taskApi } from '@/services/taskApi'
 import { pointsApi } from '@/services/pointsApi'
 import { generateImage } from '@/services/imageGeneration'
+import { ossApi } from '@/services/ossApi'
 import { getTaskStatus } from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
 import type { ModelId } from '@/types/adapter'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { TaskItem } from '@/components/TaskList.vue'
-import JSZip from 'jszip'
 
 // ─── Module-level singleton state ───
 
@@ -91,27 +91,26 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function fetchAsBlob(url: string): Promise<Blob> {
-  const token = localStorage.getItem('auth_token')
-  const resp = await fetch('/api/proxy/image', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ url }),
-  })
-  if (!resp.ok) throw new Error('Download failed')
-  return resp.blob()
+function downloadUrl(url: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.rel = 'noopener'
+  a.click()
 }
 
-function downloadBlob(blob: Blob, filename: string) {
-  const objUrl = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = objUrl
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(objUrl)
+async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
+  const importedUrls: string[] = []
+  for (const sourceUrl of sourceUrls) {
+    try {
+      const imported = await ossApi.importResult(taskId, sourceUrl)
+      importedUrls.push(imported.publicUrl)
+    } catch (err) {
+      console.warn('[OSS] Result import failed, falling back to ToAPIs URL:', err)
+      importedUrls.push(sourceUrl)
+    }
+  }
+  return importedUrls
 }
 
 // ─── Composable ───
@@ -330,12 +329,13 @@ export function useTaskManager() {
       task.progress = result.progress
 
       if (result.status === 'completed') {
-        task.result_image_urls = result.resultUrls
+        const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
+        task.result_image_urls = importedUrls
         task.completed_at = new Date().toISOString()
         await taskApi.update(task.id, {
           status: 'completed',
           progress: 100,
-          result_image_urls: result.resultUrls,
+          result_image_urls: importedUrls,
           completed_at: task.completed_at,
           expires_at: result.expiresAt,
         })
@@ -418,14 +418,14 @@ export function useTaskManager() {
     } catch { /* cancelled */ }
   }
 
-  function handleDownload(task: TaskItem) {
+  async function handleDownload(task: TaskItem) {
     const url = task.result_image_urls?.[0]
     if (!url) { warning('没有可下载的图片'); return }
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.png`
-    a.target = '_blank'
-    a.click()
+    try {
+      downloadUrl(url, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
+    } catch {
+      error('下载失败')
+    }
   }
 
   function handleCopyParams(task: TaskItem) {
@@ -457,9 +457,7 @@ export function useTaskManager() {
     let count = 0
     for (const task of selected) {
       try {
-        const blob = await fetchAsBlob(task.result_image_urls[0])
-        const ext = blob.type === 'image/png' ? 'png' : 'jpg'
-        downloadBlob(blob, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.${ext}`)
+        downloadUrl(task.result_image_urls[0], `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
         count++
         await new Promise((r) => setTimeout(r, 300))
       } catch { /* skip */ }
@@ -469,28 +467,7 @@ export function useTaskManager() {
   }
 
   async function handleBatchPackDownload() {
-    const selected = tasks.value.filter((t) => selectedIds.value.has(t.id) && t.result_image_urls?.[0])
-    if (selected.length === 0) { warning('所选任务没有可下载的图片'); return }
-
-    loading.value = true
-    const zip = new JSZip()
-    let fetched = 0
-
-    for (const task of selected) {
-      try {
-        const blob = await fetchAsBlob(task.result_image_urls[0])
-        const ext = blob.type === 'image/png' ? 'png' : 'jpg'
-        zip.file(`${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}.${ext}`, blob)
-        fetched++
-      } catch { /* skip */ }
-    }
-
-    if (fetched === 0) { error('打包失败：无法获取图片'); loading.value = false; return }
-
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-    downloadBlob(zipBlob, `momo-results-${new Date().toISOString().slice(0, 10)}.zip`)
-    loading.value = false
-    success(`已打包 ${fetched} 张图片`)
+    await handleBatchDownload()
   }
 
   async function handleBatchDelete() {

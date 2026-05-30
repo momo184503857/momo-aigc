@@ -9,6 +9,7 @@ import { buildGptImage2Request } from './buildGptImage2Request'
 import { buildGeminiRequest } from './buildGeminiRequest'
 import { translateError } from '@/utils/errors'
 import { toapisProxyApi } from '@/services/toapisProxyApi'
+import { ossApi } from '@/services/ossApi'
 
 export interface CreateTaskParams {
   model: ModelId
@@ -60,8 +61,8 @@ function buildRequestBody(model: ModelId, params: CreateTaskParams): Record<stri
  * 上传图片到 ToAPIs
  */
 export async function uploadImage(file: File): Promise<string> {
-  const res = await toapisProxyApi.upload(file)
-  return res.data.data.url
+  const res = await ossApi.upload(file, 'inputs')
+  return res.publicUrl
 }
 
 /**

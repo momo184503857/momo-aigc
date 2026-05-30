@@ -4,11 +4,11 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, Download, Document, Refresh } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
-import JSZip from 'jszip'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { taskApi } from '@/services/taskApi'
 import { pointsApi } from '@/services/pointsApi'
+import { ossApi } from '@/services/ossApi'
 import * as toapisClient from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
 import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
@@ -295,13 +295,14 @@ function startPollingRow(row: TableRow) {
       row.progress = result.progress
 
       if (result.status === 'completed') {
+        const importedUrls = await importResultUrls(row.toapisTaskId!, result.resultUrls || [])
         row.status = 'completed'
-        row.resultUrl = result.resultUrls?.[0]
+        row.resultUrl = importedUrls[0]
         row.progress = 100
         if (row.taskId) {
           await taskApi.update(row.taskId, {
             status: 'completed', progress: 100,
-            result_image_urls: result.resultUrls,
+            result_image_urls: importedUrls,
             completed_at: new Date().toISOString(),
             expires_at: result.expiresAt,
           })
@@ -387,27 +388,26 @@ async function retryFailed() {
 
 const downloadableRows = computed(() => tableData.value.filter(r => r.status === 'completed' && r.resultUrl && r.selected))
 
-async function fetchAsBlob(url: string): Promise<Blob> {
-  const token = localStorage.getItem('auth_token')
-  const resp = await fetch('/api/proxy/image', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ url }),
-  })
-  if (!resp.ok) throw new Error('Download failed')
-  return resp.blob()
+function downloadUrl(url: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.rel = 'noopener'
+  a.click()
 }
 
-function downloadBlob(blob: Blob, filename: string) {
-  const objUrl = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = objUrl
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(objUrl)
+async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
+  const importedUrls: string[] = []
+  for (const sourceUrl of sourceUrls) {
+    try {
+      const imported = await ossApi.importResult(taskId, sourceUrl)
+      importedUrls.push(imported.publicUrl)
+    } catch (err) {
+      console.warn('[OSS] Result import failed, falling back to ToAPIs URL:', err)
+      importedUrls.push(sourceUrl)
+    }
+  }
+  return importedUrls
 }
 
 async function downloadDirect() {
@@ -418,9 +418,7 @@ async function downloadDirect() {
   let count = 0
   for (const row of downloadableRows.value) {
     try {
-      const blob = await fetchAsBlob(row.resultUrl!)
-      const ext = blob.type === 'image/png' ? 'png' : 'jpg'
-      downloadBlob(blob, `${row.filename || Date.now()}.${ext}`)
+      downloadUrl(row.resultUrl!, String(row.filename || Date.now()))
       count++
       await sleep(300)
     } catch { /* skip */ }
@@ -429,31 +427,7 @@ async function downloadDirect() {
 }
 
 async function downloadZip() {
-  if (downloadableRows.value.length === 0) {
-    warning('没有可下载的结果')
-    return
-  }
-
-  const zip = new JSZip()
-  let fetched = 0
-
-  for (const row of downloadableRows.value) {
-    try {
-      const blob = await fetchAsBlob(row.resultUrl!)
-      const ext = blob.type === 'image/png' ? 'png' : 'jpg'
-      zip.file(`${row.filename || Date.now()}.${ext}`, blob)
-      fetched++
-    } catch { /* skip */ }
-  }
-
-  if (fetched === 0) {
-    error('打包失败：无法获取图片')
-    return
-  }
-
-  const zipBlob = await zip.generateAsync({ type: 'blob' })
-  downloadBlob(zipBlob, `批量做图_${new Date().toISOString().slice(0, 10)}.zip`)
-  success(`已打包 ${fetched} 张图片`)
+  await downloadDirect()
 }
 
 // ─── Helpers ───

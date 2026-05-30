@@ -1,10 +1,50 @@
 import { Router } from 'express'
 import multer from 'multer'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
-import { uploadToOss } from '../utils/oss.js'
+import { generateOssUploadToken, importResultToOss, uploadToOss } from '../utils/oss.js'
 import crypto from 'crypto'
 
 export const ossRouter = Router()
+
+ossRouter.post('/upload-token', authMiddleware, (req: AuthRequest, res) => {
+  const { filename, mimeType, sizeBytes, scope } = req.body || {}
+
+  if (!filename || !mimeType) {
+    res.status(400).json({ success: false, error: '缺少文件名或文件类型' })
+    return
+  }
+
+  const token = generateOssUploadToken({
+    userId: req.user!.userId,
+    filename: String(filename),
+    mimeType: String(mimeType),
+    sizeBytes: Number(sizeBytes) || 10 * 1024 * 1024,
+    scope: scope === 'templates' ? 'templates' : 'inputs',
+  })
+
+  res.json({ success: true, data: token })
+})
+
+ossRouter.post('/import-result', authMiddleware, async (req: AuthRequest, res) => {
+  const { taskId, sourceUrl } = req.body || {}
+
+  if (!taskId || !sourceUrl) {
+    res.status(400).json({ success: false, error: '缺少任务 ID 或结果图 URL' })
+    return
+  }
+
+  try {
+    const result = await importResultToOss({
+      userId: req.user!.userId,
+      taskId: String(taskId),
+      sourceUrl: String(sourceUrl),
+    })
+    res.json({ success: true, data: result })
+  } catch (err: any) {
+    console.error('OSS result import error:', err.message)
+    res.status(502).json({ success: false, error: err.message })
+  }
+})
 
 // Multer memory storage — keep file in buffer for OSS upload
 const upload = multer({
@@ -51,7 +91,7 @@ ossRouter.post('/upload', authMiddleware, (req: AuthRequest, res, next) => {
 })
 
 // Keep old endpoint for compatibility (returns old-format token response, deprecated)
-ossRouter.post('/upload-token', authMiddleware, upload.single('file'), async (req: AuthRequest, res) => {
+ossRouter.post('/upload-token-legacy', authMiddleware, upload.single('file'), async (req: AuthRequest, res) => {
   const file = (req as any).file as Express.Multer.File | undefined
   if (!file) {
     res.status(400).json({ success: false, error: '请选择文件' })

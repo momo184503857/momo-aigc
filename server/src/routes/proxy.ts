@@ -21,14 +21,36 @@ proxyRouter.post('/image', async (req: AuthRequest, res) => {
     }
 
     const contentType = resp.headers.get('content-type') || 'image/png'
-    const buffer = Buffer.from(await resp.arrayBuffer())
+    const contentLength = resp.headers.get('content-length')
 
     res.set('Content-Type', contentType)
-    res.set('Content-Length', String(buffer.length))
+    if (contentLength) res.set('Content-Length', contentLength)
     res.set('Cache-Control', 'public, max-age=3600')
-    res.send(buffer)
+
+    // Stream the response body instead of buffering entirely in memory
+    if (resp.body) {
+      const reader = resp.body.getReader()
+      const pump = async () => {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) { res.end(); return }
+          if (!res.write(value)) {
+            // Back-pressure: wait for drain
+            await new Promise<void>((resolve) => res.once('drain', resolve))
+          }
+        }
+      }
+      req.on('close', () => reader.cancel())
+      await pump()
+    } else {
+      // Fallback: no stream support
+      const buffer = Buffer.from(await resp.arrayBuffer())
+      res.send(buffer)
+    }
   } catch (err: any) {
     console.error('Proxy image error:', err.message)
-    res.status(502).json({ success: false, error: '图片下载失败: ' + err.message })
+    if (!res.headersSent) {
+      res.status(502).json({ success: false, error: '图片下载失败: ' + err.message })
+    }
   }
 })

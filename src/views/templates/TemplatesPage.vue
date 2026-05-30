@@ -99,7 +99,7 @@ async function handleUpload() {
           warning(`${file.name} 超过 10MB，已跳过`)
           continue
         }
-        const { objectKey, publicUrl } = await ossApi.upload(file)
+        const { objectKey, publicUrl, ossBucket } = await ossApi.upload(file, 'templates')
         const img = new Image()
         await new Promise<void>((resolve, reject) => {
           img.onload = () => resolve()
@@ -108,7 +108,7 @@ async function handleUpload() {
         })
         await templateApi.create({
           name: file.name.replace(/\.[^.]+$/, ''),
-          oss_bucket: 'momo-aigc',
+          oss_bucket: ossBucket,
           oss_object_key: objectKey,
           public_url: publicUrl,
           original_filename: file.name,

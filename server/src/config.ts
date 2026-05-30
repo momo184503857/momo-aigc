@@ -16,6 +16,8 @@ export const config = {
     bucket: process.env.OSS_BUCKET || '',
     accessKeyId: process.env.OSS_ACCESS_KEY_ID || '',
     accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET || '',
+    resultImportWorkerUrl: process.env.OSS_RESULT_IMPORT_WORKER_URL || '',
+    resultImportWorkerSecret: process.env.OSS_RESULT_IMPORT_WORKER_SECRET || '',
   },
 
   dbPath: path.resolve(__dirname, '../data/momo.db'),
