@@ -181,7 +181,18 @@ export function useTaskManager() {
       })
       const records = res.data.data?.records || []
       total.value = res.data.data?.total || 0
-      tasks.value = records.map((r: any) => ({ ...r }))
+
+      // Merge: keep in-progress local tasks that haven't appeared in API response yet
+      const apiTasks: TaskItem[] = records.map((r: any) => ({ ...r }))
+      const apiTaskIds = new Set(apiTasks.map(t => t.id))
+      const localPending = tasks.value.filter(
+        t => !t.id && (t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress')
+      )
+      // Also keep tasks that are polling (have toapis_task_id but not yet in API response)
+      const localPolling = tasks.value.filter(
+        t => t.id && !apiTaskIds.has(t.id) && (t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress')
+      )
+      tasks.value = [...localPending, ...localPolling, ...apiTasks]
     } catch (e) {
       console.error('Load history error:', e)
     } finally {
@@ -261,7 +272,7 @@ export function useTaskManager() {
 
         newTask.toapis_task_id = result.toapisTaskId
         newTask.id = result.dbTaskId
-        newTask.input_image_urls = [...params.templateUrls]
+        newTask.input_image_urls = result.allImageUrls
 
         await pollTask(newTask)
 

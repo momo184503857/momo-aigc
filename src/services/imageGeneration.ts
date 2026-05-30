@@ -38,6 +38,8 @@ export interface GenerateImageResult {
   toapisTaskId: string
   /** 本地数据库任务记录 ID */
   dbTaskId: number
+  /** 实际发送给 API 的完整图片 URL 列表（包含上传后的临时图片） */
+  allImageUrls: string[]
 }
 
 /**
@@ -104,7 +106,7 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
   })
   const dbTaskId = dbRes.data.data.id
 
-  return { toapisTaskId, dbTaskId }
+  return { toapisTaskId, dbTaskId, allImageUrls }
 }
 
 /**
