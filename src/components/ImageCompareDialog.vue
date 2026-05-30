@@ -91,6 +91,14 @@ watch(() => props.modelValue, (visible) => {
     }
   } else {
     window.removeEventListener('keydown', handleKeydown)
+    currentIndex.value = 0
+  }
+})
+
+// Keep currentIndex in sync when initialIndex changes while dialog is already open
+watch(() => props.initialIndex, (idx) => {
+  if (props.modelValue && idx !== undefined && idx >= 0 && idx < props.tasks.length) {
+    currentIndex.value = idx
   }
 })
 
