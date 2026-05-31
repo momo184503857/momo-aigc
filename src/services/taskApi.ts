@@ -15,6 +15,7 @@ export interface CreateTaskParams {
   progress?: number
   feature_id?: string
   user_prompt?: string
+  supplementary_images?: { name: string; url: string }[]
 }
 
 export interface UpdateTaskParams {

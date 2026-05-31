@@ -23,6 +23,7 @@ export interface TaskItem {
   completed_at: string | null
   feature_id?: string
   user_prompt?: string
+  supplementaryImages?: { name: string; url: string }[]
 }
 
 const props = defineProps<{

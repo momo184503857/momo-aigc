@@ -72,6 +72,7 @@ async function handleGenerate(params: {
   featureId?: string
   userPrompt?: string
   systemPrompt?: string
+  supplementaryImages?: { name: string; url: string }[]
 }) {
   await tm.handleGenerate(params)
 }

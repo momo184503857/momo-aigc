@@ -17,6 +17,7 @@ export interface ListTemplatesParams {
   page?: number
   pageSize?: number
   tagId?: number
+  starred?: boolean
 }
 
 export interface TemplateTag {
@@ -41,6 +42,9 @@ export const templateApi = {
   },
   updateTags(id: number, tagIds: number[]) {
     return http.patch(`/templates/${id}/tags`, { tagIds })
+  },
+  updateStar(id: number, isStarred: boolean, sortOrder: number = 0) {
+    return http.patch(`/templates/${id}/star`, { is_starred: isStarred, sort_order: sortOrder })
   },
   listTags() {
     return http.get('/templates/tags')

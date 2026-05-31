@@ -8,6 +8,12 @@ export interface SlotImage {
   file?: File
 }
 
+export interface StarredTemplate {
+  id: number
+  name: string
+  public_url: string
+}
+
 const props = withDefaults(defineProps<{
   label: string
   maxCount: number
@@ -16,11 +22,13 @@ const props = withDefaults(defineProps<{
   showTemplateBtn?: boolean
   size?: number
   alignLeft?: boolean
-}>(), { size: 200 })
+  starredTemplates?: StarredTemplate[]
+}>(), { size: 200, starredTemplates: () => [] })
 
 const emit = defineEmits<{
   'update:modelValue': [images: SlotImage[]]
   'template-select': []
+  'starred-select': [template: StarredTemplate]
 }>()
 
 function generateId(): string {
@@ -115,13 +123,27 @@ function showPreview(dataUrl: string) {
       {{ label }}
     </div>
     <el-button
-      v-if="showTemplateBtn && modelValue.length < maxCount"
+      v-if="showTemplateBtn"
       size="small"
       class="template-btn"
       @click="emit('template-select')"
     >
       从模板库选择
     </el-button>
+    <div
+      v-if="showTemplateBtn && starredTemplates.length > 0"
+      class="starred-row"
+    >
+      <div
+        v-for="t in starredTemplates"
+        :key="t.id"
+        class="starred-thumb"
+        :title="t.name"
+        @click="emit('starred-select', t)"
+      >
+        <img :src="t.public_url" :alt="t.name" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -174,6 +196,41 @@ function showPreview(dataUrl: string) {
 
 .template-btn {
   margin-top: 4px;
+}
+
+.starred-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+.starred-row::-webkit-scrollbar {
+  height: 4px;
+}
+.starred-row::-webkit-scrollbar-thumb {
+  background: var(--el-border-color);
+  border-radius: 2px;
+}
+.starred-thumb {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  border-radius: var(--momo-radius-sm);
+  overflow: hidden;
+  border: 2px solid var(--el-border-color-light);
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.starred-thumb:hover {
+  border-color: var(--el-color-primary);
+  transform: scale(1.08);
+}
+.starred-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .align-left {

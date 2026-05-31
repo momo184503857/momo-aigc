@@ -226,6 +226,7 @@ export function useTaskManager() {
     featureId?: string
     userPrompt?: string
     systemPrompt?: string
+    supplementaryImages?: { name: string; url: string }[]
   }) {
     if (!serverStatus.sharedKeyConfigured) {
       warning('管理员尚未配置共享 API Key')
@@ -252,6 +253,7 @@ export function useTaskManager() {
         completed_at: null,
         feature_id: params.featureId,
         user_prompt: params.userPrompt || '',
+        supplementaryImages: params.supplementaryImages,
       }
 
       tasks.value.unshift(newTask)
@@ -267,6 +269,7 @@ export function useTaskManager() {
           imageUrls: params.templateUrls,
           tempImageFiles: params.tempImageFiles,
           featureId: params.featureId,
+          supplementaryImages: params.supplementaryImages,
         })
 
         newTask.toapis_task_id = result.toapisTaskId

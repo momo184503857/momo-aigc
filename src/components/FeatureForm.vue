@@ -7,9 +7,15 @@ import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { FeatureConfig } from '@/configs/featureConfig'
+import { useUiFeedback } from '@/composables/useUiFeedback'
 import ImageSlotUpload from './ImageSlotUpload.vue'
-import type { SlotImage } from './ImageSlotUpload.vue'
+import type { SlotImage, StarredTemplate } from './ImageSlotUpload.vue'
 import TemplateSelector from './TemplateSelector.vue'
+import SupplementaryImageUpload from './SupplementaryImageUpload.vue'
+import type { SupplementaryImage } from './SupplementaryImageUpload.vue'
+import { templateApi } from '@/services/templateApi'
+
+const { warning } = useUiFeedback()
 
 const props = defineProps<{ featureId: string }>()
 
@@ -24,6 +30,7 @@ const emit = defineEmits<{
     tempImageFiles: File[]
     userPrompt: string
     systemPrompt: string
+    supplementaryImages?: { name: string; url: string }[]
   }): void
 }>()
 
@@ -58,9 +65,27 @@ const aspectRatio = ref(DEFAULT_ASPECT_RATIO)
 const count = ref(1)
 const userPrompt = ref('')
 
+// Supplementary images
+const supplementaryImages = ref<SupplementaryImage[]>([])
+
 // Template selector state
 const showTemplateSelector = ref(false)
 const templateTargetSlot = ref('')
+
+// Starred templates for quick access
+const starredTemplates = ref<StarredTemplate[]>([])
+async function fetchStarredTemplates() {
+  try {
+    const res = await templateApi.list({ starred: true, pageSize: 50 })
+    starredTemplates.value = (res.data.data?.records || []).map((t: any) => ({
+      id: t.id,
+      name: t.name || t.original_filename || '',
+      public_url: t.public_url,
+    }))
+  } catch {
+    starredTemplates.value = []
+  }
+}
 
 // Prompts from server
 const promptLoading = ref(false)
@@ -89,7 +114,10 @@ async function fetchPrompts() {
   }
 }
 
-onMounted(() => fetchPrompts())
+onMounted(() => {
+  fetchPrompts()
+  fetchStarredTemplates()
+})
 
 // Apply feature defaults from config
 watch(config, (cfg) => {
@@ -132,6 +160,11 @@ function handleResolutionChange() {
 }
 
 // Validation
+const allSlotsFull = computed(() => {
+  if (!config.value) return true
+  return config.value.imageSlots.every(s => getSlotImages(s.key).length >= s.maxCount)
+})
+
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!config.value) return false
@@ -139,6 +172,8 @@ const canGenerate = computed(() => {
   for (const slot of config.value.imageSlots) {
     if (slot.required && getSlotImages(slot.key).length === 0) return false
   }
+  // 检查补充图片是否都已命名
+  if (supplementaryImages.value.some(img => !img.name.trim())) return false
   return true
 })
 
@@ -152,6 +187,12 @@ function buildFullPrompt(): string {
 }
 
 function handleGenerate() {
+  // 检查补充图片是否都已命名
+  if (supplementaryImages.value.length > 0 && supplementaryImages.value.some(img => !img.name.trim())) {
+    warning('请为所有补充图片命名')
+    return
+  }
+
   const templateUrls: string[] = []
   const tempImageFiles: File[] = []
 
@@ -178,6 +219,9 @@ function handleGenerate() {
     tempImageFiles,
     userPrompt: userPrompt.value.trim(),
     systemPrompt: systemPrompt.value,
+    supplementaryImages: supplementaryImages.value.length > 0
+      ? supplementaryImages.value.map(img => ({ name: img.name, url: img.sourceUrl || img.dataUrl }))
+      : undefined,
   })
 }
 
@@ -192,15 +236,36 @@ function handleTemplateConfirm(templates: Array<{ name: string; url: string; pre
   const slot = config.value?.imageSlots.find(s => s.key === slotKey)
   if (!slot) return
   const existing = getSlotImages(slotKey)
-  const remaining = slot.maxCount - existing.length
-  if (remaining <= 0) return
-  const toAdd = templates.slice(0, remaining)
+  const toAdd = templates.slice(0, slot.maxCount)
   const newImages: SlotImage[] = toAdd.map((t, i) => ({
     id: `tpl-${Date.now()}-${i}`,
     dataUrl: t.previewUrl || t.url,
     sourceUrl: t.url,
   }))
-  setSlotImages(slotKey, [...existing, ...newImages])
+  if (existing.length >= slot.maxCount) {
+    // Replace
+    setSlotImages(slotKey, newImages)
+  } else {
+    const remaining = slot.maxCount - existing.length
+    setSlotImages(slotKey, [...existing, ...newImages.slice(0, remaining)])
+  }
+}
+
+function handleStarredSelect(slotKey: string, template: StarredTemplate) {
+  const slot = config.value?.imageSlots.find(s => s.key === slotKey)
+  if (!slot) return
+  const existing = getSlotImages(slotKey)
+  const newImage: SlotImage = {
+    id: `starred-${Date.now()}-${template.id}`,
+    dataUrl: template.public_url,
+    sourceUrl: template.public_url,
+  }
+  if (existing.length >= slot.maxCount) {
+    // Replace the first image
+    setSlotImages(slotKey, [newImage])
+  } else {
+    setSlotImages(slotKey, [...existing, newImage])
+  }
 }
 
 // Exposed for copyParams
@@ -274,10 +339,35 @@ defineExpose({ setParams })
               :required="slot.required"
               :model-value="getSlotImages(slot.key)"
               :show-template-btn="i === 0"
+              :starred-templates="[]"
               @update:model-value="setSlotImages(slot.key, $event)"
               @template-select="handleTemplateSelect(slot.key)"
+              @starred-select="(t) => handleStarredSelect(slot.key, t)"
             />
           </div>
+          <!-- Shared starred templates row spanning both slots -->
+          <div
+            v-if="starredTemplates.length > 0 && !allSlotsFull"
+            class="starred-row-shared"
+          >
+            <div
+              v-for="t in starredTemplates"
+              :key="t.id"
+              class="starred-thumb-shared"
+              :title="t.name"
+              @click="handleStarredSelect(slots[0].key, t)"
+            >
+              <img :src="t.public_url" :alt="t.name" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Supplementary Images -->
+      <div class="form-row-inline form-row-top">
+        <label class="form-label-left">可选，最多5张，每张需要命名（如：领口、袖口、面料）</label>
+        <div class="form-control-right">
+          <SupplementaryImageUpload v-model="supplementaryImages" />
         </div>
       </div>
 
@@ -378,6 +468,40 @@ defineExpose({ setParams })
 }
 .reference-slots :deep(.slot-upload) {
   flex: 1; min-width: 0;
+}
+
+.starred-row-shared {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+.starred-row-shared::-webkit-scrollbar {
+  height: 4px;
+}
+.starred-row-shared::-webkit-scrollbar-thumb {
+  background: var(--el-border-color);
+  border-radius: 2px;
+}
+.starred-thumb-shared {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  border-radius: var(--momo-radius-sm);
+  overflow: hidden;
+  border: 2px solid var(--el-border-color-light);
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.starred-thumb-shared:hover {
+  border-color: var(--el-color-primary);
+  transform: scale(1.08);
+}
+.starred-thumb-shared img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .form-row-inline {

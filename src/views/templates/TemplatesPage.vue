@@ -1,9 +1,9 @@
 <script setup lang="ts">
 defineOptions({ name: 'TemplatesPage' })
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
-import { Upload, Edit, Delete, Check, Close } from '@element-plus/icons-vue'
+import { Upload, Edit, Delete, Check, Close, StarFilled, Setting } from '@element-plus/icons-vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
 import { ossApi } from '@/services/ossApi'
 import PageLayout from '@/components/PageLayout.vue'
@@ -24,6 +24,8 @@ interface TemplateItem {
   height: number
   created_at: string
   tags: TemplateTag[]
+  is_starred: number
+  sort_order: number
 }
 
 const templates = ref<TemplateItem[]>([])
@@ -45,6 +47,21 @@ const editingImage = ref<TemplateItem | null>(null)
 const editingFileName = ref('')
 const editingTagIds = ref<number[]>([])
 const { visible: previewVisible, url: previewUrl, open: openPreview } = useImagePreview()
+
+// ─── Starred management mode ───
+const starredMode = ref(false)
+const starredList = ref<TemplateItem[]>([])
+const isDropZoneActive = ref(false)
+
+// Manual mouse-based drag for reorder within starred zone
+const dragState = ref<{
+  index: number
+  mouseX: number
+  offsetX: number
+  overIndex: number
+} | null>(null)
+
+const zoneItemsRef = ref<HTMLElement | null>(null)
 
 async function loadTemplates() {
   loading.value = true
@@ -69,6 +86,15 @@ async function loadTags() {
     const res = await templateApi.listTags()
     tags.value = res.data.data || []
   } catch { /* ignore */ }
+}
+
+async function loadStarredList() {
+  try {
+    const res = await templateApi.list({ starred: true, pageSize: 100 })
+    starredList.value = res.data.data?.records || []
+  } catch {
+    starredList.value = []
+  }
 }
 
 function toggleSelect(id: number) {
@@ -162,6 +188,7 @@ async function handleDelete(tmpl: TemplateItem) {
     success('已删除')
     await loadTemplates()
     await loadTags()
+    if (starredMode.value) await loadStarredList()
   } catch { /* cancelled */ }
 }
 
@@ -184,6 +211,7 @@ async function batchDelete() {
   success(`已删除 ${deleted} 张图片`)
   await loadTemplates()
   await loadTags()
+  if (starredMode.value) await loadStarredList()
 }
 
 
@@ -200,6 +228,164 @@ function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
+
+// ─── Starred mode toggle ───
+async function toggleStarredMode() {
+  if (starredMode.value) {
+    starredMode.value = false
+    return
+  }
+  starredMode.value = true
+  await loadStarredList()
+}
+
+// ─── Drag from grid to drop zone ───
+function handleGridDragStart(e: DragEvent, tmpl: TemplateItem) {
+  if (!starredMode.value) return
+  e.dataTransfer?.setData('application/template-id', String(tmpl.id))
+  e.dataTransfer!.effectAllowed = 'copy'
+}
+
+function handleDropZoneDragOver(e: DragEvent) {
+  e.preventDefault()
+  e.dataTransfer!.dropEffect = 'copy'
+  isDropZoneActive.value = true
+}
+
+function handleDropZoneDragLeave(e: DragEvent) {
+  const target = e.currentTarget as HTMLElement
+  const related = e.relatedTarget as HTMLElement | null
+  if (!related || !target.contains(related)) isDropZoneActive.value = false
+}
+
+async function handleDropZoneDrop(e: DragEvent) {
+  e.preventDefault()
+  isDropZoneActive.value = false
+
+  // Handle reorder within drop zone
+  if (e.dataTransfer?.types.includes('application/starred-index')) {
+    return // handled by item-level drop
+  }
+
+  const idStr = e.dataTransfer?.getData('application/template-id')
+  if (!idStr) return
+  const id = parseInt(idStr)
+
+  // Already in starred list?
+  if (starredList.value.some(t => t.id === id)) return
+
+  const tmpl = templates.value.find(t => t.id === id)
+  if (!tmpl) return
+
+  // Add to starred
+  const newOrder = starredList.value.length
+  try {
+    await templateApi.updateStar(id, true, newOrder)
+    starredList.value.push({ ...tmpl, is_starred: 1, sort_order: newOrder })
+    // Update in main grid too
+    const idx = templates.value.findIndex(t => t.id === id)
+    if (idx >= 0) {
+      templates.value[idx] = { ...templates.value[idx], is_starred: 1, sort_order: newOrder }
+    }
+    success(`已添加「${tmpl.name || tmpl.original_filename}」到常用`)
+  } catch {
+    error('添加失败')
+  }
+}
+
+// ─── Reorder within drop zone (mouse-based with live reorder) ───
+function handleItemMouseDown(e: MouseEvent, index: number) {
+  if (e.button !== 0) return
+  const target = e.target as HTMLElement
+  if (target.closest('.zone-item-remove')) return
+
+  const el = (e.currentTarget as HTMLElement).closest('.zone-item') as HTMLElement
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+
+  dragState.value = {
+    index,
+    mouseX: e.clientX,
+    offsetX: e.clientX - rect.left,
+    overIndex: index,
+  }
+
+  document.addEventListener('mousemove', handleDragMove)
+  document.addEventListener('mouseup', handleDragUp)
+  e.preventDefault()
+}
+
+function handleDragMove(e: MouseEvent) {
+  if (!dragState.value) return
+  dragState.value.mouseX = e.clientX
+
+  const zone = zoneItemsRef.value
+  if (!zone) return
+  const items = zone.querySelectorAll('.zone-item') as NodeListOf<HTMLElement>
+
+  // Find which item the cursor is over
+  for (let i = 0; i < items.length; i++) {
+    const rect = items[i].getBoundingClientRect()
+    if (e.clientX >= rect.left && e.clientX <= rect.right) {
+      if (i !== dragState.value.index) {
+        const midX = rect.left + rect.width / 2
+        const targetSide = e.clientX < midX ? 'left' : 'right'
+        let insertIndex = targetSide === 'left' ? i : i + 1
+
+        // Normalize relative to current drag index
+        const fromIndex = dragState.value.index
+        if (fromIndex < insertIndex) insertIndex--
+
+        if (fromIndex !== insertIndex) {
+          // Reorder immediately for live animation
+          const list = [...starredList.value]
+          const [moved] = list.splice(fromIndex, 1)
+          list.splice(insertIndex, 0, moved)
+          starredList.value = list
+          dragState.value.index = insertIndex
+          dragState.value.overIndex = insertIndex
+        }
+      }
+      return
+    }
+  }
+}
+
+async function handleDragUp() {
+  document.removeEventListener('mousemove', handleDragMove)
+  document.removeEventListener('mouseup', handleDragUp)
+  if (!dragState.value) return
+  dragState.value = null
+  await persistStarredOrder()
+}
+
+async function persistStarredOrder() {
+  try {
+    const updates = starredList.value.map((t, i) =>
+      templateApi.updateStar(t.id, true, i)
+    )
+    await Promise.all(updates)
+  } catch {
+    error('排序保存失败')
+  }
+}
+
+async function removeFromStarred(tmpl: TemplateItem) {
+  try {
+    await templateApi.updateStar(tmpl.id, false, 0)
+    starredList.value = starredList.value.filter(t => t.id !== tmpl.id)
+    // Re-index
+    await persistStarredOrder()
+    // Update main grid
+    const idx = templates.value.findIndex(t => t.id === tmpl.id)
+    if (idx >= 0) {
+      templates.value[idx] = { ...templates.value[idx], is_starred: 0, sort_order: 0 }
+    }
+    success('已移除常用')
+  } catch {
+    error('移除失败')
+  }
+}
 </script>
 
 <template>
@@ -208,6 +394,13 @@ function formatSize(bytes: number): string {
       <h2>模板图库</h2>
     </template>
     <template #extra>
+      <el-button
+        :type="starredMode ? 'warning' : 'default'"
+        :icon="Setting"
+        @click="toggleStarredMode"
+      >
+        {{ starredMode ? '退出设置' : '设置常用' }}
+      </el-button>
       <el-button type="primary" :icon="Upload" :loading="uploading" @click="handleUpload">
         上传图片
       </el-button>
@@ -236,10 +429,16 @@ function formatSize(bytes: number): string {
     </div>
 
     <!-- Batch bar -->
-    <div v-if="selectedIds.size > 0" class="batch-bar">
+    <div v-if="selectedIds.size > 0 && !starredMode" class="batch-bar">
       <span class="batch-info">已选择 {{ selectedIds.size }} 项</span>
       <el-button size="small" @click="clearSelection">取消选择</el-button>
       <el-button size="small" type="danger" @click="batchDelete">批量删除</el-button>
+    </div>
+
+    <!-- Starred mode hint -->
+    <div v-if="starredMode" class="starred-hint-bar">
+      <el-icon color="#E6A23C"><StarFilled /></el-icon>
+      <span>将上方图片拖到下方区域设为常用，拖动调整顺序，越靠左越靠前</span>
     </div>
 
     <!-- Grid -->
@@ -251,11 +450,22 @@ function formatSize(bytes: number): string {
           v-for="t in templates"
           :key="t.id"
           class="tpl-card"
-          :class="{ selected: selectedIds.has(t.id) }"
+          :class="{
+            selected: selectedIds.has(t.id),
+            'is-star-source': starredMode && t.is_starred,
+          }"
+          :draggable="starredMode"
+          @dragstart="handleGridDragStart($event, t)"
         >
           <!-- Selection circle -->
-          <div class="select-circle" :class="{ checked: selectedIds.has(t.id) }" @click.stop="toggleSelect(t.id)">
+          <div v-if="!starredMode" class="select-circle" :class="{ checked: selectedIds.has(t.id) }" @click.stop="toggleSelect(t.id)">
             <el-icon v-if="selectedIds.has(t.id)" size="14"><Check /></el-icon>
+          </div>
+
+          <!-- Star indicator -->
+          <div v-if="t.is_starred" class="star-badge">
+            <el-icon size="14" color="#E6A23C"><StarFilled /></el-icon>
+            <span class="star-order">{{ t.sort_order }}</span>
           </div>
 
           <!-- Image -->
@@ -278,7 +488,7 @@ function formatSize(bytes: number): string {
           </div>
 
           <!-- Actions -->
-          <div class="tpl-actions">
+          <div v-if="!starredMode" class="tpl-actions">
             <el-button size="small" :icon="Edit" @click="openEdit(t)">编辑</el-button>
             <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(t)">删除</el-button>
           </div>
@@ -287,7 +497,7 @@ function formatSize(bytes: number): string {
     </div>
 
     <!-- Pagination -->
-    <div v-if="total > 0" class="pagination-area">
+    <div v-if="total > 0 && !starredMode" class="pagination-area">
       <el-pagination
         v-if="total > pageSize"
         v-model:current-page="currentPage"
@@ -300,6 +510,51 @@ function formatSize(bytes: number): string {
         @size-change="handlePageSizeChange"
       />
       <span v-else class="total-count">共 {{ total }} 张图片</span>
+    </div>
+
+    <!-- ─── Starred drop zone ─── -->
+    <div v-if="starredMode" class="starred-zone-wrapper">
+      <div
+        class="starred-drop-zone"
+        :class="{ 'is-active': isDropZoneActive }"
+        @dragover="handleDropZoneDragOver"
+        @dragleave="handleDropZoneDragLeave"
+        @drop="handleDropZoneDrop"
+      >
+        <div v-if="starredList.length === 0" class="zone-empty">
+          <el-icon size="48" color="var(--el-text-color-placeholder)"><StarFilled /></el-icon>
+          <p>将上方图片拖到这里设为常用模板</p>
+        </div>
+        <div v-else ref="zoneItemsRef" class="zone-items">
+          <div
+            v-for="(t, index) in starredList"
+            :key="t.id"
+            class="zone-item"
+            :class="{ 'is-dragging': dragState && dragState.index === index }"
+            @mousedown="handleItemMouseDown($event, index)"
+          >
+            <div class="zone-item-img">
+              <img :src="t.public_url" :alt="t.name" />
+              <span class="zone-item-order">{{ index + 1 }}</span>
+              <span class="zone-item-remove" @click.stop="removeFromStarred(t)">&times;</span>
+            </div>
+            <div class="zone-item-name" :title="t.name || t.original_filename">
+              {{ t.name || t.original_filename }}
+            </div>
+          </div>
+        </div>
+        <!-- Floating drag preview -->
+        <div
+          v-if="dragState"
+          class="drag-preview"
+          :style="{
+            left: (dragState.mouseX - dragState.offsetX) + 'px',
+            top: zoneItemsRef?.getBoundingClientRect().top + 'px',
+          }"
+        >
+          <img :src="starredList[dragState.index]?.public_url" />
+        </div>
+      </div>
     </div>
 
     <!-- Edit dialog -->
@@ -347,6 +602,17 @@ function formatSize(bytes: number): string {
 }
 .batch-info { font-size: var(--momo-font-size-base); color: var(--el-color-primary); margin-right: auto; }
 
+/* ─── Starred mode hint ─── */
+.starred-hint-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; margin-bottom: 12px;
+  background: #fdf6ec;
+  border: 1px solid #faecd8;
+  border-radius: var(--el-border-radius-base);
+  font-size: var(--momo-font-size-sm);
+  color: #b88230;
+}
+
 /* ─── Grid ─── */
 .tpl-grid {
   display: grid;
@@ -358,13 +624,17 @@ function formatSize(bytes: number): string {
   border-radius: var(--momo-radius-md);
   overflow: hidden;
   border: 1px solid var(--el-border-color-light);
-  transition: box-shadow 0.2s, border-color 0.2s;
+  transition: box-shadow 0.2s, border-color 0.2s, opacity 0.2s;
   position: relative;
   display: flex;
   flex-direction: column;
 }
 .tpl-card:hover { box-shadow: var(--el-box-shadow-light); }
 .tpl-card.selected { border-color: var(--el-color-primary); box-shadow: 0 0 0 2px var(--el-color-primary-light-5); }
+.tpl-card.is-star-source {
+  opacity: 0.6;
+  border-style: dashed;
+}
 
 /* Selection circle */
 .select-circle {
@@ -393,6 +663,7 @@ function formatSize(bytes: number): string {
   width: 100%; height: 100%; object-fit: cover;
   transition: transform 0.3s;
 }
+.tpl-card[draggable="true"] .tpl-thumb { cursor: grab; }
 .tpl-thumb:hover img { transform: scale(1.05); }
 
 /* Info */
@@ -420,6 +691,24 @@ function formatSize(bytes: number): string {
   padding: 0 12px 10px;
 }
 
+/* Star badge */
+.star-badge {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  display: flex; align-items: center; gap: 2px;
+  background: rgba(0,0,0,0.5); border-radius: 10px;
+  padding: 2px 6px 2px 4px;
+}
+.star-order {
+  font-size: 10px; color: #fff; font-weight: 600;
+}
+
+/* Star hint in dialog */
+.star-hint {
+  font-size: var(--momo-font-size-xs);
+  color: var(--el-text-color-placeholder);
+  margin-left: 8px;
+}
+
 /* ─── Pagination ─── */
 .pagination-area {
   margin-top: 14px;
@@ -427,7 +716,141 @@ function formatSize(bytes: number): string {
 }
 .total-count { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 
+/* ─── Starred drop zone ─── */
+.starred-zone-wrapper {
+  position: sticky;
+  bottom: 0;
+  margin-top: 20px;
+  padding-top: 12px;
+  background: linear-gradient(transparent 0px, var(--el-bg-color) 12px);
+  z-index: 10;
+}
 
+.starred-drop-zone {
+  min-height: 180px;
+  border: 2px dashed var(--el-border-color);
+  border-radius: var(--momo-radius-lg);
+  background: var(--el-fill-color-blank);
+  padding: 16px;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  user-select: none;
+}
+.starred-drop-zone.is-active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  box-shadow: 0 0 0 4px var(--el-color-primary-light-8);
+}
+
+.zone-empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 148px;
+  color: var(--el-text-color-placeholder);
+}
+.zone-empty p {
+  margin-top: 12px;
+  font-size: var(--momo-font-size-base);
+}
+
+.zone-items {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 0;
+  min-height: 148px;
+  align-items: flex-start;
+}
+.zone-items::-webkit-scrollbar {
+  height: 6px;
+}
+.zone-items::-webkit-scrollbar-thumb {
+  background: var(--el-border-color);
+  border-radius: 3px;
+}
+
+.zone-item {
+  flex-shrink: 0;
+  width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: grab;
+  transition: opacity 0.2s, transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.zone-item.is-dragging {
+  opacity: 0.25;
+  cursor: grabbing;
+  transform: scale(0.95);
+}
+
+.zone-item-img {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  border-radius: var(--momo-radius-md);
+  overflow: hidden;
+  border: 2px solid var(--el-border-color-light);
+  transition: border-color 0.2s;
+}
+.zone-item:hover .zone-item-img {
+  border-color: var(--el-color-primary);
+}
+.zone-item-img img {
+  width: 100%; height: 100%; object-fit: cover;
+  pointer-events: none;
+}
+
+.zone-item-order {
+  position: absolute; top: 4px; left: 4px;
+  width: 22px; height: 22px; line-height: 22px;
+  text-align: center;
+  background: var(--el-color-primary);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 11px; font-weight: 700;
+}
+
+.zone-item-remove {
+  position: absolute; top: 4px; right: 4px;
+  width: 22px; height: 22px; line-height: 20px;
+  text-align: center;
+  background: var(--momo-color-overlay);
+  color: var(--momo-color-text-inverse);
+  border-radius: 50%;
+  font-size: 14px; cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.zone-item:hover .zone-item-remove {
+  opacity: 1;
+}
+
+.zone-item-name {
+  font-size: var(--momo-font-size-sm);
+  color: var(--el-text-color-regular);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: center;
+}
+
+/* Floating drag preview */
+.drag-preview {
+  position: fixed;
+  width: 130px;
+  height: 130px;
+  border-radius: var(--momo-radius-md);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  border: 3px solid var(--el-color-primary);
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.92;
+  transition: box-shadow 0.2s;
+}
+.drag-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 </style>
 
 <style>

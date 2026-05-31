@@ -62,6 +62,7 @@ templatesRouter.get('/', (req: AuthRequest, res) => {
     const page = Math.max(1, parseInt(req.query.page as string) || 1)
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20))
     const tagId = req.query.tagId ? parseInt(req.query.tagId as string) : undefined
+    const starred = req.query.starred === '1' || req.query.starred === 'true'
     const offset = (page - 1) * pageSize
     const userId = req.user!.userId
 
@@ -78,6 +79,10 @@ templatesRouter.get('/', (req: AuthRequest, res) => {
     fromSql += ` WHERE ti.user_id = ? AND ti.status = 'active'`
     params.push(userId)
 
+    if (starred) {
+      fromSql += ` AND ti.is_starred = 1`
+    }
+
     countSql += fromSql
     dataSql += fromSql
 
@@ -85,7 +90,8 @@ templatesRouter.get('/', (req: AuthRequest, res) => {
     const { total } = db.prepare(countSql).get(...params) as any
 
     // Get page data with aggregated tags
-    dataSql += ` ORDER BY ti.created_at DESC LIMIT ? OFFSET ?`
+    const orderBy = starred ? `ti.sort_order ASC, ti.created_at DESC` : `ti.created_at DESC`
+    dataSql += ` ORDER BY ${orderBy} LIMIT ? OFFSET ?`
     const dataParams = [...params, pageSize, offset]
     const records = db.prepare(dataSql).all(...dataParams) as any[]
 
@@ -177,6 +183,22 @@ templatesRouter.patch('/:id/tags', (req: AuthRequest, res) => {
     }
   })
   transaction()
+
+  res.json({ success: true })
+})
+
+// Update star status and sort order
+templatesRouter.patch('/:id/star', (req: AuthRequest, res) => {
+  const { is_starred, sort_order } = req.body
+
+  const result = db.prepare(
+    'UPDATE template_images SET is_starred = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?'
+  ).run(is_starred ? 1 : 0, sort_order || 0, req.params.id, req.user!.userId)
+
+  if (result.changes === 0) {
+    res.status(404).json({ success: false, error: '模板图不存在' })
+    return
+  }
 
   res.json({ success: true })
 })

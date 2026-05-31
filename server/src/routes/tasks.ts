@@ -6,7 +6,7 @@ import { calculateCost } from '../utils/pricing.js'
 function parseRow(row: any): any {
   if (!row) return row
   const parsed = { ...row }
-  for (const key of ['template_image_ids', 'input_image_urls', 'result_image_urls', 'raw_error']) {
+  for (const key of ['template_image_ids', 'input_image_urls', 'result_image_urls', 'raw_error', 'supplementary_images']) {
     if (typeof parsed[key] === 'string') {
       try { parsed[key] = JSON.parse(parsed[key]) } catch { /* keep as-is */ }
     }
@@ -15,6 +15,10 @@ function parseRow(row: any): any {
   if ('aspect_ratio' in parsed) {
     parsed.aspectRatio = parsed.aspect_ratio
     delete parsed.aspect_ratio
+  }
+  if ('supplementary_images' in parsed) {
+    parsed.supplementaryImages = parsed.supplementary_images
+    delete parsed.supplementary_images
   }
   return parsed
 }
@@ -92,7 +96,7 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
   const {
     toapis_task_id, client_business_id, model, prompt, size, resolution,
     aspect_ratio, n, template_image_ids, input_image_urls, status, progress,
-    feature_id, user_prompt,
+    feature_id, user_prompt, supplementary_images,
   } = req.body
 
   if (!toapis_task_id || !model || !prompt) {
@@ -125,8 +129,8 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
 
       // Insert task
       const result = db.prepare(`
-        INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt, points_cost, points_balance_after)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt, points_cost, points_balance_after, supplementary_images)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         userId, toapis_task_id, client_business_id || null, model, prompt,
         size || null, resolution || null, aspect_ratio || null, count,
@@ -136,7 +140,8 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
         feature_id || null,
         user_prompt || '',
         cost,
-        newBalance
+        newBalance,
+        supplementary_images ? JSON.stringify(supplementary_images) : '[]'
       )
 
       const taskId = result.lastInsertRowid

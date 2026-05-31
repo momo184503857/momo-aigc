@@ -123,6 +123,11 @@ export function initSchema(): void {
     db.exec(`ALTER TABLE generation_tasks ADD COLUMN points_balance_after REAL DEFAULT NULL`)
   } catch { /* column already exists */ }
 
+  // Migration: add supplementary_images to generation_tasks (JSON array)
+  try {
+    db.exec(`ALTER TABLE generation_tasks ADD COLUMN supplementary_images TEXT DEFAULT '[]'`)
+  } catch { /* column already exists */ }
+
   // Points transactions table
   db.exec(`
     CREATE TABLE IF NOT EXISTS points_transactions (
@@ -254,6 +259,14 @@ export function initSchema(): void {
   `)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_user ON canvas_assets(user_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_project ON canvas_assets(project_id);`)
+
+  // Migration: add is_starred and sort_order to template_images
+  try {
+    db.exec(`ALTER TABLE template_images ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0`)
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE template_images ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`)
+  } catch { /* column already exists */ }
 
   console.log('[DB] Schema initialized')
 }

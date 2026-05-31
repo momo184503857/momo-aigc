@@ -32,6 +32,8 @@ export interface GenerateImageParams {
   featureId?: string
   /** 生成数量，默认 1 */
   n?: number
+  /** 补充图片列表（带名称） */
+  supplementaryImages?: { name: string; url: string }[]
 }
 
 export interface GenerateImageResult {
@@ -60,6 +62,7 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
     tempImageFiles = [],
     featureId,
     n = 1,
+    supplementaryImages,
   } = params
 
   // ─── 验证：有图片但没有提示词 ───
@@ -104,6 +107,7 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
     progress: 0,
     feature_id: featureId,
     user_prompt: userPrompt || '',
+    supplementary_images: supplementaryImages || [],
   })
   const dbTaskId = dbRes.data.data.id
 
