@@ -10,12 +10,7 @@ import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAsp
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
-import { useUiFeedback } from '@/composables/useUiFeedback'
 import TemplateSelector from './TemplateSelector.vue'
-import SupplementaryImageUpload from './SupplementaryImageUpload.vue'
-import type { SupplementaryImage } from './SupplementaryImageUpload.vue'
-
-const { warning } = useUiFeedback()
 
 const emit = defineEmits<{
   (e: 'generate', params: {
@@ -26,7 +21,6 @@ const emit = defineEmits<{
     count: number
     templateUrls: string[]
     tempImageFiles: File[]
-    supplementaryImages?: { name: string; url: string }[]
   }): void
 }>()
 
@@ -95,9 +89,6 @@ interface RefImage {
 
 const referenceImages = ref<RefImage[]>([])
 
-// Supplementary images
-const supplementaryImages = ref<SupplementaryImage[]>([])
-
 const draggedIndex = ref<number | null>(null)
 
 const selectedModel = computed(() => MODELS.find((m) => m.id === selectedModelId.value))
@@ -118,14 +109,12 @@ const currentPrice = computed(() => {
 })
 
 const canAddImage = computed(() => referenceImages.value.length < maxReferenceImages.value)
-const canGenerate = computed(() => {
-  if (prompt.value.trim().length === 0 || prompt.value.length > maxPromptChars.value) return false
-  if (!serverStatus.loaded) return false
-  if (!serverStatus.sharedKeyConfigured) return false
-  // 检查补充图片是否都已命名
-  if (supplementaryImages.value.some(img => !img.name.trim())) return false
-  return true
-})
+	const canGenerate = computed(() => {
+	  if (prompt.value.trim().length === 0 || prompt.value.length > maxPromptChars.value) return false
+	  if (!serverStatus.loaded) return false
+	  if (!serverStatus.sharedKeyConfigured) return false
+	  return true
+	})
 
 // Model change: reset resolution/aspect to valid values
 function handleModelChange() {
@@ -266,22 +255,10 @@ function handleDragLeave(e: DragEvent) {
 function handleGenerate() {
   if (!canGenerate.value) return
 
-  // 检查补充图片是否都已命名
-  if (supplementaryImages.value.length > 0 && supplementaryImages.value.some(img => !img.name.trim())) {
-    warning('请为所有补充图片命名')
-    return
-  }
-
   const templateUrls = referenceImages.value.filter((r) => r.sourceUrl).map((r) => r.sourceUrl!)
   const tempImageFiles = referenceImages.value
     .filter((r) => !r.sourceUrl)
     .map((r) => dataUrlToFile(r.dataUrl, r.label))
-
-  // 处理补充图片：先上传获取URL
-  const supplementaryImagesData = supplementaryImages.value.map((img) => ({
-    name: img.name,
-    url: img.sourceUrl || img.dataUrl, // 如果有sourceUrl则使用，否则使用dataUrl
-  }))
 
   emit('generate', {
     modelId: selectedModelId.value,
@@ -291,7 +268,6 @@ function handleGenerate() {
     count: count.value,
     templateUrls,
     tempImageFiles,
-    supplementaryImages: supplementaryImagesData.length > 0 ? supplementaryImagesData : undefined,
   })
 }
 
@@ -404,14 +380,6 @@ defineExpose({ setParams })
             </div>
           </div>
           <p v-if="referenceImages.length > 0" class="image-hint">可拖拽排序，最多{{ maxReferenceImages }}张</p>
-        </div>
-      </div>
-
-      <!-- Supplementary Images -->
-      <div class="form-row-inline form-row-top">
-        <label class="form-label-left">可选，最多5张，每张需要命名（如：领口、袖口、面料）</label>
-        <div class="form-control-right">
-          <SupplementaryImageUpload v-model="supplementaryImages" />
         </div>
       </div>
 

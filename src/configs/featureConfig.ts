@@ -13,6 +13,7 @@ export interface FeatureConfig {
   label: string
   imageSlots: ImageSlot[]
   hasUserPrompt: boolean
+  hasSupplementaryImages: boolean
   defaultModelId?: ModelId
   defaultResolution?: string
   defaultAspectRatio?: string
@@ -27,6 +28,7 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
       { key: 'garment', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
+    hasSupplementaryImages: true,
   },
   'change-bg': {
     id: 'change-bg',
@@ -36,6 +38,7 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
       { key: 'bg-ref', label: '背景参考', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
+    hasSupplementaryImages: true,
   },
   'change-face': {
     id: 'change-face',
@@ -45,6 +48,7 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
       { key: 'source', label: '源脸图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
+    hasSupplementaryImages: true,
   },
   'detail-pic': {
     id: 'detail-pic',
@@ -54,6 +58,7 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
       { key: 'detail-ref', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
+    hasSupplementaryImages: true,
   },
   'fabric-pic': {
     id: 'fabric-pic',
@@ -63,6 +68,7 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
       { key: 'fabric-ref', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
+    hasSupplementaryImages: true,
   },
   'flat-pic': {
     id: 'flat-pic',
@@ -72,6 +78,7 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
       { key: 'scene-ref', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
+    hasSupplementaryImages: true,
   },
   '3d-pic': {
     id: '3d-pic',
@@ -81,12 +88,14 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
       { key: 'angle-ref', label: '衣服图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
+    hasSupplementaryImages: true,
   },
   'model-gen': {
     id: 'model-gen',
     label: '模特生成',
     imageSlots: [],
     hasUserPrompt: true,
+    hasSupplementaryImages: false,
   },
   'three-view': {
     id: 'three-view',
@@ -95,6 +104,7 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
       { key: 'front', label: '正面图', maxCount: 1, required: true, section: 'reference' },
     ],
     hasUserPrompt: true,
+    hasSupplementaryImages: false,
   },
 }
 

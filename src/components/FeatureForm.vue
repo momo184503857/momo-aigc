@@ -364,7 +364,7 @@ defineExpose({ setParams })
       </div>
 
       <!-- Supplementary Images -->
-      <div class="form-row-inline form-row-top">
+      <div v-if="config.hasSupplementaryImages" class="form-row-inline form-row-top">
         <label class="form-label-left">可选，最多5张，每张需要命名（如：领口、袖口、面料）</label>
         <div class="form-control-right">
           <SupplementaryImageUpload v-model="supplementaryImages" />

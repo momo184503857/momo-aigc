@@ -84,7 +84,37 @@ function modelDisplayName(modelId: string): string {
 }
 
 function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(() => success('已复制'))
+  if (!text) return
+  // 优先使用 Clipboard API
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => success('已复制')).catch(() => {
+      fallbackCopy(text)
+    })
+  } else {
+    fallbackCopy(text)
+  }
+}
+
+function fallbackCopy(text: string) {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  textarea.style.top = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+  try {
+    const ok = document.execCommand('copy')
+    if (ok) {
+      success('已复制')
+    } else {
+      warning('复制失败，请手动复制')
+    }
+  } catch {
+    warning('复制失败，请手动复制')
+  }
+  document.body.removeChild(textarea)
 }
 
 function promptSummary(text: string, maxLen = 60): string {

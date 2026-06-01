@@ -1,6 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'AdminUsers' })
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { Search } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
@@ -69,6 +70,23 @@ const tagManageVisible = ref(false)
 const newTagName = ref('')
 const newTagColor = ref('#409EFF')
 const tagLoading = ref(false)
+
+/** 将数据库时间（UTC）转为北京时间显示 */
+function toBeijingTime(isoStr: string | null): string {
+  if (!isoStr) return '-'
+  // SQLite 时间字符串可能是 "YYYY-MM-DD HH:mm:ss" 格式，补上 UTC 标记
+  let t = isoStr
+  if (!t.endsWith('Z') && !t.includes('+') && !t.includes('T')) {
+    t = t.replace(' ', 'T') + 'Z'
+  }
+  const d = new Date(t)
+  if (isNaN(d.getTime())) return isoStr.slice(0, 16)
+  // UTC+8
+  return new Date(d.getTime() + 8 * 60 * 60 * 1000)
+    .toISOString()
+    .replace('T', ' ')
+    .slice(0, 16)
+}
 
 async function loadUsers() {
   loading.value = true
@@ -313,7 +331,7 @@ onMounted(() => {
       <el-table-column label="成功" width="70" prop="completed_count" />
       <el-table-column label="失败" width="70" prop="failed_count" />
       <el-table-column label="最近登录" width="140">
-        <template #default="{ row }">{{ row.last_login_at?.slice(0, 16) || '-' }}</template>
+        <template #default="{ row }">{{ toBeijingTime(row.last_login_at) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="240" fixed="right">
         <template #default="{ row }">
