@@ -156,7 +156,7 @@ defineExpose({ open })
     title="图片对比"
     width="90%"
     top="3vh"
-    :close-on-click-modal="false"
+    :close-on-click-modal="true"
     @update:model-value="close"
     @mouseup="handleMouseUp"
     @mousemove="handleMouseMove"
