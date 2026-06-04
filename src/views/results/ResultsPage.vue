@@ -8,6 +8,7 @@ import PageLayout from '@/components/PageLayout.vue'
 import { UiImagePreview } from '@/components/ui'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { taskApi } from '@/services/taskApi'
+import { downloadUrl } from '@/utils/download'
 import type { TaskItem } from '@/components/TaskList.vue'
 
 const tasks = ref<TaskItem[]>([])
@@ -55,19 +56,11 @@ function selectAll() {
 
 // ─── Download helpers ───
 
-function downloadUrl(url: string, filename: string) {
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.rel = 'noopener'
-  a.click()
-}
-
 async function handleDownload(task: TaskItem) {
   const url = task.result_image_urls?.[0]
   if (!url) { warning('没有可下载的图片'); return }
   try {
-    downloadUrl(url, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
+    await downloadUrl(url, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
     success('下载完成')
   } catch {
     error('下载失败')
@@ -116,7 +109,7 @@ async function handleBatchDownload() {
   let count = 0
   for (const task of selected) {
     try {
-      downloadUrl(task.result_image_urls[0], `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
+      await downloadUrl(task.result_image_urls[0], `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
       count++
       // Small delay between downloads to avoid browser throttling
       await new Promise((r) => setTimeout(r, 300))

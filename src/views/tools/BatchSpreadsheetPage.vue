@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, Download, Document, Refresh } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
+import { downloadUrl } from '@/utils/download'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { taskApi } from '@/services/taskApi'
@@ -388,14 +389,6 @@ async function retryFailed() {
 
 const downloadableRows = computed(() => tableData.value.filter(r => r.status === 'completed' && r.resultUrl && r.selected))
 
-function downloadUrl(url: string, filename: string) {
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.rel = 'noopener'
-  a.click()
-}
-
 async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
   const importedUrls: string[] = []
   for (const sourceUrl of sourceUrls) {
@@ -418,7 +411,7 @@ async function downloadDirect() {
   let count = 0
   for (const row of downloadableRows.value) {
     try {
-      downloadUrl(row.resultUrl!, String(row.filename || Date.now()))
+      await downloadUrl(row.resultUrl!, String(row.filename || Date.now()))
       count++
       await sleep(300)
     } catch { /* skip */ }

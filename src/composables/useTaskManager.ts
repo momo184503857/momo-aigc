@@ -8,6 +8,7 @@ import { generateImage } from '@/services/imageGeneration'
 import { ossApi } from '@/services/ossApi'
 import { getTaskStatus } from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
+import { downloadUrl } from '@/utils/download'
 import type { ModelId } from '@/types/adapter'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { TaskItem } from '@/components/TaskList.vue'
@@ -89,14 +90,6 @@ function formatDate(d: Date): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function downloadUrl(url: string, filename: string) {
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.rel = 'noopener'
-  a.click()
 }
 
 async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
@@ -425,7 +418,7 @@ export function useTaskManager() {
     const url = task.result_image_urls?.[0]
     if (!url) { warning('没有可下载的图片'); return }
     try {
-      downloadUrl(url, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
+      await downloadUrl(url, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
     } catch {
       error('下载失败')
     }
@@ -460,7 +453,7 @@ export function useTaskManager() {
     let count = 0
     for (const task of selected) {
       try {
-        downloadUrl(task.result_image_urls[0], `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
+        await downloadUrl(task.result_image_urls[0], `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
         count++
         await new Promise((r) => setTimeout(r, 300))
       } catch { /* skip */ }

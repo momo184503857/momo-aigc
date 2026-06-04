@@ -5,6 +5,7 @@ import type { TaskItem } from './TaskList.vue'
 import { MODELS } from '@/types/adapter'
 import { getFeatureLabel } from '@/configs/featureConfig'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { downloadUrl } from '@/utils/download'
 const { success, info, warning, error } = useUiFeedback()
 
 const props = defineProps<{ task: TaskItem | null }>()
@@ -30,12 +31,8 @@ function openImage(url: string) {
   window.open(url, '_blank')
 }
 
-function handleDownload(url: string) {
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'result.png'
-  a.target = '_blank'
-  a.click()
+async function handleDownload(url: string) {
+  await downloadUrl(url, 'result.png')
 }
 
 const statusMap: Record<string, string> = {
