@@ -2,10 +2,9 @@
  * Reliable cross-origin image download helper.
  *
  * Browsers ignore the `download` attribute on <a> tags when the href is
- * cross-origin, opening a new tab instead. This utility fetches the image
- * as a blob first (creating a same-origin blob URL), which triggers a
- * real download. Falls back to the server proxy if the direct fetch is
- * blocked by CORS, and as a last resort opens the URL in a new tab.
+ * cross-origin, opening a new tab instead. This utility tries to reuse
+ * already-loaded image data first (zero network overhead), then falls back
+ * to a cached fetch, a server proxy, and finally a new tab.
  */
 
 function triggerSave(blob: Blob, filename: string) {
@@ -20,19 +19,68 @@ function triggerSave(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
 }
 
+/**
+ * Try to extract image pixel data from an already-loaded <img> element
+ * in the DOM. Returns a Blob on success, or null if no loaded image was
+ * found or the canvas was tainted (cross-origin without CORS).
+ */
+async function getImageBlobFromDom(url: string): Promise<Blob | null> {
+  // Search all <img> elements for one whose src matches the target URL.
+  // TaskList thumbnails and grid thumbs are the most likely matches.
+  const imgs = document.querySelectorAll(`img[src="${url}"]`)
+  for (const img of imgs) {
+    if (!(img instanceof HTMLImageElement)) continue
+    // Skip images that haven't finished loading yet
+    if (!img.complete || img.naturalWidth === 0) continue
+
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) continue
+
+      ctx.drawImage(img, 0, 0)
+      // If the image is cross-origin without CORS, the canvas is tainted
+      // and the following call will throw a SecurityError.
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png')
+      )
+      if (blob && blob.size > 0) return blob
+    } catch {
+      // Canvas was tainted — cross-origin image without crossorigin attr.
+      // Fall through to the HTTP-cache-based approaches below.
+    }
+  }
+  return null
+}
+
 export async function downloadUrl(url: string, filename: string): Promise<void> {
-  // 1) Direct fetch — works for same-origin or CORS-enabled URLs (e.g. OSS)
+  // ── 1) Extract from already-loaded <img> in the DOM ──
+  // Zero network overhead — reuses pixel data the browser already has.
   try {
-    const resp = await fetch(url)
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    const blob = await resp.blob()
-    triggerSave(blob, filename)
-    return
+    const domBlob = await getImageBlobFromDom(url)
+    if (domBlob) {
+      triggerSave(domBlob, filename)
+      return
+    }
+  } catch { /* fall through */ }
+
+  // ── 2) Cached fetch — use browser HTTP cache populated by the <img> tag ──
+  // `force-cache` returns the cached response even if stale, avoiding a
+  // network round-trip for images that were already displayed on the page.
+  try {
+    const resp = await fetch(url, { cache: 'force-cache' })
+    if (resp.ok) {
+      const blob = await resp.blob()
+      triggerSave(blob, filename)
+      return
+    }
   } catch {
-    // CORS error or network failure — try via server proxy
+    // Cache miss or network failure — try via server proxy
   }
 
-  // 2) Server proxy — POST /api/proxy/image, bypasses CORS entirely
+  // ── 3) Server proxy — POST /api/proxy/image, bypasses CORS ──
   try {
     const token = localStorage.getItem('auth_token')
     const resp = await fetch('/api/proxy/image', {
@@ -51,6 +99,6 @@ export async function downloadUrl(url: string, filename: string): Promise<void> 
     // Proxy also failed
   }
 
-  // 3) Last resort — open in new tab (better than silently failing)
+  // ── 4) Last resort — open in new tab ──
   window.open(url, '_blank')
 }

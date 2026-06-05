@@ -57,12 +57,14 @@ const compareTaskId = ref<number>(0)
 // Copy params event (for intra-workspace communication)
 const copyParamsEvent = ref<{ task: TaskItem; ts: number } | null>(null)
 
+const ACTIVE_STATUSES = ['submitted', 'queued', 'in_progress', 'importing']
+
 const hasActiveJobs = computed(() =>
-  tasks.value.some((t) => t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress')
+  tasks.value.some((t) => ACTIVE_STATUSES.includes(t.status))
 )
 
 const activeTaskCount = computed(() =>
-  tasks.value.filter((t) => t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress').length
+  tasks.value.filter((t) => ACTIVE_STATUSES.includes(t.status)).length
 )
 
 const featureOptions = computed(() => {
@@ -306,7 +308,7 @@ export function useTaskManager() {
 
   async function pollAllTasks() {
     for (const task of tasks.value) {
-      if (task.status === 'completed' || task.status === 'failed') continue
+      if (task.status === 'completed' || task.status === 'failed' || task.status === 'importing') continue
       if (!task.toapis_task_id) continue
       try {
         await pollTask(task)
@@ -324,21 +326,29 @@ export function useTaskManager() {
         completed: 'completed',
         failed: 'failed',
       }
-      task.status = statusMap[result.status] || result.status
-      task.progress = result.progress
 
       if (result.status === 'completed') {
-        const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
-        task.result_image_urls = importedUrls
+        // Enter importing state — show "下载中" until OSS import finishes
+        task.status = 'importing'
+        task.progress = 100
+        try {
+          const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
+          task.result_image_urls = importedUrls
+        } catch (err) {
+          console.warn('[Poll] importResultUrls error:', err)
+        }
+        task.status = 'completed'
         task.completed_at = new Date().toISOString()
         await taskApi.update(task.id, {
           status: 'completed',
           progress: 100,
-          result_image_urls: importedUrls,
+          result_image_urls: task.result_image_urls,
           completed_at: task.completed_at,
           expires_at: result.expiresAt,
         })
       } else if (result.status === 'failed') {
+        task.status = 'failed'
+        task.progress = result.progress
         task.error_message = result.errorMessage || ''
         await taskApi.update(task.id, {
           status: 'failed',
@@ -347,9 +357,11 @@ export function useTaskManager() {
           error_message: result.errorMessage,
         })
       } else {
+        task.status = statusMap[result.status] || result.status
+        task.progress = result.progress
         await taskApi.update(task.id, {
           status: task.status,
-          progress: result.progress,
+          progress: task.progress,
         })
       }
     } catch (e: any) {
@@ -488,6 +500,35 @@ export function useTaskManager() {
     success(`已删除 ${selected.length} 个任务`)
   }
 
+  // ─── Retry import ───
+
+  async function retryImportTask(task: TaskItem) {
+    if (!task.toapis_task_id) {
+      warning('任务尚未提交，无法刷新')
+      return
+    }
+    task.status = 'importing'
+    try {
+      const result = await getTaskStatus(task.toapis_task_id)
+      if (result.status === 'completed' && result.resultUrls.length > 0) {
+        const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
+        task.result_image_urls = importedUrls
+        await taskApi.update(task.id, { result_image_urls: importedUrls })
+        success('图片已刷新')
+      } else if (result.status !== 'completed') {
+        warning('任务尚未完成，请稍后再试')
+      } else {
+        warning('暂无结果图')
+      }
+    } catch (e: any) {
+      error('刷新失败: ' + (e.message || '未知错误'))
+    } finally {
+      if (task.status === 'importing') {
+        task.status = 'completed'
+      }
+    }
+  }
+
   // ─── Detail / Compare ───
 
   function showCompare(index: number) {
@@ -544,6 +585,7 @@ export function useTaskManager() {
     handleBatchDownload,
     handleBatchPackDownload,
     handleBatchDelete,
+    retryImportTask,
     toggleBulkMode,
     handleToggleSelect,
     selectAllTasks,

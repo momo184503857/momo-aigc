@@ -42,12 +42,13 @@ const emit = defineEmits<{
   'copyParams': [task: TaskItem]
   'compareImages': [index: number]
   'toggleSelect': [id: number]
+  'retryImport': [task: TaskItem]
 }>()
 
 const statusText = computed(() => (status: string) => {
   const map: Record<string, string> = {
     submitted: '已提交', queued: '排队中', in_progress: '生成中',
-    completed: '已完成', failed: '生成失败', unknown: '状态未知',
+    importing: '下载中', completed: '已完成', failed: '生成失败', unknown: '状态未知',
   }
   return map[status] || status
 })
@@ -55,7 +56,7 @@ const statusText = computed(() => (status: string) => {
 const statusType = computed(() => (status: string) => {
   const map: Record<string, string> = {
     submitted: 'info', queued: 'info', in_progress: 'warning',
-    completed: 'success', failed: 'danger', unknown: 'info',
+    importing: 'warning', completed: 'success', failed: 'danger', unknown: 'info',
   }
   return map[status] || 'info'
 })
@@ -168,7 +169,7 @@ function statusLabel(task: TaskItem): string {
 }
 
 function isActive(status: string): boolean {
-  return ['submitted', 'queued', 'in_progress'].includes(status)
+  return ['submitted', 'queued', 'in_progress', 'importing'].includes(status)
 }
 
 function aspectLabel(task: TaskItem): string {
@@ -218,8 +219,25 @@ function toBeijingTime(isoStr: string): string {
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
             draggable="true"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
-          <el-icon v-else-if="isActive(task.status)" class="is-loading spin" size="28"><Loading /></el-icon>
-          <el-icon v-else size="28"><Picture /></el-icon>
+          <div v-else-if="task.status === 'importing'" class="thumb-status">
+            <el-icon class="is-loading spin" size="28"><Loading /></el-icon>
+            <span class="thumb-status-text">正在下载图片...</span>
+          </div>
+          <div v-else-if="isActive(task.status)" class="thumb-status">
+            <el-icon class="is-loading spin" size="28"><Loading /></el-icon>
+          </div>
+          <div v-else class="thumb-status">
+            <el-icon size="28"><Picture /></el-icon>
+            <el-button
+              v-if="task.toapis_task_id"
+              class="thumb-retry-btn"
+              :icon="Refresh"
+              size="small"
+              circle
+              @click.stop="emit('retryImport', task)"
+              title="重新加载图片"
+            />
+          </div>
         </div>
         <div class="task-body">
           <!-- Task ID at top -->
@@ -284,9 +302,26 @@ function toBeijingTime(isoStr: string): string {
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
             draggable="true"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
-          <el-icon v-else-if="isActive(task.status)" class="is-loading spin" size="36"><Loading /></el-icon>
-          <el-icon v-else size="36"><Picture /></el-icon>
-          <div v-if="task.status === 'in_progress'" class="grid-progress-bar" :style="{ width: task.progress + '%' }" />
+          <div v-else-if="task.status === 'importing'" class="thumb-status grid-thumb-status">
+            <el-icon class="is-loading spin" size="36"><Loading /></el-icon>
+            <span class="thumb-status-text">正在下载图片...</span>
+          </div>
+          <div v-else-if="isActive(task.status)" class="thumb-status grid-thumb-status">
+            <el-icon class="is-loading spin" size="36"><Loading /></el-icon>
+          </div>
+          <div v-else class="thumb-status grid-thumb-status">
+            <el-icon size="36"><Picture /></el-icon>
+            <el-button
+              v-if="task.toapis_task_id"
+              class="thumb-retry-btn"
+              :icon="Refresh"
+              size="small"
+              circle
+              @click.stop="emit('retryImport', task)"
+              title="重新加载图片"
+            />
+          </div>
+          <div v-if="isActive(task.status)" class="grid-progress-bar" :style="{ width: task.progress + '%' }" />
         </div>
 
         <!-- Info area -->
@@ -378,6 +413,21 @@ function toBeijingTime(isoStr: string): string {
   cursor: pointer;
 }
 .task-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Thumb status placeholder (loading / empty / retry) */
+.thumb-status {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; width: 100%; height: 100%; color: var(--el-text-color-secondary);
+}
+.thumb-status-text {
+  font-size: var(--momo-font-size-xs); color: var(--el-text-color-secondary);
+}
+.thumb-retry-btn {
+  margin-top: 2px;
+}
+.grid-thumb-status {
+  position: absolute; inset: 0;
+}
 
 .task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 

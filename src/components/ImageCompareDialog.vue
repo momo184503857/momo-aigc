@@ -261,7 +261,7 @@ defineExpose({ open })
             </div>
           </div>
           <div v-else class="no-image">
-            <template v-if="currentTask.status === 'in_progress' || currentTask.status === 'queued' || currentTask.status === 'submitted'">
+            <template v-if="currentTask.status === 'in_progress' || currentTask.status === 'queued' || currentTask.status === 'submitted' || currentTask.status === 'importing'">
               生成中...
             </template>
             <template v-else>暂无结果图</template>

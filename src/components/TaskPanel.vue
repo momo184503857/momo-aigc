@@ -198,6 +198,7 @@ const panelStyle = computed(() => ({
           @copy-params="tm.handleCopyParams"
           @compare-images="tm.showCompare"
           @toggle-select="tm.handleToggleSelect"
+          @retry-import="tm.retryImportTask"
         />
       </div>
 

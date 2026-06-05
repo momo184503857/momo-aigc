@@ -37,7 +37,7 @@ async function handleDownload(url: string) {
 
 const statusMap: Record<string, string> = {
   submitted: '已提交', queued: '排队中', in_progress: '生成中',
-  completed: '已完成', failed: '生成失败', unknown: '状态未知',
+  importing: '下载中', completed: '已完成', failed: '生成失败', unknown: '状态未知',
 }
 </script>
 
