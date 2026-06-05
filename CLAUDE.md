@@ -59,6 +59,22 @@ server/src/
   routes/               REST endpoints (auth, tasks, templates, prompts, oss, proxy, toapis-proxy, admin/*)
 ```
 
+### Image Storage Flow (OSS + Worker)
+
+```
+Browser → OSS (direct upload via PostObject policy)
+Browser → ToAPIs (create task with OSS URLs)
+ToAPIs completed → Server → FC Worker → OSS (result import)
+Browser → OSS public URL (display/download)
+```
+
+Key files:
+- `src/services/imageGeneration.ts` — central orchestrator, uploads local files to OSS, re-uploads non-OSS URLs (ToAPIs, etc.) to OSS before storing in DB
+- `src/utils/download.ts` — cross-origin download helper: fetches via server proxy (POST /api/proxy/image), creates blob URL, triggers download
+- `workers/oss-result-import-worker.mjs` — Alibaba Cloud FC function, downloads result from ToAPIs → uploads to OSS
+- `server/src/utils/oss.ts` — OSS PostObject policy generation, Worker invocation (`importResultToOss`)
+- `server/src/routes/proxy.ts` — image download proxy (POST /api/proxy/image), streams from source URL to client
+
 ### Three-Panel Workspace
 
 The main page (`src/views/workspace/WorkspacePage.vue`) uses a resizable three-panel layout:
@@ -91,3 +107,7 @@ All styles must use `--momo-*` CSS custom properties (defined in `src/styles/tok
 | 运维手册 | `docs/operations/runbook.md` |
 | 测试计划 | `docs/testing/test-plan.md` |
 | 项目交接 | `docs/project/handoff.md` |
+| 变更记录 | `docs/engineering/changelog.md` |
+| 技术决策 | `docs/engineering/decision-log.md` |
+| Bug 修复 | `docs/engineering/bug-fixes.md` |
+| 待办事项 | `docs/engineering/todo.md` |

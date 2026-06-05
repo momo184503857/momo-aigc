@@ -296,80 +296,66 @@ ToAPIs 后台显示成功，但本地显示状态未知。
 }
 ```
 
-## 当前还没完成/需要下一个 AI 继续处理的事
+## 当前状态（2026-06-05 更新）
 
-### 1. 部署结果导入 Worker
+### 1. 部署结果导入 Worker ✅ 已完成
 
-需要把：
+Worker 已部署到阿里云函数计算（FC 3.0）：
 
-```text
-workers/oss-result-import-worker.mjs
-```
+| 项目 | 值 |
+|------|-----|
+| 函数名 | `oss-result-import-worker` |
+| 运行时 | Node.js 20 |
+| 区域 | `cn-hangzhou` |
+| 公网 URL | `https://oss-rest-worker-ykaraoaubf.cn-hangzhou.fcapp.run` |
+| 内网 URL | `https://oss-rest-worker-ykaraoaubf.cn-hangzhou-vpc.fcapp.run` |
+| 部署工具 | `@serverless-devs/s` v3 (s CLI) |
+| 部署配置 | `workers/s.yaml` |
+| 入口文件 | `workers/index.mjs` → `workers/oss-result-import-worker.mjs` |
 
-部署到阿里云函数计算或其他 Node 20+ 服务。
-
-部署完成后，把 HTTP 触发器 URL 填到本地 `.env`：
-
-```env
-OSS_RESULT_IMPORT_WORKER_URL=https://...
-OSS_RESULT_IMPORT_WORKER_SECRET=...
-```
-
-然后重启后端：
-
+**部署命令**（从 `workers/` 目录执行）：
 ```bash
-npm run dev:server
+export OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+export OSS_BUCKET=momo-aigc
+export OSS_ACCESS_KEY_ID=<key>
+export OSS_ACCESS_KEY_SECRET=<secret>
+s deploy -y
 ```
 
-### 2. 配置 OSS CORS
-
-浏览器直传 OSS 需要 OSS Bucket CORS。
-
-本地开发地址通常是：
-
-```text
-http://localhost:5173
+**本地 `.env` 配置**：
+```env
+OSS_RESULT_IMPORT_WORKER_URL=https://oss-rest-worker-ykaraoaubf.cn-hangzhou.fcapp.run
+OSS_RESULT_IMPORT_WORKER_SECRET=REDACTED-WORKER-SECRET
 ```
 
-建议配置：
+> ⚠️ **重要**：服务器部署时必须把这两个变量也配到服务器 `.env` 中，否则 Worker 不会被调用，结果图会降级保留 ToAPIs URL。PM2 重启时加 `--update-env` 才能重新加载 `.env`：
+> ```bash
+> cat >> .env << 'EOF'
+> OSS_RESULT_IMPORT_WORKER_URL=https://oss-rest-worker-ykaraoaubf.cn-hangzhou.fcapp.run
+> OSS_RESULT_IMPORT_WORKER_SECRET=REDACTED-WORKER-SECRET
+> EOF
+> pm2 restart momo-aigc --update-env
+> ```
 
-```text
-Allowed Origins: http://localhost:5173
-Allowed Methods: GET, HEAD, POST
-Allowed Headers: *
-Expose Headers: 可留空
-```
+**FC Worker 技术细节**（调试发现）：
+- FC 3.0 HTTP trigger 传给 handler 的第一个参数是一个 **Buffer**，内容是 FC 事件 envelope JSON：`{ version, rawPath, headers: {...}, body: "<json-string>", ... }`
+- 实际请求体在 `eventObj.body` 里，是 JSON 字符串，需要二次解析
+- 不是标准的 Node.js `(req, resp)` HTTP handler 格式
+- 因为 FC 不转发自定义 HTTP headers（如 Authorization），Worker 的 Bearer Token 鉴权已移除。安全性依赖 Worker URL 保密 + `targetObjectKey` 前缀校验
 
-如果部署到线上域名，也要把线上域名加入 Allowed Origins。
+### 2. 配置 OSS CORS ⚠️ 待确认
 
-### 3. 完整本地验收
+浏览器上传图片到 OSS（PostObject policy）目前正常工作，说明 OSS Bucket 已配置了必要的 CORS（POST 方法）。
 
-建议验收流程：
+但**浏览器直接 `fetch(url)` 下载图片**可能因 OSS Bucket 未开放 GET CORS 而失败。当前下载功能**不走直接 fetch**，而是通过服务端代理 `POST /api/proxy/image` 绕过 CORS。详见 `docs/engineering/bug-fixes.md` — Bug #2。
 
-1. 启动后端：
+### 3. 参考图 URL 流转
 
-   ```bash
-   npm run dev:server
-   ```
+2026-06-05 修复：用户上传的本地文件 → OSS（`ossApi.upload(file, 'inputs')`）→ OSS URL 存入 `input_image_urls`。但来自历史任务结果复用的 ToAPIs URL 也会在 `generateImage()` 中自动 fetch + 重新上传到 OSS。详见 `src/services/imageGeneration.ts` 第 78-92 行。
 
-2. 启动前端：
+### 4. 完整本地验收
 
-   ```bash
-   npm run dev
-   ```
-
-3. 上传一张参考图。
-4. 确认浏览器直接 `POST` 到 OSS，而不是上传到业务服务器。
-5. 创建 ToAPIs 任务。
-6. ToAPIs completed 后，确认调用 `/api/oss/import-result`。
-7. 确认 Worker 将结果图写入：
-
-   ```text
-   results/{userId}/{yyyy}/{mm}/{uuid}.png
-   ```
-
-8. 确认数据库 `generation_tasks.result_image_urls` 保存的是 OSS URL。
-9. 确认页面展示和下载都使用 OSS URL。
+已通过端到端测试：`POST /api/oss/import-result` → Worker → OSS，成功返回 OSS 公网 URL。结果图可正常展示和下载。
 
 ## 已运行验证
 

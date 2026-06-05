@@ -81,9 +81,15 @@ OSS_BUCKET=momo-aigc
 OSS_ACCESS_KEY_ID=<你的 AccessKey ID>
 OSS_ACCESS_KEY_SECRET=<你的 AccessKey Secret>
 
+# OSS Result Import Worker (阿里云函数计算)
+OSS_RESULT_IMPORT_WORKER_URL=https://oss-rest-worker-ykaraoaubf.cn-hangzhou.fcapp.run
+OSS_RESULT_IMPORT_WORKER_SECRET=REDACTED-WORKER-SECRET
+
 # ToAPIs Base URL
 TOAPIS_BASE_URL=https://toapis.com
 ```
+
+> ⚠️ `OSS_RESULT_IMPORT_WORKER_*` 两个变量**必须配置**，否则结果图不会被转存到 OSS，会降级保留 ToAPIs URL（可能过期或无法跨域下载）。
 
 ### 6. 构建项目
 
@@ -424,8 +430,10 @@ npm run build           # 如果前端代码有改动
 ### 步骤 4：重启后端服务
 
 ```bash
-pm2 restart momo-aigc
+pm2 restart momo-aigc --update-env
 ```
+
+> `--update-env` 很重要：如果 `.env` 有新变量或修改，不加这个参数 PM2 不会重新加载。
 
 ### 步骤 5：验证
 
@@ -445,7 +453,7 @@ npm run build
 echo "[Deploy] Building backend..."
 npm run build:server
 echo "[Deploy] Restarting server..."
-pm2 restart momo-aigc
+pm2 restart momo-aigc --update-env
 echo "[Deploy] Done!"
 ```
 
