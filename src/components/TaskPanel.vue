@@ -235,6 +235,7 @@ const panelStyle = computed(() => ({
     v-model="tm.compareVisible.value"
     :tasks="tm.tasks.value"
     :initial-index="tm.compareInitialIndex.value"
+    :task-id="tm.compareTaskId.value"
   />
 </template>
 

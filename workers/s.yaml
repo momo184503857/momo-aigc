@@ -1,0 +1,32 @@
+edition: 3.0.0
+name: momo-aigc-oss-worker
+access: default
+vars:
+  region: cn-hangzhou
+  service: momo-aigc-fc
+
+resources:
+  oss-result-import-worker:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: oss-result-import-worker
+      runtime: nodejs20
+      code: ./
+      handler: index.handler
+      memorySize: 512
+      timeout: 120
+      environmentVariables:
+        OSS_ENDPOINT: ${env(OSS_ENDPOINT)}
+        OSS_BUCKET: ${env(OSS_BUCKET)}
+        OSS_ACCESS_KEY_ID: ${env(OSS_ACCESS_KEY_ID)}
+        OSS_ACCESS_KEY_SECRET: ${env(OSS_ACCESS_KEY_SECRET)}
+        OSS_RESULT_IMPORT_WORKER_SECRET: ${env(OSS_RESULT_IMPORT_WORKER_SECRET)}
+      triggers:
+        - triggerName: http
+          triggerType: http
+          triggerConfig:
+            methods:
+              - POST
+              - GET
+            authType: anonymous

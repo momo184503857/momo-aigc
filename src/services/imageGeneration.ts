@@ -74,8 +74,31 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
     throw new Error('请输入提示词，描述你想要生成的效果')
   }
 
-  // ─── 上传临时图片 ───
-  const allImageUrls = [...imageUrls]
+  // ─── 上传临时图片 + 中转非 OSS URL ───
+  const allImageUrls: string[] = []
+  // 1) 处理已上传的 URL：OSS URL 直接用，非 OSS URL 需要下载后重新上传
+  for (const url of imageUrls) {
+    if (url.includes('oss-cn-hangzhou.aliyuncs.com')) {
+      allImageUrls.push(url)
+    } else if (url.startsWith('http')) {
+      // 非 OSS 的外部 URL（如 ToAPIs URL），下载后上传到 OSS
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(60000) })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+        const blob = await resp.blob()
+        const file = new File([blob], 'ref-image.png', { type: blob.type || 'image/png' })
+        const uploaded = await ossApi.upload(file, 'inputs')
+        allImageUrls.push(uploaded.publicUrl)
+      } catch (err) {
+        console.warn('[ImageGen] Failed to re-upload non-OSS URL, using original:', url, err)
+        allImageUrls.push(url) // fallback to original URL
+      }
+    } else {
+      // data URL or other — already handled as tempImageFiles, shouldn't reach here
+      allImageUrls.push(url)
+    }
+  }
+  // 2) 上传本地临时文件
   for (const file of tempImageFiles) {
     const uploaded = await ossApi.upload(file, 'inputs')
     allImageUrls.push(uploaded.publicUrl)

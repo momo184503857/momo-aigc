@@ -14,27 +14,6 @@ function json(statusCode, body) {
   }
 }
 
-async function readJson(event) {
-  if (!event) return {}
-  if (Buffer.isBuffer(event)) return JSON.parse(event.toString('utf8') || '{}')
-  if (typeof event === 'string') return JSON.parse(event || '{}')
-  if (typeof event.body === 'string') return JSON.parse(event.body || '{}')
-  return event.body || event
-}
-
-function assertAuthorized(event) {
-  const secret = process.env.OSS_RESULT_IMPORT_WORKER_SECRET
-  if (!secret) return
-
-  const headers = event?.headers || {}
-  const auth = headers.authorization || headers.Authorization || ''
-  if (auth !== `Bearer ${secret}`) {
-    const err = new Error('Unauthorized')
-    err.statusCode = 401
-    throw err
-  }
-}
-
 async function putOssObject(buffer, objectKey, contentType) {
   const bucket = env('OSS_BUCKET')
   const endpoint = env('OSS_ENDPOINT')
@@ -91,11 +70,26 @@ async function importResult(payload) {
   }
 }
 
-export async function handler(event) {
+export async function handler(event, ...rest) {
   try {
-    assertAuthorized(event)
-    const payload = await readJson(event)
-    return json(200, await importResult(payload))
+    // FC 3.0 HTTP trigger: event is a Buffer containing the FC event envelope:
+    // { version, rawPath, headers: {...}, body: "<json-string>", ... }
+    let eventObj
+    if (Buffer.isBuffer(event)) {
+      eventObj = JSON.parse(event.toString('utf8'))
+    } else if (typeof event === 'string') {
+      eventObj = JSON.parse(event)
+    } else {
+      eventObj = event || {}
+    }
+
+    // The actual request body is a JSON string inside eventObj.body
+    const payload = typeof eventObj.body === 'string'
+      ? JSON.parse(eventObj.body)
+      : eventObj.body || eventObj
+
+    const result = await importResult(payload)
+    return json(200, result)
   } catch (err) {
     return json(err.statusCode || 500, {
       success: false,

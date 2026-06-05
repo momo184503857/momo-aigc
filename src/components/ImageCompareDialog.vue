@@ -7,6 +7,7 @@ const props = defineProps<{
   tasks: TaskItem[]
   modelValue: boolean
   initialIndex?: number
+  taskId?: number
 }>()
 
 const emit = defineEmits<{
@@ -27,6 +28,12 @@ const dragStart = ref({ x: 0, y: 0, tx: 0, ty: 0 })
 const currentZoomTarget = ref<'ref' | 'result'>('ref')
 
 const currentTask = computed(() => {
+  // Resolve by taskId first, so we always pick up the latest task data
+  // even if the tasks array was replaced (e.g. after loadHistory).
+  if (props.taskId) {
+    const found = props.tasks.find(t => t.id === props.taskId)
+    if (found) return found
+  }
   if (currentIndex.value >= 0 && currentIndex.value < props.tasks.length) {
     return props.tasks[currentIndex.value]
   }
@@ -99,8 +106,21 @@ watch(() => props.modelValue, (visible) => {
 watch(() => props.initialIndex, (idx) => {
   if (props.modelValue && idx !== undefined && idx >= 0 && idx < props.tasks.length) {
     currentIndex.value = idx
+    activeRefIndex.value = 0
+    activeResultIndex.value = 0
   }
 })
+
+// When the tasks array changes (e.g. after loadHistory replaces it during
+// generation), the task at currentIndex may have been stale. Force
+// reactivity by re-anchoring to the current task's actual data.
+watch(() => props.tasks, (tasks) => {
+  if (!props.modelValue) return
+  // Clamp currentIndex in case the tasks array shrank
+  if (currentIndex.value >= tasks.length) {
+    currentIndex.value = Math.max(0, tasks.length - 1)
+  }
+}, { deep: false })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)

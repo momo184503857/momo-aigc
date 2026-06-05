@@ -89,10 +89,7 @@ export async function importResultToOss(opts: {
   const targetObjectKey = opts.targetObjectKey || generateResultObjectKey(opts.userId, opts.sourceUrl)
   const resp = await fetch(resultImportWorkerUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(resultImportWorkerSecret ? { Authorization: `Bearer ${resultImportWorkerSecret}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       taskId: opts.taskId,
       userId: opts.userId,

@@ -52,6 +52,7 @@ const filterDateRange = ref<[Date, Date] | null>(null)
 // Compare dialog
 const compareVisible = ref(false)
 const compareInitialIndex = ref(0)
+const compareTaskId = ref<number>(0)
 
 // Copy params event (for intra-workspace communication)
 const copyParamsEvent = ref<{ task: TaskItem; ts: number } | null>(null)
@@ -488,6 +489,8 @@ export function useTaskManager() {
   // ─── Detail / Compare ───
 
   function showCompare(index: number) {
+    const task = tasks.value[index]
+    compareTaskId.value = task?.id || 0
     compareInitialIndex.value = index
     compareVisible.value = true
   }
@@ -523,6 +526,7 @@ export function useTaskManager() {
     activeTaskCount,
     compareVisible,
     compareInitialIndex,
+    compareTaskId,
     copyParamsEvent,
 
     // Methods
