@@ -28,6 +28,10 @@ async function getImageBlobFromDom(url: string): Promise<Blob | null> {
   // Search all <img> elements for one whose src matches the target URL.
   // TaskList thumbnails and grid thumbs are the most likely matches.
   const imgs = document.querySelectorAll(`img[src="${url}"]`)
+  if (imgs.length === 0) {
+    console.log('[下载] 🔍 DOM中未找到匹配的<img>元素, url:', url.slice(0, 60) + '...')
+    return null
+  }
   for (const img of imgs) {
     if (!(img instanceof HTMLImageElement)) continue
     // Skip images that haven't finished loading yet
@@ -48,8 +52,8 @@ async function getImageBlobFromDom(url: string): Promise<Blob | null> {
       )
       if (blob && blob.size > 0) return blob
     } catch {
-      // Canvas was tainted — cross-origin image without crossorigin attr.
-      // Fall through to the HTTP-cache-based approaches below.
+      console.log('[下载] ⚠️ Canvas被污染(跨域无CORS), 降级到HTTP缓存')
+      return null
     }
   }
   return null
@@ -61,6 +65,7 @@ export async function downloadUrl(url: string, filename: string): Promise<void> 
   try {
     const domBlob = await getImageBlobFromDom(url)
     if (domBlob) {
+      console.log('[下载] ✅ 策略1: 从DOM缓存提取 (零网络)', { size: domBlob.size, filename })
       triggerSave(domBlob, filename)
       return
     }
@@ -73,6 +78,8 @@ export async function downloadUrl(url: string, filename: string): Promise<void> 
     const resp = await fetch(url, { cache: 'force-cache' })
     if (resp.ok) {
       const blob = await resp.blob()
+      const fromCache = resp.headers.get('X-Cache') || (resp.redirected ? 'redirected' : 'unknown')
+      console.log('[下载] ⚡ 策略2: HTTP缓存', { size: blob.size, fromCache, filename })
       triggerSave(blob, filename)
       return
     }
@@ -82,6 +89,7 @@ export async function downloadUrl(url: string, filename: string): Promise<void> 
 
   // ── 3) Server proxy — POST /api/proxy/image, bypasses CORS ──
   try {
+    console.log('[下载] 🔄 策略3: 服务端代理...')
     const token = localStorage.getItem('auth_token')
     const resp = await fetch('/api/proxy/image', {
       method: 'POST',
@@ -93,6 +101,7 @@ export async function downloadUrl(url: string, filename: string): Promise<void> 
     })
     if (!resp.ok) throw new Error(`Proxy HTTP ${resp.status}`)
     const blob = await resp.blob()
+    console.log('[下载] ✅ 策略3: 服务端代理完成', { size: blob.size, filename })
     triggerSave(blob, filename)
     return
   } catch {
@@ -100,5 +109,6 @@ export async function downloadUrl(url: string, filename: string): Promise<void> 
   }
 
   // ── 4) Last resort — open in new tab ──
+  console.log('[下载] ❌ 前三层全部失败，打开新标签页')
   window.open(url, '_blank')
 }
