@@ -24,10 +24,15 @@ export interface GenerateImageParams {
   size: string
   /** 分辨率 */
   resolution: string
-  /** 已上传的图片 URL 列表 */
+  /** 已上传的图片 URL 列表（保留向后兼容） */
   imageUrls?: string[]
-  /** 待上传的临时图片文件 */
+  /** 待上传的临时图片文件（保留向后兼容） */
   tempImageFiles?: File[]
+  /**
+   * 有序参考图列表（优先使用），保持用户拖拽排序后的顺序。
+   * 每项可以是已上传的 URL，也可以是待上传的本地文件。
+   */
+  refImages?: Array<{ url?: string; file?: File }>
   /** 功能 ID（如 'free-gen', 'change-clothes' 等） */
   featureId?: string
   /** 生成数量，默认 1 */
@@ -60,13 +65,14 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
     resolution,
     imageUrls = [],
     tempImageFiles = [],
+    refImages,
     featureId,
     n = 1,
     supplementaryImages,
   } = params
 
   // ─── 验证：有图片但没有提示词 ───
-  const hasImages = imageUrls.length > 0 || tempImageFiles.length > 0
+  const hasImages = imageUrls.length > 0 || tempImageFiles.length > 0 || (refImages?.length ?? 0) > 0
   const hasSystemPrompt = !!(systemPrompt && systemPrompt.trim())
   const finalPrompt = prompt.trim()
 
@@ -76,12 +82,12 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
 
   // ─── 上传临时图片 + 中转非 OSS URL ───
   const allImageUrls: string[] = []
-  // 1) 处理已上传的 URL：OSS URL 直接用，非 OSS URL 需要下载后重新上传
-  for (const url of imageUrls) {
+
+  // Helper: process a single URL → pushes OSS URL into array
+  async function processUrl(url: string) {
     if (url.includes('oss-cn-hangzhou.aliyuncs.com')) {
       allImageUrls.push(url)
     } else if (url.startsWith('http')) {
-      // 非 OSS 的外部 URL（如 ToAPIs URL），下载后上传到 OSS
       try {
         const resp = await fetch(url, { signal: AbortSignal.timeout(60000) })
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
@@ -91,17 +97,36 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
         allImageUrls.push(uploaded.publicUrl)
       } catch (err) {
         console.warn('[ImageGen] Failed to re-upload non-OSS URL, using original:', url, err)
-        allImageUrls.push(url) // fallback to original URL
+        allImageUrls.push(url)
       }
     } else {
-      // data URL or other — already handled as tempImageFiles, shouldn't reach here
       allImageUrls.push(url)
     }
   }
-  // 2) 上传本地临时文件
-  for (const file of tempImageFiles) {
+
+  // Helper: upload a local file → pushes OSS URL into array
+  async function processFile(file: File) {
     const uploaded = await ossApi.upload(file, 'inputs')
     allImageUrls.push(uploaded.publicUrl)
+  }
+
+  if (refImages && refImages.length > 0) {
+    // Use ordered ref list — preserves user's drag-and-drop order
+    for (const ref of refImages) {
+      if (ref.url) {
+        await processUrl(ref.url)
+      } else if (ref.file) {
+        await processFile(ref.file)
+      }
+    }
+  } else {
+    // Fallback: legacy split arrays (URLs first, then files)
+    for (const url of imageUrls) {
+      await processUrl(url)
+    }
+    for (const file of tempImageFiles) {
+      await processFile(file)
+    }
   }
 
   // ─── 构建请求体 ───

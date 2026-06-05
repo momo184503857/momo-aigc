@@ -21,6 +21,7 @@ const emit = defineEmits<{
     count: number
     templateUrls: string[]
     tempImageFiles: File[]
+    refImages?: Array<{ url?: string; file?: File }>
   }): void
 }>()
 
@@ -260,6 +261,12 @@ function handleGenerate() {
     .filter((r) => !r.sourceUrl)
     .map((r) => dataUrlToFile(r.dataUrl, r.label))
 
+  // Build ordered ref list to preserve user's drag-and-drop order
+  const refImages = referenceImages.value.map((r) => {
+    if (r.sourceUrl) return { url: r.sourceUrl }
+    return { file: dataUrlToFile(r.dataUrl, r.label) }
+  })
+
   emit('generate', {
     modelId: selectedModelId.value,
     prompt: prompt.value.trim(),
@@ -268,6 +275,7 @@ function handleGenerate() {
     count: count.value,
     templateUrls,
     tempImageFiles,
+    refImages,
   })
 }
 

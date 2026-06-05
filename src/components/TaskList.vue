@@ -218,7 +218,7 @@ function toBeijingTime(isoStr: string): string {
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
             draggable="true"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
-          <el-icon v-else-if="task.status === 'in_progress'" class="is-loading spin" size="28"><Loading /></el-icon>
+          <el-icon v-else-if="isActive(task.status)" class="is-loading spin" size="28"><Loading /></el-icon>
           <el-icon v-else size="28"><Picture /></el-icon>
         </div>
         <div class="task-body">
@@ -284,7 +284,7 @@ function toBeijingTime(isoStr: string): string {
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
             draggable="true"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
-          <el-icon v-else-if="task.status === 'in_progress'" class="is-loading spin" size="36"><Loading /></el-icon>
+          <el-icon v-else-if="isActive(task.status)" class="is-loading spin" size="36"><Loading /></el-icon>
           <el-icon v-else size="36"><Picture /></el-icon>
           <div v-if="task.status === 'in_progress'" class="grid-progress-bar" :style="{ width: task.progress + '%' }" />
         </div>

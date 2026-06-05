@@ -69,6 +69,7 @@ async function handleGenerate(params: {
   count: number
   templateUrls: string[]
   tempImageFiles: File[]
+  refImages?: Array<{ url?: string; file?: File }>
   featureId?: string
   userPrompt?: string
   systemPrompt?: string

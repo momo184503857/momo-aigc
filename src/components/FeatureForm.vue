@@ -28,6 +28,7 @@ const emit = defineEmits<{
     count: number
     templateUrls: string[]
     tempImageFiles: File[]
+    refImages?: Array<{ url?: string; file?: File }>
     userPrompt: string
     systemPrompt: string
     supplementaryImages?: { name: string; url: string }[]
@@ -195,16 +196,20 @@ function handleGenerate() {
 
   const templateUrls: string[] = []
   const tempImageFiles: File[] = []
+  const refImages: Array<{ url?: string; file?: File }> = []
 
   config.value?.imageSlots.forEach(slot => {
     const images = getSlotImages(slot.key)
     images.forEach(img => {
       if (img.sourceUrl) {
         templateUrls.push(img.sourceUrl)
+        refImages.push({ url: img.sourceUrl })
       } else if (img.file) {
         tempImageFiles.push(img.file)
+        refImages.push({ file: img.file })
       } else {
         templateUrls.push(img.dataUrl)
+        refImages.push({ url: img.dataUrl })
       }
     })
   })
@@ -217,6 +222,7 @@ function handleGenerate() {
     count: count.value,
     templateUrls,
     tempImageFiles,
+    refImages,
     userPrompt: userPrompt.value.trim(),
     systemPrompt: systemPrompt.value,
     supplementaryImages: supplementaryImages.value.length > 0

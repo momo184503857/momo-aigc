@@ -217,6 +217,7 @@ export function useTaskManager() {
     count: number
     templateUrls: string[]
     tempImageFiles: File[]
+    refImages?: Array<{ url?: string; file?: File }>
     featureId?: string
     userPrompt?: string
     systemPrompt?: string
@@ -262,6 +263,7 @@ export function useTaskManager() {
           resolution: params.resolution,
           imageUrls: params.templateUrls,
           tempImageFiles: params.tempImageFiles,
+          refImages: params.refImages,
           featureId: params.featureId,
           supplementaryImages: params.supplementaryImages,
         })
