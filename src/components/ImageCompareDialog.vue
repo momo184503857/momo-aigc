@@ -15,6 +15,7 @@ const emit = defineEmits<{
 }>()
 
 const currentIndex = ref(0)
+const activeTaskId = ref<number>(0) // tracks current task by id for keyboard nav
 const activeRefIndex = ref(0)
 const activeResultIndex = ref(0)
 
@@ -28,10 +29,11 @@ const dragStart = ref({ x: 0, y: 0, tx: 0, ty: 0 })
 const currentZoomTarget = ref<'ref' | 'result'>('ref')
 
 const currentTask = computed(() => {
-  // Resolve by taskId first, so we always pick up the latest task data
-  // even if the tasks array was replaced (e.g. after loadHistory).
-  if (props.taskId) {
-    const found = props.tasks.find(t => t.id === props.taskId)
+  // Resolve by activeTaskId first (kept in sync during keyboard nav),
+  // so we always pick up the latest task data even if the tasks array
+  // was replaced (e.g. after loadHistory).
+  if (activeTaskId.value) {
+    const found = props.tasks.find(t => t.id === activeTaskId.value)
     if (found) return found
   }
   if (currentIndex.value >= 0 && currentIndex.value < props.tasks.length) {
@@ -72,6 +74,9 @@ function navigateDetail(direction: 'prev' | 'next') {
   if (newIdx < 0) newIdx = props.tasks.length - 1
   if (newIdx >= props.tasks.length) newIdx = 0
   currentIndex.value = newIdx
+  // Sync activeTaskId so currentTask follows keyboard navigation
+  const newTask = props.tasks[newIdx]
+  if (newTask?.id) activeTaskId.value = newTask.id
   activeRefIndex.value = 0
   activeResultIndex.value = 0
   refScale.value = 1
@@ -96,9 +101,12 @@ watch(() => props.modelValue, (visible) => {
     if (props.initialIndex !== undefined) {
       currentIndex.value = props.initialIndex
     }
+    // Initialize activeTaskId from the parent-provided taskId anchor
+    activeTaskId.value = props.taskId || 0
   } else {
     window.removeEventListener('keydown', handleKeydown)
     currentIndex.value = 0
+    activeTaskId.value = 0
   }
 })
 
