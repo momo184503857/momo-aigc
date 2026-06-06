@@ -433,7 +433,7 @@ export function useTaskManager() {
     const url = task.result_image_urls?.[0]
     if (!url) { warning('没有可下载的图片'); return }
     try {
-      await downloadUrl(url, `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
+      await downloadUrl(url, task.toapis_task_id || `任务${task.id}`)
     } catch {
       error('下载失败')
     }
@@ -468,7 +468,7 @@ export function useTaskManager() {
     let count = 0
     for (const task of selected) {
       try {
-        await downloadUrl(task.result_image_urls[0], `${task.model}_${task.toapis_task_id?.slice(0, 8) || 'image'}`)
+        await downloadUrl(task.result_image_urls[0], task.toapis_task_id || `任务${task.id}`)
         count++
         await new Promise((r) => setTimeout(r, 300))
       } catch { /* skip */ }
