@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { isOssImageUrl } from '@/utils/download'
 const { success, info, warning, error } = useUiFeedback()
 import type { ModelId } from '@/types/adapter'
 import { MODELS } from '@/types/adapter'
@@ -181,10 +182,6 @@ function isSelected(id: number): boolean {
   return props.selectedIds?.has(id) ?? false
 }
 
-function isOssUrl(url: string): boolean {
-  return url.includes('oss-cn-hangzhou.aliyuncs.com')
-}
-
 function handleImageDragStart(e: DragEvent, url: string) {
   if (!e.dataTransfer) return
   e.dataTransfer.setData('text/plain', url)
@@ -221,7 +218,7 @@ function toBeijingTime(isoStr: string): string {
         </div>
         <div class="task-thumb" @click="!bulkMode && emit('compareImages', idx)">
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
-            :crossorigin="isOssUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
+            :crossorigin="isOssImageUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
             draggable="true"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <div v-else-if="task.status === 'importing'" class="thumb-status">
@@ -305,7 +302,7 @@ function toBeijingTime(isoStr: string): string {
         </div>
         <div class="grid-thumb" @click="!bulkMode && emit('compareImages', idx)">
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
-            :crossorigin="isOssUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
+            :crossorigin="isOssImageUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
             draggable="true"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <div v-else-if="task.status === 'importing'" class="thumb-status grid-thumb-status">

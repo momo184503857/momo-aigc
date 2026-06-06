@@ -19,15 +19,30 @@ function triggerSave(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
 }
 
+export function isOssImageUrl(url: string): boolean {
+  try {
+    return new URL(url, window.location.href).hostname.endsWith('.aliyuncs.com')
+  } catch {
+    return false
+  }
+}
+
 /**
  * Try to extract image pixel data from an already-loaded <img> element
  * in the DOM. Returns a Blob on success, or null if no loaded image was
  * found or the canvas was tainted (cross-origin without CORS).
  */
 async function getImageBlobFromDom(url: string): Promise<Blob | null> {
-  // Search all <img> elements for one whose src matches the target URL.
-  // TaskList thumbnails and grid thumbs are the most likely matches.
-  const imgs = document.querySelectorAll(`img[src="${url}"]`)
+  const targetUrl = new URL(url, window.location.href).href
+  const imgs = Array.from(document.images).filter((img) => {
+    const loadedUrl = img.currentSrc || img.src
+    if (!loadedUrl) return false
+    try {
+      return new URL(loadedUrl, window.location.href).href === targetUrl
+    } catch {
+      return false
+    }
+  })
   if (imgs.length === 0) {
     console.log('[下载] 🔍 DOM中未找到匹配的<img>元素, url:', url.slice(0, 60) + '...')
     return null
@@ -60,6 +75,10 @@ async function getImageBlobFromDom(url: string): Promise<Blob | null> {
 }
 
 export async function downloadUrl(url: string, filename: string): Promise<void> {
+  if (!isOssImageUrl(url)) {
+    throw new Error('结果图片尚未转存到 OSS，无法下载')
+  }
+
   // ── 1) Extract from already-loaded <img> in the DOM ──
   // Zero network overhead — reuses pixel data the browser already has.
   try {

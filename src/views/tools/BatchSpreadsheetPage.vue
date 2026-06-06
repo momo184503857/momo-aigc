@@ -392,13 +392,8 @@ const downloadableRows = computed(() => tableData.value.filter(r => r.status ===
 async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
   const importedUrls: string[] = []
   for (const sourceUrl of sourceUrls) {
-    try {
-      const imported = await ossApi.importResult(taskId, sourceUrl)
-      importedUrls.push(imported.publicUrl)
-    } catch (err) {
-      console.warn('[OSS] Result import failed, falling back to ToAPIs URL:', err)
-      importedUrls.push(sourceUrl)
-    }
+    const imported = await ossApi.importResult(taskId, sourceUrl)
+    importedUrls.push(imported.publicUrl)
   }
   return importedUrls
 }

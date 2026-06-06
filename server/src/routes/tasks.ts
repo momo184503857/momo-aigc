@@ -3,6 +3,15 @@ import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { calculateCost } from '../utils/pricing.js'
 
+function isOssResultUrl(url: unknown): url is string {
+  if (typeof url !== 'string') return false
+  try {
+    return new URL(url).hostname.endsWith('.aliyuncs.com')
+  } catch {
+    return false
+  }
+}
+
 function parseRow(row: any): any {
   if (!row) return row
   const parsed = { ...row }
@@ -19,6 +28,9 @@ function parseRow(row: any): any {
   if ('supplementary_images' in parsed) {
     parsed.supplementaryImages = parsed.supplementary_images
     delete parsed.supplementary_images
+  }
+  if (Array.isArray(parsed.result_image_urls)) {
+    parsed.result_image_urls = parsed.result_image_urls.filter(isOssResultUrl)
   }
   return parsed
 }
@@ -178,6 +190,17 @@ tasksRouter.patch('/:id', (req: AuthRequest, res) => {
 
   if (!task) {
     res.status(404).json({ success: false, error: '任务不存在' })
+    return
+  }
+
+  if (
+    req.body.result_image_urls !== undefined
+    && (
+      !Array.isArray(req.body.result_image_urls)
+      || !req.body.result_image_urls.every(isOssResultUrl)
+    )
+  ) {
+    res.status(400).json({ success: false, error: '结果图片必须先转存到 OSS' })
     return
   }
 

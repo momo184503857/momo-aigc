@@ -98,13 +98,8 @@ function sleep(ms: number): Promise<void> {
 async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
   const importedUrls: string[] = []
   for (const sourceUrl of sourceUrls) {
-    try {
-      const imported = await ossApi.importResult(taskId, sourceUrl)
-      importedUrls.push(imported.publicUrl)
-    } catch (err) {
-      console.warn('[OSS] Result import failed, falling back to ToAPIs URL:', err)
-      importedUrls.push(sourceUrl)
-    }
+    const imported = await ossApi.importResult(taskId, sourceUrl)
+    importedUrls.push(imported.publicUrl)
   }
   return importedUrls
 }
@@ -328,24 +323,36 @@ export function useTaskManager() {
       }
 
       if (result.status === 'completed') {
-        // Enter importing state — show "下载中" until OSS import finishes
+        // Only OSS URLs may reach the browser. Failed imports remain retryable.
         task.status = 'importing'
         task.progress = 100
         try {
           const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
           task.result_image_urls = importedUrls
+          task.status = 'completed'
+          task.error_message = ''
+          task.completed_at = new Date().toISOString()
+          await taskApi.update(task.id, {
+            status: 'completed',
+            progress: 100,
+            result_image_urls: importedUrls,
+            error_message: '',
+            completed_at: task.completed_at,
+            expires_at: result.expiresAt,
+          })
         } catch (err) {
-          console.warn('[Poll] importResultUrls error:', err)
+          task.status = 'completed'
+          task.result_image_urls = []
+          task.error_message = '结果转存 OSS 失败，请点击重新加载'
+          await taskApi.update(task.id, {
+            status: 'completed',
+            progress: 100,
+            result_image_urls: [],
+            error_message: task.error_message,
+            expires_at: result.expiresAt,
+          })
+          console.warn('[OSS] Result import failed; ToAPIs URL was not exposed:', err)
         }
-        task.status = 'completed'
-        task.completed_at = new Date().toISOString()
-        await taskApi.update(task.id, {
-          status: 'completed',
-          progress: 100,
-          result_image_urls: task.result_image_urls,
-          completed_at: task.completed_at,
-          expires_at: result.expiresAt,
-        })
       } else if (result.status === 'failed') {
         task.status = 'failed'
         task.progress = result.progress
@@ -513,7 +520,8 @@ export function useTaskManager() {
       if (result.status === 'completed' && result.resultUrls.length > 0) {
         const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
         task.result_image_urls = importedUrls
-        await taskApi.update(task.id, { result_image_urls: importedUrls })
+        task.error_message = ''
+        await taskApi.update(task.id, { result_image_urls: importedUrls, error_message: '' })
         success('图片已刷新')
       } else if (result.status !== 'completed') {
         warning('任务尚未完成，请稍后再试')

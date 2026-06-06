@@ -41,7 +41,11 @@ export const ossApi = {
   },
 
   async importResult(taskId: string, sourceUrl: string) {
-    const res = await http.post('/oss/import-result', { taskId, sourceUrl })
+    const res = await http.post(
+      '/oss/import-result',
+      { taskId, sourceUrl },
+      { timeout: 130000 },
+    )
     return res.data.data as {
       objectKey: string
       publicUrl: string

@@ -2,6 +2,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import type { TaskItem } from './TaskList.vue'
 import { MODELS } from '@/types/adapter'
+import { isOssImageUrl } from '@/utils/download'
 
 const props = defineProps<{
   tasks: TaskItem[]
@@ -206,6 +207,7 @@ defineExpose({ open })
           >
             <img
               :src="refImages[activeRefIndex]"
+              :crossorigin="isOssImageUrl(refImages[activeRefIndex]) ? 'anonymous' : undefined"
               :style="{
                 transform: `translate(${refTranslate.x}px,${refTranslate.y}px) scale(${refScale})`,
                 cursor: isDragging ? 'grabbing' : 'grab',
@@ -238,6 +240,7 @@ defineExpose({ open })
           >
             <img
               :src="resultImages[activeResultIndex]"
+              :crossorigin="isOssImageUrl(resultImages[activeResultIndex]) ? 'anonymous' : undefined"
               :style="{
                 transform: `translate(${resultTranslate.x}px,${resultTranslate.y}px) scale(${resultScale})`,
                 cursor: isDragging ? 'grabbing' : 'grab',

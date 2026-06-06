@@ -89,7 +89,7 @@ OSS_RESULT_IMPORT_WORKER_SECRET=REDACTED-WORKER-SECRET
 TOAPIS_BASE_URL=https://toapis.com
 ```
 
-> ⚠️ `OSS_RESULT_IMPORT_WORKER_*` 两个变量**必须配置**，否则结果图不会被转存到 OSS，会降级保留 ToAPIs URL（可能过期或无法跨域下载）。
+> `OSS_RESULT_IMPORT_WORKER_*` 变量必须配置。结果图只有成功转存到 OSS 后才会展示和下载，不会向浏览器暴露 ToAPIs URL。
 
 ### 6. 构建项目
 
@@ -139,6 +139,17 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # ToAPIs 结果转存可能包含 FC 冷启动和大图传输。
+    location = /api/oss/import-result {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 140s;
+        proxy_read_timeout 140s;
     }
 }
 ```

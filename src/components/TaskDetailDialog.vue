@@ -5,7 +5,7 @@ import type { TaskItem } from './TaskList.vue'
 import { MODELS } from '@/types/adapter'
 import { getFeatureLabel } from '@/configs/featureConfig'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-import { downloadUrl } from '@/utils/download'
+import { downloadUrl, isOssImageUrl } from '@/utils/download'
 const { success, info, warning, error } = useUiFeedback()
 
 const props = defineProps<{ task: TaskItem | null }>()
@@ -78,7 +78,12 @@ const statusMap: Record<string, string> = {
         <h4>生成结果</h4>
         <div class="result-images">
           <div v-for="(url, i) in task.result_image_urls" :key="i" class="result-img-wrap">
-            <img :src="url" class="result-img" @click="openImage(url)" />
+            <img
+              :src="url"
+              :crossorigin="isOssImageUrl(url) ? 'anonymous' : undefined"
+              class="result-img"
+              @click="openImage(url)"
+            />
             <el-button size="small" :icon="Download" @click="handleDownload(url)">下载</el-button>
           </div>
         </div>

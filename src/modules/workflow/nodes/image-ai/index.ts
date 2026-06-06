@@ -130,12 +130,22 @@ const imageAi: NodeModule = {
 
       logs.push({ level: 'info', message: `生图完成，耗时 ${(durationMs / 1000).toFixed(1)}s` })
 
-      let imageUrl = pollResult.imageUrl
+      let imageUrl: string
       try {
         const imported = await ossApi.importResult(taskId, pollResult.imageUrl)
         imageUrl = imported.publicUrl
       } catch (err) {
-        logs.push({ level: 'warn', message: `结果转存 OSS 失败，临时使用 ToAPIs URL: ${err instanceof Error ? err.message : String(err)}` })
+        const message = `结果转存 OSS 失败: ${err instanceof Error ? err.message : String(err)}`
+        logs.push({ level: 'error', message })
+        if (dbTaskId) {
+          taskApi.update(dbTaskId, {
+            status: 'completed',
+            progress: 100,
+            result_image_urls: [],
+            error_message: '结果转存 OSS 失败，请重试',
+          }).catch(() => {})
+        }
+        return { success: false, message, logs }
       }
       const image: LocalImageAsset = {
         id: crypto.randomUUID(),

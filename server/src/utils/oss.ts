@@ -90,6 +90,7 @@ export async function importResultToOss(opts: {
   const resp = await fetch(resultImportWorkerUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(125000),
     body: JSON.stringify({
       taskId: opts.taskId,
       userId: opts.userId,

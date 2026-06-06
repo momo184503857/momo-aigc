@@ -8,7 +8,7 @@ import PageLayout from '@/components/PageLayout.vue'
 import { UiImagePreview } from '@/components/ui'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { taskApi } from '@/services/taskApi'
-import { downloadUrl } from '@/utils/download'
+import { downloadUrl, isOssImageUrl } from '@/utils/download'
 import type { TaskItem } from '@/components/TaskList.vue'
 
 const tasks = ref<TaskItem[]>([])
@@ -184,7 +184,12 @@ onMounted(() => { loadResults() })
           <div v-if="bulkMode" class="select-overlay" :class="{ on: selectedIds.has(task.id) }" />
 
           <div class="result-image" @click="task.result_image_urls?.[0] && openPreview(task.result_image_urls[0])">
-            <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt="" />
+            <img
+              v-if="task.result_image_urls?.[0]"
+              :src="task.result_image_urls[0]"
+              :crossorigin="isOssImageUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
+              alt=""
+            />
             <el-icon v-else size="32"><Picture /></el-icon>
           </div>
           <div class="result-info">

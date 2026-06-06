@@ -6,6 +6,7 @@
  *   或通过 composable: const { open, visible, url } = useImagePreview()
  */
 import { watch, onUnmounted } from 'vue'
+import { isOssImageUrl } from '@/utils/download'
 
 interface Props {
   modelValue: boolean
@@ -47,7 +48,12 @@ onUnmounted(() => {
         <div class="ui-preview-close" @click.stop="close">
           <el-icon :size="20"><Close /></el-icon>
         </div>
-        <img :src="url" class="ui-preview-image" @click.stop />
+        <img
+          :src="url"
+          :crossorigin="isOssImageUrl(url) ? 'anonymous' : undefined"
+          class="ui-preview-image"
+          @click.stop
+        />
       </div>
     </Transition>
   </Teleport>

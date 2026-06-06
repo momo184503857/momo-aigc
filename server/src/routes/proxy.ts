@@ -14,6 +14,17 @@ proxyRouter.post('/image', async (req: AuthRequest, res) => {
   }
 
   try {
+    const hostname = new URL(String(url)).hostname
+    if (!hostname.endsWith('.aliyuncs.com')) {
+      res.status(400).json({ success: false, error: '仅允许下载 OSS 图片' })
+      return
+    }
+  } catch {
+    res.status(400).json({ success: false, error: '无效的图片 URL' })
+    return
+  }
+
+  try {
     const resp = await fetch(url, { signal: AbortSignal.timeout(30000) })
     if (!resp.ok) {
       res.status(502).json({ success: false, error: `下载失败: HTTP ${resp.status}` })
@@ -21,26 +32,32 @@ proxyRouter.post('/image', async (req: AuthRequest, res) => {
     }
 
     const contentType = resp.headers.get('content-type') || 'image/png'
-    const contentLength = resp.headers.get('content-length')
-
     res.set('Content-Type', contentType)
-    if (contentLength) res.set('Content-Length', contentLength)
     res.set('Cache-Control', 'public, max-age=3600')
 
     // Stream the response body instead of buffering entirely in memory
     if (resp.body) {
       const reader = resp.body.getReader()
+      let clientDisconnected = false
+
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          clientDisconnected = true
+          void reader.cancel()
+        }
+      })
+
       const pump = async () => {
         while (true) {
           const { done, value } = await reader.read()
           if (done) { res.end(); return }
+          if (clientDisconnected) return
           if (!res.write(value)) {
             // Back-pressure: wait for drain
             await new Promise<void>((resolve) => res.once('drain', resolve))
           }
         }
       }
-      req.on('close', () => reader.cancel())
       await pump()
     } else {
       // Fallback: no stream support
