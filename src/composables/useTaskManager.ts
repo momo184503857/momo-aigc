@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
@@ -233,7 +233,7 @@ export function useTaskManager() {
     const cnt = Math.max(1, Math.min(5, params.count))
 
     for (let i = 0; i < cnt; i++) {
-      const newTask: TaskItem = {
+      const newTask = reactive<TaskItem>({
         id: 0,
         toapis_task_id: '',
         model: params.modelId,
@@ -251,7 +251,7 @@ export function useTaskManager() {
         feature_id: params.featureId,
         user_prompt: params.userPrompt || '',
         supplementaryImages: params.supplementaryImages,
-      }
+      })
 
       tasks.value.unshift(newTask)
 
