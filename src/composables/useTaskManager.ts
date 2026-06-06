@@ -57,7 +57,7 @@ const compareTaskId = ref<number>(0)
 // Copy params event (for intra-workspace communication)
 const copyParamsEvent = ref<{ task: TaskItem; ts: number } | null>(null)
 
-const ACTIVE_STATUSES = ['submitted', 'queued', 'in_progress', 'importing']
+const ACTIVE_STATUSES = ['submitted', 'queued', 'in_progress']
 
 const hasActiveJobs = computed(() =>
   tasks.value.some((t) => ACTIVE_STATUSES.includes(t.status))
@@ -99,6 +99,12 @@ async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<s
   const importedUrls: string[] = []
   for (const sourceUrl of sourceUrls) {
     const imported = await ossApi.importResult(taskId, sourceUrl)
+    console.info('[OSS] Result imported', {
+      taskId,
+      sizeBytes: imported.sizeBytes,
+      sourceConnectedMs: imported.sourceConnectedMs,
+      totalMs: imported.totalMs,
+    })
     importedUrls.push(imported.publicUrl)
   }
   return importedUrls
@@ -303,7 +309,7 @@ export function useTaskManager() {
 
   async function pollAllTasks() {
     for (const task of tasks.value) {
-      if (task.status === 'completed' || task.status === 'failed' || task.status === 'importing') continue
+      if (task.status === 'completed' || task.status === 'failed') continue
       if (!task.toapis_task_id) continue
       try {
         await pollTask(task)
@@ -323,25 +329,27 @@ export function useTaskManager() {
       }
 
       if (result.status === 'completed') {
-        // Only OSS URLs may reach the browser. Failed imports remain retryable.
-        task.status = 'importing'
+        // Generation is complete now. OSS transfer is a separate UI state.
+        task.status = 'completed'
         task.progress = 100
+        task.completed_at = new Date().toISOString()
+        task.is_importing = true
+        await taskApi.update(task.id, {
+          status: 'completed',
+          progress: 100,
+          result_image_urls: [],
+          completed_at: task.completed_at,
+          expires_at: result.expiresAt,
+        })
         try {
           const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
           task.result_image_urls = importedUrls
-          task.status = 'completed'
           task.error_message = ''
-          task.completed_at = new Date().toISOString()
           await taskApi.update(task.id, {
-            status: 'completed',
-            progress: 100,
             result_image_urls: importedUrls,
             error_message: '',
-            completed_at: task.completed_at,
-            expires_at: result.expiresAt,
           })
         } catch (err) {
-          task.status = 'completed'
           task.result_image_urls = []
           task.error_message = '结果转存 OSS 失败，请点击重新加载'
           await taskApi.update(task.id, {
@@ -352,6 +360,8 @@ export function useTaskManager() {
             expires_at: result.expiresAt,
           })
           console.warn('[OSS] Result import failed; ToAPIs URL was not exposed:', err)
+        } finally {
+          task.is_importing = false
         }
       } else if (result.status === 'failed') {
         task.status = 'failed'
@@ -514,14 +524,23 @@ export function useTaskManager() {
       warning('任务尚未提交，无法刷新')
       return
     }
-    task.status = 'importing'
+    task.is_importing = true
     try {
       const result = await getTaskStatus(task.toapis_task_id)
       if (result.status === 'completed' && result.resultUrls.length > 0) {
+        if (!task.completed_at) {
+          task.completed_at = new Date().toISOString()
+        }
         const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
         task.result_image_urls = importedUrls
         task.error_message = ''
-        await taskApi.update(task.id, { result_image_urls: importedUrls, error_message: '' })
+        await taskApi.update(task.id, {
+          status: 'completed',
+          progress: 100,
+          result_image_urls: importedUrls,
+          error_message: '',
+          completed_at: task.completed_at,
+        })
         success('图片已刷新')
       } else if (result.status !== 'completed') {
         warning('任务尚未完成，请稍后再试')
@@ -531,9 +550,7 @@ export function useTaskManager() {
     } catch (e: any) {
       error('刷新失败: ' + (e.message || '未知错误'))
     } finally {
-      if (task.status === 'importing') {
-        task.status = 'completed'
-      }
+      task.is_importing = false
     }
   }
 

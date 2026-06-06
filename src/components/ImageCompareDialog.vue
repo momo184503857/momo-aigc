@@ -207,7 +207,6 @@ defineExpose({ open })
           >
             <img
               :src="refImages[activeRefIndex]"
-              :crossorigin="isOssImageUrl(refImages[activeRefIndex]) ? 'anonymous' : undefined"
               :style="{
                 transform: `translate(${refTranslate.x}px,${refTranslate.y}px) scale(${refScale})`,
                 cursor: isDragging ? 'grabbing' : 'grab',
@@ -264,7 +263,10 @@ defineExpose({ open })
             </div>
           </div>
           <div v-else class="no-image">
-            <template v-if="currentTask.status === 'in_progress' || currentTask.status === 'queued' || currentTask.status === 'submitted' || currentTask.status === 'importing'">
+            <template v-if="currentTask.is_importing">
+              结果转存中...
+            </template>
+            <template v-else-if="currentTask.status === 'in_progress' || currentTask.status === 'queued' || currentTask.status === 'submitted'">
               生成中...
             </template>
             <template v-else>暂无结果图</template>

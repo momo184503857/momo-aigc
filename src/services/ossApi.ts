@@ -51,6 +51,8 @@ export const ossApi = {
       publicUrl: string
       contentType?: string
       sizeBytes?: number
+      sourceConnectedMs?: number
+      totalMs?: number
     }
   },
 }

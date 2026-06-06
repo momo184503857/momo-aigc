@@ -80,6 +80,8 @@ export async function importResultToOss(opts: {
   publicUrl: string
   contentType?: string
   sizeBytes?: number
+  sourceConnectedMs?: number
+  totalMs?: number
 }> {
   const { resultImportWorkerUrl, resultImportWorkerSecret } = config.oss
   if (!resultImportWorkerUrl) {
@@ -109,6 +111,8 @@ export async function importResultToOss(opts: {
     publicUrl: data.publicUrl || getOssPublicUrl(targetObjectKey),
     contentType: data.contentType,
     sizeBytes: data.sizeBytes,
+    sourceConnectedMs: data.sourceConnectedMs,
+    totalMs: data.totalMs,
   }
 }
 

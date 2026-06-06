@@ -14,7 +14,7 @@ function json(statusCode, body) {
   }
 }
 
-async function putOssObject(buffer, objectKey, contentType) {
+async function putOssObject(body, objectKey, contentType, contentLength) {
   const bucket = env('OSS_BUCKET')
   const endpoint = env('OSS_ENDPOINT')
   const accessKeyId = env('OSS_ACCESS_KEY_ID')
@@ -30,8 +30,12 @@ async function putOssObject(buffer, objectKey, contentType) {
   const url = `https://${host}/${objectKey}?OSSAccessKeyId=${encodeURIComponent(accessKeyId)}&Expires=${expires}&Signature=${encodeURIComponent(signature)}`
   const resp = await fetch(url, {
     method: 'PUT',
-    headers: { 'content-type': contentType },
-    body: buffer,
+    headers: {
+      'content-type': contentType,
+      ...(contentLength ? { 'content-length': contentLength } : {}),
+    },
+    body,
+    duplex: 'half',
   })
 
   if (!resp.ok) {
@@ -51,14 +55,25 @@ async function importResult(payload) {
     throw new Error('targetObjectKey must stay under the current user results prefix')
   }
 
+  const startedAt = Date.now()
   const sourceResp = await fetch(sourceUrl, { signal: AbortSignal.timeout(120000) })
   if (!sourceResp.ok) {
     throw new Error(`Source download failed (${sourceResp.status})`)
   }
+  if (!sourceResp.body) {
+    throw new Error('Source response has no readable body')
+  }
 
   const contentType = sourceResp.headers.get('content-type') || 'image/png'
-  const buffer = Buffer.from(await sourceResp.arrayBuffer())
-  const publicUrl = await putOssObject(buffer, targetObjectKey, contentType)
+  const contentLength = sourceResp.headers.get('content-length') || undefined
+  const sourceConnectedMs = Date.now() - startedAt
+  const publicUrl = await putOssObject(
+    sourceResp.body,
+    targetObjectKey,
+    contentType,
+    contentLength,
+  )
+  const totalMs = Date.now() - startedAt
 
   return {
     success: true,
@@ -66,7 +81,9 @@ async function importResult(payload) {
     objectKey: targetObjectKey,
     publicUrl,
     contentType,
-    sizeBytes: buffer.length,
+    sizeBytes: contentLength ? Number(contentLength) : undefined,
+    sourceConnectedMs,
+    totalMs,
   }
 }
 

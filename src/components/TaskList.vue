@@ -22,6 +22,7 @@ export interface TaskItem {
   error_message: string
   created_at: string
   completed_at: string | null
+  is_importing?: boolean
   feature_id?: string
   user_prompt?: string
   supplementaryImages?: { name: string; url: string }[]
@@ -170,7 +171,7 @@ function statusLabel(task: TaskItem): string {
 }
 
 function isActive(status: string): boolean {
-  return ['submitted', 'queued', 'in_progress', 'importing'].includes(status)
+  return ['submitted', 'queued', 'in_progress'].includes(status)
 }
 
 function aspectLabel(task: TaskItem): string {
@@ -221,7 +222,7 @@ function toBeijingTime(isoStr: string): string {
             :crossorigin="isOssImageUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
             draggable="true"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
-          <div v-else-if="task.status === 'importing'" class="thumb-status">
+          <div v-else-if="task.is_importing" class="thumb-status">
             <el-icon class="is-loading spin" size="28"><Loading /></el-icon>
             <span class="thumb-status-text">正在下载图片...</span>
           </div>
@@ -305,7 +306,7 @@ function toBeijingTime(isoStr: string): string {
             :crossorigin="isOssImageUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
             draggable="true"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
-          <div v-else-if="task.status === 'importing'" class="thumb-status grid-thumb-status">
+          <div v-else-if="task.is_importing" class="thumb-status grid-thumb-status">
             <el-icon class="is-loading spin" size="36"><Loading /></el-icon>
             <span class="thumb-status-text">正在下载图片...</span>
           </div>
