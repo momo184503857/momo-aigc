@@ -16,6 +16,7 @@ import {
   ArrowDown,
   Share,
   Box,
+  Camera,
 } from '@element-plus/icons-vue'
 
 defineProps<{ collapsed?: boolean }>()
@@ -43,6 +44,7 @@ const menuSections = computed<MenuSection[]>(() => {
       title: 'AI生图',
       items: [
         { path: '/workspace', title: '生图工作台', icon: MagicStick },
+        { path: '/photography', title: 'AI摄影', icon: Camera },
         { path: '/canvas-projects', title: 'AI画布', icon: Share },
         { path: '/toolbox', title: 'AI工具箱', icon: Box },
       ],
@@ -66,6 +68,7 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/admin/dashboard', title: '生图日志', icon: DataBoard },
         { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
         { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
+        { path: '/admin/photography', title: 'AI摄影配置', icon: Camera },
         { path: '/admin/points', title: '积分管理', icon: Coin },
         { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
       ],

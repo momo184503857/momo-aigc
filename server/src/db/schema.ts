@@ -268,5 +268,68 @@ export function initSchema(): void {
     db.exec(`ALTER TABLE template_images ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`)
   } catch { /* column already exists */ }
 
+  // Photography elements table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS photography_elements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name VARCHAR(100) NOT NULL UNIQUE,
+      label VARCHAR(100) NOT NULL,
+      max_images INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+
+  // Migration: add UNIQUE constraint on name if missing
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_photography_elements_name ON photography_elements(name)`)
+  } catch { /* already exists */ }
+
+  // Photography element prompts (per element per model system prompt)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS photography_element_prompts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      element_id INTEGER NOT NULL REFERENCES photography_elements(id) ON DELETE CASCADE,
+      model_id VARCHAR(100) NOT NULL,
+      system_prompt TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(element_id, model_id)
+    );
+  `)
+
+  // Seed default photography elements (idempotent: only insert if not exists)
+  const defaultElements = [
+    { name: 'face', label: '人脸', max_images: 1, sort_order: 1 },
+    { name: 'pose', label: '姿势', max_images: 1, sort_order: 2 },
+    { name: 'clothes', label: '衣服', max_images: 1, sort_order: 3 },
+    { name: 'accessory', label: '配饰', max_images: 2, sort_order: 4 },
+    { name: 'background', label: '背景', max_images: 1, sort_order: 5 },
+  ]
+  const photoModelIds = [
+    'gpt-image-2',
+    'gemini-3-pro-image-preview',
+    'gemini-3.1-flash-image-preview',
+    'gemini-2.5-flash-image-preview',
+  ]
+  const insertElement = db.prepare(`
+    INSERT OR IGNORE INTO photography_elements (name, label, max_images, sort_order) VALUES (?, ?, ?, ?)
+  `)
+  for (const el of defaultElements) {
+    insertElement.run(el.name, el.label, el.max_images, el.sort_order)
+  }
+  // Seed element prompts for each element × model
+  const insertElPrompt = db.prepare(`
+    INSERT OR IGNORE INTO photography_element_prompts (element_id, model_id, system_prompt)
+    SELECT e.id, ?, '' FROM photography_elements e WHERE e.name = ? AND e.status = 'active'
+  `)
+  for (const el of defaultElements) {
+    for (const mid of photoModelIds) {
+      insertElPrompt.run(mid, el.name)
+    }
+  }
+
   console.log('[DB] Schema initialized')
 }

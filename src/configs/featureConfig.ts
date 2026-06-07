@@ -90,6 +90,13 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     hasUserPrompt: true,
     hasSupplementaryImages: true,
   },
+  'ai-photography': {
+    id: 'ai-photography',
+    label: 'AI摄影',
+    imageSlots: [],
+    hasUserPrompt: true,
+    hasSupplementaryImages: true,
+  },
   'model-gen': {
     id: 'model-gen',
     label: '模特生成',

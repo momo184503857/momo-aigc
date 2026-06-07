@@ -412,18 +412,44 @@ export function useTaskManager() {
   // ─── Task operations ───
 
   async function handleRegenerate(task: TaskItem) {
-    // Navigate to workspace if not there
+    // Navigate to the correct page if not there
     const currentRoute = router.currentRoute.value
-    if (currentRoute.name !== 'Workspace') {
+    const isPhotography = task.feature_id === 'ai-photography'
+    const targetRouteName = isPhotography ? 'Photography' : 'Workspace'
+    const targetRoutePath = isPhotography ? '/photography' : '/workspace'
+
+    if (currentRoute.name !== targetRouteName) {
       sessionStorage.setItem('regenerate_task', JSON.stringify({
         model: task.model,
+        resolution: task.resolution,
+        aspectRatio: task.aspectRatio,
+        userPrompt: task.user_prompt || '',
+        input_image_urls: task.input_image_urls || [],
+        feature_id: task.feature_id,
+        supplementaryImages: task.supplementaryImages,
+      }))
+      router.push(targetRoutePath)
+      info(isPhotography ? '已跳转到AI摄影，参数已复制到表单' : '已跳转到工作台，请点击生成按钮')
+      return
+    }
+
+    // For photography, regenerate directly using stored prompt + image URLs
+    if (isPhotography) {
+      const supplementary = task.supplementaryImages || []
+      await handleGenerate({
+        modelId: task.model,
         prompt: task.prompt,
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
-        input_image_urls: task.input_image_urls || [],
-      }))
-      router.push('/workspace')
-      info('已跳转到工作台，请点击生成按钮')
+        count: 1,
+        templateUrls: [],
+        tempImageFiles: [],
+        refImages: (task.input_image_urls || []).map((url: string) => ({ url })),
+        featureId: 'ai-photography',
+        userPrompt: task.user_prompt || '',
+        systemPrompt: '',  // Already baked into task.prompt
+        supplementaryImages: supplementary,
+      })
       return
     }
 
@@ -458,20 +484,25 @@ export function useTaskManager() {
 
   function handleCopyParams(task: TaskItem) {
     const currentRoute = router.currentRoute.value
-    if (currentRoute.name !== 'Workspace') {
+    const isPhotography = task.feature_id === 'ai-photography'
+    const targetRouteName = isPhotography ? 'Photography' : 'Workspace'
+    const targetRoutePath = isPhotography ? '/photography' : '/workspace'
+
+    if (currentRoute.name !== targetRouteName) {
       sessionStorage.setItem('regenerate_task', JSON.stringify({
         model: task.model,
-        prompt: task.feature_id && task.feature_id !== 'free-gen' ? (task.user_prompt || '') : task.prompt,
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
+        userPrompt: task.user_prompt || '',
         input_image_urls: task.input_image_urls || [],
         feature_id: task.feature_id,
+        supplementaryImages: task.supplementaryImages,
       }))
-      router.push('/workspace')
-      info('已跳转到工作台，参数已复制')
+      router.push(targetRoutePath)
+      info(isPhotography ? '已跳转到AI摄影页面，参数已复制' : '已跳转到工作台，参数已复制')
       return
     }
-    // On workspace: emit event for WorkspacePage to handle
+    // On target page: emit event for page to handle
     copyParamsEvent.value = { task, ts: Date.now() }
   }
 

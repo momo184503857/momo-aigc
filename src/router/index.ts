@@ -46,6 +46,12 @@ const router = createRouter({
       meta: { title: 'AI画布', requiresAuth: true },
     },
     {
+      path: '/photography',
+      name: 'Photography',
+      component: () => import('@/views/photography/PhotographyPage.vue'),
+      meta: { title: 'AI摄影', requiresAuth: true },
+    },
+    {
       path: '/toolbox',
       name: 'Toolbox',
       component: () => import('@/views/tools/ToolboxPage.vue'),
@@ -118,6 +124,12 @@ const router = createRouter({
       name: 'AdminFeaturePrompts',
       component: () => import('@/views/admin/AdminFeaturePrompts.vue'),
       meta: { title: '功能提示词', requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/photography',
+      name: 'AdminPhotography',
+      component: () => import('@/views/admin/AdminPhotography.vue'),
+      meta: { title: 'AI摄影配置', requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/admin/toapis-key',

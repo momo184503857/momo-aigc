@@ -19,6 +19,8 @@ import { adminToapisKeyRouter } from './routes/admin/toapis-key.js'
 import { pointsRouter, adminPointsRouter } from './routes/points.js'
 import { canvasRouter } from './routes/canvas.js'
 import { canvasAiRouter } from './routes/canvas-ai.js'
+import { photographyRouter } from './routes/photography.js'
+import { adminPhotographyRouter } from './routes/admin/photography.js'
 
 const app = express()
 
@@ -49,6 +51,8 @@ app.use('/api/points', pointsRouter)
 app.use('/api/admin/points', adminPointsRouter)
 app.use('/api/canvas', canvasRouter)
 app.use('/api/canvas-ai', canvasAiRouter)
+app.use('/api/photography', photographyRouter)
+app.use('/api/admin/photography', adminPhotographyRouter)
 
 app.listen(config.port, () => {
   console.log(`[Server] momoAigc server running on http://localhost:${config.port}`)

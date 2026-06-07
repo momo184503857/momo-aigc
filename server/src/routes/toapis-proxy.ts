@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import multer from 'multer'
+import fs from 'fs'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { getKey, uploadImage, createTask, getTaskStatus } from '../utils/toapis.js'
 
@@ -52,7 +53,14 @@ toapisProxyRouter.post('/create-task', async (req: AuthRequest, res) => {
     const taskId = await createTask(req.body)
     res.json({ success: true, data: { id: taskId } })
   } catch (e: any) {
-    console.error('[ToAPIs Proxy] Create task error:', e.message)
+    const bodySummary = {
+      model: req.body?.model,
+      promptLen: req.body?.prompt?.length || 0,
+      imageCount: req.body?.reference_images?.length || req.body?.image_urls?.length || 0,
+    }
+    const errMsg = `[ToAPIs Proxy] Create task error: ${e.message} | body: ${JSON.stringify(bodySummary)}`
+    console.error(errMsg)
+    fs.appendFileSync('/tmp/momoaigc-debug.log', `${new Date().toISOString()} ${errMsg}\n`)
     res.status(502).json({ success: false, error: e.message })
   }
 })
