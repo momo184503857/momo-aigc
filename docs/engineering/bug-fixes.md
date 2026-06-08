@@ -4,6 +4,69 @@
 
 ---
 
+## 2026-06-08 — AI摄影：photography_elements 表每次重启产生重复数据
+
+**现象**：AI摄影配置页出现多份重复元素（如 8 份"人脸"、8 份"姿势"…），共 40 条记录。
+
+**影响范围**：AI摄影配置管理页（`/admin/photography`）和用户端元素列表。
+
+**根因**：`photography_elements` 表创建时 `name` 字段没有 UNIQUE 约束。种子数据使用 `INSERT OR IGNORE` 但无约束可冲突 → 每次 `tsx watch` 重启都插入一套完整的 5 个元素。重启 8 次 = 40 条。
+
+**解决方案**：
+1. 手动清理重复数据：`DELETE ... WHERE id NOT IN (SELECT MIN(id) GROUP BY name)`
+2. 创建唯一索引：`CREATE UNIQUE INDEX IF NOT EXISTS idx_photography_elements_name ON photography_elements(name)`
+3. 表定义中 `name` 字段改为 `VARCHAR(100) NOT NULL UNIQUE`
+4. 添加迁移代码兼容已有数据库
+
+**涉及文件**：`server/src/db/schema.ts`
+
+**预防方式**：
+- 任何使用 `INSERT OR IGNORE` 的种子数据，表上必须有对应的 UNIQUE 约束
+- 新增表时如果 seed 逻辑依赖去重，表定义中必须显式声明 UNIQUE
+- 可以考虑用 `INSERT ... ON CONFLICT DO NOTHING` 替代 `INSERT OR IGNORE`（语义更明确，但需要 SQLite 3.24+）
+
+---
+
+## 2026-06-08 — AI摄影：重新编辑/重新生成无法还原图片和元素分配 **[未完全解决，见下方]**
+
+**现象**：
+1. 从任务列表点"重新编辑"，只还原了模型/分辨率/参数，图片池和元素分配为空
+2. 从任务列表点"重新生成"没有反应
+
+**根因**：
+1. `PhotographyForm.setParams()` 原始实现只回复基本参数，注释写着"完全恢复需下载图片，后续优化"
+2. `useTaskManager.handleRegenerate()` 对 AI摄影任务只 emit `copyParamsEvent` 而不实际调用 `handleGenerate`
+
+**解决方案**：
+1. 重写 `setParams()`：从 `supplementaryImages`（`[{name:"人脸", url:"..."}, ...]`）反推 — 去重 URL 创建图片池 → 按元素标签名匹配元素 ID → 重建 elementAssignments
+2. `handleRegenerate()` 对摄影任务直接复用已存 `task.prompt` + `task.input_image_urls` 调用 `generateImage`
+
+**涉及文件**：`src/components/PhotographyForm.vue`、`src/views/photography/PhotographyPage.vue`、`src/composables/useTaskManager.ts`
+
+**剩余问题**：502 生成失败 — 见下方记录。
+
+---
+
+## 2026-06-08 — AI摄影：生成任务 502 报错 **[未解决，待验证]**
+
+**现象**：AI摄影页面点击「生成图片」后，所有任务返回 `Request failed with status code 502`。
+
+**影响范围**：AI摄影功能（其他功能如生图工作台是否受影响待确认）。
+
+**已排除**：
+- ToAPIs API 本身正常（curl 测试，带长中文 prompt + reference_images 均返回 200）
+- OSS 上传通道正常（完整链路：upload-token → OSS PostObject → public URL 均可成功）
+- 服务端路由正常（`/api/photography/elements` 返回正确数据）
+
+**当前进展**：
+- 在 `server/src/routes/toapis-proxy.ts` 增加了详细错误日志（记录 model/promptLen/imageCount + 写入 `/tmp/momoaigc-debug.log`）
+- 服务器已重启、数据库已清理重复元素
+- **等待用户再次测试生成后查看 debug log 定位根因**
+
+**涉及文件**：`server/src/routes/toapis-proxy.ts`（临时调试日志）
+
+---
+
 ## 2026-06-05 — Bug #8: 图片对比弹窗上下键切换任务失效
 
 **现象**：在图片对比弹窗中按 ↑ ↓ 方向键无法切换任务。之前功能正常。

@@ -86,3 +86,54 @@ GenerationForm.handleGenerate()
 ```
 
 旧参数 `imageUrls`/`tempImageFiles` 仍存在，但 `refImages` 优先。
+
+---
+
+## AI摄影（Photography）
+
+### 页面流程
+
+```
+用户上传图片 → 图片池 (PoolImage[], 最多10张, 拖拽排序)
+     ↓ 拖拽 (copy 语义)
+元素分配区 (Element Zones, 从 API 动态加载)
+     ↓ 点击生成
+构建 Prompt (方案B: 每元素独立 system_prompt + 自动映射描述)
+     ↓ 上传图片到 OSS (去重)
+ToAPIs createTask → 全局 TaskPanel (feature_id='ai-photography')
+```
+
+### Prompt 构建（方案 B）
+
+1. 筛选有图片分配的元素，按 sort_order 排序
+2. 拼接各元素的 `photography_element_prompts.system_prompt`（跳过空 prompt）
+3. 收集已分配图片 → 去重 → 按元素首次出现顺序排列
+4. 自动生成"参考图映射（按顺序）：第N张 — XX参考、YY参考"描述段
+5. 追加用户输入 `userPrompt`
+
+### 图片去重
+
+同一 PoolImage 拖到多个元素时，只在 refImages 中发送一次。映射描述中列出所有引用：
+- 姿势和衣服共用图一时 → `第2张 — 姿势参考、衣服参考`
+
+### 重新编辑/重新生成
+
+- 重新编辑：从 `supplementaryImages`（`[{name:"人脸", url:"..."}, ...]`）反向恢复图片池和元素分配
+- 重新生成：复用已存 `task.prompt` + `task.input_image_urls` 直接调 API
+
+### 关键数据流
+
+```
+PhotographyForm (图片池 + 元素分配)
+  → emit refImages, supplementaryImages, finalPrompt
+    → PhotographyPage.handleGenerate
+      → useTaskManager.handleGenerate
+        → generateImage (上传文件到 OSS, 去重, 构建请求)
+          → toapisProxyApi.createTask
+            → POST /api/toapis/create-task
+              → Express → ToAPIs API
+```
+
+### 管理员配置
+
+`/admin/photography` — 元素 CRUD + 每元素×每模型的 system_prompt 编辑。数据存储在 `photography_elements` + `photography_element_prompts` 表。

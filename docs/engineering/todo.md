@@ -4,6 +4,21 @@
 
 ---
 
+## 高优先级
+
+### AI摄影：502 生成失败排查 **[进行中]**
+
+AI摄影生成任务返回 502。ToAPIs 和 OSS 单独测试均正常。已在服务端加了调试日志（`/tmp/momoaigc-debug.log`），等待用户测试后定位根因。详见 `docs/engineering/bug-fixes.md`。
+
+### supplementaryImages 存储 base64 data URL 的性能问题
+
+`PhotographyForm.handleGenerate()` 中 `supplementaryImages` 存了 `poolImg.sourceUrl || poolImg.dataUrl`。本地文件无 sourceUrl 时存入的是 base64 data URL（一张 5MP 照片 ≈ 6-7MB）。多张图片时任务创建请求的 JSON body 可能达数十 MB。
+- 当前 `express.json({ limit: '50mb' })` 尚可容忍
+- 建议改为：生成前先上传到 OSS，supplementaryImages 只存 OSS URL（而非 data URL）
+- 影响范围：DB 行体积、API 请求体大小、重新编辑时的加载速度
+
+---
+
 ## 需用户操作
 
 ### OSS Bucket "强制下载" 设置（用户反馈：稍后处理）

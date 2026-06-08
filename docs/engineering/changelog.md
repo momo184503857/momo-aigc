@@ -4,6 +4,46 @@
 
 ---
 
+## 2026-06-07/08 — AI摄影功能
+
+### 新增
+
+- **AI摄影页面**（`/photography`）：在"AI生图"菜单组下新增独立页面。核心流程：
+  1. 用户上传最多 10 张参考图（图片池，标记图一~图十，可拖拽排序）
+  2. 将图片拖拽到管理员配置的"元素"（人脸、姿势、衣服、配饰、背景等）
+  3. 同一张图可拖到多个元素（如全身照同时作为姿势和衣服参考，图片池中保留副本语义）
+  4. 选择模型/分辨率/宽高比/数量，输入提示词，点击生成
+- **AI摄影配置管理页**（`/admin/photography`）：管理员可增删改查元素，设置每元素最大图片数，为每元素×每模型独立配置 system_prompt
+- **摄影任务与全局任务列表共用**：`feature_id='ai-photography'`，任务出现在与生图工作台相同的 TaskPanel 中，支持功能筛选
+- **Prompt 自动拼接（方案 B）**：每个元素独立 system_prompt，生成时按 sort_order 拼接，自动附加"参考图映射"描述段告知 AI 第几张图对应哪个元素。图片去重：一图多元素引用时只发一次给 API
+- **重新编辑**：从任务列表点击"重新编辑"可还原图片池和元素分配（通过 supplementaryImages 字段反向恢复）
+- **重新生成**：AI摄影任务支持直接重新生成（复用已存 prompt + 图片 URL）
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `src/views/photography/PhotographyPage.vue` | 新增 — 主页面 |
+| `src/components/PhotographyForm.vue` | 新增 — 核心表单（图片池、元素拖放、prompt 构建） |
+| `src/views/admin/AdminPhotography.vue` | 新增 — 管理后台 |
+| `src/services/photographyApi.ts` | 新增 — API 调用封装 |
+| `server/src/routes/photography.ts` | 新增 — 公开 API |
+| `server/src/routes/admin/photography.ts` | 新增 — 管理 API |
+| `server/src/db/schema.ts` | 修改 — 新增 photography_elements / photography_element_prompts 表 |
+| `server/src/index.ts` | 修改 — 挂载摄影路由 |
+| `src/router/index.ts` | 修改 — 新增 /photography /admin/photography 路由 |
+| `src/components/SidebarMenu.vue` | 修改 — 新增菜单项 |
+| `src/configs/featureConfig.ts` | 修改 — 注册 ai-photography |
+| `src/composables/useTaskManager.ts` | 修改 — handleCopyParams/handleRegenerate 支持摄影任务导航 |
+
+### 数据库变更
+
+- `photography_elements`：id, name(UNIQUE), label, max_images, sort_order, status, timestamps
+- `photography_element_prompts`：id, element_id(FK), model_id, system_prompt, timestamps, UNIQUE(element_id, model_id)
+- 种子数据：5 个默认元素（人脸/姿势/衣服/配饰/背景）× 4 个模型
+
+---
+
 ## 2026-06-05/06 — 任务状态流优化 + 下载性能优化 + 多项 bug 修复
 
 ### 新增
