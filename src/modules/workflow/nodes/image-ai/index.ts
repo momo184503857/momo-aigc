@@ -17,23 +17,23 @@ function isLocalImageAsset(value: unknown): value is LocalImageAsset {
 const POLL_INTERVAL = 3000
 const MAX_POLL_ATTEMPTS = 120
 
-async function pollTaskResult(taskId: string): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+async function pollTaskResult(taskId: string): Promise<{ success: boolean; imageUrls: string[]; error?: string }> {
   for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL))
     try {
       const status = await toapisProxyApi.getTaskStatus(taskId)
       const data = status.data.data
       if (data.status === 'completed' && data.resultUrls?.length > 0) {
-        return { success: true, imageUrl: data.resultUrls[0] }
+        return { success: true, imageUrls: data.resultUrls }
       }
       if (data.status === 'failed') {
-        return { success: false, error: data.errorMessage || '生图任务失败' }
+        return { success: false, imageUrls: [], error: data.errorMessage || '生图任务失败' }
       }
     } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : '轮询任务状态失败' }
+      return { success: false, imageUrls: [], error: err instanceof Error ? err.message : '轮询任务状态失败' }
     }
   }
-  return { success: false, error: '轮询超时' }
+  return { success: false, imageUrls: [], error: '轮询超时' }
 }
 
 const imageAi: NodeModule = {
@@ -86,29 +86,38 @@ const imageAi: NodeModule = {
     try {
       const startedAt = Date.now()
 
-      // 分离已上传的 URL 和需要上传的 data URL
-      const imageUrls: string[] = []
-      const tempImageFiles: File[] = []
+      // 构建 refImages 参数（保持顺序，优先使用新参数）
+      const refImagesOrdered: Array<{ url?: string; file?: File }> = []
       for (const img of refImages) {
         const src = img.previewUrl || img.localPath
         if (src.startsWith('http')) {
-          imageUrls.push(src)
+          // 已上传的 URL（可能是 OSS 或其他）
+          refImagesOrdered.push({ url: src })
         } else if (src.startsWith('data:')) {
+          // data URL → 转 File 后上传
           logs.push({ level: 'info', message: `准备上传参考图: ${img.fileName}` })
           const blob = await (await fetch(src)).blob()
-          tempImageFiles.push(new File([blob], img.fileName || 'image.png', { type: blob.type }))
+          const file = new File([blob], img.fileName || 'image.png', { type: blob.type })
+          refImagesOrdered.push({ file })
+        } else if (src) {
+          // 其他情况（如本地文件路径）→ 尝试作为 URL 处理
+          logs.push({ level: 'warn', message: `未知图片源格式: ${src.slice(0, 50)}...` })
+          refImagesOrdered.push({ url: src })
         }
       }
 
-      // 调用统一的生图函数
+      // 获取生成数量
+      const imageCount = typeof config.imageCount === 'number' ? Math.max(1, Math.min(5, config.imageCount)) : 1
+
+      // 调用统一的生图函数（使用 refImages 新参数）
       const result = await generateImage({
         model: modelName as ModelId,
         prompt,
         size: aspectRatio,
         resolution: outputSize,
-        imageUrls,
-        tempImageFiles,
+        refImages: refImagesOrdered,
         featureId: 'canvas',
+        n: imageCount,
       })
 
       const taskId = result.toapisTaskId
@@ -120,7 +129,7 @@ const imageAi: NodeModule = {
       const pollResult = await pollTaskResult(taskId)
       const durationMs = Date.now() - startedAt
 
-      if (!pollResult.success || !pollResult.imageUrl) {
+      if (!pollResult.success || pollResult.imageUrls.length === 0) {
         logs.push({ level: 'error', message: pollResult.error || '生图失败' })
         if (dbTaskId) {
           taskApi.update(dbTaskId, { status: 'failed', error_message: pollResult.error }).catch(() => {})
@@ -128,14 +137,24 @@ const imageAi: NodeModule = {
         return { success: false, message: pollResult.error || `节点「${node.title}」图片生成失败。`, logs }
       }
 
-      logs.push({ level: 'info', message: `生图完成，耗时 ${(durationMs / 1000).toFixed(1)}s` })
+      logs.push({ level: 'info', message: `生图完成，耗时 ${(durationMs / 1000).toFixed(1)}s，共 ${pollResult.imageUrls.length} 张图片` })
 
-      let imageUrl: string
-      try {
-        const imported = await ossApi.importResult(taskId, pollResult.imageUrl)
-        imageUrl = imported.publicUrl
-      } catch (err) {
-        const message = `结果转存 OSS 失败: ${err instanceof Error ? err.message : String(err)}`
+      // 转存所有结果图到 OSS
+      const importedUrls: string[] = []
+      for (let i = 0; i < pollResult.imageUrls.length; i++) {
+        const srcUrl = pollResult.imageUrls[i]
+        try {
+          const imported = await ossApi.importResult(taskId, srcUrl)
+          importedUrls.push(imported.publicUrl)
+          logs.push({ level: 'info', message: `图片 ${i + 1}/${pollResult.imageUrls.length} 已转存到 OSS` })
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err)
+          logs.push({ level: 'error', message: `图片 ${i + 1} 转存 OSS 失败: ${errMsg}` })
+        }
+      }
+
+      if (importedUrls.length === 0) {
+        const message = '所有结果图转存 OSS 失败'
         logs.push({ level: 'error', message })
         if (dbTaskId) {
           taskApi.update(dbTaskId, {
@@ -147,28 +166,31 @@ const imageAi: NodeModule = {
         }
         return { success: false, message, logs }
       }
-      const image: LocalImageAsset = {
+
+      // 构建图片资源列表
+      const imageList: LocalImageAsset[] = importedUrls.map((url, idx) => ({
         id: crypto.randomUUID(),
-        fileName: `${taskId || 'generated'}.png`,
-        localPath: imageUrl,
-        previewUrl: imageUrl,
-      }
+        fileName: `${taskId || 'generated'}-${idx + 1}.png`,
+        localPath: url,
+        previewUrl: url,
+      }))
 
       // Update DB task as completed
       if (dbTaskId) {
         taskApi.update(dbTaskId, {
           status: 'completed',
           progress: 100,
-          result_image_urls: [imageUrl],
+          result_image_urls: importedUrls,
           completed_at: new Date().toISOString(),
         }).catch(() => {})
       }
 
-      // Save to canvas assets
+      // Save first image to canvas assets
+      const firstImage = imageList[0]
       canvasApi.addAsset({
-        fileName: image.fileName,
-        filePath: imageUrl,
-        previewUrl: imageUrl,
+        fileName: firstImage.fileName,
+        filePath: firstImage.localPath,
+        previewUrl: firstImage.previewUrl,
         nodeId: node.id,
         nodeTitle: node.title,
         projectId: workflow.id ? Number(workflow.id) : undefined,
@@ -176,7 +198,7 @@ const imageAi: NodeModule = {
 
       return {
         success: true,
-        result: { dataType: 'Image', value: { image, imageList: [image], taskId }, updatedAt: new Date().toISOString() },
+        result: { dataType: 'Image', value: { image: firstImage, imageList, taskId }, updatedAt: new Date().toISOString() },
         logs,
       }
     } catch (err: unknown) {
