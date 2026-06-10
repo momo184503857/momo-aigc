@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 defineOptions({ name: 'ImageSlotUpload' })
 
 export interface SlotImage {
@@ -67,6 +68,25 @@ function handleFileInput(e: Event) {
   input.value = ''
 }
 
+function handleFileReplace(index: number) {
+  return (e: Event) => {
+    const input = e.target as HTMLInputElement
+    if (!input.files?.length) return
+    const file = input.files[0]
+    if (!file.type.startsWith('image/')) return
+    readFileAsDataUrl(file).then(dataUrl => {
+      const replaced = [...props.modelValue]
+      replaced[index] = {
+        ...replaced[index],
+        dataUrl,
+        file,
+      }
+      emit('update:modelValue', replaced)
+    })
+    input.value = ''
+  }
+}
+
 function handleDrop(e: DragEvent) {
   // Files from OS
   if (e.dataTransfer?.files.length) {
@@ -94,8 +114,12 @@ function handleRemove(index: number) {
   emit('update:modelValue', updated)
 }
 
+const previewUrl = ref<string>('')
+const showPreviewDialog = ref(false)
+
 function showPreview(dataUrl: string) {
-  window.open(dataUrl, '_blank')
+  previewUrl.value = dataUrl
+  showPreviewDialog.value = true
 }
 </script>
 
@@ -109,8 +133,15 @@ function showPreview(dataUrl: string) {
     >
       <div v-for="(img, i) in modelValue" :key="img.id" class="slot-thumb-wrap" :style="{ width: size + 'px', height: size + 'px' }">
         <img :src="img.dataUrl" class="slot-thumb" @click="showPreview(img.dataUrl)" />
-        <span class="slot-remove" @click="handleRemove(i)">&times;</span>
+        <span class="slot-remove" @click.stop="handleRemove(i)">&times;</span>
+        <!-- Replace button overlay on bottom-right of image -->
+        <label class="slot-replace-btn" @click.stop>
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
+            @change="handleFileReplace(i)" />
+          <span class="replace-icon">⟳</span>
+        </label>
       </div>
+      <!-- Add button: visible when slot is not yet filled -->
       <label v-if="modelValue.length < maxCount" class="slot-add-btn" :style="{ width: size + 'px', height: size + 'px' }">
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden
           @change="handleFileInput" />
@@ -145,6 +176,11 @@ function showPreview(dataUrl: string) {
       </div>
     </div>
   </div>
+
+  <!-- Preview dialog -->
+  <el-dialog v-model="showPreviewDialog" :show-close="true" width="80%" align-center>
+    <img :src="previewUrl" class="preview-img" />
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -177,10 +213,23 @@ function showPreview(dataUrl: string) {
 
 .slot-remove {
   position: absolute; top: 6px; right: 6px;
-  width: 24px; height: 24px; line-height: 22px; text-align: center;
-  background: var(--momo-color-overlay); color: var(--momo-color-text-inverse); border-radius: 50%;
-  font-size: var(--momo-font-size-lg); cursor: pointer;
+  width: 22px; height: 22px; line-height: 20px; text-align: center;
+  background: var(--el-color-danger); color: var(--momo-color-text-inverse); border-radius: 50%;
+  font-size: var(--momo-font-size-base); cursor: pointer;
+  z-index: 2;
 }
+.slot-remove:hover { background: var(--el-color-danger-dark); }
+
+.slot-replace-btn {
+  position: absolute; bottom: 6px; right: 6px;
+  width: 22px; height: 22px;
+  background: var(--el-color-primary); color: var(--momo-color-text-inverse);
+  border-radius: 50%; cursor: pointer; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, transform 0.15s;
+}
+.slot-replace-btn:hover { background: var(--el-color-primary-dark); transform: scale(1.1); }
+.replace-icon { font-size: 14px; line-height: 1; }
 
 .slot-add-btn {
   border: 2px dashed var(--el-border-color-dark);
@@ -238,5 +287,10 @@ function showPreview(dataUrl: string) {
 }
 .slot-images.align-left {
   justify-content: flex-start;
+}
+
+.preview-img {
+  width: 100%;
+  display: block;
 }
 </style>
