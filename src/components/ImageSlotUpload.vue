@@ -291,6 +291,8 @@ function showPreview(dataUrl: string) {
 
 .preview-img {
   width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
   display: block;
 }
 </style>
