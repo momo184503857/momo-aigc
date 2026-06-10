@@ -68,23 +68,28 @@ function handleFileInput(e: Event) {
   input.value = ''
 }
 
-function handleFileReplace(index: number) {
-  return (e: Event) => {
-    const input = e.target as HTMLInputElement
-    if (!input.files?.length) return
-    const file = input.files[0]
-    if (!file.type.startsWith('image/')) return
-    readFileAsDataUrl(file).then(dataUrl => {
-      const replaced = [...props.modelValue]
-      replaced[index] = {
-        ...replaced[index],
-        dataUrl,
-        file,
-      }
-      emit('update:modelValue', replaced)
-    })
-    input.value = ''
-  }
+const replaceInputRef = ref<HTMLInputElement | null>(null)
+const replacingIndex = ref<number | null>(null)
+
+function handleReplaceClick(index: number) {
+  replacingIndex.value = index
+  replaceInputRef.value?.click()
+}
+
+function handleFileReplace(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (!input.files?.length || replacingIndex.value === null) return
+  const file = input.files[0]
+  if (!file.type.startsWith('image/')) return
+  const idx = replacingIndex.value
+  readFileAsDataUrl(file).then(dataUrl => {
+    const newImages = props.modelValue.map((img, i) =>
+      i === idx ? { id: img.id, dataUrl, file } : img
+    )
+    emit('update:modelValue', newImages)
+  })
+  input.value = ''
+  replacingIndex.value = null
 }
 
 function handleDrop(e: DragEvent) {
@@ -135,12 +140,13 @@ function showPreview(dataUrl: string) {
         <img :src="img.dataUrl" class="slot-thumb" @click="showPreview(img.dataUrl)" />
         <span class="slot-remove" @click.stop="handleRemove(i)">&times;</span>
         <!-- Replace button overlay on bottom-right of image -->
-        <label class="slot-replace-btn" @click.stop>
-          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
-            @change="handleFileReplace(i)" />
+        <span class="slot-replace-btn" @click="handleReplaceClick(i)">
           <span class="replace-icon">⟳</span>
-        </label>
+        </span>
       </div>
+      <!-- Hidden file input for replace -->
+      <input ref="replaceInputRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
+        @change="handleFileReplace" />
       <!-- Add button: visible when slot is not yet filled -->
       <label v-if="modelValue.length < maxCount" class="slot-add-btn" :style="{ width: size + 'px', height: size + 'px' }">
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden
