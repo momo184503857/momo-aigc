@@ -281,6 +281,7 @@ function setParams(params: {
   resolution: string
   aspectRatio: string
   referenceImages?: { dataUrl: string; sourceUrl?: string }[]
+  supplementaryImages?: { name: string; url: string }[]
 }) {
   selectedModelId.value = params.modelId
   resolution.value = params.resolution
@@ -304,6 +305,15 @@ function setParams(params: {
       }
       setSlotImages(slot.key, images)
     }
+  }
+  // 恢复补充图片（细节图等）
+  if (params.supplementaryImages?.length) {
+    supplementaryImages.value = params.supplementaryImages.map((img, i) => ({
+      id: `copy-supp-${Date.now()}-${i}`,
+      dataUrl: img.url,
+      name: img.name,
+      sourceUrl: img.url,
+    }))
   }
 }
 

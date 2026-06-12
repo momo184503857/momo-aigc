@@ -87,6 +87,7 @@ function handleCopyParamsFromTask(params: {
   aspectRatio: string
   input_image_urls: string[]
   feature_id?: string
+  supplementaryImages?: { name: string; url: string }[]
 }) {
   const targetTab = params.feature_id || 'free-gen'
   activeTab.value = targetTab
@@ -101,6 +102,7 @@ function handleCopyParamsFromTask(params: {
         dataUrl: url,
         sourceUrl: url,
       })),
+      supplementaryImages: params.supplementaryImages,
     })
     success('参数已复制到表单')
   })
@@ -118,6 +120,7 @@ watch(() => tm.copyParamsEvent.value, (evt) => {
     aspectRatio: task.aspectRatio,
     input_image_urls: task.input_image_urls || [],
     feature_id: task.feature_id,
+    supplementaryImages: task.supplementaryImages,
   })
 })
 
