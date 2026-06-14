@@ -10,13 +10,13 @@
 
 `MakeBuyerShowPanel.vue` 已实现并通过 `npm run check`，但完整流程（Excel 导入、逐行生图、刷新后按 `toapis_task_id` 恢复轮询、对比弹窗、按商品ID 打包 zip、5s 快速失败自动重试）未在真实 OSS/ToAPIs 环境跑通。建议按 `docs/requirements/buyer-show.md` §3.5 走一遍。
 
-### 制作买家秀：是否需要 system prompt **[待确认]**
+### 制作买家秀：不加 system prompt（已决定） **[已确认·保持现状]**
 
-当前每行直接用表格「提示词」作为生图 prompt，未拼系统提示词。若实际样例（商品标题类）生成的不是「真人模特穿着」的买家秀风格，需为 `feature_id='buyer-show'` 追加按模型配置的 system prompt（可挂 `feature_prompts`）。待用户给出风格要求后实现。
+每行直接用表格「提示词」作为生图 prompt，**不拼系统提示词**。用户已确认保持现状；如未来需要「真人模特穿着展示」等统一风格，再为 `feature_id='buyer-show'` 追加按模型配置的 system prompt（可挂 `feature_prompts`）。本条仅留档。
 
-### 制作买家秀：失败扣费策略 **[待确认]**
+### 制作买家秀：失败扣费策略（已决定） **[已确认·保持现状]**
 
-积分在 `taskApi.create` 时由服务端扣除，失败不退款。「5s 内快速失败自动重试（上限 2 次）」会为同一行创建多条 `generation_tasks`、多次扣分。需确认：① 维持现状；② 把自动重试上限调为 1；③ 实现「失败退回该任务积分」。当前默认上限 2。
+积分在 `taskApi.create` 时由服务端扣除，**失败不退款**。「5s 内快速失败自动重试」上限维持 **2**，**不实现**「失败退积分」。用户已确认保持现状；如需调整，改 `MakeBuyerShowPanel.vue` 中 `MAX_AUTO_RETRY` / `FAST_FAIL_MS` 两常量即可。本条仅留档。
 
 ### 制作买家秀：权限范围（已确认） **[已确认]**
 

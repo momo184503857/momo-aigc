@@ -146,11 +146,11 @@
 - **刷新续跑**：`onMounted` 加载本用户全部行；对 `in_progress` 且有 `toapis_task_id` 的行恢复轮询。
 - **结果须为 OSS URL** 才能写入 `generation_tasks.result_image_urls`（既有约束），故先 `importResult` 再 `taskApi.update`。
 
-### 3.4 待确认 / 风险
+### 3.4 已决定 / 风险
 
 - **【待端到端验证】**：导入、逐行生图、轮询恢复、对比弹窗、zip 打包未在真实环境验证。
-- **【待确认】系统提示词**：当前每行直接用表格「提示词」作为生图 prompt（无 system prompt）。若需「真人模特穿着展示」等统一风格，需追加按模型配置的 system prompt（可挂 `feature_prompts`，`feature_id='buyer-show'`）。
-- **【待确认】失败扣费策略**：快速失败自动重试会为同一行创建多条 `generation_tasks`，每次创建即扣分。是否需要「失败退回积分」或调小自动重试上限，待定。
+- **【已决定·保持现状】系统提示词**：每行直接用表格「提示词」作为生图 prompt，**不拼系统提示词**。如未来需要统一风格，再为 `feature_id='buyer-show'` 追加按模型配置的 system prompt（可挂 `feature_prompts`）。
+- **【已决定·保持现状】失败扣费策略**：积分创建时扣除、**失败不退款**；自动重试上限维持 **2**，**不实现**「失败退积分」。调整改 `MakeBuyerShowPanel.vue` 中 `MAX_AUTO_RETRY` / `FAST_FAIL_MS`。
 
 ### 3.5 验收标准
 
