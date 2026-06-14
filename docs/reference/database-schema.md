@@ -107,7 +107,7 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 ### buyer_show_batch_items
 
-制作买家秀——用户上传的表格行（商品ID/主图链接/提示词）及其与生图任务的映射，按 `batch_id` 分组、按用户隔离。**该模块由用户开发，功能待验证。**
+制作买家秀——用户上传的表格行（商品ID/主图链接/提示词）及其与生图任务的映射，按 `batch_id` 分组、按用户隔离。**该模块已实现、通过类型检查；真实环境端到端待验证。** `model/resolution/aspect_ratio/result_image_urls/input_image_urls/completed_at` 等展示字段由 `GET /items` 左联 `generation_tasks` 取得，不在本表。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -127,4 +127,4 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 索引：`user_id`、`batch_id`、`task_id`。
 
-> **待确认**：前端类型引用了 `model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` 等字段，但建表 DDL 未见对应列，需确认是否缺 migration 或为运行时拼装。
+> `model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` 等字段**不在本表**：`GET /items` 通过 `LEFT JOIN generation_tasks` 取得（本行有 `task_id` 时以任务状态/结果为准）。无需补 migration。

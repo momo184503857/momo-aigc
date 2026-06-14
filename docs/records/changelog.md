@@ -10,7 +10,7 @@
 
 - **AI 买家秀页面**（`/buyer-show`）：在「AI生图」菜单组下新增页面，顶部两个 Tab：
   1. **素材库**（本会话实现·已验证）：管理员维护「图 + 提示词 + 标签」案例库；普通用户查看、放大、复制提示词。支持网格/列表（默认网格）、标签筛选、多选、批量上传（整批共用一组标签）、编辑（提示词/标签/替换图片）、批量软删、多选一键复制多条提示词（`\n` 拼接，表格粘贴每条一格）、右下角通用分页。
-  2. **制作买家秀**（用户实现·待验证）：从 Excel（商品ID/主图链接/提示词）批量生图，默认比例 9:16、张数 1，`feature_id='buyer-show'` 复用 `generation_tasks`；批次持久化到 `buyer_show_batch_items`，支持对比弹窗与按商品ID 打包 zip。
+  2. **制作买家秀**（已实现·构建通过·待端到端验证）：从 Excel（商品ID/主图链接/提示词）批量生图，默认比例 9:16、张数 1，`feature_id='buyer-show'` 复用 `generation_tasks`；批次持久化到 `buyer_show_batch_items`，支持对比弹窗、按商品ID 打包 zip、**提交后 5s 内失败自动重试（上限 2）**。
 - **OSS `materials` scope**：`utils/oss.ts` / `routes/oss.ts` / `services/ossApi.ts` 新增上传作用域，OSS key 前缀 `materials/<userId>/...`。
 - **`useClipboard` 组合式函数**：抽取剪贴板复制（Clipboard API + 隐藏 textarea 兜底），供素材库复用。
 - **`npm run check`**：新增脚本，前端 `vue-tsc -b` + 服务端 `tsc --noEmit` 类型检查。
@@ -21,7 +21,7 @@
 
 ### 图片流量约束（硬性）
 
-- 素材图片**浏览器直传 OSS**（`ossApi.upload` → `POST /api/oss/upload-token` 仅签 policy，不收字节）；展示/放大直连 OSS public URL。禁用经服务器的 multer 上传与下载代理。详见 `docs/engineering/decision-log.md`。
+- 素材图片**浏览器直传 OSS**（`ossApi.upload` → `POST /api/oss/upload-token` 仅签 policy，不收字节）；展示/放大直连 OSS public URL。禁用经服务器的 multer 上传与下载代理。详见 `docs/records/decision-log.md`。
 
 ### 涉及文件
 
@@ -50,7 +50,7 @@
 - `buyer_show_tags`：id, name(UNIQUE), sort_order, created_at（全局标签）
 - `buyer_show_materials`：id, oss_bucket, oss_object_key, public_url, prompt(必填), original_filename, mime_type, size_bytes, width, height, status(默认 active，软删), sort_order, created_by(FK users), created_at, updated_at, deleted_at
 - `buyer_show_material_tags`：material_id(FK cascade), tag_id(FK cascade), 复合主键
-- `buyer_show_batch_items`：id, user_id, batch_id, product_id, main_image_url, prompt, task_id, toapis_task_id, status, progress, error_message, sort_order, created_at, updated_at（制作买家秀模块，**待确认是否缺 model/resolution/result_image_urls 等列**）
+- `buyer_show_batch_items`：id, user_id, batch_id, product_id, main_image_url, prompt, task_id, toapis_task_id, status, progress, error_message, sort_order, created_at, updated_at（制作买家秀模块；`model/resolution/result_image_urls` 等展示字段由 `GET /items` 左联 `generation_tasks` 取得，非本表列）
 
 ---
 

@@ -12,7 +12,7 @@
 
 | Tab | 名称 | 状态 | 说明 |
 |-----|------|------|------|
-| 1 | 制作买家秀 | **用户实现·待验证** | 从 Excel 批量生图、打包下载。本轮由用户开发，功能完整性待验证（见 §3） |
+| 1 | 制作买家秀 | **已实现·构建通过·待端到端验证** | 从 Excel 批量生图、打包下载。本轮已实现并通过类型检查/构建；真实 OSS/ToAPIs 端到端待验证（见 §3） |
 | 2 | 素材库 | **已实现·已验证** | 管理员维护「图 + 提示词 + 标签」案例库，普通用户查看 + 复制。本轮交付（见 §2） |
 
 - 默认进入 Tab：**制作买家秀**（当前默认值，用户设定）。
@@ -111,33 +111,58 @@
 
 ---
 
-## 3. 制作买家秀（用户实现·待验证）
+## 3. 制作买家秀（已实现·构建通过·待端到端验证）
 
-> 本 Tab 由用户在本轮自行开发，**未经本会话验证**，功能完整性待确认。以下据代码注释与表结构记录其设计意图，细节以代码为准。
+> 本 Tab 已实现，并通过 `npm run check`（`vue-tsc -b` + 服务端 `tsc --noEmit`）类型检查与构建；真实 OSS / ToAPIs 端到端流程尚未在本环境跑通，需按 §3.5 验收。
 
-### 3.1 设计意图（据代码）
+### 3.1 目标与流程
 
-- **入口**：上传/下载 Excel（列：商品ID / 1:1 主图1链接 / 提示词）→ 列表（主图缩略图 + 可编辑提示词 + 勾选）。
-- **统一参数**：模型 / 分辨率 / 比例（**默认 9:16**） / 张数（**默认 1**）。
-- **一键生图**：逐行调用现有生图，`feature_id='buyer-show'`，复用 `generation_tasks`（任务同时出现在全局任务列表）。
-- **结果查看**：结果缩略图点击弹出对比弹窗（`ImageCompareDialog`）。
-- **打包下载**：多选结果一键打包 zip，按商品ID 命名。
-- **批次持久化**：行存入 `buyer_show_batch_items`，刷新后用 `toapis_task_id` 恢复轮询。
+基于商品主图批量生成「买家秀」展示图，并按商品ID 打包下载。
 
-### 3.2 后端（据代码）
+1. **下载模板 / 上传表格**：模板列 = `商品ID / 1:1主图1链接 / 提示词`（与样例 Excel 一致）。上传时客户端 `xlsx` 解析，**模糊匹配列名**（兼容「一比一主图一链接」等写法），缺任一必要列报错；解析后服务端建批次并**追加**到当前工作列表（非覆盖）。
+2. **列表**：每行 = 主图缩略图（点击 → `UiImagePreview` 放大）+ 商品ID + **可编辑提示词**（失焦/回车即落库 `PATCH`）+ 勾选框；表头内置全选。
+3. **统一参数**：模型 / 分辨率 / 比例（**默认 9:16**）/ 张数（**默认 1**），全部可选。
+4. **一键生图**：对「勾选且状态为 pending/failed」的行，逐行调用现有生图（3s 限流），积分预检 + 确认弹窗；任务 `feature_id='buyer-show'` 写入 `generation_tasks`，**同时出现在全局任务列表与本页**。
+5. **轮询**：每行 4s 轮询 ToAPIs；完成时结果转存 OSS（`ossApi.importResult`）后回写任务与本行。
+6. **结果查看**：结果缩略图点击 → `ImageCompareDialog`（左=主图，右=结果；方向键在已完成项间切换）。
+7. **一键下载**：勾选已完成结果 → 真实打 zip（`jszip`），每张按商品ID 命名；**同商品ID 重复加 `_2/_3`**；OSS 直 fetch 失败回落 `/api/proxy/image`。
 
-- 路由 `/api/buyer-show-batch`（仅 `authMiddleware`，按用户隔离）：
-  - `GET /items`、`POST /items`（建批次）、`PATCH /items/:id`、`DELETE /items/:id`、`DELETE /all`
-- 表 `buyer_show_batch_items` 基础列：`id, user_id, batch_id, product_id, main_image_url, prompt, task_id, toapis_task_id, status, progress, error_message, sort_order, created_at, updated_at`。
+### 3.2 后端
 
-### 3.3 待确认 / 风险
+- 路由 `/api/buyer-show-batch`（仅 `authMiddleware`，**按 `user_id` 隔离，全员可用**）：
+  - `GET /items`：左联 `generation_tasks` 返回每行最新状态/结果。
+  - `POST /items`：批量建行（服务端生成 `batch_id`）。
+  - `PATCH /items/:id`：改提示词 / 回写任务链接与状态。
+  - `DELETE /items/:id`、`DELETE /all`。
+- 表 `buyer_show_batch_items` 列：`id, user_id, batch_id, product_id, main_image_url, prompt, task_id, toapis_task_id, status, progress, error_message, sort_order, created_at, updated_at`。
+- **关于「缺列」澄清**：`model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` **不是本表列**，而是 `GET /items` 通过 `LEFT JOIN generation_tasks` 取得（本行有 `task_id` 时以任务状态/结果为准，否则取本行 status）。无需补 migration。
 
-- **【待确认】缺列**：前端类型 `BatchItemRecord` 引用 `model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` 等列，但 `buyer_show_batch_items` 的建表 DDL 未见这些列。需用户确认是否缺 migration 或这些字段为运行时拼装。
-- **【待验证】**：Excel 导入/导出、逐行生图、轮询恢复、对比弹窗、zip 打包的端到端流程未在本会话验证。
-- **【待确认】权限**：当前 `/api/buyer-show-batch` 任意登录用户可用（无 admin 限制），是否符合预期需确认。
+### 3.3 业务规则与边界
+
+- **默认参数**：比例 `9:16`（依赖默认分辨率 `2K`；切到 `gpt-image-2 @ 1K` 会自动回退到该档首个比例）、张数 `1`。
+- **积分**：按 `unitPrice × 选中行数 × 张数` 预估；实际在 `taskApi.create` 时由服务端 `calculateCost` 扣除，**失败不退款**。
+- **主图不重传 OSS**：alicdn 主图 URL 直接作为参考图传给 ToAPIs（与「批量传表格做图」一致）；对比弹窗的「参考图」即该 alicdn 链接。
+- **快速失败自动重试（本轮新增规则）**：提交后 **5 秒内**失败视为瞬时失败，弹提示并自动重提；**单行最多自动重试 2 次**，避免对持续失败的任务反复扣分；超过 5s 或达上限则转终态失败，由用户手动重试（手动重试重置自动重试额度）。刷新后恢复轮询的行因无 `submittedAt` 不自动重试。
+- **刷新续跑**：`onMounted` 加载本用户全部行；对 `in_progress` 且有 `toapis_task_id` 的行恢复轮询。
+- **结果须为 OSS URL** 才能写入 `generation_tasks.result_image_urls`（既有约束），故先 `importResult` 再 `taskApi.update`。
+
+### 3.4 待确认 / 风险
+
+- **【待端到端验证】**：导入、逐行生图、轮询恢复、对比弹窗、zip 打包未在真实环境验证。
+- **【待确认】系统提示词**：当前每行直接用表格「提示词」作为生图 prompt（无 system prompt）。若需「真人模特穿着展示」等统一风格，需追加按模型配置的 system prompt（可挂 `feature_prompts`，`feature_id='buyer-show'`）。
+- **【待确认】失败扣费策略**：快速失败自动重试会为同一行创建多条 `generation_tasks`，每次创建即扣分。是否需要「失败退回积分」或调小自动重试上限，待定。
+
+### 3.5 验收标准
+
+- `npm run check`（`vue-tsc -b` + 服务端 `tsc --noEmit`）通过。
+- 下载模板三列正确；上传样例 56 行；主图放大、提示词改写落库、勾选/全选正常。
+- 一键生图后任务进全局列表与本页，状态推进到 completed，结果转存 OSS。
+- 结果缩略图弹对比弹窗；多选结果一键下载 zip，文件名=商品ID、重复 `_2/_3`。
+- 刷新后批次/结果仍在，`in_progress` 行继续轮询。
 
 ---
 
 ## 4. 需求变更记录
 
 - **2026-06-14**：新增「AI 买家秀」页面与「素材库」功能。素材库由本会话实现并验证（管理员 CRUD + 用户只读复制 + 标签筛选 + 网格/列表 + 批量上传/删除 + 一键复制多条提示词至表格）。关键确认：① 编辑范围 = 提示词 + 标签 + 替换图片；② 批量上传标签 = 整批共用一组；③ 图片流量直传 OSS、服务端只存链接。同页「制作买家秀」Tab 由用户实现，待验证。
+- **2026-06-14（制作买家秀落地）**：实现「制作买家秀」Tab 全流程——Excel 模板下载/上传解析、可编辑提示词、统一参数（默认 9:16 / 张数 1）、一键生图（复用 `generation_tasks`，`feature_id='buyer-show'`）、4s 轮询、对比弹窗、按商品ID 打包 zip；批次持久化到 `buyer_show_batch_items`，刷新续跑。**新增规则：提交后 5s 内失败自动重试，单行上限 2 次。** 已通过类型检查/构建；真实环境端到端待验证。澄清：`model/resolution/result_image_urls` 等为 `GET /items` 左联 `generation_tasks` 所得，**非本表缺失列**（推翻此前「缺 migration」的疑虑）。

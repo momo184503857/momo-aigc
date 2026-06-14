@@ -90,25 +90,25 @@ All styles must use `--momo-*` CSS custom properties (defined in `src/styles/tok
 
 修改本项目代码前，请按需阅读以下文档：
 
-- `docs/ui/ui-design-guidelines.md` — UI 设计规范（信息结构、交互流程、视觉标准）
-- `docs/project/ui-handoff.md` — UI 交接文档（历史上下文）
+- `docs/reference/ui-design-guidelines.md` — UI 设计规范（信息结构、交互流程、视觉标准）
+- `docs/reference/ui-handoff.md` — UI 交接文档（历史上下文）
 
 ## 项目文档索引
 
 | 类别 | 文件 |
 |------|------|
-| 产品需求 | `docs/product/prd.md` |
-| AI 买家秀 | `docs/product/buyer-show.md` |
-| UI 设计规范 | `docs/ui/ui-design-guidelines.md` |
-| UI 模块库 | `docs/ui/ui-module-library.md` |
-| API 接口 | `docs/api/api-spec.md` |
-| 系统架构 | `docs/architecture/architecture.md` |
-| 数据库 | `docs/database/schema.md` |
-| 部署运维 | `docs/engineering/deployment.md` |
-| 运维手册 | `docs/operations/runbook.md` |
-| 测试计划 | `docs/testing/test-plan.md` |
-| 项目交接 | `docs/project/handoff.md` |
-| 变更记录 | `docs/engineering/changelog.md` |
-| 技术决策 | `docs/engineering/decision-log.md` |
-| Bug 修复 | `docs/engineering/bug-fixes.md` |
-| 待办事项 | `docs/engineering/todo.md` |
+| 产品需求 | `docs/requirements/prd.md` |
+| AI 买家秀 | `docs/requirements/buyer-show.md` |
+| UI 设计规范 | `docs/reference/ui-design-guidelines.md` |
+| UI 模块库 | `docs/reference/ui-module-library.md` |
+| API 接口 | `docs/reference/api-spec.md` |
+| 系统架构 | `docs/reference/architecture.md` |
+| 数据库 | `docs/reference/database-schema.md` |
+| 部署运维 | `docs/reference/deployment.md` |
+| 运维手册 | `docs/reference/runbook.md` |
+| 测试计划 | `docs/reference/test-plan.md` |
+| 项目交接 | `docs/reference/handoff.md` |
+| 变更记录 | `docs/records/changelog.md` |
+| 技术决策 | `docs/records/decision-log.md` |
+| Bug 修复 | `docs/records/bug-fixes.md` |
+| 待办事项 | `docs/todo.md` |

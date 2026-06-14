@@ -50,25 +50,25 @@
 
 当前 docs 结构已调整为：
 
-- `docs/product/prd.md`
-- `docs/ui/ui-design-guidelines.md`
-- `docs/ui/ui-module-library.md`
-- `docs/engineering/deployment.md`
-- `docs/project/handoff.md`
-- `docs/project/ui-handoff.md`
-- `docs/api/api-spec.md`
-- `docs/architecture/architecture.md`
-- `docs/database/schema.md`
-- `docs/testing/test-plan.md`
-- `docs/operations/runbook.md`
+- `docs/requirements/prd.md`
+- `docs/reference/ui-design-guidelines.md`
+- `docs/reference/ui-module-library.md`
+- `docs/reference/deployment.md`
+- `docs/reference/handoff.md`
+- `docs/reference/ui-handoff.md`
+- `docs/reference/api-spec.md`
+- `docs/reference/architecture.md`
+- `docs/reference/database-schema.md`
+- `docs/reference/test-plan.md`
+- `docs/reference/runbook.md`
 
 其中以下空文件是按用户要求创建的占位文件：
 
-- `docs/api/api-spec.md`
-- `docs/architecture/architecture.md`
-- `docs/database/schema.md`
-- `docs/testing/test-plan.md`
-- `docs/operations/runbook.md`
+- `docs/reference/api-spec.md`
+- `docs/reference/architecture.md`
+- `docs/reference/database-schema.md`
+- `docs/reference/test-plan.md`
+- `docs/reference/runbook.md`
 
 ## 4. 已新增 AI 协作入口
 
@@ -78,18 +78,18 @@
 
 作用：
 
-- 规定本项目 UI 修改必须遵循 `docs/ui/ui-design-guidelines.md`。
+- 规定本项目 UI 修改必须遵循 `docs/reference/ui-design-guidelines.md`。
 - 后续 AI 修改前端页面、组件、样式、文案、交互状态前，应先阅读 UI 规范。
 
 注意：
 
-- 如果其他 AI 不会自动读取 `AGENTS.md`，请在 prompt 中明确要求它先读取该文件和 `docs/ui/ui-design-guidelines.md`。
+- 如果其他 AI 不会自动读取 `AGENTS.md`，请在 prompt 中明确要求它先读取该文件和 `docs/reference/ui-design-guidelines.md`。
 
 ## 5. UI 规范文档现状
 
 文件：
 
-- `docs/ui/ui-design-guidelines.md`
+- `docs/reference/ui-design-guidelines.md`
 
 该文档已经从原则文档升级为可执行设计规范，包含：
 
@@ -173,7 +173,7 @@
 
 已记录在：
 
-- `docs/ui/ui-module-library.md`
+- `docs/reference/ui-module-library.md`
 
 分析结果：
 
@@ -347,8 +347,8 @@
    - 检查是否和用户现有截图相比有明显升级。
 
 2. 如果视觉方向可接受，更新文档
-   - 在 `docs/ui/ui-design-guidelines.md` 中补充“现代版视觉方向”。
-   - 在 `docs/ui/ui-module-library.md` 中补充现代版组件用法。
+   - 在 `docs/reference/ui-design-guidelines.md` 中补充“现代版视觉方向”。
+   - 在 `docs/reference/ui-module-library.md` 中补充现代版组件用法。
 
 3. 把现代版 HTML 中的视觉 token 提炼到文档
    - brand 色
@@ -386,9 +386,9 @@ http://localhost:5173/#/workspace
 必须阅读：
 
 - `AGENTS.md`
-- `docs/ui/ui-design-guidelines.md`
-- `docs/ui/ui-module-library.md`
-- `docs/project/ui-handoff.md`
+- `docs/reference/ui-design-guidelines.md`
+- `docs/reference/ui-module-library.md`
+- `docs/reference/ui-handoff.md`
 
 UI 标准模块：
 
@@ -419,15 +419,15 @@ UI 标准模块：
 
 历史上 docs 目录曾从：
 
-- `docs/prd.md`
-- `docs/handoff.md`
-- `docs/deployment.md`
+- `docs/requirements/prd.md`
+- `docs/reference/handoff.md`
+- `docs/reference/deployment.md`
 
 移动到：
 
-- `docs/product/prd.md`
-- `docs/project/handoff.md`
-- `docs/engineering/deployment.md`
+- `docs/requirements/prd.md`
+- `docs/reference/handoff.md`
+- `docs/reference/deployment.md`
 
 因此 git status 中可能显示旧文件删除和新目录新增，这是预期的目录重组结果。
 

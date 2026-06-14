@@ -28,9 +28,9 @@ PRD 里第一版设计是：
 
 相关文档：
 
-- `docs/product/prd.md`
-- `docs/project/handoff.md`
-- `docs/engineering/deployment.md`
+- `docs/requirements/prd.md`
+- `docs/reference/handoff.md`
+- `docs/reference/deployment.md`
 
 ### 2. 改造前代码实际情况
 
@@ -196,7 +196,7 @@ POST /api/oss/upload-token
 
 新增文档：
 
-- `docs/engineering/oss-result-import-worker.md`
+- `docs/reference/oss-result-import-worker.md`
 
 新增配置：
 
@@ -347,7 +347,7 @@ OSS_RESULT_IMPORT_WORKER_SECRET=REDACTED-WORKER-SECRET
 
 浏览器上传图片到 OSS（PostObject policy）目前正常工作，说明 OSS Bucket 已配置了必要的 CORS（POST 方法）。
 
-但**浏览器直接 `fetch(url)` 下载图片**可能因 OSS Bucket 未开放 GET CORS 而失败。当前下载功能**不走直接 fetch**，而是通过服务端代理 `POST /api/proxy/image` 绕过 CORS。详见 `docs/engineering/bug-fixes.md` — Bug #2。
+但**浏览器直接 `fetch(url)` 下载图片**可能因 OSS Bucket 未开放 GET CORS 而失败。当前下载功能**不走直接 fetch**，而是通过服务端代理 `POST /api/proxy/image` 绕过 CORS。详见 `docs/records/bug-fixes.md` — Bug #2。
 
 ### 3. 参考图 URL 流转
 

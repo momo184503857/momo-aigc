@@ -179,7 +179,7 @@
 3. 创建临时 `<a>` 元素，`href` 指向 blob URL，`download` 设为文件名，`click()` 触发下载
 4. 延迟 60 秒后 `revokeObjectURL`（给浏览器足够时间开始下载）
 
-**设计决策**：全部走代理，不先尝试直接 fetch OSS URL。原因见 `docs/engineering/decision-log.md` — "下载功能全部走代理"。
+**设计决策**：全部走代理，不先尝试直接 fetch OSS URL。原因见 `docs/records/decision-log.md` — "下载功能全部走代理"。
 
 **涉及文件**：
 - `src/utils/download.ts` — 新增，共享下载工具
@@ -237,4 +237,4 @@
 **预防方式**：
 - `.env.example` 已包含 Worker 相关变量模板
 - 每次新增 `.env` 变量后，部署时需要同时更新服务器配置
-- 文档 `docs/engineering/deployment.md` 已更新包含新变量
+- 文档 `docs/reference/deployment.md` 已更新包含新变量

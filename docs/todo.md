@@ -6,17 +6,21 @@
 
 ## AI 买家秀（2026-06-14）
 
-### 制作买家秀：疑似缺表字段 **[待确认]**
-
-前端类型 `BatchItemRecord` 引用了 `model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` 等字段，但 `buyer_show_batch_items` 的建表 DDL 未见这些列。需用户确认：是缺 migration（应补 `ALTER TABLE`），还是这些字段为运行时拼装。若缺列，相关读取会得到 undefined。
-
 ### 制作买家秀：端到端未验证 **[待验证]**
 
-`MakeBuyerShowPanel.vue` 的完整流程（Excel 导入/导出、逐行生图、刷新后按 `toapis_task_id` 恢复轮询、对比弹窗、按商品ID 打包 zip）未在本会话验证。建议跑一遍。
+`MakeBuyerShowPanel.vue` 已实现并通过 `npm run check`，但完整流程（Excel 导入、逐行生图、刷新后按 `toapis_task_id` 恢复轮询、对比弹窗、按商品ID 打包 zip、5s 快速失败自动重试）未在真实 OSS/ToAPIs 环境跑通。建议按 `docs/requirements/buyer-show.md` §3.5 走一遍。
 
-### 制作买家秀：权限范围 **[待确认]**
+### 制作买家秀：是否需要 system prompt **[待确认]**
 
-`/api/buyer-show-batch` 任意登录用户可用（无 admin 限制）、按用户隔离。是否符合「全员可用」预期，需确认。
+当前每行直接用表格「提示词」作为生图 prompt，未拼系统提示词。若实际样例（商品标题类）生成的不是「真人模特穿着」的买家秀风格，需为 `feature_id='buyer-show'` 追加按模型配置的 system prompt（可挂 `feature_prompts`）。待用户给出风格要求后实现。
+
+### 制作买家秀：失败扣费策略 **[待确认]**
+
+积分在 `taskApi.create` 时由服务端扣除，失败不退款。「5s 内快速失败自动重试（上限 2 次）」会为同一行创建多条 `generation_tasks`、多次扣分。需确认：① 维持现状；② 把自动重试上限调为 1；③ 实现「失败退回该任务积分」。当前默认上限 2。
+
+### 制作买家秀：权限范围（已确认） **[已确认]**
+
+`/api/buyer-show-batch` 任意登录用户可用、按 `user_id` 隔离——符合「全员可用」预期，无需 admin 限制。本条仅留档。
 
 ### 素材库：浏览器实测 **[待验证]**
 
@@ -36,7 +40,7 @@
 
 ### AI摄影：502 生成失败排查 **[进行中]**
 
-AI摄影生成任务返回 502。ToAPIs 和 OSS 单独测试均正常。已在服务端加了调试日志（`/tmp/momoaigc-debug.log`），等待用户测试后定位根因。详见 `docs/engineering/bug-fixes.md`。
+AI摄影生成任务返回 502。ToAPIs 和 OSS 单独测试均正常。已在服务端加了调试日志（`/tmp/momoaigc-debug.log`），等待用户测试后定位根因。详见 `docs/records/bug-fixes.md`。
 
 ### supplementaryImages 存储 base64 data URL 的性能问题
 
