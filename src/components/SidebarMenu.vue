@@ -17,6 +17,7 @@ import {
   Share,
   Box,
   Camera,
+  Goods,
 } from '@element-plus/icons-vue'
 
 defineProps<{ collapsed?: boolean }>()
@@ -47,6 +48,7 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/photography', title: 'AI摄影', icon: Camera },
         { path: '/canvas-projects', title: 'AI画布', icon: Share },
         { path: '/toolbox', title: 'AI工具箱', icon: Box },
+        { path: '/buyer-show', title: 'AI买家秀', icon: Goods },
       ],
     },
     {

@@ -331,5 +331,73 @@ export function initSchema(): void {
     }
   }
 
+  // ── AI 买家秀：素材库 ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS buyer_show_tags (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        VARCHAR(100) NOT NULL UNIQUE,
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS buyer_show_materials (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      oss_bucket        VARCHAR(255) NOT NULL,
+      oss_object_key    VARCHAR(1024) NOT NULL,
+      public_url        TEXT NOT NULL,
+      prompt            TEXT NOT NULL,
+      original_filename VARCHAR(255),
+      mime_type         VARCHAR(100),
+      size_bytes        INTEGER,
+      width             INTEGER,
+      height            INTEGER,
+      status            VARCHAR(20) NOT NULL DEFAULT 'active',
+      sort_order        INTEGER NOT NULL DEFAULT 0,
+      created_by        INTEGER REFERENCES users(id),
+      created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deleted_at        TIMESTAMP NULL
+    );
+  `)
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS buyer_show_material_tags (
+      material_id INTEGER NOT NULL REFERENCES buyer_show_materials(id) ON DELETE CASCADE,
+      tag_id      INTEGER NOT NULL REFERENCES buyer_show_tags(id)      ON DELETE CASCADE,
+      PRIMARY KEY (material_id, tag_id)
+    );
+  `)
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_materials_status ON buyer_show_materials(status);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_material_tags_material ON buyer_show_material_tags(material_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_material_tags_tag ON buyer_show_material_tags(tag_id);`)
+
+  // ── AI 买家秀：批量制作（制作买家秀 Tab）──
+  // 注意：与上面的 buyer_show_materials（素材库，由另一模块维护）相互独立，
+  // 仅用于持久化「上传的表格行 ↔ 生图任务」映射，使刷新后仍能查看/打包下载。
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS buyer_show_batch_items (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id         INTEGER NOT NULL REFERENCES users(id),
+      batch_id        TEXT    NOT NULL,
+      product_id      TEXT    NOT NULL,
+      main_image_url  TEXT    NOT NULL,
+      prompt          TEXT    NOT NULL DEFAULT '',
+      task_id         INTEGER NULL REFERENCES generation_tasks(id),
+      toapis_task_id  TEXT    NULL,
+      status          TEXT    NOT NULL DEFAULT 'pending',
+      progress        INTEGER NOT NULL DEFAULT 0,
+      error_message   TEXT    NULL,
+      sort_order      INTEGER NOT NULL DEFAULT 0,
+      created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_batch_user  ON buyer_show_batch_items(user_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_batch_batch ON buyer_show_batch_items(batch_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_batch_task  ON buyer_show_batch_items(task_id);`)
+
   console.log('[DB] Schema initialized')
 }

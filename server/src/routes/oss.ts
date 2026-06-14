@@ -19,7 +19,7 @@ ossRouter.post('/upload-token', authMiddleware, (req: AuthRequest, res) => {
     filename: String(filename),
     mimeType: String(mimeType),
     sizeBytes: Number(sizeBytes) || 10 * 1024 * 1024,
-    scope: scope === 'templates' ? 'templates' : 'inputs',
+    scope: scope === 'templates' ? 'templates' : scope === 'materials' ? 'materials' : 'inputs',
   })
 
   res.json({ success: true, data: token })

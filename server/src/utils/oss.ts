@@ -6,7 +6,7 @@ export function generateOssUploadToken(opts: {
   filename: string
   mimeType: string
   sizeBytes: number
-  scope?: 'inputs' | 'templates' | 'results'
+  scope?: 'inputs' | 'templates' | 'results' | 'materials'
 }) {
   const now = new Date()
   const yyyy = now.getFullYear()

@@ -4,6 +4,34 @@
 
 ---
 
+## AI 买家秀（2026-06-14）
+
+### 制作买家秀：疑似缺表字段 **[待确认]**
+
+前端类型 `BatchItemRecord` 引用了 `model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` 等字段，但 `buyer_show_batch_items` 的建表 DDL 未见这些列。需用户确认：是缺 migration（应补 `ALTER TABLE`），还是这些字段为运行时拼装。若缺列，相关读取会得到 undefined。
+
+### 制作买家秀：端到端未验证 **[待验证]**
+
+`MakeBuyerShowPanel.vue` 的完整流程（Excel 导入/导出、逐行生图、刷新后按 `toapis_task_id` 恢复轮询、对比弹窗、按商品ID 打包 zip）未在本会话验证。建议跑一遍。
+
+### 制作买家秀：权限范围 **[待确认]**
+
+`/api/buyer-show-batch` 任意登录用户可用（无 admin 限制）、按用户隔离。是否符合「全员可用」预期，需确认。
+
+### 素材库：浏览器实测 **[待验证]**
+
+已过后端 curl 冒烟与类型检查，但未做浏览器 UI 验收。建议按需求文档 §2.7 验收标准 + 验收清单走一遍（管理员 CRUD、普通用户只读复制、表格粘贴每条一格、标签筛选、网格/列表、分页）。
+
+### 素材库：标签管理面板未建 **[低优先级]**
+
+当前标签仅在上传/编辑弹窗内通过 allow-create 增删；服务端已具备 `POST/DELETE /tags`。如需集中改名/批量删标签，再补一个管理 UI。
+
+### 素材库：`sort_order` 拖拽排序未暴露 **[低优先级]**
+
+`buyer_show_materials.sort_order` 与 `buyer_show_tags.sort_order` 已建表但 UI 未提供拖拽排序。需要时参考模板图库的 starred 拖拽实现。
+
+---
+
 ## 高优先级
 
 ### AI摄影：502 生成失败排查 **[进行中]**

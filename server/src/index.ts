@@ -21,6 +21,8 @@ import { canvasRouter } from './routes/canvas.js'
 import { canvasAiRouter } from './routes/canvas-ai.js'
 import { photographyRouter } from './routes/photography.js'
 import { adminPhotographyRouter } from './routes/admin/photography.js'
+import { buyerShowRouter, adminBuyerShowRouter } from './routes/buyerShow.js'
+import { buyerShowBatchRouter } from './routes/buyerShowBatch.js'
 
 const app = express()
 
@@ -53,6 +55,9 @@ app.use('/api/canvas', canvasRouter)
 app.use('/api/canvas-ai', canvasAiRouter)
 app.use('/api/photography', photographyRouter)
 app.use('/api/admin/photography', adminPhotographyRouter)
+app.use('/api/buyer-show', buyerShowRouter)
+app.use('/api/admin/buyer-show', adminBuyerShowRouter)
+app.use('/api/buyer-show-batch', buyerShowBatchRouter)
 
 app.listen(config.port, () => {
   console.log(`[Server] momoAigc server running on http://localhost:${config.port}`)

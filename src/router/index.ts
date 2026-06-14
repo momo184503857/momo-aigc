@@ -58,6 +58,12 @@ const router = createRouter({
       meta: { title: 'AI工具箱', requiresAuth: true },
     },
     {
+      path: '/buyer-show',
+      name: 'BuyerShow',
+      component: () => import('@/views/buyer-show/BuyerShowPage.vue'),
+      meta: { title: 'AI买家秀', requiresAuth: true },
+    },
+    {
       path: '/toolbox/batch-clothes-swap',
       name: 'BatchClothesSwap',
       component: () => import('@/views/tools/BatchClothesSwapPage.vue'),

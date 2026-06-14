@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-06-14 — AI 买家秀：图片流量一律浏览器直传 OSS，服务端只存链接
+
+**背景**：OSS 流量/带宽费昂贵，用户明确要求图片字节尽可能不经过自有服务器。素材库涉及批量上传、展示、放大，是高流量场景。
+
+**决策**：上传用 `ossApi.upload(file, 'materials')`——先 `POST /api/oss/upload-token`（服务端仅签发 OSS PostObject policy，不接收字节），再由浏览器 `fetch(oss上传地址, formData)` 直传；展示缩略图与放大预览（`UiImagePreview`）均直连 OSS public URL。
+
+**原因**：服务端经手图片字节会产生双向流量（入站收 + 转发到 OSS 出站），大图/批量场景成本高；PostObject policy 方案让服务端只做轻量签名，字节走「浏览器 → OSS」最短路径。
+
+**实现**：
+- 复用既有 `generateOssUploadToken`，新增 `materials` scope（OSS key 前缀 `materials/<userId>/...`）。
+- **禁用** `POST /api/oss/upload`（multer 内存缓存再转发，字节经服务器）与 `POST /api/proxy/image`（跨域「另存为」下载代理，本功能不涉及）。
+- 服务端 `/api/admin/buyer-show/batch`、`PATCH /:id` 只接收/写入 `oss_bucket / oss_object_key / public_url` 字符串。
+
+**后续影响**：所有后续「图片密集」功能（如制作买家秀的结果图）应遵循同一约束；任何需要服务端经手图片字节的方案需先评估流量成本。
+
+---
+
+## 2026-06-14 — AI 买家秀素材库：使用专用标签表，不复用 gallery_tags
+
+**背景**：素材库需要全局共享、管理员维护的标签体系。既有 `gallery_tags` 表为「按用户隔离」设计（`user_id` + `UNIQUE(user_id, name)`），服务于模板图库的私有标签。
+
+**决策**：新建专用表 `buyer_show_tags`（`name` 全局 UNIQUE，无 `user_id`）+ `buyer_show_material_tags` 多对多关联，不复用 `gallery_tags`。
+
+**原因**：复用 `gallery_tags` 要么把管理员标签泄漏到每个用户的私有标签列表，要么特殊处理 `user_id IS NULL`，两者都破坏既有语义与查询。素材库标签是全用户共享的全局维度，独立表最清晰。
+
+**实现**：标签增删幂等（同名返回已存在 id）；`ON DELETE CASCADE` 清理关联；列表标签筛选走 `INNER JOIN` + `COUNT(DISTINCT)`。
+
+**后续影响**：若未来出现多个全局共享标签的业务域，可考虑抽象一张全局标签字典表；当前一个域一张表，成本可接受。
+
+---
+
 ## 2026-06-07 — AI摄影：每元素独立 system_prompt（方案 B），非全局 prompt 模板
 
 **背景**：AI摄影功能需要让用户将不同图片分配给不同"元素"（人脸、姿势、衣服等），AI 需要知道每张图对应的语义。三种方案：

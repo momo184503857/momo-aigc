@@ -98,6 +98,7 @@ All styles must use `--momo-*` CSS custom properties (defined in `src/styles/tok
 | 类别 | 文件 |
 |------|------|
 | 产品需求 | `docs/product/prd.md` |
+| AI 买家秀 | `docs/product/buyer-show.md` |
 | UI 设计规范 | `docs/ui/ui-design-guidelines.md` |
 | UI 模块库 | `docs/ui/ui-module-library.md` |
 | API 接口 | `docs/api/api-spec.md` |

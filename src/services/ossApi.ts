@@ -9,7 +9,7 @@ export interface OssUploadToken {
 }
 
 export const ossApi = {
-  async getUploadToken(file: File, scope: 'inputs' | 'templates' = 'inputs') {
+  async getUploadToken(file: File, scope: 'inputs' | 'templates' | 'materials' = 'inputs') {
     const res = await http.post('/oss/upload-token', {
       filename: file.name,
       mimeType: file.type || 'application/octet-stream',
@@ -19,7 +19,7 @@ export const ossApi = {
     return res.data.data as OssUploadToken
   },
 
-  async upload(file: File, scope: 'inputs' | 'templates' = 'inputs') {
+  async upload(file: File, scope: 'inputs' | 'templates' | 'materials' = 'inputs') {
     const token = await this.getUploadToken(file, scope)
     const formData = new FormData()
     for (const [key, value] of Object.entries(token.fields)) {
