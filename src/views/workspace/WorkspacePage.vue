@@ -67,8 +67,6 @@ async function handleGenerate(params: {
   resolution: string
   aspectRatio: string
   count: number
-  templateUrls: string[]
-  tempImageFiles: File[]
   refImages?: Array<{ url?: string; file?: File }>
   featureId?: string
   userPrompt?: string

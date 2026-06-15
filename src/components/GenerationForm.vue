@@ -19,8 +19,6 @@ const emit = defineEmits<{
     resolution: string
     aspectRatio: string
     count: number
-    templateUrls: string[]
-    tempImageFiles: File[]
     refImages?: Array<{ url?: string; file?: File }>
   }): void
 }>()
@@ -256,11 +254,6 @@ function handleDragLeave(e: DragEvent) {
 function handleGenerate() {
   if (!canGenerate.value) return
 
-  const templateUrls = referenceImages.value.filter((r) => r.sourceUrl).map((r) => r.sourceUrl!)
-  const tempImageFiles = referenceImages.value
-    .filter((r) => !r.sourceUrl)
-    .map((r) => dataUrlToFile(r.dataUrl, r.label))
-
   // Build ordered ref list to preserve user's drag-and-drop order
   const refImages = referenceImages.value.map((r) => {
     if (r.sourceUrl) return { url: r.sourceUrl }
@@ -273,8 +266,6 @@ function handleGenerate() {
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
     count: count.value,
-    templateUrls,
-    tempImageFiles,
     refImages,
   })
 }

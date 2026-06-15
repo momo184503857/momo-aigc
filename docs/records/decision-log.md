@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-06-15 — AI 生图模块重构为三层架构（适配器 / 核心 / UI）
+
+**背景**：生图逻辑散落 6 个调用方，轮询/OSS 转存/请求体构建多处重复，改一处需同步改多处，且新增入口要重写流程。要求「以后只改函数、各页面自动生效，新页面只复用不重写」。
+
+**决策**：按三层高内聚低耦合组织——① 适配器 `toapisClient.ts`（纯 API 封装）② 核心模块 `imageGeneration.ts`（`submitTask`/`pollTask`/`importResultUrls`/`generateImage`，零 UI 依赖）③ UI 层 `useTaskManager.ts` + 各页面（只管 reactive 状态与列表）。所有调用方强制走统一入口，禁止页面直接拼装 `toapisProxyApi`+`taskApi`+`ossApi`。
+
+**分步 vs 一键**：核心模块同时暴露分步函数（`submitTask`+`pollTask`+`importResultUrls`，供需要自定义轮询节奏/转存时机的调用方组合）和高层封装 `generateImage({poll, import})`（供工作流节点等需要阻塞式一键调用的场景）。两种轮询语义明确二分——阻塞式 `pollTask`（工作流）vs 定时器单查 `getTaskStatus`（UI 列表），不可混用。
+
+**DB 终态由核心模块负责**：`generateImage({poll})` 成功写 `completed`、失败/超时写 `failed`，保证不遗留孤立 `submitted` 记录。分步调用方（UI 列表、买家秀行级轮询）各自在轮询到终态时写 DB。
+
+**deprecated 参数一步到位删除**：`imageUrls`/`tempImageFiles`/`templateUrls` 直接移除，统一 `refImages: Array<{url?, file?}>`，不做兼容过渡——调用方有限且都在本仓内。
+
+**原因**：跨页面复用是核心诉求，重复实现是主要痛点；保留 deprecated 参数会长期维持两套入参、阻碍收敛。三层切分使「改上传策略/轮询间隔/请求体只改一处」成立。
+
+**后续影响**：未来新增生图入口只调 `submitTask` 或 `generateImage`；新增模型只改 `buildRequestBody` 分发与 `MODELS` 配置。回归用 `scripts/image-gen-tests/` 重跑。
+
+---
+
 ## 2026-06-14 — AI 买家秀：制作买家秀与素材库后端完全隔离
 
 **背景**：「AI买家秀」页两个 Tab 由两位开发者并行实现——素材库（`buyerShow.ts` + `buyer_show_materials` 等）与制作买家秀（`buyerShowBatch.ts` + `buyer_show_batch_items`）。需避免合并冲突与语义混淆。

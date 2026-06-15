@@ -4,6 +4,46 @@
 
 ---
 
+## 2026-06-15 — AI 生图模块重构为三层架构（高内聚低耦合）
+
+### 背景
+
+AI 生图逻辑此前散落多处：6 个调用方绕过统一入口直接调 `toapisClient.createTask` + `taskApi.create`；轮询逻辑 4 处各自实现（间隔/策略不一）；`importResultUrls` 重复实现 4 份；`buildRequestBody` 在两个文件重复。目标：改一处全局生效，未来各页面只复用函数不重写。
+
+### 变更
+
+- **核心模块** `src/services/imageGeneration.ts` 拆出分步函数：`submitTask`（上传+建任务+写DB）/ `pollTask`（阻塞式轮询，默认 4s×150 次 / 10min 超时）/ `importResultUrls`（逐张转存，单张失败跳过）；`generateImage(params, {poll, import})` 作为高层一键封装。
+- **适配器** `src/adapter/toapisClient.ts` 删除重复的 `buildRequestBody`，`createTask` 改为直接接受已构建请求体。
+- **UI 层** `useTaskManager.ts`、6 个调用方（工作台/AI摄影/工作流节点/买家秀/批量换衣/换姿势/批量表格）全部迁移到统一入口，删除各自的轮询与 OSS 转存重复实现。
+- **删除 deprecated 参数**：`GenerateImageParams` 的 `imageUrls` / `tempImageFiles` / `templateUrls` 一步到位移除，统一用 `refImages`。
+- **新增端到端回归测试** `scripts/image-gen-tests/`（真实跑 ToAPIs/OSS，覆盖自由生图、批量换衣共享图不重复上传、买家秀行级轮询、generateImage DB 终态写入）。
+
+### 修复（测试中发现）
+
+- `generateImage` 成功时 DB 写入原被耦合在 `import` 选项里：`generateImage(p, {poll:true})`（不传 import）即使轮询成功，DB 也卡 `submitted`。改为成功无条件写 `completed`、失败/超时无条件写 `failed`，二者对称，DB 总达终态。
+- 批量换衣/换姿势：共享衣服图（或模特图）被循环内每次 `submitTask` 重复上传 N 次。改为循环外用 `uploadImage` 解析一次复用 `{url}`。
+- `importResultUrls` 单张转存失败即整体抛出，丢失已转存图且 DB 卡死。改为逐张容错。
+- `pollTask` 默认 `maxAttempts`/`timeout` 为 `Infinity`，裸 `poll:true` 可能死循环。改为有限默认。
+
+### 行为变化（待确认）
+
+- **买家秀主图** 原直接把阿里 CDN URL 传给 ToAPIs（服务端拉取），现经 `submitUrl` 浏览器端下载后转传到自有 OSS。更可靠但批量时延迟增加、CORS 失败时回退原始 URL。详见 `docs/todo.md`。
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `src/services/imageGeneration.ts` | 三层 API，删除 deprecated 参数 |
+| `src/adapter/toapisClient.ts` | 删 `buildRequestBody`，`createTask(body)` |
+| `src/composables/useTaskManager.ts` | 改用核心模块函数，剥离生图逻辑 |
+| `src/modules/workflow/nodes/image-ai/index.ts` | 用 `generateImage({poll,import})` 一键调用 |
+| `src/views/buyer-show/MakeBuyerShowPanel.vue` | 统一入口，保留 5s 快速失败重试 |
+| `src/views/tools/Batch{Clothes,Pose,Spreadsheet}SwapPage.vue` | 用 `submitTask`，共享图循环外上传 |
+| `src/views/{workspace,photography}/*.vue`、`src/components/{Generation,Feature}Form.vue` | 参数签名跟随 `refImages` 化 |
+| `scripts/image-gen-tests/` | 新增回归测试套件 |
+
+---
+
 ## 2026-06-14 — AI 买家秀（素材库 + 制作买家秀）
 
 ### 新增

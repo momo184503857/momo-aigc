@@ -4,8 +4,10 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { taskApi } from '@/services/taskApi'
 import { pointsApi } from '@/services/pointsApi'
-import { generateImage } from '@/services/imageGeneration'
-import { ossApi } from '@/services/ossApi'
+import {
+  submitTask,
+  importResultUrls,
+} from '@/services/imageGeneration'
 import { getTaskStatus } from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
 import { downloadUrl } from '@/utils/download'
@@ -95,21 +97,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
-  const importedUrls: string[] = []
-  for (const sourceUrl of sourceUrls) {
-    const imported = await ossApi.importResult(taskId, sourceUrl)
-    console.info('[OSS] Result imported', {
-      taskId,
-      sizeBytes: imported.sizeBytes,
-      sourceConnectedMs: imported.sourceConnectedMs,
-      totalMs: imported.totalMs,
-    })
-    importedUrls.push(imported.publicUrl)
-  }
-  return importedUrls
-}
-
 // ─── Composable ───
 
 export function useTaskManager() {
@@ -179,7 +166,10 @@ export function useTaskManager() {
       total.value = res.data.data?.total || 0
 
       // Merge: keep in-progress local tasks that haven't appeared in API response yet
-      const apiTasks: TaskItem[] = records.map((r: any) => ({ ...r }))
+      const apiTasks: TaskItem[] = records.map((r: any) => ({
+        ...r,
+        aspectRatio: r.aspect_ratio,  // snake_case → camelCase 映射
+      }))
       const apiTaskIds = new Set(apiTasks.map(t => t.id))
       const localPending = tasks.value.filter(
         t => !t.id && (t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress')
@@ -218,8 +208,6 @@ export function useTaskManager() {
     resolution: string
     aspectRatio: string
     count: number
-    templateUrls: string[]
-    tempImageFiles: File[]
     refImages?: Array<{ url?: string; file?: File }>
     featureId?: string
     userPrompt?: string
@@ -257,15 +245,14 @@ export function useTaskManager() {
       tasks.value.unshift(newTask)
 
       try {
-        const result = await generateImage({
+        // 调用核心模块提交任务
+        const result = await submitTask({
           model: params.modelId,
           prompt: params.prompt,
           userPrompt: params.userPrompt,
           systemPrompt: params.systemPrompt,
           size: params.aspectRatio,
           resolution: params.resolution,
-          imageUrls: params.templateUrls,
-          tempImageFiles: params.tempImageFiles,
           refImages: params.refImages,
           featureId: params.featureId,
           supplementaryImages: params.supplementaryImages,
@@ -273,7 +260,7 @@ export function useTaskManager() {
 
         newTask.toapis_task_id = result.toapisTaskId
         newTask.id = result.dbTaskId
-        newTask.input_image_urls = result.allImageUrls
+        newTask.input_image_urls = result.inputImageUrls
 
         await pollTask(newTask)
 
@@ -319,17 +306,10 @@ export function useTaskManager() {
 
   async function pollTask(task: TaskItem) {
     try {
+      // 单次查询：由 pollAllTasks + setInterval 定时器驱动，不能用阻塞式 pollTask
       const result = await getTaskStatus(task.toapis_task_id)
 
-      const statusMap: Record<string, string> = {
-        queued: 'queued',
-        in_progress: 'in_progress',
-        completed: 'completed',
-        failed: 'failed',
-      }
-
       if (result.status === 'completed') {
-        // Generation is complete now. OSS transfer is a separate UI state.
         task.status = 'completed'
         task.progress = 100
         task.completed_at = new Date().toISOString()
@@ -343,21 +323,28 @@ export function useTaskManager() {
         })
         try {
           const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
-          task.result_image_urls = importedUrls
-          task.error_message = ''
-          await taskApi.update(task.id, {
-            result_image_urls: importedUrls,
-            error_message: '',
-          })
+          // importResultUrls 容错：单张失败被跳过；若全部失败则提示用户重试
+          if (importedUrls.length === 0 && result.resultUrls.length > 0) {
+            task.result_image_urls = []
+            task.error_message = '结果转存 OSS 失败，请点击重新加载'
+            await taskApi.update(task.id, {
+              result_image_urls: [],
+              error_message: task.error_message,
+            })
+          } else {
+            task.result_image_urls = importedUrls
+            task.error_message = ''
+            await taskApi.update(task.id, {
+              result_image_urls: importedUrls,
+              error_message: '',
+            })
+          }
         } catch (err) {
           task.result_image_urls = []
           task.error_message = '结果转存 OSS 失败，请点击重新加载'
           await taskApi.update(task.id, {
-            status: 'completed',
-            progress: 100,
             result_image_urls: [],
             error_message: task.error_message,
-            expires_at: result.expiresAt,
           })
           console.warn('[OSS] Result import failed; ToAPIs URL was not exposed:', err)
         } finally {
@@ -374,7 +361,7 @@ export function useTaskManager() {
           error_message: result.errorMessage,
         })
       } else {
-        task.status = statusMap[result.status] || result.status
+        task.status = result.status
         task.progress = result.progress
         await taskApi.update(task.id, {
           status: task.status,
@@ -442,8 +429,6 @@ export function useTaskManager() {
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
         count: 1,
-        templateUrls: [],
-        tempImageFiles: [],
         refImages: (task.input_image_urls || []).map((url: string) => ({ url })),
         featureId: 'ai-photography',
         userPrompt: task.user_prompt || '',
@@ -459,8 +444,7 @@ export function useTaskManager() {
       resolution: task.resolution,
       aspectRatio: task.aspectRatio,
       count: 1,
-      templateUrls: task.input_image_urls || [],
-      tempImageFiles: [],
+      refImages: (task.input_image_urls || []).map((url: string) => ({ url })),
     })
   }
 
@@ -557,6 +541,7 @@ export function useTaskManager() {
     }
     task.is_importing = true
     try {
+      // 单次查询任务状态
       const result = await getTaskStatus(task.toapis_task_id)
       if (result.status === 'completed' && result.resultUrls.length > 0) {
         if (!task.completed_at) {

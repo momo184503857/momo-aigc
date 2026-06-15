@@ -81,11 +81,55 @@ OSS 有 CORS 配置且 `<img>` 带 `crossorigin="anonymous"` → 策略1直接�
 ```
 GenerationForm.handleGenerate()
     → refImages: [{url: 'A'}, {file: FileB}, {url: 'C'}]  // 保持UI拖拽顺序
-    → generateImage() 逐一处理，顺序不变
-    → allImageUrls = ['A_oss', 'B_oss', 'C_oss']  // 正确顺序
+    → submitTask() 逐一处理，顺序不变
+    → inputImageUrls = ['A_oss', 'B_oss', 'C_oss']  // 正确顺序
 ```
 
-旧参数 `imageUrls`/`tempImageFiles` 仍存在，但 `refImages` 优先。
+> `refImages` 是唯一的参考图入参。旧的 `imageUrls` / `tempImageFiles` 参数已删除。
+
+---
+
+## AI 生图模块（三层架构）
+
+为支持在各页面复用、改一处全局生效，AI 生图按三层高内聚低耦合组织。所有页面/工作流节点都必须走统一入口，禁止直接调用 `toapisProxyApi` / `taskApi` / `ossApi` 拼装生图流程。
+
+### 分层
+
+| 层 | 文件 | 职责 | UI 依赖 |
+|----|------|------|---------|
+| **适配器** | `src/adapter/toapisClient.ts` | 纯 API 调用封装：`uploadImage` / `createTask(body)` / `getTaskStatus` | 无 |
+| **核心模块** | `src/services/imageGeneration.ts` | 生图编排，纯数据/流程 | 无 |
+| **UI 状态** | `src/composables/useTaskManager.ts` + 各页面 | 任务列表、轮询调度、reactive 状态 | Vue |
+
+### 核心模块 API（`imageGeneration.ts`）
+
+分步函数（可自由组合）：
+
+- `submitTask(params): {toapisTaskId, dbTaskId, inputImageUrls}` — 上传参考图 + 创建 ToAPIs 任务 + 写 DB（`status='submitted'`）
+- `pollTask(taskId, {interval?, maxAttempts?, timeout?}): {status, progress, resultUrls, errorMessage?, …}` — **阻塞式**轮询，默认 `interval=4000 / maxAttempts=150 / timeout=600000`（约 10 分钟）
+- `importResultUrls(taskId, sourceUrls): string[]` — 逐张转存结果到 OSS，**单张失败跳过不中断**
+
+高层封装：
+
+- `generateImage(params, {poll?, import?})` — 一键调用。`poll:true` 时内部轮询并在 DB 写终态（成功→`completed`、失败/超时→`failed`），`import:true` 时附带转存 `result_image_urls`
+
+`SubmitTaskParams` 字段：`model / prompt / size(宽高比) / resolution / refImages[] / featureId / n / userPrompt? / systemPrompt? / supplementaryImages?`。参考图项为 `{url?}` 或 `{file?}`，URL 中 OSS 直传、非 OSS http 先下载再上传、data URL(base64) 先转 File 再上传。
+
+### 调用方约定
+
+| 调用方 | 入口 | 说明 |
+|--------|------|------|
+| 工作台 / AI摄影（`useTaskManager.handleGenerate`） | `submitTask` + 定时器单查 `getTaskStatus` | `pollAllTasks` + `setInterval(4s)` 驱动，**单次查询**，不可用阻塞式 `pollTask` |
+| 工作流节点 `image-ai` | `generateImage({poll, import})` | 阻塞式一键：提交+轮询+转存+DB 终态 |
+| 买家秀 `MakeBuyerShowPanel` | `submitTask` + 行级 `getTaskStatus` 轮询 + `importResultUrls` | 保留 5s 快速失败自动重试逻辑 |
+| 批量换衣/换姿势 `BatchClothesSwapPage`/`BatchPoseSwapPage` | `submitTask`（不轮询，依赖全局 TaskPanel） | 共享图在循环外用 `uploadImage` 解析一次复用，避免重复上传 |
+| 批量表格做图 `BatchSpreadsheetPage` | `submitTask` + 行级 `getTaskStatus` + `importResultUrls` | — |
+
+### 关键不变量
+
+- **DB 终态必达**：`generateImage({poll})` 成功写 `completed`、失败/超时写 `failed`；分步调用方需自行在轮询到终态时写 DB。
+- **共享图不重复上传**：批量场景循环外把共享图解析为 OSS URL（`{url}`），`submitTask` 内 `processUrl` 对 OSS URL 原样透传不重传。
+- **轮询语义二分**：阻塞式 `pollTask`（工作流）vs 定时器单查 `getTaskStatus`（UI 列表）。混用会导致并发轮询/卡死。
 
 ---
 
@@ -128,11 +172,13 @@ PhotographyForm (图片池 + 元素分配)
   → emit refImages, supplementaryImages, finalPrompt
     → PhotographyPage.handleGenerate
       → useTaskManager.handleGenerate
-        → generateImage (上传文件到 OSS, 去重, 构建请求)
+        → submitTask (上传文件到 OSS, 去重, 构建请求, 写 DB)
           → toapisProxyApi.createTask
             → POST /api/toapis/create-task
               → Express → ToAPIs API
 ```
+
+> 生图核心模块的三层结构与调用约定见上方「AI 生图模块（三层架构）」。
 
 ### 管理员配置
 

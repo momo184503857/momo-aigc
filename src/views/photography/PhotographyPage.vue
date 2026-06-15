@@ -37,8 +37,6 @@ async function handleGenerate(params: {
     resolution: params.resolution,
     aspectRatio: params.aspectRatio,
     count: params.count,
-    templateUrls: [],
-    tempImageFiles: [],
     refImages: params.refImages,
     featureId: params.featureId,
     userPrompt: params.userPrompt,

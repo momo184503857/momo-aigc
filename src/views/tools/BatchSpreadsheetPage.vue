@@ -9,8 +9,8 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { taskApi } from '@/services/taskApi'
 import { pointsApi } from '@/services/pointsApi'
-import { ossApi } from '@/services/ossApi'
-import * as toapisClient from '@/adapter/toapisClient'
+import { submitTask, importResultUrls } from '@/services/imageGeneration'
+import { getTaskStatus } from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
 import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
 import type { ModelId } from '@/types/adapter'
@@ -228,29 +228,17 @@ async function handleGenerate() {
     row.status = 'submitting'
 
     try {
-      const toapis_task_id = await toapisClient.createTask({
+      // 调用统一入口 submitTask
+      const result = await submitTask({
         model: selectedModelId.value,
         prompt: row.prompt,
         size: aspectRatio.value,
         resolution: resolution.value,
-        imageUrls: row.imageUrls,
+        refImages: row.imageUrls.map(url => ({ url })),
       })
 
-      const res = await taskApi.create({
-        toapis_task_id,
-        model: selectedModelId.value,
-        prompt: row.prompt,
-        size: aspectRatio.value,
-        resolution: resolution.value,
-        aspect_ratio: aspectRatio.value,
-        n: 1,
-        input_image_urls: row.imageUrls,
-        status: 'submitted',
-        progress: 0,
-      })
-
-      row.taskId = res.data.data.id
-      row.toapisTaskId = toapis_task_id
+      row.taskId = result.dbTaskId
+      row.toapisTaskId = result.toapisTaskId
       row.status = 'in_progress'
       row.progress = 0
 
@@ -292,11 +280,12 @@ function startPollingRow(row: TableRow) {
   if (!row.toapisTaskId) return
   const timer = setInterval(async () => {
     try {
-      const result = await toapisClient.getTaskStatus(row.toapisTaskId!)
+      // 单次查询：由 setInterval 定时器驱动
+      const result = await getTaskStatus(row.toapisTaskId!)
       row.progress = result.progress
 
       if (result.status === 'completed') {
-        const importedUrls = await importResultUrls(row.toapisTaskId!, result.resultUrls || [])
+        const importedUrls = await importResultUrls(row.toapisTaskId!, result.resultUrls)
         row.status = 'completed'
         row.resultUrl = importedUrls[0]
         row.progress = 100
@@ -337,29 +326,17 @@ async function retryRow(row: TableRow) {
   row.progress = 0
 
   try {
-    const toapis_task_id = await toapisClient.createTask({
+    // 调用统一入口 submitTask
+    const result = await submitTask({
       model: selectedModelId.value,
       prompt: row.prompt,
       size: aspectRatio.value,
       resolution: resolution.value,
-      imageUrls: row.imageUrls,
+      refImages: row.imageUrls.map(url => ({ url })),
     })
 
-    const res = await taskApi.create({
-      toapis_task_id,
-      model: selectedModelId.value,
-      prompt: row.prompt,
-      size: aspectRatio.value,
-      resolution: resolution.value,
-      aspect_ratio: aspectRatio.value,
-      n: 1,
-      input_image_urls: row.imageUrls,
-      status: 'submitted',
-      progress: 0,
-    })
-
-    row.taskId = res.data.data.id
-    row.toapisTaskId = toapis_task_id
+    row.taskId = result.dbTaskId
+    row.toapisTaskId = result.toapisTaskId
     row.status = 'in_progress'
     row.progress = 0
 
@@ -388,15 +365,6 @@ async function retryFailed() {
 // ─── Download ───
 
 const downloadableRows = computed(() => tableData.value.filter(r => r.status === 'completed' && r.resultUrl && r.selected))
-
-async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
-  const importedUrls: string[] = []
-  for (const sourceUrl of sourceUrls) {
-    const imported = await ossApi.importResult(taskId, sourceUrl)
-    importedUrls.push(imported.publicUrl)
-  }
-  return importedUrls
-}
 
 async function downloadDirect() {
   if (downloadableRows.value.length === 0) {

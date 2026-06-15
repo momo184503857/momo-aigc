@@ -19,8 +19,8 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { taskApi } from '@/services/taskApi'
 import { pointsApi } from '@/services/pointsApi'
-import { ossApi } from '@/services/ossApi'
-import * as toapisClient from '@/adapter/toapisClient'
+import { submitTask, importResultUrls } from '@/services/imageGeneration'
+import { getTaskStatus } from '@/adapter/toapisClient'
 import { buyerShowBatchApi } from '@/services/buyerShowBatchApi'
 import type { BatchItemRow } from '@/services/buyerShowBatchApi'
 import { translateError } from '@/utils/errors'
@@ -303,36 +303,25 @@ async function handleGenerate() {
     row.errorMsg = undefined
 
     try {
-      const toapisTaskId = await toapisClient.createTask({
+      // 调用统一入口 submitTask
+      const result = await submitTask({
         model: selectedModelId.value,
         prompt: row.prompt,
         size: aspectRatio.value,
         resolution: resolution.value,
-        imageUrls: [row.mainImageUrl],
-      })
-
-      const res = await taskApi.create({
-        toapis_task_id: toapisTaskId,
-        model: selectedModelId.value,
-        prompt: row.prompt,
-        size: aspectRatio.value,
-        resolution: resolution.value,
-        aspect_ratio: aspectRatio.value,
+        refImages: [{ url: row.mainImageUrl }],
+        featureId: 'buyer-show',
         n: countN.value,
-        input_image_urls: [row.mainImageUrl],
-        status: 'submitted',
-        progress: 0,
-        feature_id: 'buyer-show',
       })
 
-      row.taskId = res.data.data.id
-      row.toapisTaskId = toapisTaskId
+      row.taskId = result.dbTaskId
+      row.toapisTaskId = result.toapisTaskId
       row.status = 'in_progress'
       row.progress = 0
       row.submittedAt = Date.now()
       row.autoRetryCount = 0
       await buyerShowBatchApi.updateItem(row.id, {
-        status: 'in_progress', taskId: row.taskId, toapisTaskId, progress: 0, errorMessage: null,
+        status: 'in_progress', taskId: row.taskId, toapisTaskId: result.toapisTaskId, progress: 0, errorMessage: null,
       })
       window.dispatchEvent(new CustomEvent('canvas:task-created'))
       submitted++
@@ -376,11 +365,12 @@ function startPollingRow(row: TableRow) {
   if (!row.toapisTaskId) return
   const timer = setInterval(async () => {
     try {
-      const result = await toapisClient.getTaskStatus(row.toapisTaskId!)
+      // 单次查询：由 setInterval 定时器驱动
+      const result = await getTaskStatus(row.toapisTaskId!)
       row.progress = result.progress
 
       if (result.status === 'completed') {
-        const imported = await importResultUrls(row.toapisTaskId!, result.resultUrls || [])
+        const imported = await importResultUrls(row.toapisTaskId!, result.resultUrls)
         row.status = 'completed'
         row.resultImageUrls = imported
         row.resultUrl = imported[0]
@@ -422,15 +412,6 @@ function startPollingRow(row: TableRow) {
   pollTimers.push(timer)
 }
 
-async function importResultUrls(taskId: string, sourceUrls: string[]): Promise<string[]> {
-  const urls: string[] = []
-  for (const sourceUrl of sourceUrls) {
-    const imported = await ossApi.importResult(taskId, sourceUrl)
-    urls.push(imported.publicUrl)
-  }
-  return urls
-}
-
 // ─── Retry single row ───
 
 async function retryRow(row: TableRow) {
@@ -443,32 +424,22 @@ async function retryRow(row: TableRow) {
   row.progress = 0
   row.autoRetryCount = 0 // 手动重试重置自动重试计数
   try {
-    const toapisTaskId = await toapisClient.createTask({
+    // 调用统一入口 submitTask
+    const result = await submitTask({
       model: selectedModelId.value,
       prompt: row.prompt,
       size: aspectRatio.value,
       resolution: resolution.value,
-      imageUrls: [row.mainImageUrl],
-    })
-    const res = await taskApi.create({
-      toapis_task_id: toapisTaskId,
-      model: selectedModelId.value,
-      prompt: row.prompt,
-      size: aspectRatio.value,
-      resolution: resolution.value,
-      aspect_ratio: aspectRatio.value,
+      refImages: [{ url: row.mainImageUrl }],
+      featureId: 'buyer-show',
       n: countN.value,
-      input_image_urls: [row.mainImageUrl],
-      status: 'submitted',
-      progress: 0,
-      feature_id: 'buyer-show',
     })
-    row.taskId = res.data.data.id
-    row.toapisTaskId = toapisTaskId
+    row.taskId = result.dbTaskId
+    row.toapisTaskId = result.toapisTaskId
     row.status = 'in_progress'
     row.submittedAt = Date.now()
     await buyerShowBatchApi.updateItem(row.id, {
-      status: 'in_progress', taskId: row.taskId, toapisTaskId, progress: 0, errorMessage: null,
+      status: 'in_progress', taskId: row.taskId, toapisTaskId: result.toapisTaskId, progress: 0, errorMessage: null,
     })
     window.dispatchEvent(new CustomEvent('canvas:task-created'))
     startPollingRow(row)
@@ -488,33 +459,23 @@ async function autoRetry(row: TableRow) {
   row.errorMsg = undefined
   row.progress = 0
   try {
-    const toapisTaskId = await toapisClient.createTask({
+    // 调用统一入口 submitTask
+    const result = await submitTask({
       model: selectedModelId.value,
       prompt: row.prompt,
       size: aspectRatio.value,
       resolution: resolution.value,
-      imageUrls: [row.mainImageUrl],
-    })
-    const res = await taskApi.create({
-      toapis_task_id: toapisTaskId,
-      model: selectedModelId.value,
-      prompt: row.prompt,
-      size: aspectRatio.value,
-      resolution: resolution.value,
-      aspect_ratio: aspectRatio.value,
+      refImages: [{ url: row.mainImageUrl }],
+      featureId: 'buyer-show',
       n: countN.value,
-      input_image_urls: [row.mainImageUrl],
-      status: 'submitted',
-      progress: 0,
-      feature_id: 'buyer-show',
     })
-    row.taskId = res.data.data.id
-    row.toapisTaskId = toapisTaskId
+    row.taskId = result.dbTaskId
+    row.toapisTaskId = result.toapisTaskId
     row.status = 'in_progress'
     row.progress = 0
     row.submittedAt = Date.now()
     await buyerShowBatchApi.updateItem(row.id, {
-      status: 'in_progress', taskId: row.taskId, toapisTaskId, progress: 0, errorMessage: null,
+      status: 'in_progress', taskId: row.taskId, toapisTaskId: result.toapisTaskId, progress: 0, errorMessage: null,
     })
     window.dispatchEvent(new CustomEvent('canvas:task-created'))
     startPollingRow(row)

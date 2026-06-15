@@ -4,6 +4,27 @@
 
 ---
 
+## AI 生图模块重构（2026-06-15）
+
+### 买家秀主图改走 OSS 中转：行为变化 **[待确认]**
+
+重构后 `MakeBuyerShowPanel` 的主图（阿里 CDN URL）经 `submitTask` 的 `processUrl` 浏览器端下载后转传到自有 OSS（原来直接把 CDN URL 传给 ToAPIs 服务端拉取）。**更可靠但批量时延迟增加**，CORS/防盗链失败时回退原始 URL（仍交 ToAPIs）。待确认是否接受此取舍；若不接受，考虑对已知 CDN（alicdn 等）在 `processUrl` 中直传不中转。真实测试已跑通（结果正常），见 `scripts/image-gen-tests/`。
+
+### BatchPoseSwapPage feature_id 误用 **[低优先级·预存在]**
+
+`src/views/tools/BatchPoseSwapPage.vue`（换姿势）的 `featureId` 为 `'change-clothes'`（HEAD 即如此，copy-paste 遗留），与 `BatchClothesSwapPage` 相同。仅影响任务列表的 feature 筛选分组，不影响生图。建议改为 `'change-pose'`（需同步 `featureConfig` / `featurePromptApi` key）。
+
+### 死代码与重复 helper 清理 **[低优先级]**
+
+- `src/adapter/toapisClient.ts` 的 `uploadImage` 现仅被批量页面用、`createTask(body)` 几乎无调用方；`imageGeneration.ts` 末尾 `GenerateImageParams` 类型别名无引用——确认无外部依赖后可删。
+- `resolveSlotUrl`/`sleep` 在 `BatchClothesSwapPage` 与 `BatchPoseSwapPage` 重复定义，可抽到共享 utils。
+
+### 回归测试已落地 **[已实现]**
+
+`scripts/image-gen-tests/`：真实跑 ToAPIs/OSS，覆盖自由生图、批量换衣共享图不重复上传、买家秀行级轮询、generateImage DB 终态写入。改生图核心逻辑后重跑。`fixtures/` 下测试图已 gitignore（本地保留）。
+
+---
+
 ## AI 买家秀（2026-06-14）
 
 ### 制作买家秀：端到端未验证 **[待验证]**

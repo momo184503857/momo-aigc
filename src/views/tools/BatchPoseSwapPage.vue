@@ -7,9 +7,9 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
-import { taskApi } from '@/services/taskApi'
 import { pointsApi } from '@/services/pointsApi'
-import * as toapisClient from '@/adapter/toapisClient'
+import { submitTask } from '@/services/imageGeneration'
+import { uploadImage } from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
 import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
 import type { ModelId } from '@/types/adapter'
@@ -117,9 +117,10 @@ function buildFullPrompt(): string {
 
 // ─── Upload helper ───
 
-async function resolveImageUrl(img: SlotImage): Promise<string> {
+/** 将 SlotImage 解析为 OSS URL（本地文件先上传一次），供循环复用 */
+async function resolveSlotUrl(img: SlotImage): Promise<string> {
   if (img.sourceUrl) return img.sourceUrl
-  if (img.file) return await toapisClient.uploadImage(img.file)
+  if (img.file) return await uploadImage(img.file)
   return img.dataUrl
 }
 
@@ -161,7 +162,8 @@ async function handleGenerate() {
   } catch { /* proceed, server will check */ }
 
   const prompt = buildFullPrompt()
-  const modelUrl = await resolveImageUrl(modelImages.value[0])
+  // 模特图（所有任务共用）：循环外解析为 OSS URL 一次，避免重复上传
+  const modelUrl = await resolveSlotUrl(modelImages.value[0])
 
   let submitted = 0
   let failed = false
@@ -169,30 +171,17 @@ async function handleGenerate() {
   for (let i = 0; i < garmentImages.value.length; i++) {
     const garmentImg = garmentImages.value[i]
     try {
-      const garmentUrl = await resolveImageUrl(garmentImg)
-      const allImageUrls = [modelUrl, garmentUrl]
+      const garmentUrl = await resolveSlotUrl(garmentImg)
 
-      const toapis_task_id = await toapisClient.createTask({
+      // 调用统一入口 submitTask
+      await submitTask({
         model: selectedModelId.value,
         prompt,
         size: aspectRatio.value,
         resolution: resolution.value,
-        imageUrls: allImageUrls,
-      })
-
-      await taskApi.create({
-        toapis_task_id,
-        model: selectedModelId.value,
-        prompt,
-        size: aspectRatio.value,
-        resolution: resolution.value,
-        aspect_ratio: aspectRatio.value,
-        n: 1,
-        input_image_urls: allImageUrls,
-        status: 'submitted',
-        progress: 0,
-        feature_id: 'change-clothes',
-        user_prompt: userPrompt.value.trim(),
+        refImages: [{ url: modelUrl }, { url: garmentUrl }],
+        featureId: 'change-clothes',
+        userPrompt: userPrompt.value.trim(),
       })
 
       submitted++

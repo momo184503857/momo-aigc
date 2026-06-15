@@ -4,6 +4,64 @@
 
 ---
 
+## 2026-06-15 — AI 生图：generateImage 成功时 DB 任务卡在 submitted
+
+**现象**：调用 `generateImage(params, { poll: true })`（不传 `import`）时，轮询已 `completed`，但 DB 任务一直停在 `submitted`，全局任务列表显示幽灵"运行中"任务。
+
+**根因**：`generateImage` 里 DB 写 `completed` 的逻辑被错误地嵌在 `if (options?.import)` 内——即只有同时要求转存结果时才写 DB。失败分支却无条件写 `failed`，成功/失败两条路径不对称。
+
+**解决方案**：成功分支无条件写 `completed`，`import` 仅决定是否附带 `result_image_urls`；失败/超时无条件写 `failed`。两条路径对称，DB 总能到达终态。
+
+**涉及文件**：`src/services/imageGeneration.ts`
+
+**预防方式**：
+- 服务层写 DB 终态的代码，成功与失败路径必须对称（都写、或都不写），不能只挂在其中一条分支里。
+- 「阻塞轮询 + DB 终态」的组合，用端到端断言「DB status === pollResult.status」覆盖（见 `scripts/image-gen-tests/` 的 `fail-check` 场景），纯代码审查难以发现这类条件嵌套错位。
+
+---
+
+## 2026-06-15 — AI 生图：批量换衣共享图重复上传 N 次
+
+**现象**：批量换衣（1 衣服 + N 模特）提交时，共享的衣服图被上传到 OSS 共 N 次，浪费带宽/时间、产生 N 个 OSS 对象。
+
+**根因**：重构初版把共享图包成 `{file}` 在循环内传给每次 `submitTask`，而 `submitTask` 对 `{file}` 每次都调 `ossApi.upload`。原代码在循环外上传一次复用 URL，重构时退化了。
+
+**解决方案**：批量页面循环外用 `uploadImage`（`resolveSlotUrl`）把共享图解析为 OSS URL 一次，循环内传 `{url}`；`submitTask` 的 `processUrl` 对 OSS URL 原样透传不重传。
+
+**涉及文件**：`src/views/tools/BatchClothesSwapPage.vue`、`BatchPoseSwapPage.vue`
+
+**预防方式**：循环内复用的共享资源（图片、文件）应在循环外一次性解析为可复用形态（URL），再以透传形态传入；`{file}` 这类「每次都触发上传」的入参不要放进循环。
+
+---
+
+## 2026-06-15 — AI 生图：importResultUrls 单张失败整体丢失
+
+**现象**：结果图有多张时，任意一张转存 OSS 失败即抛错，已成功转存的图丢失，DB 任务卡死。
+
+**根因**：`importResultUrls` 对每张 `ossApi.importResult` 无 try/catch，首张失败即中断循环并抛出。
+
+**解决方案**：逐张 try/catch，单张失败跳过、记录 warn，返回成功转存的子集。`useTaskManager` 增加空结果检测保留「转存失败请重试」提示。
+
+**涉及文件**：`src/services/imageGeneration.ts`、`src/composables/useTaskManager.ts`
+
+**预防方式**：批量独立项的循环处理（转存、上传、批量请求）默认应容错——单项失败不中断整体，返回成功子集让调用方决策。
+
+---
+
+## 2026-06-15 — AI 生图：pollTask 默认无上限可死循环
+
+**现象**：`pollTask` 的 `maxAttempts`/`timeout` 默认 `Infinity`，裸 `poll:true`（文档中的合法用法）在任务永不到终态时会无限轮询。
+
+**根因**：默认值给了无界，依赖每个调用方自觉传上限，文档示例又只写 `poll: true`。
+
+**解决方案**：默认改为有限值（`maxAttempts=150`、`timeout=600000`，约 10 分钟）。
+
+**涉及文件**：`src/services/imageGeneration.ts`
+
+**预防方式**：轮询/重试类函数的默认值必须是有限的、合理的上界；把「无限」作为需要显式 opt-in 的行为，不要作为默认。
+
+---
+
 ## 2026-06-08 — AI摄影：photography_elements 表每次重启产生重复数据
 
 **现象**：AI摄影配置页出现多份重复元素（如 8 份"人脸"、8 份"姿势"…），共 40 条记录。
