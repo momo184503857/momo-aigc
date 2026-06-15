@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
+import { useServerStatusStore } from '@/stores/serverStatus'
+import { userKeyApi } from '@/services/userKeyApi'
 import { formatCredits } from '@/types/adapter'
 import {
   MagicStick,
@@ -29,6 +31,33 @@ const auth = useAuthStore()
 const tabStore = useTabStore()
 const router = useRouter()
 const route = useRoute()
+const serverStatus = useServerStatusStore()
+
+// 个人 Key 模式下，头像显示该 Key 的积分（= token-balance 的 credits）；
+// 共享 Key 模式下显示平台积分。
+const personalKeyCredits = ref<number | null>(null)
+async function loadPersonalKeyCredits() {
+  if (!serverStatus.usingPersonalKey) {
+    personalKeyCredits.value = null
+    return
+  }
+  try {
+    const res = await userKeyApi.getBalance()
+    personalKeyCredits.value = res.data.success ? (res.data.data.credits ?? 0) : null
+  } catch {
+    personalKeyCredits.value = null
+  }
+}
+watch(() => serverStatus.usingPersonalKey, loadPersonalKeyCredits, { immediate: true })
+
+const avatarCreditsLabel = computed(() => {
+  if (serverStatus.usingPersonalKey) {
+    return personalKeyCredits.value !== null
+      ? formatCredits(personalKeyCredits.value, { creditDigits: 0, yuanDigits: 2 })
+      : '个人 Key · 加载中…'
+  }
+  return formatCredits(auth.user?.points ?? 0, { creditDigits: 0, yuanDigits: 2 })
+})
 
 interface MenuItem {
   path: string
@@ -137,7 +166,7 @@ function handleCommand(command: string) {
     <div v-if="auth.user" class="sidebar-user">
       <div class="user-points-row">
         <el-icon :size="14"><Coin /></el-icon>
-        <span v-if="!collapsed" class="user-points-text">{{ formatCredits(auth.user.points, { creditDigits: 0, yuanDigits: 2 }) }}</span>
+        <span v-if="!collapsed" class="user-points-text">{{ avatarCreditsLabel }}</span>
       </div>
       <el-dropdown trigger="click" @command="handleCommand" popper-class="sidebar-user-dropdown">
         <div class="user-account-row">

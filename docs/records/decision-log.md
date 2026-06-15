@@ -14,7 +14,7 @@
 
 **决策 3 — 新积分作为存储与扣费主单位，一次性迁移（非展示层折算）**：`1 新积分 = ¥0.035`，历史元数据 `×(200/7)` 幂等迁移（`migration_credits_v1` 守卫）。原因：用户明确「实际扣费以新积分为准」「改回以新积分为扣费单位」；pricing 因此得到整数（3/4/5/10/20）。代价：动历史数据，迁移前需备份 DB。
 
-**决策 4 — Key 的新积分走独立上游接口（待接入），占位不折算**：用户后续提供「获取新积分接口」（返回值即新积分）。当前 `fetchKeyCredits()` 返回 ToAPIs CNY 余额 + `credits=null`，前端标注「新积分待接口」，**绝不**按 0.035 折算（否则数值错乱）。ToAPIs `credits`（`1 USD=200 credits`）与本平台新积分无关，UI 标「credits」。
+**决策 4 — Key 的「积分」取 ToAPIs token-balance 的 `credits` 字段，余额 = 积分 × 0.035（已修正）**：Key 积分 = `GET /v1/balance` 返回的 `remain_credits`（直接读取，不换算）；「余额」= 积分 × 0.035。**不**用 `remain_balance`（CNY），**绝不** ÷0.035 反推（积分是源、余额是派生）。原方案误以为是「独立上游接口」并做 `credits=null` 占位，后澄清就是 token-balance 接口，已改为返回真实 credits。左下角头像积分按 Key 模式切换：共享→平台积分，个人→Key 积分。
 
 **加密密钥兜底**：`ENCRYPTION_KEY` 缺失时从 `JWT_SECRET` HKDF-SHA256 派生 + 启动告警，保证已有部署升级不崩；补配后旧密文需用户重存。
 

@@ -6,9 +6,9 @@
 
 ## 积分与 Key 计费体系（2026-06-15）
 
-### Key 的「新积分」上游接口待接入 **[待用户提供]**
+### Key 的「积分」数据源 **[已解决·留档]**
 
-`server/src/utils/credits.ts` 的 `fetchKeyCredits(apiKey)` 为占位实现：当前返回 ToAPIs CNY 余额 + `credits=null`，前端在「我的额度」页标注「新积分待接口（当前 ToAPIs 余额：¥X）」。用户将提供「获取新积分接口」（返回值即新积分）；到位后**只需替换 `fetchKeyCredits` 函数体**，端点 `/api/me/quota`、前端展示无需改动。注意：占位期间**绝不**按 0.035 把 ToAPIs CNY 折算为新积分。
+`server/src/utils/credits.ts` 的 `fetchKeyCredits(apiKey)` 直接返回 ToAPIs token-balance 接口（`GET /v1/balance`）的 `credits`（remain_credits）字段作为 Key 的「积分」；「余额」= 积分 × 0.035。原先误以为需要单独的「获取新积分接口」并做了 `credits=null` 占位，现已修正为真实值。规则：**不**用 `remain_balance`、**绝不** ÷0.035 反推（积分是源，余额是派生）。
 
 ### 计费失败退款 / 扣费时序 **[已确认·维持现状]**
 

@@ -16,7 +16,7 @@ interface QuotaData {
     id: number; amount: number; balance_after: number
     reason: string; note: string; created_at: string
   }>
-  personalKeyCredits: { credits: number | null; placeholderCNY: number | null; currency: string } | null
+  personalKeyCredits: { credits: number | null; currency: string } | null
 }
 
 const quota = ref<QuotaData | null>(null)
@@ -71,9 +71,7 @@ onMounted(load)
               <span v-if="quota.personalKeyCredits.credits !== null" class="qc-inline">
                 {{ formatCredits(quota.personalKeyCredits.credits, { creditDigits: 0, yuanDigits: 2 }) }}
               </span>
-              <span v-else class="qc-pending">
-                新积分待接口（当前 ToAPIs 余额：¥{{ quota.personalKeyCredits.placeholderCNY ?? '--' }}）
-              </span>
+              <span v-else class="qc-pending">获取失败（Key 可能无效）</span>
             </div>
             <div v-else class="qc-row qc-pending">个人 Key：未配置</div>
             <div class="qc-row qc-hint">共享 Key：平台聚合计费，见左侧平台积分余额</div>

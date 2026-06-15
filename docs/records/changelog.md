@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-06-16 — 头像积分按 Key 模式显示 + Key 积分数据源修正
+
+### 变更
+
+- **头像积分按模式显示**（`SidebarMenu.vue`）：共享 Key 模式显示平台积分（`users.points`）；个人 Key 模式显示该 Key 的积分（token-balance `credits`）。修复「个人模式下头像仍显示共享余额」的误导。
+- **Key 积分数据源修正**：澄清「获取新积分接口」就是 ToAPIs token-balance（`/v1/balance`）的 `credits`（remain_credits）字段——一直在用。`fetchKeyCredits()` 由 `credits=null` 占位改为返回真实 credits；「余额」= 积分 × 0.035。
+- **修正 AdminToApisKey 的 ÷0.035 反推错误**：上一轮用 `余额 ÷ 0.035` 反推积分违反「积分是源、余额是派生」规则，改为直接读 `credits`，余额 = `credits × 0.035`（`creditsToYuan`）。删除前后端无用的 `yuanToCredits`（÷0.035 方向，禁用）。
+
+### 规则（确认）
+
+- 积分是主单位/源；余额(¥) = 积分 × 0.035；**永远相乘，不反过来**。
+- Key 积分 = token-balance `credits`；**不**用 `remain_balance`。
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `server/src/utils/credits.ts` | `fetchKeyCredits` 返回真实 credits；删 `yuanToCredits` |
+| `server/src/routes/me.ts` | `/quota` 类型跟随 |
+| `src/components/SidebarMenu.vue` | 头像积分按模式显示（watch `usingPersonalKey` 取 Key credits） |
+| `src/views/user/MyQuotaPage.vue` | Key 余额显示真实积分（去「待接口」占位） |
+| `src/views/admin/AdminToApisKey.vue` | 积分改用 `credits`（非 ÷0.035），余额 = credits×0.035 |
+| `src/types/adapter.ts` | 删 `yuanToCredits` |
+
+---
+
 ## 2026-06-15 — 积分与 Key 计费体系（用户自带 Key + 新积分双单位）
 
 ### 背景

@@ -100,11 +100,6 @@ export function creditsToYuan(credits: number): number {
   return Math.round(credits * YUAN_PER_CREDIT * 1000) / 1000
 }
 
-/** 元 → 新积分（保留 1 位小数，余额展示用） */
-export function yuanToCredits(yuan: number): number {
-  return Math.round(yuan / YUAN_PER_CREDIT * 10) / 10
-}
-
 export interface CreditFormatOptions {
   /** 积分数值小数位（默认 1；余额/整数场景传 0） */
   creditDigits?: number

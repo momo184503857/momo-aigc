@@ -98,12 +98,13 @@
 - `PATCH /key-mode` body `{ usePersonalKey }` → 切换模式；`true` 但无 key → 400
 - `DELETE /key` → 删除个人 Key，自动回退共享模式
 - `POST /test` body `{ apiKey }` → `{ ok }`（用传入 key 调 ToAPIs `/v1/models`）
-- `GET /balance` → 用个人 key 查 ToAPIs 余额 `{ balance, credits, currency }`
+- `GET /balance` → 用个人 key 查 ToAPIs token-balance `{ balance, credits, currency }`；`credits`（remain_credits）即该 Key 的「积分」，展示余额 = credits × 0.035（不用 `balance`）。
 
 ### 我的额度 `GET /api/me/quota`（任意登录用户）
 
-聚合返回：`{ platform: { credits, yuan }, recentTransactions: [...最近10条], personalKeyCredits: { credits: number|null, placeholderCNY, currency } | null }`。
-- `personalKeyCredits.credits` 为 `null` 表示 key 新积分待上游接口（当前用 ToAPIs CNY 占位）。
+聚合返回：`{ platform: { credits, yuan }, recentTransactions: [...最近10条], personalKeyCredits: { credits: number|null, currency } | null }`。
+- `platform`：平台积分余额（共享模式消耗），`yuan = credits × 0.035`。
+- `personalKeyCredits`：仅个人 Key 模式返回；`credits` 为该 Key 的积分（取自 ToAPIs token-balance `remain_credits`），`null` 表示获取失败/Key 无效。共享模式下为 `null`。
 
 ### 健康状态 `GET /api/toapis/health`（任意登录用户）
 

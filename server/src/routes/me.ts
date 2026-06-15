@@ -61,7 +61,7 @@ meRouter.get('/quota', authMiddleware, async (req: AuthRequest, res) => {
      FROM points_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 10`
   ).all(userId)
 
-  let personalKeyCredits: { credits: number | null; placeholderCNY: number | null; currency: string } | null = null
+  let personalKeyCredits: { credits: number | null; currency: string } | null = null
   try {
     const resolved = resolveUserApiKey(userId)
     if (resolved.mode === 'personal') {

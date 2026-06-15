@@ -6,12 +6,7 @@
  */
 
 export const YUAN_PER_CREDIT = 0.035
-export const CREDITS_PER_YUAN = 200 / 7 // = 1 / 0.035 ≈ 28.571428571
-
-/** 元 → 新积分（保留 3 位小数；用于历史数据迁移） */
-export function yuanToCredits(yuan: number): number {
-  return Math.round(yuan * CREDITS_PER_YUAN * 1000) / 1000
-}
+export const CREDITS_PER_YUAN = 200 / 7 // = 1 / 0.035 ≈ 28.571428571（迁移 SQL 用 200.0/7.0，此处仅作文档）
 
 /** 新积分 → 元（保留 3 位小数；用于展示折算） */
 export function creditsToYuan(credits: number): number {
@@ -19,23 +14,24 @@ export function creditsToYuan(credits: number): number {
 }
 
 /**
- * 查询某 apiKey 的「新积分」余额。
+ * 查询某 apiKey 的「积分」余额。
  *
- * TODO(待接口)：当前为占位实现 —— 调用 ToAPIs /v1/balance 返回 CNY 余额，
- * credits 字段返回 null 表示「新积分待接口接入」。待用户提供的「获取新积分接口」
- * 到位后，只需替换此函数体；调用方（端点、前端展示）无需改动。
+ * 数据源：ToAPIs token-balance 接口（GET /v1/balance），取其 `credits`（remain_credits）
+ * 字段作为该 Key 的「积分」（主单位/源）。展示用的「余额」= 积分 × 0.035（由调用方换算）。
  *
- * 注意：占位期间前端会标注「新积分待接口」并展示 ToAPIs CNY 余额，
- * **绝不**按 0.035 折算为新积分，以免数值错乱。
+ * 注意：**不**使用 `remain_balance`（CNY 账户余额），**不**做 ÷0.035 反推——
+ * 积分是源，余额是积分 × 0.035 的派生值。
+ *
+ * 失败时 credits 返回 null，调用方按「获取失败/Key 无效」处理。
  */
 export async function fetchKeyCredits(
   apiKey: string
-): Promise<{ credits: number | null; placeholderCNY: number | null; currency: string }> {
+): Promise<{ credits: number | null; currency: string }> {
   try {
     const { getBalance } = await import('./toapis.js')
     const r = await getBalance(apiKey)
-    return { credits: null, placeholderCNY: r.balance, currency: r.currency }
+    return { credits: r.credits ?? 0, currency: r.currency }
   } catch {
-    return { credits: null, placeholderCNY: null, currency: 'CNY' }
+    return { credits: null, currency: 'CNY' }
   }
 }
