@@ -113,7 +113,7 @@ GenerationForm.handleGenerate()
 
 - `generateImage(params, {poll?, import?})` — 一键调用。`poll:true` 时内部轮询并在 DB 写终态（成功→`completed`、失败/超时→`failed`），`import:true` 时附带转存 `result_image_urls`
 
-`SubmitTaskParams` 字段：`model / prompt / size(宽高比) / resolution / refImages[] / featureId / n / userPrompt? / systemPrompt? / supplementaryImages?`。参考图项为 `{url?}` 或 `{file?}`，URL 中 OSS 直传、非 OSS http 先下载再上传、data URL(base64) 先转 File 再上传。
+`SubmitTaskParams` 字段：`model / prompt / size(宽高比) / resolution / refImages[] / featureId / n / userPrompt? / systemPrompt? / supplementaryImages?`。参考图项为 `{url?}` 或 `{file?}`，URL 中 OSS 直传、非 OSS http（含阿里 CDN 等外部图床，**设计上统一中转**——更可靠，CORS 失败时回退原始 URL）先下载再上传、data URL(base64) 先转 File 再上传。
 
 ### 调用方约定
 
