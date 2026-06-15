@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { hashPassword, comparePassword } from '../utils/password.js'
+import { resolveUserApiKey } from '../utils/toapis.js'
+import { fetchKeyCredits, creditsToYuan } from '../utils/credits.js'
 
 export const meRouter = Router()
 
@@ -48,4 +50,32 @@ meRouter.put('/password', authMiddleware, (req: AuthRequest, res) => {
     .run(hash, req.user!.userId)
 
   res.json({ success: true })
+})
+
+// 我的额度：平台新积分余额 + 最近流水 + 个人 key 新积分（占位）
+meRouter.get('/quota', authMiddleware, async (req: AuthRequest, res) => {
+  const userId = req.user!.userId
+  const user = db.prepare('SELECT points FROM users WHERE id = ?').get(userId) as { points: number } | undefined
+  const txns = db.prepare(
+    `SELECT id, amount, balance_after, reason, note, created_at
+     FROM points_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 10`
+  ).all(userId)
+
+  let personalKeyCredits: { credits: number | null; placeholderCNY: number | null; currency: string } | null = null
+  try {
+    const resolved = resolveUserApiKey(userId)
+    if (resolved.mode === 'personal') {
+      personalKeyCredits = await fetchKeyCredits(resolved.key)
+    }
+  } catch { /* ignore key balance fetch errors */ }
+
+  const credits = user?.points ?? 0
+  res.json({
+    success: true,
+    data: {
+      platform: { credits, yuan: creditsToYuan(credits) },
+      recentTransactions: txns,
+      personalKeyCredits,
+    },
+  })
 })

@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { error } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
+import { formatCredits } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 
 interface TxnRow {
@@ -85,15 +86,15 @@ onMounted(() => load())
     <el-table :data="records" v-loading="loading" stripe>
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="username" label="用户" width="120" />
-      <el-table-column label="金额" width="120">
+      <el-table-column label="积分" width="170">
         <template #default="{ row }">
           <span :style="{ color: row.amount >= 0 ? 'var(--el-color-success)' : 'var(--el-color-danger)', fontWeight: 600 }">
-            {{ row.amount >= 0 ? '+' : '' }}{{ row.amount }}
+            {{ row.amount >= 0 ? '+' : '' }}{{ formatCredits(row.amount, { creditsOnly: true }) }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="变动后余额" width="120">
-        <template #default="{ row }">{{ row.balance_after }}</template>
+      <el-table-column label="变动后余额" width="170">
+        <template #default="{ row }">{{ formatCredits(row.balance_after, { creditDigits: 0, yuanDigits: 2 }) }}</template>
       </el-table-column>
       <el-table-column label="原因" width="120">
         <template #default="{ row }">{{ reasonLabel[row.reason] || row.reason }}</template>

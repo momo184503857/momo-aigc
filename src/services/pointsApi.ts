@@ -7,4 +7,7 @@ export const pointsApi = {
   getMyTransactions(page = 1, pageSize = 20) {
     return http.get('/points/me/transactions', { params: { page, pageSize } })
   },
+  getMyQuota() {
+    return http.get('/me/quota')
+  },
 }

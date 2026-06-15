@@ -1,7 +1,11 @@
 import http from './http'
 
 export const toapisProxyApi = {
-  health(): Promise<{ data: { success: boolean; data: { mode: string; sharedKeyConfigured: boolean } } }> {
+  health(): Promise<{ data: { success: boolean; data: {
+    sharedKeyConfigured: boolean
+    personalKeyConfigured: boolean
+    personalKeyActive: boolean
+  } } }> {
     return http.get('/toapis/health')
   },
 

@@ -7,7 +7,7 @@
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import type { ModelId } from '@/types/adapter'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
+import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { photographyApi } from '@/services/photographyApi'
 import type { PhotographyElement } from '@/services/photographyApi'
@@ -265,7 +265,7 @@ function handleRemoveFromElement(elementId: number, poolImageId: string) {
 // ─── Generate ───
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
-  if (!serverStatus.sharedKeyConfigured) return false
+  if (!serverStatus.canGenerate) return false
   // At least one element with an image
   const hasAnyAssignment = Object.values(elementAssignments.value).some(ids => ids.length > 0)
   if (!hasAnyAssignment) return false
@@ -472,8 +472,11 @@ onMounted(() => loadElements())
           <label>数量</label>
           <el-input-number v-model="count" :min="1" :max="5" />
         </div>
-        <div v-if="currentPrice > 0" class="param-item price">
-          <span class="price-tag">{{ currentPrice }} 积分/张</span>
+        <div v-if="serverStatus.usingPersonalKey" class="param-item price">
+          <span class="price-tag">个人 Key · 不消耗积分</span>
+        </div>
+        <div v-else-if="currentPrice > 0" class="param-item price">
+          <span class="price-tag">{{ formatCredits(currentPrice) }} /张</span>
         </div>
       </div>
 
@@ -601,7 +604,7 @@ onMounted(() => loadElements())
           生成图片
         </el-button>
         <span v-if="!canGenerate && serverStatus.loaded" class="gen-hint">
-          {{ serverStatus.sharedKeyConfigured ? '请至少分配一张图片到元素' : '等待服务器配置...' }}
+          {{ serverStatus.canGenerate ? '请至少分配一张图片到元素' : '未配置可用的 API Key...' }}
         </span>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
+import { formatCredits } from '@/types/adapter'
 import {
   MagicStick,
   PictureFilled,
@@ -18,6 +19,8 @@ import {
   Box,
   Camera,
   Goods,
+  Setting,
+  Money,
 } from '@element-plus/icons-vue'
 
 defineProps<{ collapsed?: boolean }>()
@@ -93,6 +96,18 @@ function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+function handleCommand(command: string) {
+  if (command === 'settings') {
+    router.push('/settings')
+  } else if (command === 'my-quota') {
+    router.push('/my-quota')
+  } else if (command === 'pricing') {
+    router.push('/pricing')
+  } else if (command === 'logout') {
+    handleLogout()
+  }
+}
 </script>
 
 <template>
@@ -122,9 +137,9 @@ function handleLogout() {
     <div v-if="auth.user" class="sidebar-user">
       <div class="user-points-row">
         <el-icon :size="14"><Coin /></el-icon>
-        <span v-if="!collapsed" class="user-points-text">{{ auth.user.points }} 积分</span>
+        <span v-if="!collapsed" class="user-points-text">{{ formatCredits(auth.user.points, { creditDigits: 0, yuanDigits: 2 }) }}</span>
       </div>
-      <el-dropdown trigger="click" @command="handleLogout" popper-class="sidebar-user-dropdown">
+      <el-dropdown trigger="click" @command="handleCommand" popper-class="sidebar-user-dropdown">
         <div class="user-account-row">
           <div class="user-avatar">{{ auth.user.username.charAt(0).toUpperCase() }}</div>
           <span v-if="!collapsed" class="user-name">{{ auth.user.username }}</span>
@@ -135,6 +150,9 @@ function handleLogout() {
             <el-dropdown-item disabled>
               {{ auth.user.role === 'admin' ? '管理员' : '用户' }}
             </el-dropdown-item>
+            <el-dropdown-item command="my-quota" :icon="Coin">我的额度</el-dropdown-item>
+            <el-dropdown-item command="pricing" :icon="Money">计费说明</el-dropdown-item>
+            <el-dropdown-item command="settings" :icon="Setting">个人设置</el-dropdown-item>
             <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
           </el-dropdown-menu>
         </template>

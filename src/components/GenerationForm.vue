@@ -6,7 +6,7 @@
 import { ref, computed } from 'vue'
 import { Plus, Delete, Picture, Collection } from '@element-plus/icons-vue'
 import type { ModelId } from '@/types/adapter'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
+import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
@@ -111,7 +111,7 @@ const canAddImage = computed(() => referenceImages.value.length < maxReferenceIm
 	const canGenerate = computed(() => {
 	  if (prompt.value.trim().length === 0 || prompt.value.length > maxPromptChars.value) return false
 	  if (!serverStatus.loaded) return false
-	  if (!serverStatus.sharedKeyConfigured) return false
+	  if (!serverStatus.canGenerate) return false
 	  return true
 	})
 
@@ -312,8 +312,8 @@ defineExpose({ setParams })
 
       <!-- Key missing warning -->
       <el-alert
-        v-if="serverStatus.loaded && !serverStatus.sharedKeyConfigured"
-        title="管理员尚未配置共享 API Key，生图功能暂不可用"
+        v-if="serverStatus.loaded && !serverStatus.canGenerate"
+        title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
         type="warning"
         :closable="false"
         show-icon
@@ -501,7 +501,7 @@ defineExpose({ setParams })
         style="width: 100%"
         @click="handleGenerate"
       >
-        生成图片 · ¥{{ currentPrice.toFixed(3) }}
+        生成图片 · {{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : formatCredits(currentPrice) }}
       </el-button>
     </div>
   </div>

@@ -202,6 +202,21 @@ export function initSchema(): void {
   const insertCfg = db.prepare(`INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)`)
   insertCfg.run('toapis_api_key', '')
 
+  // 用户个人 ToAPIs Key（AES-256-GCM 加密存储，每用户至多一行）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_toapis_keys (
+      user_id            INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      encrypted_key      TEXT NOT NULL,
+      key_iv             TEXT NOT NULL,
+      key_tag            TEXT NOT NULL,
+      key_hint           TEXT NOT NULL DEFAULT '',
+      use_personal_key   INTEGER NOT NULL DEFAULT 0,
+      encryption_version TEXT NOT NULL DEFAULT 'v1',
+      created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+
   // Seed feature prompts for all feature × model combinations
   const featureIds = [
     'change-clothes', 'change-bg', 'change-face',
@@ -398,6 +413,29 @@ export function initSchema(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_batch_user  ON buyer_show_batch_items(user_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_batch_batch ON buyer_show_batch_items(batch_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_batch_task  ON buyer_show_batch_items(task_id);`)
+
+  // ── 一次性数据迁移：元（人民币）→ 新积分（×200/7 ≈ 28.5714）──
+  // 幂等守卫：仅当 system_config.migration_credits_v1 未标记 done 时执行。
+  const migCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'migration_credits_v1'`).get() as { value: string } | undefined
+  if (migCfg?.value !== 'done') {
+    const migTxn = db.transaction(() => {
+      db.exec(`
+        UPDATE users
+          SET points = ROUND(points * 200.0 / 7.0, 3);
+        UPDATE generation_tasks
+          SET points_cost = ROUND(points_cost * 200.0 / 7.0, 3),
+              points_balance_after = CASE WHEN points_balance_after IS NULL THEN NULL
+                                          ELSE ROUND(points_balance_after * 200.0 / 7.0, 3) END;
+        UPDATE points_transactions
+          SET amount = ROUND(amount * 200.0 / 7.0, 3),
+              balance_after = ROUND(balance_after * 200.0 / 7.0, 3);
+      `)
+      db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_credits_v1', 'done')
+                  ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+    })
+    migTxn()
+    console.log('[DB] Migration credits_v1 done (yuan → credits, ×200/7)')
+  }
 
   console.log('[DB] Schema initialized')
 }

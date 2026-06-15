@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { calculateCost } from '../utils/pricing.js'
+import { resolveUserApiKey } from '../utils/toapis.js'
 
 function isOssResultUrl(url: unknown): url is string {
   if (typeof url !== 'string') return false
@@ -118,7 +119,9 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
 
   const userId = req.user!.userId
   const count = n || 1
-  const cost = calculateCost(model, resolution || '', count)
+  // 个人 key 模式不消耗积分（cost=0，跳过余额校验/扣减/流水）
+  const isPersonal = resolveUserApiKey(userId).mode === 'personal'
+  const cost = isPersonal ? 0 : calculateCost(model, resolution || '', count)
 
   try {
     const txn = db.transaction(() => {
@@ -129,7 +132,7 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
       }
 
       const currentBalance = user.points ?? 0
-      if (currentBalance < cost) {
+      if (!isPersonal && currentBalance < cost) {
         throw {
           status: 402,
           error: `积分不足，需要 ${cost} 积分，当前仅有 ${Math.round(currentBalance * 1000) / 1000} 积分`,
@@ -139,7 +142,7 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
 
       const newBalance = Math.round((currentBalance - cost) * 1000) / 1000
 
-      // Insert task
+      // Insert task（个人模式 points_cost 记 0，仍写记录保证任务列表可见）
       const result = db.prepare(`
         INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt, points_cost, points_balance_after, supplementary_images)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -158,15 +161,16 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
 
       const taskId = result.lastInsertRowid
 
-      // Deduct points
-      db.prepare('UPDATE users SET points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-        .run(newBalance, userId)
+      // 仅共享模式扣减积分 + 写流水（个人模式不消耗积分）
+      if (!isPersonal) {
+        db.prepare('UPDATE users SET points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .run(newBalance, userId)
 
-      // Record transaction
-      db.prepare(`
-        INSERT INTO points_transactions (user_id, amount, balance_after, reason, reference_type, reference_id, note, created_at)
-        VALUES (?, ?, ?, 'generation', 'generation_task', ?, '', CURRENT_TIMESTAMP)
-      `).run(userId, -cost, newBalance, taskId)
+        db.prepare(`
+          INSERT INTO points_transactions (user_id, amount, balance_after, reason, reference_type, reference_id, note, created_at)
+          VALUES (?, ?, ?, 'generation', 'generation_task', ?, '', CURRENT_TIMESTAMP)
+        `).run(userId, -cost, newBalance, taskId)
+      }
 
       return taskId
     })

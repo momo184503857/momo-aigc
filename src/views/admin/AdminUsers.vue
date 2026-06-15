@@ -5,6 +5,7 @@ import { Search } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
+import { formatCredits } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 import { UiNumberInput } from '@/components/ui'
 
@@ -310,10 +311,10 @@ onMounted(() => {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="积分" width="100">
+      <el-table-column label="积分" width="170">
         <template #default="{ row }">
           <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'var(--el-color-primary)', fontWeight: 600 }">
-            {{ row.points }}
+            {{ formatCredits(row.points, { creditDigits: 0, yuanDigits: 2 }) }}
           </span>
         </template>
       </el-table-column>
@@ -427,7 +428,7 @@ onMounted(() => {
     <!-- Points Adjustment Dialog -->
     <el-dialog v-model="pointsVisible" :title="`调整积分 - ${pointsUsername}`" width="400px">
       <el-form>
-        <el-form-item label="金额">
+        <el-form-item label="积分">
           <UiNumberInput v-model="pointsAmount" :precision="3" :step="1" />
         </el-form-item>
         <el-form-item label="备注">

@@ -16,6 +16,7 @@ import { featurePromptsRouter, adminFeaturePromptsRouter } from './routes/featur
 import { proxyRouter } from './routes/proxy.js'
 import { toapisProxyRouter } from './routes/toapis-proxy.js'
 import { adminToapisKeyRouter } from './routes/admin/toapis-key.js'
+import { meToapisKeyRouter } from './routes/me-toapis-key.js'
 import { pointsRouter, adminPointsRouter } from './routes/points.js'
 import { canvasRouter } from './routes/canvas.js'
 import { canvasAiRouter } from './routes/canvas-ai.js'
@@ -36,6 +37,7 @@ seed()
 // Routes
 app.use('/api/auth', authRouter)
 app.use('/api/me', meRouter)
+app.use('/api/me/toapis', meToapisKeyRouter)
 app.use('/api/oss', ossRouter)
 app.use('/api/templates', templatesRouter)
 app.use('/api/tasks', tasksRouter)

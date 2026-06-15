@@ -6,7 +6,8 @@
 
 | 业务域 | 文件 | 状态 |
 |------|------|------|
-| 产品总览 PRD | [`prd.md`](./prd.md) | v1.0 |
+| 产品总览 PRD | [`prd.md`](./prd.md) | v1.0（Key/计费部分已被 `billing.md` 取代） |
+| 积分与 Key 计费体系 | [`billing.md`](./billing.md) | 已实现·后端已验证 / key 新积分接口待接入 |
 | AI 买家秀 | [`buyer-show.md`](./buyer-show.md) | 素材库已实现·已验证 / 制作买家秀 待验证 |
 
 ## 新建业务域

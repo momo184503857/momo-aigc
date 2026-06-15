@@ -214,8 +214,8 @@ export function useTaskManager() {
     systemPrompt?: string
     supplementaryImages?: { name: string; url: string }[]
   }) {
-    if (!serverStatus.sharedKeyConfigured) {
-      warning('管理员尚未配置共享 API Key')
+    if (!serverStatus.canGenerate) {
+      warning('未配置可用的 API Key（共享/个人均未配置）')
       return
     }
 

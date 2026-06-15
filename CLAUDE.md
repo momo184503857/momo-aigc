@@ -22,16 +22,30 @@ The backend must be running for the frontend to work — Vite proxies `/api` to 
 - **Backend**: Express + TypeScript + better-sqlite3 + JWT auth + multer
 - **External services**: ToAPIs (AI image generation API relay), Alibaba Cloud OSS (image storage)
 
-### Dual-Mode API Key System
+### API Key System (Shared + Personal)
 
-The most important architectural pattern. The app has two operating modes controlled by the admin:
+All ToAPIs calls are proxied through Express (`/api/toapis/*`); the browser never calls ToAPIs directly. Which key the proxy uses depends on the requesting user:
 
-| Mode | Where key lives | How ToAPIs is called |
-|------|----------------|---------------------|
-| **User mode** | Browser localStorage (XOR-obfuscated, `src/utils/crypto.ts`) | Browser calls `toapis.com` directly via `fetch()` |
-| **Shared mode** | Server SQLite `system_config` table | Browser calls `/api/toapis/*`, Express proxies to ToAPIs |
+| Mode | Where the key lives | Points |
+|------|---------------------|--------|
+| **Shared** (default) | Server `system_config.toapis_api_key`, configured by admin in `/admin/toapis-key` | Consumed per `pricing.ts` on each generation |
+| **Personal** (opt-in per user) | Server `user_toapis_keys` (AES-256-GCM encrypted, see `server/src/utils/crypto.ts`), configured by the user in `/settings` | **Not consumed** — billed to the user's own ToAPIs account |
 
-The mode is determined by `src/stores/serverStatus.ts` which calls `GET /api/toapis/health` on startup. The adapter in `src/adapter/toapisClient.ts` checks `isSharedMode()` before each API call and routes accordingly. Task polling (every 4 seconds in `WorkspacePage.vue`) follows the same dual-mode path.
+- The proxy resolves the key per request via `resolveUserApiKey(userId)` in `server/src/utils/toapis.ts`: personal key (when enabled) wins, otherwise the shared key.
+- `GET /api/toapis/health` returns `{ sharedKeyConfigured, personalKeyConfigured, personalKeyActive }` for the current user; `src/stores/serverStatus.ts` exposes computed `canGenerate` (= either key usable) and `usingPersonalKey` (used to hide points UI and skip balance checks across all generation forms).
+- Personal-key CRUD lives under `/api/me/toapis/*` (`server/src/routes/me-toapis-key.ts`): `GET/PUT/DELETE /key`, `PATCH /key-mode`, `POST /test`, `GET /balance`.
+- Billing branch: `server/src/routes/tasks.ts` `POST /` skips balance check / deduction / `points_transactions` when the user is in personal mode (still writes the `generation_tasks` row with `points_cost=0`).
+
+### Credits System (新积分)
+
+Storage and billing are in **新积分 (credits)**; **1 credit = ¥0.035 RMB**. The RMB value is always shown parenthetically.
+
+- Conversion: `server/src/utils/credits.ts` (`YUAN_PER_CREDIT=0.035`, `creditsToYuan`, `yuanToCredits`) + frontend mirror `src/types/adapter.ts` (`formatCredits(c, opts?)` — every display calls this, never hand-write `×0.035`).
+- Pricing (`server/src/utils/pricing.ts` + `src/types/adapter.ts` `MODELS[].pricing`) is in credits (integers: gpt-image-2 `1K:3/2K:4/4K:5`; gemini-3-pro `1K:10/2K:10/4K:20`; gemini-3.1-flash `×:5`; gemini-2.5-flash `1K:2.4`). `calculateCost`/`getPrice` logic is unit-agnostic.
+- `users.points`, `points_transactions.{amount,balance_after}`, `generation_tasks.{points_cost,points_balance_after}` all store credits. A one-time idempotent migration (`system_config.migration_credits_v1`) multiplied legacy 元 values by `200/7`.
+- Admin recharge (`/api/admin/users/:id/points`) and user quota (`GET /api/me/quota`) are in credits.
+- **Key credits**: each key's 新积分 comes from a TBD upstream API; `fetchKeyCredits()` in `credits.ts` is a placeholder (returns ToAPIs CNY with `credits=null`, shown as "新积分待接口"). ToAPIs `credits` (1 USD = 200 credits) is unrelated — labeled "credits" in UI, never ×0.035.
+- 「我的额度」(`/my-quota`) + 「计费说明」(`/pricing`) pages live under the avatar dropdown.
 
 ### Frontend Data Flow
 
@@ -43,8 +57,9 @@ Vue Component → service (Axios, baseURL=/api) → Express route → SQLite
 
 - `src/services/http.ts` — Axios instance, attaches JWT Bearer token, 401 → redirect to `/login`
 - `src/stores/auth.ts` — token + user state, persisted to localStorage as `auth_token`
-- `src/stores/keyConfig.ts` — user's personal ToAPIs key (XOR-obfuscated in localStorage)
-- `src/adapter/toapisClient.ts` — dual-mode dispatch: direct fetch vs `/api/toapis` proxy
+- `src/stores/serverStatus.ts` — key-mode state (`canGenerate` / `usingPersonalKey`) from `GET /api/toapis/health`
+- `src/services/userKeyApi.ts` — personal-key CRUD/test/balance (`/api/me/toapis/*`)
+- `src/adapter/toapisClient.ts` — thin client over `/api/toapis/*` proxy
 
 ### Backend Structure
 

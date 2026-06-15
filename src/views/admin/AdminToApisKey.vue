@@ -5,6 +5,7 @@ const { success, warning, error } = useUiFeedback()
 import http from '@/services/http'
 import { adminApi } from '@/services/adminApi'
 import { Key, CreditCard } from '@element-plus/icons-vue'
+import { yuanToCredits } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 
 defineOptions({ name: 'AdminToApisKey' })
@@ -168,8 +169,8 @@ onMounted(() => loadConfig())
             </div>
             <div class="balance-body">
               <div v-if="userRemainCNY !== null" class="balance-value">
-                <span class="balance-amount" :class="{ danger: userRemainCNY <= 0 }">¥{{ userRemainCNY }}</span>
-                <span v-if="userRemainCredits !== null" class="balance-credits">{{ userRemainCredits }} 积分</span>
+                <span class="balance-amount" :class="{ danger: userRemainCNY <= 0 }">{{ yuanToCredits(userRemainCNY) }} 积分</span>
+                <span class="balance-credits">¥{{ userRemainCNY }}</span>
               </div>
               <div v-else class="balance-unknown">--</div>
             </div>
@@ -183,8 +184,8 @@ onMounted(() => loadConfig())
             </div>
             <div class="balance-body">
               <div v-if="tokenRemainCNY !== null" class="balance-value">
-                <span class="balance-amount" :class="{ danger: tokenRemainCNY <= 0 }">¥{{ tokenRemainCNY }}</span>
-                <span v-if="tokenRemainCredits !== null" class="balance-credits">{{ tokenRemainCredits }} 积分</span>
+                <span class="balance-amount" :class="{ danger: tokenRemainCNY <= 0 }">{{ yuanToCredits(tokenRemainCNY) }} 积分</span>
+                <span class="balance-credits">¥{{ tokenRemainCNY }}</span>
               </div>
               <div v-else class="balance-unknown">--</div>
             </div>

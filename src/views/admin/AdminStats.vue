@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { error } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
+import { formatCredits } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 
 interface StatRow {
@@ -139,13 +140,13 @@ onMounted(() => loadAll())
           <el-statistic title="总失败" :value="summary.total_failed" />
         </el-col>
         <el-col :span="4">
-          <el-statistic title="积分消耗" :value="summary.total_points_consumed" :precision="2" />
+          <el-statistic title="积分消耗" :value="summary.total_points_consumed" :precision="0" />
         </el-col>
         <el-col :span="4">
           <el-statistic title="活跃用户" :value="summary.active_users" />
         </el-col>
         <el-col :span="4">
-          <el-statistic title="总积分余额" :value="summary.total_balance" :precision="2" />
+          <el-statistic title="总积分余额" :value="summary.total_balance" :precision="0" />
         </el-col>
       </el-row>
 
@@ -190,15 +191,17 @@ onMounted(() => loadAll())
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="积分" width="100">
+        <el-table-column label="积分" width="170">
           <template #default="{ row }">
-            <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'inherit' }">{{ row.points }}</span>
+            <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'inherit' }">{{ formatCredits(row.points, { creditDigits: 0, yuanDigits: 2 }) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="提交" prop="submitted_count" sortable width="80" />
         <el-table-column label="成功" prop="completed_count" sortable width="80" />
         <el-table-column label="失败" prop="failed_count" sortable width="80" />
-        <el-table-column label="积分消耗" prop="total_cost" sortable width="100" />
+        <el-table-column label="积分消耗" sortable width="170">
+          <template #default="{ row }">{{ formatCredits(row.total_cost, { creditDigits: 0, yuanDigits: 2 }) }}</template>
+        </el-table-column>
         <el-table-column label="最近提交" width="140">
           <template #default="{ row }">{{ row.last_submitted_at?.slice(0, 16) || '-' }}</template>
         </el-table-column>

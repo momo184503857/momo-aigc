@@ -25,6 +25,7 @@ docs/
 | 业务域 | 文件 |
 |------|------|
 | 产品总览 PRD | `requirements/prd.md` |
+| 积分与 Key 计费体系 | `requirements/billing.md` |
 | AI 买家秀 | `requirements/buyer-show.md` |
 
 ### 历史记录（`records/`）

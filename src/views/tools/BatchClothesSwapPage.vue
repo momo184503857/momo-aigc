@@ -11,7 +11,7 @@ import { pointsApi } from '@/services/pointsApi'
 import { submitTask } from '@/services/imageGeneration'
 import { uploadImage } from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
+import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
 import type { ModelId } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 import ImageSlotUpload from '@/components/ImageSlotUpload.vue'
@@ -78,7 +78,7 @@ function handleResolutionChange() {
 
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
-  if (!serverStatus.sharedKeyConfigured) return false
+  if (!serverStatus.canGenerate) return false
   if (modelImages.value.length === 0) return false
   if (garmentImages.value.length === 0) return false
   return true
@@ -138,7 +138,7 @@ async function handleGenerate() {
 
   try {
     await ElMessageBox.confirm(
-      `模特图：${count} 张\n衣服图：1 张\n任务数量：${count} 个\n预计消耗：${total} 积分`,
+      `模特图：${count} 张\n衣服图：1 张\n任务数量：${count} 个\n预计消耗：${formatCredits(total)}`,
       '确认提交',
       {
         confirmButtonText: '确认提交',
@@ -151,15 +151,17 @@ async function handleGenerate() {
     return // cancelled
   }
 
-  // Check balance
-  try {
-    const res = await pointsApi.getMyBalance()
-    const balance = res.data.data?.balance ?? 0
-    if (balance < total) {
-      warning(`积分不足，需要 ${total} 积分，当前仅有 ${balance} 积分`)
-      return
-    }
-  } catch { /* proceed, server will check */ }
+  // Check balance（个人 Key 模式不消耗积分，跳过校验）
+  if (!serverStatus.usingPersonalKey) {
+    try {
+      const res = await pointsApi.getMyBalance()
+      const balance = res.data.data?.balance ?? 0
+      if (balance < total) {
+        warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
+        return
+      }
+    } catch { /* proceed, server will check */ }
+  }
 
   const prompt = buildFullPrompt()
   // 衣服图（所有任务共用）：循环外解析为 OSS URL 一次，避免重复上传
@@ -231,8 +233,8 @@ onMounted(() => {
       <div class="form-scroll-area">
         <!-- API Key warning -->
         <el-alert
-          v-if="serverStatus.loaded && !serverStatus.sharedKeyConfigured"
-          title="管理员尚未配置共享 API Key，生图功能暂不可用"
+          v-if="serverStatus.loaded && !serverStatus.canGenerate"
+          title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
           type="warning"
           show-icon
           :closable="false"
@@ -325,7 +327,7 @@ onMounted(() => {
           style="width: 100%"
           @click="handleGenerate"
         >
-          批量生成 · {{ taskCount }} 个任务 · ¥{{ totalCost.toFixed(3) }}
+          批量生成 · {{ taskCount }} 个任务 · {{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : formatCredits(totalCost) }}
         </el-button>
       </div>
     </div>

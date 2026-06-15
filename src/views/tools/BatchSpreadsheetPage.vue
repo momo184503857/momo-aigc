@@ -12,7 +12,7 @@ import { pointsApi } from '@/services/pointsApi'
 import { submitTask, importResultUrls } from '@/services/imageGeneration'
 import { getTaskStatus } from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
+import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
 import type { ModelId } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 
@@ -196,8 +196,11 @@ async function handleGenerate() {
   const total = Math.round(unitPrice.value * count * 1000) / 1000
 
   try {
+    const costText = serverStatus.usingPersonalKey
+      ? '使用个人 Key，不消耗积分'
+      : `预计消耗：${formatCredits(total)}`
     await ElMessageBox.confirm(
-      `选中任务：${count} 个\n预计消耗：${total} 积分`,
+      `选中任务：${count} 个\n${costText}`,
       '确认提交',
       {
         confirmButtonText: '确认提交',
@@ -207,15 +210,17 @@ async function handleGenerate() {
     )
   } catch { return }
 
-  // Check balance
-  try {
-    const res = await pointsApi.getMyBalance()
-    const balance = res.data.data?.balance ?? 0
-    if (balance < total) {
-      warning(`积分不足，需要 ${total} 积分，当前仅有 ${balance} 积分`)
-      return
-    }
-  } catch { /* proceed */ }
+  // Check balance（个人 Key 模式不消耗积分，跳过校验）
+  if (!serverStatus.usingPersonalKey) {
+    try {
+      const res = await pointsApi.getMyBalance()
+      const balance = res.data.data?.balance ?? 0
+      if (balance < total) {
+        warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
+        return
+      }
+    } catch { /* proceed */ }
+  }
 
   // Filter to selected rows
   const toSubmit = tableData.value.filter(r => r.selected)
@@ -428,8 +433,8 @@ onUnmounted(() => {
     <!-- Step 1: Upload -->
     <div v-if="step === 'upload'" class="step-upload">
       <el-alert
-        v-if="serverStatus.loaded && !serverStatus.sharedKeyConfigured"
-        title="管理员尚未配置共享 API Key，生图功能暂不可用"
+        v-if="serverStatus.loaded && !serverStatus.canGenerate"
+        title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
         type="warning" show-icon :closable="false" style="margin-bottom: 16px"
       />
 
@@ -488,7 +493,7 @@ onUnmounted(() => {
       <div class="preview-footer">
         <el-button @click="step = 'upload'">重新上传</el-button>
         <el-button type="primary" :disabled="selectedCount === 0" @click="handleGenerate">
-          开始生成 · {{ selectedCount }} 个任务 · ¥{{ (unitPrice * selectedCount).toFixed(3) }}
+          开始生成 · {{ selectedCount }} 个任务 · {{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : formatCredits(unitPrice * selectedCount) }}
         </el-button>
       </div>
     </div>

@@ -128,3 +128,50 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 索引：`user_id`、`batch_id`、`task_id`。
 
 > `model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` 等字段**不在本表**：`GET /items` 通过 `LEFT JOIN generation_tasks` 取得（本行有 `task_id` 时以任务状态/结果为准）。无需补 migration。
+
+---
+
+## 积分与 Key 计费体系
+
+### user_toapis_keys
+
+用户自带的 ToAPIs 个人 Key（服务端 AES-256-GCM 加密存储），每用户至多一行。详见 `docs/requirements/billing.md`。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| user_id | INTEGER PK, FK → users(id) ON DELETE CASCADE | 所属用户（主键天然防并发） |
+| encrypted_key | TEXT NOT NULL | base64 密文 |
+| key_iv | TEXT NOT NULL | base64 GCM IV（12B） |
+| key_tag | TEXT NOT NULL | base64 GCM auth tag |
+| key_hint | TEXT DEFAULT '' | 脱敏提示，如 `sk-t****7890` |
+| use_personal_key | INTEGER DEFAULT 0 | 0=用共享 Key，1=用个人 Key |
+| encryption_version | TEXT DEFAULT 'v1' | 加密版本（密钥轮换用） |
+| created_at / updated_at | TIMESTAMP | |
+
+加密密钥来源：优先 env `ENCRYPTION_KEY`（32B hex）；缺失时从 `JWT_SECRET` HKDF-SHA256 派生兜底。
+
+### users.points（语义：新积分）
+
+`points`（REAL，默认 0）为用户**新积分**余额。`1 新积分 = ¥0.035`。
+
+**历史迁移**：曾以「元（人民币）」为存储单位；一次性幂等迁移 `system_config.migration_credits_v1` 已将 `users.points`、`generation_tasks.{points_cost, points_balance_after}`、`points_transactions.{amount, balance_after}` 全部 `×(200/7)` 转为新积分（启动时执行，标志位守卫，已 done 则跳过）。`toapis_balance_history.balance`（ToAPIs CNY 快照）不迁移。
+
+### points_transactions
+
+积分流水。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK | |
+| user_id | INTEGER FK → users(id) | |
+| amount | REAL | 带符号（新积分），充值正、扣费负 |
+| balance_after | REAL | 变动后余额（新积分） |
+| reason | TEXT | `generation` / `admin_recharge` / `admin_deduct` |
+| reference_type | VARCHAR | 如 `generation_task` / `admin` |
+| reference_id | INTEGER | 关联任务/管理员 id |
+| operator_id | INTEGER FK → users(id) | 操作者（管理员调账时） |
+| note | TEXT | 备注 |
+| created_at | TIMESTAMP | |
+
+索引：`user_id`、`created_at`、`reason`。
+

@@ -24,7 +24,7 @@ import { getTaskStatus } from '@/adapter/toapisClient'
 import { buyerShowBatchApi } from '@/services/buyerShowBatchApi'
 import type { BatchItemRow } from '@/services/buyerShowBatchApi'
 import { translateError } from '@/utils/errors'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, getAspectRatios, getPrice } from '@/types/adapter'
+import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
 import type { ModelId } from '@/types/adapter'
 import { UiImagePreview, UiEmptyState } from '@/components/ui'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
@@ -277,21 +277,27 @@ async function handleGenerate() {
   const count = submittableCount.value
   const total = estimateCost.value
   try {
+    const costText = serverStatus.usingPersonalKey
+      ? '使用个人 Key，不消耗积分'
+      : `预计消耗：${formatCredits(total)}`
     await ElMessageBox.confirm(
-      `选中待生成：${count} 个 × ${countN.value} 张\n预计消耗：${total} 积分`,
+      `选中待生成：${count} 个 × ${countN.value} 张\n${costText}`,
       '确认生成',
       { confirmButtonText: '确认生成', cancelButtonText: '取消', type: 'info' }
     )
   } catch { return }
 
-  try {
-    const res = await pointsApi.getMyBalance()
-    const balance = res.data.data?.balance ?? 0
-    if (balance < total) {
-      warning(`积分不足，需要 ${total} 积分，当前仅有 ${balance} 积分`)
-      return
-    }
-  } catch { /* proceed */ }
+  // Check balance（个人 Key 模式不消耗积分，跳过校验）
+  if (!serverStatus.usingPersonalKey) {
+    try {
+      const res = await pointsApi.getMyBalance()
+      const balance = res.data.data?.balance ?? 0
+      if (balance < total) {
+        warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
+        return
+      }
+    } catch { /* proceed */ }
+  }
 
   const toSubmit = [...submittableRows.value]
   isGenerating.value = true
@@ -658,8 +664,8 @@ onUnmounted(() => {
 <template>
   <div class="bs-panel">
     <el-alert
-      v-if="serverStatus.loaded && !serverStatus.sharedKeyConfigured"
-      title="管理员尚未配置共享 API Key，生图功能暂不可用"
+      v-if="serverStatus.loaded && !serverStatus.canGenerate"
+      title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
       type="warning" show-icon :closable="false" class="bs-alert"
     />
 
@@ -710,7 +716,7 @@ onUnmounted(() => {
         </div>
 
         <div class="bs-submit">
-          <span v-if="submittableCount > 0" class="bs-cost">预计 ¥{{ estimateCost.toFixed(3) }}</span>
+          <span v-if="submittableCount > 0" class="bs-cost">{{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : '预计 ' + formatCredits(estimateCost) }}</span>
           <el-button
             type="primary" :icon="MagicStick" :loading="isGenerating"
             :disabled="submittableCount === 0" @click="handleGenerate"

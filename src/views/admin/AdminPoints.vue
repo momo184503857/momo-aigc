@@ -4,6 +4,7 @@ import { ref, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
+import { formatCredits } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 import { UiNumberInput } from '@/components/ui'
 
@@ -117,21 +118,21 @@ onMounted(() => loadUsers())
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="当前积分" width="120">
+      <el-table-column label="当前积分" width="170">
         <template #default="{ row }">
           <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'var(--el-color-primary)', fontWeight: 600, fontSize: '16px' }">
-            {{ row.points }}
+            {{ formatCredits(row.points, { creditDigits: 0, yuanDigits: 2 }) }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="累计消耗" width="120">
+      <el-table-column label="累计消耗" width="170">
         <template #default="{ row }">
-          <span style="color:var(--el-color-danger)">-{{ Math.abs(row.total_spent || 0) }}</span>
+          <span style="color:var(--el-color-danger)">-{{ formatCredits(Math.abs(row.total_spent || 0), { creditDigits: 0, yuanDigits: 2 }) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="累计充值" width="120">
+      <el-table-column label="累计充值" width="170">
         <template #default="{ row }">
-          <span style="color:var(--el-color-success)">+{{ row.total_recharged || 0 }}</span>
+          <span style="color:var(--el-color-success)">+{{ formatCredits(row.total_recharged || 0, { creditDigits: 0, yuanDigits: 2 }) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="提交次数" width="90" prop="submitted_count" />
@@ -146,7 +147,7 @@ onMounted(() => loadUsers())
     <!-- Points dialog -->
     <el-dialog v-model="pointsVisible" :title="`调整积分 - ${pointsUsername}`" width="400px">
       <el-form>
-        <el-form-item label="金额（正数充值，负数扣减）">
+        <el-form-item label="积分（正数充值，负数扣减，1 积分=¥0.035）">
           <UiNumberInput v-model="pointsAmount" :precision="3" :step="1" />
         </el-form-item>
         <el-form-item label="备注">

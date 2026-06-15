@@ -64,6 +64,24 @@ const router = createRouter({
       meta: { title: 'AI买家秀', requiresAuth: true },
     },
     {
+      path: '/settings',
+      name: 'UserSettings',
+      component: () => import('@/views/user/UserSettingsPage.vue'),
+      meta: { title: '个人设置', requiresAuth: true },
+    },
+    {
+      path: '/my-quota',
+      name: 'MyQuota',
+      component: () => import('@/views/user/MyQuotaPage.vue'),
+      meta: { title: '我的额度', requiresAuth: true },
+    },
+    {
+      path: '/pricing',
+      name: 'Pricing',
+      component: () => import('@/views/user/PricingPage.vue'),
+      meta: { title: '计费说明', requiresAuth: true },
+    },
+    {
       path: '/toolbox/batch-clothes-swap',
       name: 'BatchClothesSwap',
       component: () => import('@/views/tools/BatchClothesSwapPage.vue'),

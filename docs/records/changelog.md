@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-06-15 — 积分与 Key 计费体系（用户自带 Key + 新积分双单位）
+
+### 背景
+
+原系统只有「管理员共享 Key + 积分（实为元）」一种模式，且「积分」「元」1:1 混用、与 ToAPIs `credits` 撞名。两轮改动合并落地一套完整的计费体系：① 允许用户自带 Key（不消耗平台积分）；② 计费统一为「新积分」（1 新积分 = ¥0.035），元作为副单位展示。权威需求见 `docs/requirements/billing.md`。
+
+### 变更
+
+- **用户自带 Key（改动一）**：新增 `user_toapis_keys` 表（AES-256-GCM 服务端加密存储）、`/api/me/toapis/*` 端点（key-config / key / key-mode / test / balance）、`resolveUserApiKey(userId)` 按用户解析 Key；`toapis-proxy` 的 create-task / task-status / upload 改用解析到的 Key；`/api/toapis/health` 增返 `personalKeyConfigured` / `personalKeyActive`。`POST /api/tasks` 个人模式 `cost=0` 跳过余额校验/扣减/流水，仍写任务记录。前端 `serverStatus` 增 `canGenerate` / `usingPersonalKey`；新增 `/settings` 页（个人 Key 配置 + 模式切换）；9 处生成开关、6 处价格文案、4 处批量余额校验按个人模式放宽/隐藏。
+- **新积分体系（改动二）**：存储与扣费统一改为「新积分」。`pricing.ts` + `adapter.ts` 定价改整数（3/4/5/10/20，2.5-flash=2.4）；`calculateCost`/扣费逻辑零改动（语义跟随列）。一次性幂等迁移 `migration_credits_v1`（`×200/7`）转换 `users.points` / `points_transactions` / `generation_tasks` 历史数据（`toapis_balance_history` 不迁）。新增 `credits.ts`（常量 + 换算 + `fetchKeyCredits` 占位）、`/api/me/quota` 聚合端点、前端 `formatCredits()` 统一双显、21 处展示统一改写。新增 `/my-quota`、`/pricing` 两页 + 头像下拉入口。
+- **顺手修复**：`BatchSpreadsheetPage` 按钮缺失的 `usingPersonalKey` 分支；`AdminToApisKey` / `UserSettingsPage` 的 ToAPIs `credits` 文案「积分」→「credits」避免与新积分撞名。
+- **安全**：新增 env `ENCRYPTION_KEY`（缺失时从 `JWT_SECRET` HKDF 派生兜底，不破坏已有部署）。
+
+### 边界（维持现状）
+
+- 计费在任务创建时扣除，**失败不退款**（与买家秀一致）。
+- `canvas-ai` 文字模型不接入个人 Key。
+- Key 的「新积分」由独立上游接口提供，**待接入**（当前 `fetchKeyCredits()` 占位返回 ToAPIs CNY，标注「新积分待接口」）。
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `server/src/utils/credits.ts` | 新增 — 换算常量 + `fetchKeyCredits` 占位 |
+| `server/src/utils/crypto.ts` | 新增 — AES-256-GCM 加解密 |
+| `server/src/utils/toapis.ts` | `createTask/getTaskStatus/uploadImage/getBalance` 加可选 `apiKey`；`resolveUserApiKey` |
+| `server/src/utils/pricing.ts` | 定价改新积分整数 |
+| `server/src/routes/me-toapis-key.ts` | 新增 — 用户 Key CRUD/test/balance |
+| `server/src/routes/me.ts` | 新增 `GET /quota` |
+| `server/src/routes/toapis-proxy.ts` | 按用户取 Key；`/health` 增字段 |
+| `server/src/routes/tasks.ts` | 个人模式 cost=0 分支 |
+| `server/src/db/schema.ts` | `user_toapis_keys` 表 + `migration_credits_v1` 迁移 |
+| `server/src/config.ts` / `.env.example` | `ENCRYPTION_KEY` |
+| `src/types/adapter.ts` | 定价改新积分 + `formatCredits` / `creditsToYuan` |
+| `src/stores/serverStatus.ts` | `canGenerate` / `usingPersonalKey` |
+| `src/services/{userKeyApi,pointsApi}.ts` | 用户 Key API + `getMyQuota` |
+| `src/views/user/{UserSettingsPage,MyQuotaPage,PricingPage}.vue` | 新增三页 |
+| `src/components/{SidebarMenu,GenerationForm,FeatureForm,PhotographyForm,TaskPanel}.vue`、`src/views/tools/Batch*.vue`、`src/views/buyer-show/MakeBuyerShowPanel.vue`、`src/views/admin/*` | 展示统一 `formatCredits` 双显 + 个人模式分支 |
+| `src/router/index.ts` | `/settings` `/my-quota` `/pricing` |
+
+### 数据库变更
+
+- 新表 `user_toapis_keys`（user_id PK, encrypted_key, key_iv, key_tag, key_hint, use_personal_key, encryption_version, timestamps）。
+- 一次性迁移：`users.points` / `generation_tasks.{points_cost,points_balance_after}` / `points_transactions.{amount,balance_after}` ×(200/7)（`system_config.migration_credits_v1` 守卫）。
+
+---
+
 ## 2026-06-15 — AI 生图模块重构为三层架构（高内聚低耦合）
 
 ### 背景

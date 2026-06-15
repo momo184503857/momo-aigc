@@ -84,3 +84,37 @@
 - Body：`{ filename, mimeType, sizeBytes, scope }`，`scope ∈ { inputs, templates, materials }`
 - Response：`data: { uploadUrl, objectKey, publicUrl, ossBucket, fields }`
 - 素材库使用 `scope = 'materials'`，objectKey 前缀 `materials/<userId>/<yyyy>/<mm>/<uuid>.<ext>`。
+
+---
+
+## 积分与 Key 计费体系
+
+> 计费主单位为「新积分」，`1 新积分 = ¥0.035`。详见 `docs/requirements/billing.md`。
+
+### 用户个人 Key `/api/me/toapis`（任意登录用户）
+
+- `GET /key-config` → `{ hasPersonalKey, keyHint, usePersonalKey, sharedKeyConfigured }`
+- `PUT /key` body `{ apiKey }` → 加密存储（**不**自动切换模式）
+- `PATCH /key-mode` body `{ usePersonalKey }` → 切换模式；`true` 但无 key → 400
+- `DELETE /key` → 删除个人 Key，自动回退共享模式
+- `POST /test` body `{ apiKey }` → `{ ok }`（用传入 key 调 ToAPIs `/v1/models`）
+- `GET /balance` → 用个人 key 查 ToAPIs 余额 `{ balance, credits, currency }`
+
+### 我的额度 `GET /api/me/quota`（任意登录用户）
+
+聚合返回：`{ platform: { credits, yuan }, recentTransactions: [...最近10条], personalKeyCredits: { credits: number|null, placeholderCNY, currency } | null }`。
+- `personalKeyCredits.credits` 为 `null` 表示 key 新积分待上游接口（当前用 ToAPIs CNY 占位）。
+
+### 健康状态 `GET /api/toapis/health`（任意登录用户）
+
+返回 `{ sharedKeyConfigured, personalKeyConfigured, personalKeyActive }`（当前用户维度）。
+
+### 余额与流水
+
+- `GET /api/points/me` → `{ balance, total_spent, total_recharged }`（新积分）
+- `GET /api/points/me/transactions?page&pageSize` → 分页流水（amount/balance_after 均为新积分）
+
+### 管理员调账 `POST /api/admin/users/:id/points`（auth + admin）
+
+body `{ amount, note }`，`amount` 为**新积分**（正充值、负扣减）。写 `points_transactions`（reason=`admin_recharge`/`admin_deduct`）。
+

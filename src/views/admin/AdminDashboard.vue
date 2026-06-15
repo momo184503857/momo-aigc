@@ -4,7 +4,7 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import PageLayout from '@/components/PageLayout.vue'
-import { MODELS } from '@/types/adapter'
+import { MODELS, formatCredits } from '@/types/adapter'
 import { DataAnalysis, CircleCheck, CircleClose, Coin, User, Wallet } from '@element-plus/icons-vue'
 
 defineOptions({ name: 'AdminDashboard' })
@@ -444,7 +444,7 @@ const tabLabel = computed(() => {
             </div>
             <div class="summary-card">
               <div class="sc-icon" style="background:var(--el-color-warning-light-9)"><el-icon size="22" color="var(--el-color-warning)"><Coin /></el-icon></div>
-              <div class="sc-body"><div class="sc-value">{{ summary.total_points_consumed.toFixed(1) }}</div><div class="sc-label">积分消耗</div></div>
+              <div class="sc-body"><div class="sc-value">{{ formatCredits(summary.total_points_consumed, { creditDigits: 0, yuanDigits: 2 }) }}</div><div class="sc-label">积分消耗</div></div>
             </div>
             <div class="summary-card">
               <div class="sc-icon" style="background:#f3e8ff"><el-icon size="22" color="#A855F7"><User /></el-icon></div>
@@ -452,7 +452,7 @@ const tabLabel = computed(() => {
             </div>
             <div class="summary-card">
               <div class="sc-icon" style="background:#ccfbf1"><el-icon size="22" color="#14B8A6"><Wallet /></el-icon></div>
-              <div class="sc-body"><div class="sc-value">{{ summary.total_balance.toFixed(1) }}</div><div class="sc-label">总余额</div></div>
+              <div class="sc-body"><div class="sc-value">{{ formatCredits(summary.total_balance, { creditDigits: 0, yuanDigits: 2 }) }}</div><div class="sc-label">总余额</div></div>
             </div>
           </div>
 
@@ -491,13 +491,15 @@ const tabLabel = computed(() => {
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="积分" width="100">
-                <template #default="{ row }"><span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'inherit' }">{{ row.points }}</span></template>
+              <el-table-column label="积分" width="170">
+                <template #default="{ row }"><span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'inherit' }">{{ formatCredits(row.points, { creditDigits: 0, yuanDigits: 2 }) }}</span></template>
               </el-table-column>
               <el-table-column label="提交" prop="submitted_count" sortable width="80" />
               <el-table-column label="成功" prop="completed_count" sortable width="80" />
               <el-table-column label="失败" prop="failed_count" sortable width="80" />
-              <el-table-column label="积分消耗" prop="total_cost" sortable width="100" />
+              <el-table-column label="积分消耗" sortable width="170">
+                <template #default="{ row }">{{ formatCredits(row.total_cost, { creditDigits: 0, yuanDigits: 2 }) }}</template>
+              </el-table-column>
               <el-table-column label="最近提交" width="140">
                 <template #default="{ row }">{{ row.last_submitted_at?.slice(0, 16) || '-' }}</template>
               </el-table-column>
@@ -526,15 +528,15 @@ const tabLabel = computed(() => {
         <el-table :data="txnRecords" v-loading="txnLoading" stripe>
           <el-table-column prop="id" label="ID" width="60" />
           <el-table-column prop="username" label="用户" width="120" />
-          <el-table-column label="金额" width="120">
+          <el-table-column label="积分" width="170">
             <template #default="{ row }">
               <span :style="{ color: row.amount >= 0 ? 'var(--el-color-success)' : 'var(--el-color-danger)', fontWeight: 600 }">
-                {{ row.amount >= 0 ? '+' : '' }}{{ row.amount }}
+                {{ row.amount >= 0 ? '+' : '' }}{{ formatCredits(row.amount, { creditsOnly: true }) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="变动后余额" width="120">
-            <template #default="{ row }">{{ row.balance_after }}</template>
+          <el-table-column label="变动后余额" width="170">
+            <template #default="{ row }">{{ formatCredits(row.balance_after, { creditDigits: 0, yuanDigits: 2 }) }}</template>
           </el-table-column>
           <el-table-column label="原因" width="120">
             <template #default="{ row }">{{ reasonLabel[row.reason] || row.reason }}</template>

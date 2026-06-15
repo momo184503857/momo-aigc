@@ -10,6 +10,9 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || 'default-secret-change-me',
   jwtExpiresIn: '7d',
 
+  // 用户个人 ToAPIs Key 加密密钥（64 位 hex；缺失时从 JWT_SECRET 派生兜底）
+  encryptionKey: process.env.ENCRYPTION_KEY || '',
+
   // OSS
   oss: {
     endpoint: process.env.OSS_ENDPOINT || 'oss-cn-hangzhou.aliyuncs.com',

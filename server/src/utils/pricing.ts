@@ -4,11 +4,12 @@ export type ModelId =
   | 'gemini-3.1-flash-image-preview'
   | 'gemini-2.5-flash-image-preview'
 
+// 单位：新积分（1 新积分 = ¥0.035）。历史曾用元（旧值 ÷0.035 即此处整数）。
 const PRICING: Record<string, Record<string, number>> = {
-  'gpt-image-2':                { '1K': 0.105, '2K': 0.14,  '4K': 0.175 },
-  'gemini-3-pro-image-preview': { '1K': 0.35,  '2K': 0.35,  '4K': 0.7   },
-  'gemini-3.1-flash-image-preview': { '512': 0.175, '1K': 0.175, '2K': 0.175, '4K': 0.175 },
-  'gemini-2.5-flash-image-preview': { '1K': 0.084 },
+  'gpt-image-2':                { '1K': 3,   '2K': 4,  '4K': 5  },
+  'gemini-3-pro-image-preview': { '1K': 10,  '2K': 10, '4K': 20 },
+  'gemini-3.1-flash-image-preview': { '512': 5, '1K': 5, '2K': 5, '4K': 5 },
+  'gemini-2.5-flash-image-preview': { '1K': 2.4 },
 }
 
 export function getPrice(model: string, resolution: string): number {

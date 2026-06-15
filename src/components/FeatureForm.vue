@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import type { ModelId } from '@/types/adapter'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice } from '@/types/adapter'
+import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
@@ -167,7 +167,7 @@ const allSlotsFull = computed(() => {
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!config.value) return false
-  if (!serverStatus.sharedKeyConfigured) return false
+  if (!serverStatus.canGenerate) return false
   for (const slot of config.value.imageSlots) {
     if (slot.required && getSlotImages(slot.key).length === 0) return false
   }
@@ -316,8 +316,8 @@ defineExpose({ setParams })
     <div class="form-scroll-area">
       <!-- API Key warning -->
       <el-alert
-        v-if="serverStatus.loaded && !serverStatus.sharedKeyConfigured"
-        title="管理员尚未配置共享 API Key，生图功能暂不可用"
+        v-if="serverStatus.loaded && !serverStatus.canGenerate"
+        title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
         type="warning"
         show-icon
         :closable="false"
@@ -441,7 +441,7 @@ defineExpose({ setParams })
         style="width: 100%"
         @click="handleGenerate"
       >
-        生成图片 · ¥{{ currentPrice.toFixed(3) }}
+        生成图片 · {{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : formatCredits(currentPrice) }}
       </el-button>
     </div>
   </div>
