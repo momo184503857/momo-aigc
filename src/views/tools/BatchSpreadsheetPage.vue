@@ -196,9 +196,7 @@ async function handleGenerate() {
   const total = Math.round(unitPrice.value * count * 1000) / 1000
 
   try {
-    const costText = serverStatus.usingPersonalKey
-      ? '使用个人 Key，不消耗积分'
-      : `预计消耗：${formatCredits(total)}`
+    const costText = `预计消耗：${formatCredits(total)}${serverStatus.usingPersonalKey ? '（个人 Key）' : ''}`
     await ElMessageBox.confirm(
       `选中任务：${count} 个\n${costText}`,
       '确认提交',
@@ -493,7 +491,7 @@ onUnmounted(() => {
       <div class="preview-footer">
         <el-button @click="step = 'upload'">重新上传</el-button>
         <el-button type="primary" :disabled="selectedCount === 0" @click="handleGenerate">
-          开始生成 · {{ selectedCount }} 个任务 · {{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : formatCredits(unitPrice * selectedCount) }}
+          开始生成 · {{ selectedCount }} 个任务 · {{ formatCredits(unitPrice * selectedCount) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}
         </el-button>
       </div>
     </div>

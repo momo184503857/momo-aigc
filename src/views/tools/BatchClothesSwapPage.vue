@@ -138,7 +138,7 @@ async function handleGenerate() {
 
   try {
     await ElMessageBox.confirm(
-      `模特图：${count} 张\n衣服图：1 张\n任务数量：${count} 个\n预计消耗：${formatCredits(total)}`,
+      `模特图：${count} 张\n衣服图：1 张\n任务数量：${count} 个\n预计消耗：${formatCredits(total)}${serverStatus.usingPersonalKey ? '（个人 Key）' : ''}`,
       '确认提交',
       {
         confirmButtonText: '确认提交',
@@ -327,7 +327,7 @@ onMounted(() => {
           style="width: 100%"
           @click="handleGenerate"
         >
-          批量生成 · {{ taskCount }} 个任务 · {{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : formatCredits(totalCost) }}
+          批量生成 · {{ taskCount }} 个任务 · {{ formatCredits(totalCost) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}
         </el-button>
       </div>
     </div>

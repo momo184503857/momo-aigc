@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
 import { useServerStatusStore } from '@/stores/serverStatus'
-import { userKeyApi } from '@/services/userKeyApi'
 import { formatCredits } from '@/types/adapter'
 import {
   MagicStick,
@@ -33,27 +32,12 @@ const router = useRouter()
 const route = useRoute()
 const serverStatus = useServerStatusStore()
 
-// 个人 Key 模式下，头像显示该 Key 的积分（= token-balance 的 credits）；
+// 个人 Key 模式下，头像显示该 Key 的积分（来自 serverStatus 全局轮询）；
 // 共享 Key 模式下显示平台积分。
-const personalKeyCredits = ref<number | null>(null)
-async function loadPersonalKeyCredits() {
-  if (!serverStatus.usingPersonalKey) {
-    personalKeyCredits.value = null
-    return
-  }
-  try {
-    const res = await userKeyApi.getBalance()
-    personalKeyCredits.value = res.data.success ? (res.data.data.credits ?? 0) : null
-  } catch {
-    personalKeyCredits.value = null
-  }
-}
-watch(() => serverStatus.usingPersonalKey, loadPersonalKeyCredits, { immediate: true })
-
 const avatarCreditsLabel = computed(() => {
   if (serverStatus.usingPersonalKey) {
-    return personalKeyCredits.value !== null
-      ? formatCredits(personalKeyCredits.value, { creditDigits: 0, yuanDigits: 2 })
+    return serverStatus.personalKeyCredits !== null
+      ? formatCredits(serverStatus.personalKeyCredits, { creditDigits: 0, yuanDigits: 2 })
       : '个人 Key · 加载中…'
   }
   return formatCredits(auth.user?.points ?? 0, { creditDigits: 0, yuanDigits: 2 })

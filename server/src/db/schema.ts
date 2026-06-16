@@ -212,10 +212,16 @@ export function initSchema(): void {
       key_hint           TEXT NOT NULL DEFAULT '',
       use_personal_key   INTEGER NOT NULL DEFAULT 0,
       encryption_version TEXT NOT NULL DEFAULT 'v1',
+      balance_check_interval_sec INTEGER NOT NULL DEFAULT 60,
       created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `)
+
+  // Migration: add balance_check_interval_sec to user_toapis_keys (个人 Key 余额轮询间隔，默认 60s)
+  try {
+    db.exec(`ALTER TABLE user_toapis_keys ADD COLUMN balance_check_interval_sec INTEGER NOT NULL DEFAULT 60`)
+  } catch { /* column already exists */ }
 
   // Seed feature prompts for all feature × model combinations
   const featureIds = [

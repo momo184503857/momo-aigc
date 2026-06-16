@@ -145,6 +145,7 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 | key_tag | TEXT NOT NULL | base64 GCM auth tag |
 | key_hint | TEXT DEFAULT '' | 脱敏提示，如 `sk-t****7890` |
 | use_personal_key | INTEGER DEFAULT 0 | 0=用共享 Key，1=用个人 Key |
+| balance_check_interval_sec | INTEGER NOT NULL DEFAULT 60 | 个人 Key 余额轮询间隔（秒）；`0`=不查询。幂等 `ALTER TABLE ... ADD COLUMN` 迁移，旧行自动取默认 60 |
 | encryption_version | TEXT DEFAULT 'v1' | 加密版本（密钥轮换用） |
 | created_at / updated_at | TIMESTAMP | |
 

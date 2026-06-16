@@ -93,9 +93,10 @@
 
 ### 用户个人 Key `/api/me/toapis`（任意登录用户）
 
-- `GET /key-config` → `{ hasPersonalKey, keyHint, usePersonalKey, sharedKeyConfigured }`
-- `PUT /key` body `{ apiKey }` → 加密存储（**不**自动切换模式）
+- `GET /key-config` → `{ hasPersonalKey, keyHint, usePersonalKey, sharedKeyConfigured, balanceCheckIntervalSec }`（`balanceCheckIntervalSec` 默认 60）
+- `PUT /key` body `{ apiKey, balanceCheckIntervalSec? }` → 加密存储（**不**自动切换模式；可附带轮询间隔，省略则保留原值/默认 60）
 - `PATCH /key-mode` body `{ usePersonalKey }` → 切换模式；`true` 但无 key → 400
+- `PATCH /balance-interval` body `{ intervalSec }` → 单独更新余额轮询间隔（0~604800 秒，`0`=不查询）；无 key → 400。返回 `{ balanceCheckIntervalSec }`
 - `DELETE /key` → 删除个人 Key，自动回退共享模式
 - `POST /test` body `{ apiKey }` → `{ ok }`（用传入 key 调 ToAPIs `/v1/models`）
 - `GET /balance` → 用个人 key 查 ToAPIs token-balance `{ balance, credits, currency }`；`credits`（remain_credits）即该 Key 的「积分」，展示余额 = credits × 0.035（不用 `balance`）。
@@ -108,7 +109,7 @@
 
 ### 健康状态 `GET /api/toapis/health`（任意登录用户）
 
-返回 `{ sharedKeyConfigured, personalKeyConfigured, personalKeyActive }`（当前用户维度）。
+返回 `{ sharedKeyConfigured, personalKeyConfigured, personalKeyActive, balanceCheckIntervalSec }`（当前用户维度；`balanceCheckIntervalSec` 默认 60）。
 
 ### 余额与流水
 

@@ -472,11 +472,8 @@ onMounted(() => loadElements())
           <label>数量</label>
           <el-input-number v-model="count" :min="1" :max="5" />
         </div>
-        <div v-if="serverStatus.usingPersonalKey" class="param-item price">
-          <span class="price-tag">个人 Key · 不消耗积分</span>
-        </div>
-        <div v-else-if="currentPrice > 0" class="param-item price">
-          <span class="price-tag">{{ formatCredits(currentPrice) }} /张</span>
+        <div v-if="currentPrice > 0" class="param-item price">
+          <span class="price-tag">{{ formatCredits(currentPrice) }} /张{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}</span>
         </div>
       </div>
 

@@ -16,7 +16,8 @@ toapisProxyRouter.use(authMiddleware)
 
 // Health: 返回当前用户可用的 key 状态（共享 + 个人）
 toapisProxyRouter.get('/health', (req: AuthRequest, res) => {
-  const row = db.prepare(`SELECT 1 FROM user_toapis_keys WHERE user_id = ?`).get(req.user!.userId)
+  const row = db.prepare(`SELECT balance_check_interval_sec AS s FROM user_toapis_keys WHERE user_id = ?`)
+    .get(req.user!.userId) as { s: number } | undefined
   const personalKeyConfigured = !!row
   const { mode } = resolveUserApiKey(req.user!.userId)
   res.json({
@@ -25,6 +26,8 @@ toapisProxyRouter.get('/health', (req: AuthRequest, res) => {
       sharedKeyConfigured: !!getKey(),
       personalKeyConfigured,
       personalKeyActive: mode === 'personal',
+      // 个人 Key 余额轮询间隔（秒；0 = 不查询）。无行时默认 60。
+      balanceCheckIntervalSec: row?.s ?? 60,
     },
   })
 })

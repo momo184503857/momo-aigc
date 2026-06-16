@@ -5,6 +5,7 @@ export const toapisProxyApi = {
     sharedKeyConfigured: boolean
     personalKeyConfigured: boolean
     personalKeyActive: boolean
+    balanceCheckIntervalSec: number
   } } }> {
     return http.get('/toapis/health')
   },

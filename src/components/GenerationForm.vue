@@ -501,7 +501,7 @@ defineExpose({ setParams })
         style="width: 100%"
         @click="handleGenerate"
       >
-        生成图片 · {{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : formatCredits(currentPrice) }}
+        生成图片 · {{ formatCredits(currentPrice) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}
       </el-button>
     </div>
   </div>

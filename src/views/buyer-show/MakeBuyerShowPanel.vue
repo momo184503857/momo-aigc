@@ -277,9 +277,7 @@ async function handleGenerate() {
   const count = submittableCount.value
   const total = estimateCost.value
   try {
-    const costText = serverStatus.usingPersonalKey
-      ? '使用个人 Key，不消耗积分'
-      : `预计消耗：${formatCredits(total)}`
+    const costText = `预计消耗：${formatCredits(total)}${serverStatus.usingPersonalKey ? '（个人 Key）' : ''}`
     await ElMessageBox.confirm(
       `选中待生成：${count} 个 × ${countN.value} 张\n${costText}`,
       '确认生成',
@@ -716,7 +714,7 @@ onUnmounted(() => {
         </div>
 
         <div class="bs-submit">
-          <span v-if="submittableCount > 0" class="bs-cost">{{ serverStatus.usingPersonalKey ? '个人 Key · 不消耗积分' : '预计 ' + formatCredits(estimateCost) }}</span>
+          <span v-if="submittableCount > 0" class="bs-cost">预计 {{ formatCredits(estimateCost) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}</span>
           <el-button
             type="primary" :icon="MagicStick" :loading="isGenerating"
             :disabled="submittableCount === 0" @click="handleGenerate"

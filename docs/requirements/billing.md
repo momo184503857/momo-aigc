@@ -22,7 +22,7 @@
 
 ## 2. 角色与权限
 
-- **普通用户**：在 `/settings` 配置/测试/清空个人 Key、切换模式；在 `/my-quota` 查看余额/流水/Key 额度。
+- **普通用户**：在 `/my-quota` 配置/测试/清空个人 Key、切换平台/个人模式、设置余额查询间隔，并查看平台余额/流水与 Key 额度。`/settings` 已降级为占位页（仅「前往我的额度」入口）。
 - **管理员**：在 `/admin/toapis-key` 配置共享 Key；在 `/admin/users`、`/admin/points` 为用户充值/扣减新积分；查看所有用户积分与流水（`/admin/dashboard`）。
 - 模式对所有登录用户**自由选择**，不强制；管理员也是用户，同样可配置个人 Key。
 
@@ -30,7 +30,7 @@
 
 ## 3. 数据模型
 
-- `user_toapis_keys`（每用户至多一行，`user_id` 主键）：`encrypted_key` / `key_iv` / `key_tag`（AES-256-GCM）、`key_hint`（脱敏）、`use_personal_key`(0/1)、`encryption_version`。
+- `user_toapis_keys`（每用户至多一行，`user_id` 主键）：`encrypted_key` / `key_iv` / `key_tag`（AES-256-GCM）、`key_hint`（脱敏）、`use_personal_key`(0/1)、`encryption_version`、`balance_check_interval_sec`（个人 Key 余额轮询间隔，秒，默认 60，`0`=不查询）。
 - `users.points`（REAL）—— **新积分**余额。
 - `points_transactions`：`amount`（带符号，新积分）/ `balance_after` / `reason`（`generation` / `admin_recharge` / `admin_deduct`）。
 - `generation_tasks.points_cost` / `points_balance_after` —— 新积分。
@@ -64,7 +64,8 @@
   | gemini-2.5-flash-image-preview | 1K:2.4 |
 
 - 个人 Key 加密：优先 env `ENCRYPTION_KEY`（32B hex）；缺失时从 `JWT_SECRET` 用 HKDF-SHA256 派生兜底（启动告警；补配后旧密文需用户重存）。
-- 个人模式默认关闭；保存 Key **不**自动切换模式（尊重「自由选择」）。
+- 个人模式默认关闭；保存 Key **不**自动切换模式（尊重「自由选择」）；但若用户当前已选「个人 Key」模式（本地态），保存 Key 时会一并激活。
+- 个人 Key 余额轮询间隔默认 **60 秒**；快捷项 1 分钟(60) / 30 分钟(1800) / 1 小时(3600) / 1 天(86400) / 不查询(0)；亦可手动输入 0~604800 之间的秒数。
 
 ---
 
@@ -76,7 +77,8 @@
 - ToAPIs 的 `remain_balance`（账户/令牌余额的 CNY 值）与展示用的「余额」不是同一个数——展示余额恒为 `积分 × 0.035`。
 - `canvas-ai` 文字模型不接入个人 Key（不涉及积分），保持共享 Key。
 - 清空个人 Key → 删除整行 → 自动回退共享模式。
-- 未存个人 Key 切个人模式 → 后端 400，前端 radio 禁用。
+- **首次配置流程**：允许在未保存个人 Key 时选中「个人 Key」模式（前端本地态）——此时仅显示「配置个人 Key」入口与「未启用」余额提示；后端 `use_personal_key` 仍为 0、`canGenerate=false`，**保存 Key 前禁止生图**。保存 Key 时若当前处于个人模式则一并激活。后端 `PATCH /key-mode` 在无 key 时仍返回 400，仅作为激活前置校验（前端不再依赖它阻止选择）。
+- **个人 Key 余额轮询为全局行为**：在前端 `serverStatus` store 中按用户配置的间隔轮询 `GET /me/toapis/balance`，头像与「我的额度」共享同一份数据。进入个人模式立即拉一次基线值；间隔 >0 按间隔轮询；间隔 =0（不查询）仅手动刷新。「不消耗平台积分」的提示只保留一处（顶部模式标签 + 计费说明页），不在「我的额度」个人分支内重复。
 
 ---
 
@@ -84,8 +86,8 @@
 
 - 所有显示积分处统一 `X 积分 (¥Y)`，`Y = X × 0.035`，统一调用 `formatCredits()`（`src/types/adapter.ts`），**禁止手写 `×0.035`**。
 - 余额类：积分取整、¥ 保留 2 位；单价类：积分保留 1 位、¥ 保留 3 位。
-- 个人 Key 模式下，生图按钮/批量页显示「个人 Key · 不消耗积分」，隐藏价格与余额预校验。
-- **左下角头像上方的积分按当前 Key 模式显示**：共享模式 → 平台积分（`users.points`）；个人模式 → 该 Key 的积分（token-balance `credits`）。两者余额均为 `积分 × 0.035`。
+- 个人 Key 模式下，所有生成入口（工作台 / AI摄影 / 工具箱批量 / 买家秀）的按钮与确认弹窗**显示本次实际消耗** `formatCredits(成本)`（自带「积分 + ¥人民币」），并追加「· 个人 Key」标记（如「生成图片 · 3 积分 (¥0.11) · 个人 Key」）。计费逻辑不变（仍不消耗平台积分、仍跳过余额预校验）。
+- **左下角头像上方的积分按当前 Key 模式显示**：共享模式 → 平台积分（`users.points`）；个人模式 → 该 Key 的积分（token-balance `credits`）。两者余额均为 `积分 × 0.035`。个人模式下头像余额由全局轮询按用户配置间隔刷新（不再仅模式切换时拉一次）。
 - 头像下拉入口（顺序）：我的额度、计费说明、个人设置、退出登录。
 
 ---
@@ -94,28 +96,28 @@
 
 | 页面 | 路径 | 说明 |
 |------|------|------|
-| 个人设置 | `/settings` | 个人 Key 输入/测试/清空、模式切换、平台余额 |
-| 我的额度 | `/my-quota` | 平台余额(¥) + 最近 10 条流水 + Key 积分（个人 Key 的 token-balance credits） |
+| 个人设置 | `/settings` | **占位页**：Key/额度管理已迁至 `/my-quota`，仅留「前往我的额度」入口与「更多账户设置即将推出」占位 |
+| 我的额度 | `/my-quota` | 顶部「平台积分 / 个人 Key」模式开关；**平台分支**=平台余额 + 最近 10 条流水；**个人分支**=个人 Key 余额卡 +「配置个人 Key」按钮（弹窗内：Key 输入/测试/清空 + 余额查询间隔设置） |
 | 计费说明 | `/pricing` | 本地定价表（每个模型 × 分辨率 → 新积分 + ¥），无外部链接 |
 | 共享 Key 管理 | `/admin/toapis-key` | 管理员配置共享 Key、查 ToAPIs 余额（标注 credits） |
 
 端点：
-- 用户 Key：`/api/me/toapis/*`（`GET /key-config`、`PUT /key`、`PATCH /key-mode`、`DELETE /key`、`POST /test`、`GET /balance`）。
+- 用户 Key：`/api/me/toapis/*`（`GET /key-config`、`PUT /key`、`PATCH /key-mode`、`PATCH /balance-interval`、`DELETE /key`、`POST /test`、`GET /balance`）。`GET /key-config` 与 `GET /api/toapis/health` 均返回 `balanceCheckIntervalSec`；`PUT /key` 可附带 `balanceCheckIntervalSec`，`PATCH /balance-interval { intervalSec }` 单独更新（0~604800，无 key → 400）。
 - 我的额度：`GET /api/me/quota`。
 - 余额/流水：`GET /api/points/me`、`GET /api/points/me/transactions`。
 - 管理员调账：`POST /api/admin/users/:id/points`（amount 为新积分）。
-- 健康状态：`GET /api/toapis/health` → `{ sharedKeyConfigured, personalKeyConfigured, personalKeyActive }`。
+- 健康状态：`GET /api/toapis/health` → `{ sharedKeyConfigured, personalKeyConfigured, personalKeyActive, balanceCheckIntervalSec }`。
 
 ---
 
 ## 9. 验收标准
 
 - 共享模式：生 1 张 gpt-image-2 1K 扣 3 新积分（¥0.105），`points_cost=3`、流水 `-3`；余额不足返回 402 `需要 3 积分`。
-- 个人模式：生图 `points_cost=0`、无新流水、积分不变、任务记录仍在。
-- 未存 Key 切个人模式 → 400 / radio 禁用；清空 Key 自动回退共享。
-- 所有积分展示处为 `X 积分 (¥Y)` 双显；个人模式按钮显示「不消耗积分」。
-- `/my-quota` 三卡片齐全；`/pricing` 渲染四模型定价表。
-- 个人 Key 加密存取正常；`/api/toapis/health` 反映正确的 key 模式。
+- 个人模式：生图 `points_cost=0`、无新流水、积分不变、任务记录仍在；生成按钮显示实际消耗（如「3 积分 (¥0.11) · 个人 Key」）。
+- 未存 Key 时可选「个人 Key」模式（显示配置入口、禁止生图）；保存 Key 后激活；清空 Key 自动回退共享。
+- 头像与「我的额度」个人 Key 余额按配置间隔刷新；选「不查询」时不自动刷新，「刷新」按钮可手动拉取。
+- 所有积分展示处为 `X 积分 (¥Y)` 双显；`/my-quota` 顶部模式开关 + 按模式切换的平台/个人内容；`/pricing` 渲染四模型定价表。
+- 个人 Key 加密存取正常；`/api/toapis/health` 反映正确的 key 模式并返回 `balanceCheckIntervalSec`。
 
 ---
 
@@ -131,3 +133,11 @@
 - **Key 积分数据源更正**：澄清「获取新积分接口」就是 ToAPIs token-balance（`GET /v1/balance`）的 `credits`（remain_credits）字段——一直在用。Key 的「积分」直接读 `credits`（不换算），「余额」= 积分 × 0.035。**不**用 `remain_balance`、**绝不** ÷0.035 反推（积分是源、余额是派生）。`fetchKeyCredits()` 由 `credits=null` 占位改为返回真实 credits。
 - **头像积分按模式显示**（`SidebarMenu`）：共享模式 → 平台积分（`users.points`）；个人模式 → 该 Key 的积分（token-balance `credits`）。修复「个人模式下头像仍显示共享余额」的误导。
 - **修正 AdminToApisKey 的 ÷0.035 反推错误**：改用 `credits` 直接显示，余额 = credits×0.035。删除前后端无用的 `yuanToCredits`（÷0.035 方向，禁用）。
+
+### 2026-06-16 — Key/额度管理归位「我的额度」+ 个人 Key 余额全局轮询 + 个人模式按钮显示消耗
+
+- **页面归位**：个人 Key 输入/测试/清空、平台↔个人模式切换、余额查询，全部从 `/settings` 迁到 `/my-quota`；`/settings` 降级为占位页（仅跳转入口）。`/my-quota` 顶部新增醒目「平台积分 / 个人 Key」模式开关，下方内容按所选模式切换；个人 Key 配置（含轮询间隔）以「配置个人 Key」弹窗承载。
+- **个人 Key 余额全局轮询**：新增 per-user 字段 `user_toapis_keys.balance_check_interval_sec`（默认 60，`0`=不查询），由前端 `serverStatus` store 全局轮询 `GET /me/toapis/balance`，头像与「我的额度」共享同一份数据（修复此前个人模式下头像余额从不自动刷新）。间隔默认 60s，快捷项 1分/30分/1小时/1天/不查询，亦可手动输入 0~604800 秒。
+- **个人模式按钮显示消耗**：所有生成入口（工作台/AI摄影/工具箱批量/买家秀）的按钮与确认弹窗，由「个人 Key · 不消耗积分」改为显示本次实际消耗 `formatCredits(成本)`（积分+¥）并追加「· 个人 Key」；计费逻辑不变（不扣平台积分、跳过预校验）。「不消耗平台积分」提示收敛为顶部模式标签 + 计费说明页各一处。
+- **首次配置流程变更**：允许在未保存个人 Key 时选中「个人 Key」模式（前端本地态，禁止生图），保存 Key 后激活；取代原「未存 Key 切个人 → 后端 400 / radio 禁用」的硬限制（后端 `PATCH /key-mode` 仍 400，仅作激活前置校验）。
+- **新端点/字段**：`PATCH /api/me/toapis/balance-interval`；`GET /key-config` 与 `GET /api/toapis/health` 返回 `balanceCheckIntervalSec`；`PUT /key` 可附带该字段。
