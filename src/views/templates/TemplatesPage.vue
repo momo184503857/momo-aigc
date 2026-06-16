@@ -287,7 +287,7 @@ async function handleDropZoneDrop(e: DragEvent) {
     if (idx >= 0) {
       templates.value[idx] = { ...templates.value[idx], is_starred: 1, sort_order: newOrder }
     }
-    success(`已添加「${tmpl.name || tmpl.original_filename}」到常用`)
+    success(`已添加「${tmpl.name || tmpl.original_filename}」到收藏`)
   } catch {
     error('添加失败')
   }
@@ -381,7 +381,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
     if (idx >= 0) {
       templates.value[idx] = { ...templates.value[idx], is_starred: 0, sort_order: 0 }
     }
-    success('已移除常用')
+    success('已移除收藏')
   } catch {
     error('移除失败')
   }
@@ -399,7 +399,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
         :icon="Setting"
         @click="toggleStarredMode"
       >
-        {{ starredMode ? '退出设置' : '设置常用' }}
+        {{ starredMode ? '退出收藏设置' : '设置收藏' }}
       </el-button>
       <el-button type="primary" :icon="Upload" :loading="uploading" @click="handleUpload">
         上传图片
@@ -438,7 +438,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
     <!-- Starred mode hint -->
     <div v-if="starredMode" class="starred-hint-bar">
       <el-icon color="#E6A23C"><StarFilled /></el-icon>
-      <span>将上方图片拖到下方区域设为常用，拖动调整顺序，越靠左越靠前</span>
+      <span>将上方图片拖到下方区域设为收藏，拖动调整顺序，越靠左越靠前</span>
     </div>
 
     <!-- Grid -->
@@ -523,7 +523,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
       >
         <div v-if="starredList.length === 0" class="zone-empty">
           <el-icon size="48" color="var(--el-text-color-placeholder)"><StarFilled /></el-icon>
-          <p>将上方图片拖到这里设为常用模板</p>
+          <p>将上方图片拖到这里设为收藏模板</p>
         </div>
         <div v-else ref="zoneItemsRef" class="zone-items">
           <div
