@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-06-17 — 模板图库：拖缩略图入收藏区失效（原生图片拖拽劫持）
+
+**现象**：模板图库页进入「设置收藏」编辑态后，按住网格卡片的缩略图拖入下方收藏区无反应（图片不被添加、无提示）；只有恰好抓到缩略图外的卡片留白处才偶发可用。曾误判为「图片过大」。
+
+**根因**：网格卡片 `.tpl-card` 设 `draggable="true"`，但卡片内最大的交互区是缩略图 `<img>`。`<img>` 在 HTML5 中天生是原生拖拽源——按住图片拖动时，浏览器发起的是**原生图片拖拽**（拖图片本身），而不是卡片的拖拽；卡片的 `@dragstart` 没能可靠写入自定义数据 `application/template-id`，收藏区 `handleDropZoneDrop` 里 `getData('application/template-id')` 返回空 → 静默 `return`。图片越大、缩略图占卡片面积越大，用户越容易抓到图片区域，故呈现「图片大就拖不动」的假象，本质是原生图片拖拽劫持。
+
+**解决方案**：给网格缩略图 `<img>` 加 `draggable="false"`，使其不再是拖拽源，拖拽冒泡到祖先 `.tpl-card`（`draggable=true`），卡片 `dragstart` 正常写入模板 id，收藏区 `drop` 成功。点击预览不受影响（点击事件仍冒泡到父级 `.tpl-thumb`）。
+
+**涉及文件**：`src/views/templates/TemplatesPage.vue`
+
+**预防方式**：
+- 凡 `draggable=true` 容器内的 `<img>`，都必须显式禁用其原生拖拽（`draggable="false"` 或 `pointer-events: none`），否则原生图片拖拽会劫持容器拖拽，导致自定义 `dataTransfer` 写不进、`drop` 静默失败。
+- 本页收藏区内部排序的 `.zone-item-img img` 早已用 `pointer-events: none` 规避同一问题，但网格→收藏区这条拖拽路径漏处理——同一类 bug 在同页出现两次，第二次靠 code review 没兜住。审查 HTML5 拖拽功能时，应把「拖拽源容器内的所有原生可拖拽子元素（`<img>`、`<a>` 等）」统一过一遍。
+
+---
+
 ## 2026-06-15 — AI 生图：generateImage 成功时 DB 任务卡在 submitted
 
 **现象**：调用 `generateImage(params, { poll: true })`（不传 `import`）时，轮询已 `completed`，但 DB 任务一直停在 `submitted`，全局任务列表显示幽灵"运行中"任务。

@@ -470,7 +470,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
 
           <!-- Image -->
           <div class="tpl-thumb" @click="openPreview(t.public_url)">
-            <img :src="t.public_url" :alt="t.name" />
+            <img :src="t.public_url" :alt="t.name" draggable="false" />
           </div>
 
           <!-- Info -->
