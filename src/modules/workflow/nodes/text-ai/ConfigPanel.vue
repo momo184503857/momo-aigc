@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
+import { TEXT_MODELS } from '@/types/adapter'
 
 const props = defineProps<{ node: WorkflowNode }>()
 const emit = defineEmits<{ update: [patch: Record<string, unknown>] }>()
@@ -18,7 +19,9 @@ function boolVal(key: string): boolean {
     <el-alert title="API 密钥已在管理后台统一配置" type="info" show-icon :closable="false" />
 
     <label>模型名称</label>
-    <el-input :model-value="val('modelName')" placeholder="例如：gpt-4o" @update:model-value="emit('update', { modelName: $event })" />
+    <el-select :model-value="val('modelName')" placeholder="选择文字模型" style="width: 100%" @update:model-value="emit('update', { modelName: $event })">
+      <el-option v-for="m in TEXT_MODELS" :key="m.id" :label="m.name" :value="m.id" />
+    </el-select>
 
     <el-divider>节点提示词</el-divider>
 

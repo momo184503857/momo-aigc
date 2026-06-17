@@ -107,6 +107,7 @@ export const canvasApi = {
     temperature?: number
     maxTokens?: number
   }): Promise<{ text: string }> {
-    return http.post('/canvas-ai/chat', request).then((r) => r.data.data)
+    // 文字模型（尤其带参考图的多模态推理）响应较慢，单独放宽超时，避开全局 15s 限制
+    return http.post('/canvas-ai/chat', request, { timeout: 900000 }).then((r) => r.data.data)
   },
 }

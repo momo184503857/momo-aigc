@@ -1,6 +1,6 @@
 # 积分与 Key 计费体系
 
-最后更新：2026-06-16  
+最后更新：2026-06-17  
 状态：已实现·后端已验证（curl）/ 前端已验证（类型检查 + 构造）
 
 > 本文档反映当前实现，取代 PRD v1.0 中「用户 ToAPIs Key 只存浏览器本地，服务器不保存」「不做复杂计费系统」的早期设定。
@@ -75,7 +75,7 @@
 - 计费在**任务创建时**扣除（`POST /api/tasks`），**失败不退款**（与买家秀等一致，维持现状）。
 - **Key 的「积分」= ToAPIs token-balance 接口（`GET /v1/balance`）返回的 `credits`（remain_credits）字段**，直接读取，不换算。`fetchKeyCredits(apiKey)` 即此实现。「余额」= 积分 × 0.035（`creditsToYuan`）。**不**用 `remain_balance`（CNY 账户余额），**绝不** ÷0.035 反推积分（积分是源、余额是派生）。
 - ToAPIs 的 `remain_balance`（账户/令牌余额的 CNY 值）与展示用的「余额」不是同一个数——展示余额恒为 `积分 × 0.035`。
-- `canvas-ai` 文字模型不接入个人 Key（不涉及积分），保持共享 Key。
+- `canvas-ai` 文字模型 **Key 与图像共用**（`resolveUserApiKey`，个人模式用个人 Key），但**不扣积分**（两模式均不扣，阶段性决策；详见 `canvas.md` §3.2 与决策日志）。**[2026-06-17 更正：原「不接入个人 Key，保持共享 Key」已作废]**
 - 清空个人 Key → 删除整行 → 自动回退共享模式。
 - **首次配置流程**：允许在未保存个人 Key 时选中「个人 Key」模式（前端本地态）——此时仅显示「配置个人 Key」入口与「未启用」余额提示；后端 `use_personal_key` 仍为 0、`canGenerate=false`，**保存 Key 前禁止生图**。保存 Key 时若当前处于个人模式则一并激活。后端 `PATCH /key-mode` 在无 key 时仍返回 400，仅作为激活前置校验（前端不再依赖它阻止选择）。
 - **个人 Key 余额轮询为全局行为**：在前端 `serverStatus` store 中按用户配置的间隔轮询 `GET /me/toapis/balance`，头像与「我的额度」共享同一份数据。进入个人模式立即拉一次基线值；间隔 >0 按间隔轮询；间隔 =0（不查询）仅手动刷新。「不消耗平台积分」的提示只保留一处（顶部模式标签 + 计费说明页），不在「我的额度」个人分支内重复。
@@ -141,3 +141,8 @@
 - **个人模式按钮显示消耗**：所有生成入口（工作台/AI摄影/工具箱批量/买家秀）的按钮与确认弹窗，由「个人 Key · 不消耗积分」改为显示本次实际消耗 `formatCredits(成本)`（积分+¥）并追加「· 个人 Key」；计费逻辑不变（不扣平台积分、跳过预校验）。「不消耗平台积分」提示收敛为顶部模式标签 + 计费说明页各一处。
 - **首次配置流程变更**：允许在未保存个人 Key 时选中「个人 Key」模式（前端本地态，禁止生图），保存 Key 后激活；取代原「未存 Key 切个人 → 后端 400 / radio 禁用」的硬限制（后端 `PATCH /key-mode` 仍 400，仅作激活前置校验）。
 - **新端点/字段**：`PATCH /api/me/toapis/balance-interval`；`GET /key-config` 与 `GET /api/toapis/health` 返回 `balanceCheckIntervalSec`；`PUT /key` 可附带该字段。
+
+### 2026-06-17 — canvas-ai 文字模型 Key 改为与图像共用（推翻「不接入个人 Key」）
+
+- 文字模型（AI 画布 text-ai 节点，`POST /api/canvas-ai/chat`）的 Key 解析由「固定共享 Key（`getKey()`）」改为 `resolveUserApiKey(userId)`——个人模式用个人 Key、否则共享 Key，与图像生成完全一致。**推翻本文件 §6 旧规则「canvas-ai 文字模型不接入个人 Key，保持共享 Key」**。
+- 计费维持不变：文字模型**不扣积分**（无论共享/个人模式），属阶段性决策（详见 `docs/requirements/canvas.md` §3.2 与决策日志）。

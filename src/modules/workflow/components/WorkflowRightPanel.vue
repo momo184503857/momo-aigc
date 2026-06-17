@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import * as Icons from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
@@ -113,6 +113,14 @@ function copyLogs() {
   })
   navigator.clipboard.writeText(lines.join('\n')).then(() => showSuccess('日志已复制'))
 }
+
+// 外部（如节点右键菜单「打开控制台」）请求打开控制台：展开面板并切到「日志」tab
+function openConsole() {
+  collapsed.value = false
+  activeTab.value = 'logs'
+}
+onMounted(() => window.addEventListener('canvas:open-console', openConsole))
+onUnmounted(() => window.removeEventListener('canvas:open-console', openConsole))
 
 const statusLabels: Record<string, string> = { idle: '未运行', running: '运行中', success: '成功', failed: '失败', dirty: '需重跑', paused: '暂停', disabled: '已禁用', waiting: '等待', affected: '受影响' }
 </script>

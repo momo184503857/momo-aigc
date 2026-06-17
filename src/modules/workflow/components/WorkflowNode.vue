@@ -8,7 +8,7 @@ import type { ImageNodeResultValue, LocalImageAsset, WorkflowCanvasNodeData } fr
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
 import { getNodeTheme, getNodeSummary } from '@/modules/workflow/nodes/nodeRegistry'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
-import { MODELS, getAspectRatios } from '@/types/adapter'
+import { MODELS, TEXT_MODELS, getAspectRatios } from '@/types/adapter'
 import { UiImagePreview } from '@/components/ui'
 import { useImagePreview } from '@/composables/useImagePreview'
 
@@ -67,6 +67,7 @@ function updateConfig(patch: Record<string, unknown>) {
   store.updateNodeConfig(workflowNode.value.id, patch)
 }
 const modelOptions = MODELS.map((m) => ({ value: m.id, label: m.name }))
+const textModelOptions = TEXT_MODELS.map((m) => ({ value: m.id, label: m.name }))
 const currentModel = computed(() => MODELS.find((m) => m.id === workflowNode.value.config.modelName))
 const aspectRatios = computed(() => {
   const model = currentModel.value
@@ -223,7 +224,7 @@ onUnmounted(() => {
       <!-- text-ai -->
       <template v-else-if="workflowNode.type === 'text-ai'">
         <el-select :model-value="workflowNode.config.modelName" size="small" placeholder="选择模型" style="width:100%" @update:model-value="updateConfig({ modelName: $event })">
-          <el-option v-for="m in modelOptions" :key="m.value" :label="m.label" :value="m.value" />
+          <el-option v-for="m in textModelOptions" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
         <el-input :model-value="workflowNode.config.taskPrompt" type="textarea" :rows="2" size="small" placeholder="任务指令..." @update:model-value="updateConfig({ taskPrompt: $event })" />
       </template>

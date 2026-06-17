@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-06-17 — AI 画布：文字 AI 节点接入文本模型 + 图片输入 + 控制台入口 + 超时修正
+
+### 背景
+
+AI 画布的文字 AI（text-ai）节点此前模型下拉误绑图像清单、图片输入端口声明却未传给模型、右侧面板默认折叠导致控制台难找、且文字模型请求套用全局 15s 超时必然失败。本轮一并修正并落地文本模型接入。
+
+### 变更
+
+- **接入文本模型**：新增 `TEXT_MODELS`（gpt-5.5 默认 / gemini-3-flash / gemini-3.1-flash-lite）+ `DEFAULT_TEXT_MODEL`，走 ToAPIs `/v1/chat/completions`（后端 `/api/canvas-ai/chat`）。text-ai 节点卡片与 ConfigPanel 下拉改用文本清单（修复误绑图像 `MODELS`）。
+- **修复图片输入**：text-ai 的 `image` 端口此前声明但 `run()` 未读取，现按 OpenAI vision 多模态格式构造 `content`（有图文数组 / 无图纯文本）。
+- **Key 与图像共用**：`canvas-ai.ts` 由 `getKey()` 改 `resolveUserApiKey(userId)`，推翻 billing 旧规则「canvas-ai 不接入个人 Key」；计费维持不扣积分。
+- **控制台入口**：节点右键菜单新增「打开控制台」（`canvas:open-console` 事件 → 展开右侧面板 + 跳「日志」tab）。
+- **超时修正**：文字模型 chat 请求由全局 15s 放宽到单独 15 分钟。
+- **可观测性**：后端 `canvas-ai` 加 `console.error`；前端 catch 优先读后端具体 `error`。
+
+### 规则（确认）
+
+详见 `docs/requirements/canvas.md`：文字 AI 不扣积分（两模式均不扣）；Key 与图像共用；多模态依赖模型视觉能力；chat 超时 15 分钟兜底；画布生图任务 `feature_id='canvas'` 进主任务列表。
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `src/types/adapter.ts` | 新增 `TEXT_MODELS` / `DEFAULT_TEXT_MODEL` / `TextModelInfo` |
+| `src/modules/workflow/nodes/text-ai/index.ts` | 读取 image 输入 → vision 多模态 content；默认模型；catch 读后端 error |
+| `src/modules/workflow/nodes/text-ai/ConfigPanel.vue` | 模型改下拉（TEXT_MODELS） |
+| `src/modules/workflow/components/WorkflowNode.vue` | text-ai 下拉改用文本清单 |
+| `src/modules/workflow/components/WorkflowCanvas.vue` | 右键菜单加「打开控制台」+ 事件 |
+| `src/modules/workflow/components/WorkflowRightPanel.vue` | 监听 `canvas:open-console` |
+| `src/services/canvasApi.ts` | chat 请求单独 timeout 15 分钟 |
+| `server/src/routes/canvas-ai.ts` | `resolveUserApiKey` + console.error 日志 |
+
+---
+
 ## 2026-06-16 — Key/额度管理归位「我的额度」+ 个人 Key 余额全局轮询 + 个人模式按钮显示消耗
 
 ### 背景

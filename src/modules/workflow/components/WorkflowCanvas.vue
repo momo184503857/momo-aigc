@@ -114,6 +114,12 @@ const handlePasteNode = () => {
   closeContextMenu()
 }
 
+const openConsole = () => {
+  // 展开右侧属性面板并切到「日志」tab（由 WorkflowRightPanel 监听该事件）
+  window.dispatchEvent(new CustomEvent('canvas:open-console'))
+  closeContextMenu()
+}
+
 const getSelectedNodeIds = (): string[] => {
   const ids: string[] = []
 
@@ -504,6 +510,11 @@ onUnmounted(() => {
         >
           <strong>从当前继续</strong>
           <span>执行此节点及其下游</span>
+        </button>
+
+        <button class="workflow-context-menu__item" type="button" @click="openConsole">
+          <strong>打开控制台</strong>
+          <span>查看运行日志</span>
         </button>
 
         <button

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
-import { getKey } from '../utils/toapis.js'
+import { resolveUserApiKey } from '../utils/toapis.js'
 
 export const canvasAiRouter = Router()
 
@@ -10,7 +10,7 @@ const BASE_URL = 'https://toapis.com'
 
 // Proxy text model (chat completions) call
 canvasAiRouter.post('/chat', async (req: AuthRequest, res) => {
-  const apiKey = getKey()
+  const { key: apiKey } = resolveUserApiKey(req.user!.userId)
   if (!apiKey) {
     res.status(400).json({ success: false, error: 'API Key 未配置' })
     return
@@ -38,6 +38,7 @@ canvasAiRouter.post('/chat', async (req: AuthRequest, res) => {
 
     const data = await response.json()
     if (!response.ok) {
+      console.error('[canvas-ai] ToAPIs 返回错误:', response.status, JSON.stringify(data).slice(0, 800))
       res.status(response.status).json({ success: false, error: data.error?.message || `HTTP ${response.status}` })
       return
     }
@@ -53,6 +54,7 @@ canvasAiRouter.post('/chat', async (req: AuthRequest, res) => {
 
     res.json({ success: true, data: { text } })
   } catch (err: unknown) {
+    console.error('[canvas-ai] chat 代理异常:', err)
     const message = err instanceof Error ? err.message : '文字模型调用失败'
     res.status(500).json({ success: false, error: message })
   }

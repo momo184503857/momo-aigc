@@ -79,6 +79,24 @@ export const DEFAULT_MODEL: ModelId = 'gpt-image-2'
 export const DEFAULT_RESOLUTION = '2K'
 export const DEFAULT_ASPECT_RATIO = '1:1'
 
+// ── 文本模型（文字 AI 节点；ToAPIs /v1/chat/completions，key 与图像共用）──
+
+export interface TextModelInfo {
+  /** ToAPIs provider model name，直接作为 chat completions 的 model 参数 */
+  id: string
+  name: string
+  /** 简短描述，用于下拉/tooltip */
+  description?: string
+}
+
+export const TEXT_MODELS: TextModelInfo[] = [
+  { id: 'gpt-5.5', name: 'GPT-5.5', description: '通用推理、代码与多模态能力' },
+  { id: 'gemini-3-flash', name: 'Gemini 3 Flash', description: 'Gemini 3 Flash 文本模型' },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Gemini 3.1 Flash Lite 轻量文本模型' },
+]
+
+export const DEFAULT_TEXT_MODEL = 'gpt-5.5'
+
 /** Get the effective aspect ratios for a model at a given resolution */
 export function getAspectRatios(model: ModelInfo, resolution: string): string[] {
   if (model.aspectRatiosByResolution?.[resolution]) {

@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-06-17 — AI 画布文字 AI：图片输入端口声明但未传给模型
+
+**现象**：文字 AI 节点连了参考图，但模型输出仍要求「上传参考图」——图片未被接收，仅文字输入生效。
+
+**根因**：text-ai 节点声明了 `image` 输入端口，但 `run()` 里 `resolveNodeInputs` 只取了 `inputs.text`，`inputs.image` 从头到尾未被读取；发给模型的 `messages.content` 恒为纯文本字符串。端口是「摆设」。
+
+**解决方案**：`run()` 读取 `inputs.image`，提取图片 URL（兼容 `{image,imageList}`，接受 http/data），有图时把 `content` 构造为 OpenAI vision 多模态数组（`text` 块 + `image_url` 块），无图时保持纯文本。
+
+**涉及文件**：`src/modules/workflow/nodes/text-ai/index.ts`
+
+**预防方式**：
+- 声明了输入端口就必须在 `run()` 里消费；「端口接了但没传给下游 API」是静默 bug——运行不报错只是功能失效，易长期潜伏。审查节点时核对每个 input 端口是否有对应读取与传递。
+- 多模态接口（vision）的 `content` 要按数组（`text` + `image_url` 块）构造，纯字符串不会带图。
+
+---
+
+## 2026-06-17 — AI 画布文字 AI：请求超时（全局 15s axios timeout 套在慢 LLM 请求上）
+
+**现象**：文字 AI 带参考图调用，前端报 `timeout of 15000ms exceeded`，重试后转 500。
+
+**根因**：`http.ts` 全局 `timeout: 15000` 套用在所有 `/api` 请求上，包括文字模型 chat。LLM 带图推理耗时远超 15s，请求未返回即被前端 axios 主动断开。后端 Node `fetch` 默认无超时，瓶颈纯在前端。第三次 500 是前两次超时残留连接/上游状态的连锁。
+
+**解决方案**：`canvasApi.chat` 单独传 `{ timeout: 900000 }`（15 分钟），不动全局 15s（避免影响其他接口）。
+
+**涉及文件**：`src/services/canvasApi.ts`（+ 后端 `canvas-ai.ts` 补 `console.error` 暴露真因）
+
+**预防方式**：
+- 长耗时接口（LLM 推理、大文件、慢上游）必须单独放宽 axios timeout，不能依赖全局默认；全局 timeout 只适合常规短请求。
+- 代理类后端的 `catch` 务必 `console.error` 打印原始错误，否则真因被「status code 500」吞掉，前后端都看不到。前端 catch 应优先读 `err.response.data.error` 而非 axios 的 `err.message`。
+
+---
+
 ## 2026-06-17 — 模板图库：拖缩略图入收藏区失效（原生图片拖拽劫持）
 
 **现象**：模板图库页进入「设置收藏」编辑态后，按住网格卡片的缩略图拖入下方收藏区无反应（图片不被添加、无提示）；只有恰好抓到缩略图外的卡片留白处才偶发可用。曾误判为「图片过大」。
