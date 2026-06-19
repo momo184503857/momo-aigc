@@ -5,6 +5,7 @@ import { Plus, Refresh, Edit } from '@element-plus/icons-vue'
 import PageLayout from '@/components/PageLayout.vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { canvasApi, type CanvasProject } from '@/services/canvasApi'
+import { toBJDate } from '@/utils/datetime'
 
 defineOptions({ name: 'CanvasProjects' })
 
@@ -138,7 +139,7 @@ function formatTime(isoString: string): string {
   if (hours < 24) return `${hours} 小时前`
   const days = Math.floor(hours / 24)
   if (days < 30) return `${days} 天前`
-  return new Date(isoString).toLocaleDateString('zh-CN')
+  return toBJDate(isoString)
 }
 
 function thumbnailColor(project: CanvasProject): string {

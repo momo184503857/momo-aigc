@@ -8,6 +8,7 @@ import { getNodeTheme } from '@/modules/workflow/nodes/nodeRegistry'
 import { getConfigPanel } from '@/modules/workflow/nodes/registry'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
 import type { ImageNodeResultValue, LocalImageAsset } from '@/modules/workflow/types/workflow'
+import { toBJMinute } from '@/utils/datetime'
 
 const dataTypeLabel: Record<string, string> = { Text: '文字', Image: '图片', Any: '任意' }
 
@@ -105,7 +106,7 @@ const imageAiTaskId = computed(() => {
 function copyLogs() {
   if (!selectedNode.value) return
   const lines = selectedNode.value.logs.map((l) => {
-    const t = l.startedAt ? new Date(l.startedAt).toLocaleTimeString() : ''
+    const t = l.startedAt ? toBJMinute(l.startedAt) : ''
     let line = `[${t}] [${l.level.toUpperCase()}] ${l.message}`
     if (l.request) line += `\n  req: ${JSON.stringify(l.request)}`
     if (l.response) line += `\n  res: ${JSON.stringify(l.response)}`
@@ -232,7 +233,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
               </div>
               <div v-if="selectedNode.logs.length" class="panel__log-console">
                 <div v-for="log in selectedNode.logs" :key="log.id" class="panel__log-line" :class="`is-${log.level}`">
-                  <span class="log-time">{{ log.startedAt ? new Date(log.startedAt).toLocaleTimeString() : '' }}</span>
+                  <span class="log-time">{{ log.startedAt ? toBJMinute(log.startedAt) : '' }}</span>
                   <span class="log-level">{{ log.level.toUpperCase() }}</span>
                   <span class="log-msg">{{ log.message }}</span>
                 </div>

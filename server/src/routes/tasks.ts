@@ -3,6 +3,7 @@ import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { calculateCost } from '../utils/pricing.js'
 import { resolveUserApiKey } from '../utils/toapis.js'
+import { bjDateRangeClause } from '../utils/datetime.js'
 
 function isOssResultUrl(url: unknown): url is string {
   if (typeof url !== 'string') return false
@@ -65,13 +66,10 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
     where += ' AND feature_id = ?'
     params.push(featureId)
   }
-  if (startDate) {
-    where += ' AND created_at >= ?'
-    params.push(startDate)
-  }
-  if (endDate) {
-    where += ' AND created_at <= ?'
-    params.push(endDate)
+  const range = bjDateRangeClause('created_at', startDate, endDate)
+  if (range.clause) {
+    where += range.clause
+    params.push(...range.params)
   }
 
   const countRow = db.prepare(`SELECT COUNT(*) as total FROM generation_tasks ${where}`).get(...params) as any

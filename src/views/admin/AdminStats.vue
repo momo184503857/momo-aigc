@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { toBJMinute, toBJDate } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { error } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
@@ -110,9 +111,7 @@ async function loadAll() {
 }
 
 function daysAgo(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  return d.toISOString().slice(0, 10)
+  return toBJDate(new Date(Date.now() - days * 24 * 3600 * 1000).toISOString())
 }
 
 function handleDaysChange(days: number) {
@@ -203,10 +202,10 @@ onMounted(() => loadAll())
           <template #default="{ row }">{{ formatCredits(row.total_cost, { creditDigits: 0, yuanDigits: 2 }) }}</template>
         </el-table-column>
         <el-table-column label="最近提交" width="140">
-          <template #default="{ row }">{{ row.last_submitted_at?.slice(0, 16) || '-' }}</template>
+          <template #default="{ row }">{{ toBJMinute(row.last_submitted_at) }}</template>
         </el-table-column>
         <el-table-column label="最近完成" width="140">
-          <template #default="{ row }">{{ row.last_completed_at?.slice(0, 16) || '-' }}</template>
+          <template #default="{ row }">{{ toBJMinute(row.last_completed_at) }}</template>
         </el-table-column>
       </el-table>
     </div>

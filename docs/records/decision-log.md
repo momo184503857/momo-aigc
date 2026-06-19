@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-06-19 — 全项目时间：存 UTC、显示与按天查询统一按北京时间（UTC+8）
+
+**背景**：所有时间戳（`created_at`/`updated_at`/`completed_at`/`last_login_at`/`checked_at` 等）都以 UTC 存储（SQLite `CURRENT_TIMESTAMP` = `YYYY-MM-DD HH:MM:SS`，JS `new Date().toISOString()`）。但前端多处直接 `.slice(0, N)` 原样截断，对北京用户**晚 8 小时**；后端按天统计用 `DATE(created_at)`（UTC 日）、日期范围用 `created_at >= '<date>'`（UTC 零点），导致北京 16:00–24:00 提交的任务被归到前一天或漏过滤。要求全项目时间一律显示北京时间。
+
+**决策 — 存储（UTC）不动，只在「显示」和「按天逻辑」边界换算**：① 显示统一走前端共享 util `src/utils/datetime.ts`（`parseUTC` / `toBJMinute` / `toBJSecond` / `toBJDate` / `toBJMinuteFromMs`，+8h 后用 `getUTC*` 格式化，null/无效返回 `-`）；② 后端按天统计/过滤走 `server/src/utils/datetime.ts`（`bjDay(col)`=`DATE(col,'+8 hours')`；`bjDateRangeClause(col,start,end)` 用「位移参数」`datetime(?,'-8 hours')` 把北京零点 / 23:59:59 换算成 UTC 瞬时，列保持裸值走索引）。**否决**：把存储改成北京时间字符串——破坏排序/比较、跨时区易错、`CURRENT_TIMESTAMP` 默认值无法本地化。
+
+**产品规则**：面向用户的所有时间一律显示北京时间；查询的日期范围 / 按天图表也按北京日。后端 API 返回的 `*_at` 仍是 UTC 原值，前端负责格式化。
+
+**边界统一（行为修正）**：4 个列表（`stats.ts`/`tasks.ts`/`points.ts`/`admin/tasks.ts`）的 `end_date` 此前 3 条裸 `<= '<date>'`（实际只到当天 UTC 00:00，漏掉大半天）+ 1 条 `< ... 23:59:59`，现已统一为「北京日闭区间 `[<start> 00:00, <end> 23:59:59]`」。
+
+**后续影响**：新增任何展示 `*_at` 的地方必须用 `toBJ*`，禁止裸 `.slice()`；新增按天统计 / 日期过滤必须用 `bjDay` / `bjDateRangeClause`。
+
+---
+
 ## 2026-06-17 — AI 画布文字 AI：Key 与图像共用 + 不扣积分（阶段性）
 
 **背景**：文字模型（text-ai 节点）此前固定用共享 Key（`getKey()`），与图像生成的 `resolveUserApiKey` 不一致；计费文档亦写「canvas-ai 不接入个人 Key」。用户要求「图片用哪个 Key，文字模型就用哪个 Key」。

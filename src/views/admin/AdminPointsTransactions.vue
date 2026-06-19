@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { toBJSecond } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { error } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
@@ -104,7 +105,7 @@ onMounted(() => load())
       </el-table-column>
       <el-table-column prop="note" label="备注" min-width="120" />
       <el-table-column label="时间" width="160">
-        <template #default="{ row }">{{ row.created_at?.slice(0, 19) }}</template>
+        <template #default="{ row }">{{ toBJSecond(row.created_at) }}</template>
       </el-table-column>
     </el-table>
 

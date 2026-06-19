@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-06-19 — 生图统计日期查询报错 + 全项目时间显示/统计错天（UTC 未换算北京时间）
+
+**现象**：① 生图日志「生成统计」选日期后点查询报错（实际抛 `TypeError` 被吞成「加载统计失败」toast）；② 全项目时间显示比北京时间**晚 8 小时**；③ 每日趋势图 / 日期过滤把北京傍晚提交的任务归到前一天或漏掉。
+
+**根因**（两个独立陷阱叠加）：
+
+1. **el-date-picker 的 `value-format` 静默改变 v-model 类型**：设了 `value-format="YYYY-MM-DD"` 后，选过日期 v-model 从 `Date[]` 变成 **`string[]`**；而 `fmtDate()` 对值调 `d.toISOString()`，字符串没有该方法 → 抛 `TypeError`（初始 `Date` 值不触发，**选过日期才炸**，故表现为「选日期后查询报错」）。
+2. **存 UTC 但在「展示 / 按天」边界不做时区换算**：前端 `row.xxx.slice(0,16)` 原样截断 UTC 串；后端 `DATE(created_at)`、`created_at >= '<date>'` 都按 UTC 日 / UTC 零点算。对北京用户整体偏 8 小时，按天边界（北京 00:00 = UTC 前一日 16:00）全部错位。
+
+**解决方案**：见 `decision-log.md` 2026-06-19——前端共享 `src/utils/datetime.ts`（`toBJ*`），后端共享 `server/src/utils/datetime.ts`（`bjDay` / `bjDateRangeClause`）。17 处前端显示 + 4 路由范围过滤 + stats 按天分桶全部改走共享 util；`fmtDate` 改为兼容 `Date | string`。
+
+**涉及文件**：`src/utils/datetime.ts`（新）、`server/src/utils/datetime.ts`（新）、`server/src/routes/{admin/stats,admin/tasks,points,tasks}.ts`、`src/components/TaskList.vue`、`src/views/admin/{AdminDashboard,AdminStats,AdminTasks,AdminTemplates,AdminPointsTransactions,AdminUsers}.vue`、`src/views/{user/MyQuotaPage,results/ResultsPage,canvas/ProjectsPage,buyer-show/MakeBuyerShowPanel}.vue`、`src/modules/workflow/components/WorkflowRightPanel.vue`。
+
+**预防方式**：
+
+- `el-date-picker` 一旦设 `value-format`，绑定值类型就从 `Date` 变为**格式化字符串**；消费该值的 helper 必须兼容两种类型（`Date | string`），不能假定是 Date，类型注解也应随之改为字符串。这类「选过才崩」的 bug 极易潜伏。
+- 凡是存储为 UTC 的时间，在「展示给人看」「按天分组 / 过滤」之前**必须**做时区换算；裸 `.slice()`、`DATE(col)` 默认都是 UTC，对非 UTC 用户必错。项目已提供 `toBJ*` / `bjDay` / `bjDateRangeClause`，新代码直接复用，禁止再手写换算或裸截断。
+- 趋势图「最近 N 天」的窗口左沿不能简单 `DATE('now','-8 hours',?)`（会把窗口拉宽一天），正确写法是 `datetime(DATE('now','+8 hours'),'-8 hours',?)`（北京零点的 UTC 瞬时）。
+
+---
+
 ## 2026-06-17 — AI 画布文字 AI：图片输入端口声明但未传给模型
 
 **现象**：文字 AI 节点连了参考图，但模型输出仍要求「上传参考图」——图片未被接收，仅文字输入生效。

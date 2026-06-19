@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { db } from '../../db/index.js'
 import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
+import { bjDay, bjDateRangeClause } from '../../utils/datetime.js'
 
 export const adminStatsRouter = Router()
 
@@ -38,13 +39,10 @@ adminStatsRouter.get('/daily', (req: AuthRequest, res) => {
   let where = 'WHERE 1=1'
   const params: unknown[] = []
 
-  if (start_date) {
-    where += ' AND created_at >= ?'
-    params.push(start_date)
-  }
-  if (end_date) {
-    where += ' AND created_at <= ?'
-    params.push(end_date)
+  const range = bjDateRangeClause('created_at', start_date as string | undefined, end_date as string | undefined)
+  if (range.clause) {
+    where += range.clause
+    params.push(...range.params)
   }
   if (user_id) {
     where += ' AND user_id = ?'
@@ -53,7 +51,7 @@ adminStatsRouter.get('/daily', (req: AuthRequest, res) => {
 
   const rows = db.prepare(`
     SELECT
-      DATE(created_at) AS date,
+      ${bjDay('created_at')} AS date,
       COUNT(*) AS total_tasks,
       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
       SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
@@ -61,7 +59,7 @@ adminStatsRouter.get('/daily', (req: AuthRequest, res) => {
       COALESCE(SUM(points_cost), 0) AS total_cost
     FROM generation_tasks
     ${where}
-    GROUP BY DATE(created_at)
+    GROUP BY ${bjDay('created_at')}
     ORDER BY date ASC
   `).all(...params)
 
@@ -73,7 +71,8 @@ adminStatsRouter.get('/trends', (req: AuthRequest, res) => {
   const days = parseInt(req.query.days as string) || 30
   const user_id = req.query.user_id as string | undefined
 
-  let where = `WHERE created_at >= DATE('now', ?)`
+  // 窗口左沿 = 北京零点（N 天前）对应的 UTC 瞬时：先把 now 折算成北京日期，再回退到该日 UTC 零点-8h
+  let where = `WHERE created_at >= datetime(DATE('now', '+8 hours'), '-8 hours', ?)`
   const params: unknown[] = [`-${days} days`]
 
   if (user_id) {
@@ -83,13 +82,13 @@ adminStatsRouter.get('/trends', (req: AuthRequest, res) => {
 
   const rows = db.prepare(`
     SELECT
-      DATE(created_at) AS date,
+      ${bjDay('created_at')} AS date,
       COUNT(*) AS total_tasks,
       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
       SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
     FROM generation_tasks
     ${where}
-    GROUP BY DATE(created_at)
+    GROUP BY ${bjDay('created_at')}
     ORDER BY date ASC
   `).all(...params)
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { toBJMinute } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
@@ -96,7 +97,7 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
         </template>
       </el-table-column>
       <el-table-column prop="created_at" label="提交时间" width="140">
-        <template #default="{ row }">{{ row.created_at?.slice(0, 16) }}</template>
+        <template #default="{ row }">{{ toBJMinute(row.created_at) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="80" fixed="right">
         <template #default="{ row }">

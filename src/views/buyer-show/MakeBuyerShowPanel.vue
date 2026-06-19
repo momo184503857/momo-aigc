@@ -12,6 +12,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Download, Document, Delete, Refresh, MagicStick } from '@element-plus/icons-vue'
+import { toBJDate } from '@/utils/datetime'
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
 
@@ -627,7 +628,7 @@ async function downloadZip() {
     const url = URL.createObjectURL(zipBlob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `买家秀_${new Date().toISOString().slice(0, 10)}.zip`
+    a.download = `买家秀_${toBJDate(new Date().toISOString())}.zip`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

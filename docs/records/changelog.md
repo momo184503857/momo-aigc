@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-06-19 — 全项目时间统一为北京时间（UTC+8）+ 修复生图统计日期查询报错
+
+### 背景
+
+所有时间戳以 UTC 存储，但前端裸 `.slice()` 显示、后端 `DATE()` / `created_at >= '<date>'` 按天与过滤都按 UTC，对北京用户晚 8 小时、且统计 / 过滤错天；生图日志「生成统计」选日期后查询还因 `value-format` 改变 v-model 类型而抛 `TypeError`。
+
+### 变更
+
+- **前端共享时间 util**：新增 `src/utils/datetime.ts`（`parseUTC` / `toBJMinute` / `toBJSecond` / `toBJDate` / `toBJMinuteFromMs`），合并原 `TaskList.vue`、`AdminUsers.vue` 两份重复的 `toBeijingTime`。17 处裸 `.slice()` / `toLocale*` 显示改走 `toBJ*`。
+- **后端共享 SQL util**：新增 `server/src/utils/datetime.ts`（`bjDay` 按北京日分桶；`bjDateRangeClause` 用「位移参数」法 `datetime(?,'-8 hours')` 做北京日范围过滤，列保持裸值走索引）。
+- **按天统计修正**：`stats.ts` 每日 / 趋势图 `DATE(created_at)` → `DATE(created_at,'+8 hours')`；趋势窗口改为精确北京零点 `datetime(DATE('now','+8 hours'),'-8 hours',?)`。
+- **日期范围过滤统一**：4 个列表（`stats` / `tasks` / `points` / `admin/tasks`）边界此前不一致（3 条裸 `<=`、1 条 `< 23:59:59`），统一为「北京日闭区间」——修正了过去 `end_date` 实际只覆盖到当天 UTC 00:00 的漏过滤。
+- **修复生图统计查询报错**：`fmtDate` 兼容 `Date | string`；`daysAgo`、买家秀打包文件名改用 `toBJDate`；图表延迟到 tab 激活后 `nextTick` 挂载，消除 ECharts 0 尺寸告警。
+
+### 规则（确认）
+
+详见 `docs/records/decision-log.md` 2026-06-19：存储保持 UTC；面向用户的时间一律显示北京时间、按天统计 / 过滤按北京日；新代码复用 `toBJ*` / `bjDay` / `bjDateRangeClause`，禁止裸 `.slice()` 或 `DATE(col)`。
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `src/utils/datetime.ts` | 新增，前端北京时间格式化 util（合并两份重复 helper） |
+| `server/src/utils/datetime.ts` | 新增，后端按北京日分桶 / 范围过滤 helper |
+| `server/src/routes/admin/stats.ts` | 按天分桶 `+8 hours`；趋势窗口北京零点；/daily 范围 |
+| `server/src/routes/{tasks,points,admin/tasks}.ts` | 日期范围过滤统一走 `bjDateRangeClause` |
+| `src/components/TaskList.vue` / `src/views/admin/AdminUsers.vue` | 删重复 helper，改用 util |
+| 其余 10 个前端文件 | 显示 / 格式化改北京时间 |
+
+---
+
 ## 2026-06-17 — AI 画布：文字 AI 节点接入文本模型 + 图片输入 + 控制台入口 + 超时修正
 
 ### 背景

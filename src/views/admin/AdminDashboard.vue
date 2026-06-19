@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { toBJMinute, toBJSecond, toBJDate } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
@@ -110,6 +111,9 @@ interface SummaryData {
 
 const stats = ref<StatRow[]>([])
 const dailyStats = ref<DailyRow[]>([])
+// 是否已激活过「生成统计」tab：避免图表在 tab 隐藏(display:none)状态下 init，
+// 否则 echarts.init 时 clientHeight=0 会打印 DOM 尺寸警告。
+const statsActivated = ref(false)
 const summary = ref<SummaryData>({
   total_tasks: 0, total_completed: 0, total_failed: 0,
   total_points_consumed: 0, active_users: 0, total_balance: 0,
@@ -252,7 +256,11 @@ const barOption = computed(() => ({
   ],
 }))
 
-function fmtDate(d: Date): string { return d.toISOString().slice(0, 10) }
+// el-date-picker 设了 value-format="YYYY-MM-DD"：选过日期后 v-model 会变成字符串，
+// 初始值仍是 Date 对象，两种都要兼容，否则选日期后点击查询会抛 TypeError。
+function fmtDate(d: Date | string): string {
+  return typeof d === 'string' ? d.slice(0, 10) : toBJDate(d.toISOString())
+}
 
 async function loadStats() {
   statsLoading.value = true
@@ -279,6 +287,19 @@ async function loadStats() {
 }
 
 function handleStatsSearch() { loadStats() }
+
+function handleTabChange(t: string) {
+  if (t === 'stats') {
+    // nextTick：先让 el-tabs 把面板从 display:none 切回可见，再挂载图表，
+    // 否则 echarts.init 会在 0 尺寸容器上打印 "Can't get DOM width or height"。
+    nextTick(() => { statsActivated.value = true })
+    loadStats()
+  } else if (t === 'transactions' && txnRecords.value.length === 0) {
+    loadTransactions()
+  } else if (t === 'tasks' && tasks.value.length === 0) {
+    loadTasks()
+  }
+}
 
 // ════════════════════════════════════════════
 //  Tab 3: 积分流水
@@ -341,11 +362,7 @@ const tabLabel = computed(() => {
   <PageLayout>
     <template #header><h2>生图日志</h2></template>
 
-    <el-tabs v-model="activeTab" @tab-change="(t: string) => {
-      if (t === 'stats') loadStats()
-      else if (t === 'transactions' && txnRecords.length === 0) loadTransactions()
-      else if (t === 'tasks' && tasks.length === 0) loadTasks()
-    }">
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <!-- ═══ Tab 1: 任务管理 ═══ -->
       <el-tab-pane label="任务管理" name="tasks">
         <div class="tab-filters">
@@ -387,7 +404,7 @@ const tabLabel = computed(() => {
             </template>
           </el-table-column>
           <el-table-column prop="created_at" label="提交时间" width="150">
-            <template #default="{ row }">{{ row.created_at?.slice(0, 16) }}</template>
+            <template #default="{ row }">{{ toBJMinute(row.created_at) }}</template>
           </el-table-column>
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ row }">
@@ -461,13 +478,13 @@ const tabLabel = computed(() => {
             <el-col :span="16">
               <div class="chart-card">
                 <div class="chart-card-header">每日生成趋势</div>
-                <VChart :option="trendOption" style="height:340px" autoresize />
+                <VChart v-if="statsActivated" :option="trendOption" style="height:340px" autoresize />
               </div>
             </el-col>
             <el-col :span="8">
               <div class="chart-card">
                 <div class="chart-card-header">任务占比</div>
-                <VChart :option="pieOption" style="height:340px" autoresize />
+                <VChart v-if="statsActivated" :option="pieOption" style="height:340px" autoresize />
               </div>
             </el-col>
           </el-row>
@@ -475,8 +492,9 @@ const tabLabel = computed(() => {
           <!-- Bar chart -->
           <div class="chart-card" style="margin-bottom:20px">
             <div class="chart-card-header">用户生成统计</div>
-            <VChart v-if="stats.length > 0" :option="barOption" style="height:320px" autoresize />
-            <el-empty v-else description="暂无数据" />
+            <!-- 仅在 stats tab 首次激活后渲染图表，避免在 display:none 容器中 init 导致 DOM 尺寸警告。 -->
+            <VChart v-if="statsActivated" :option="barOption" style="height:320px" autoresize />
+            <el-empty v-if="stats.length === 0" description="暂无数据" />
           </div>
 
           <!-- User stats table -->
@@ -501,10 +519,10 @@ const tabLabel = computed(() => {
                 <template #default="{ row }">{{ formatCredits(row.total_cost, { creditDigits: 0, yuanDigits: 2 }) }}</template>
               </el-table-column>
               <el-table-column label="最近提交" width="140">
-                <template #default="{ row }">{{ row.last_submitted_at?.slice(0, 16) || '-' }}</template>
+                <template #default="{ row }">{{ toBJMinute(row.last_submitted_at) }}</template>
               </el-table-column>
               <el-table-column label="最近完成" width="140">
-                <template #default="{ row }">{{ row.last_completed_at?.slice(0, 16) || '-' }}</template>
+                <template #default="{ row }">{{ toBJMinute(row.last_completed_at) }}</template>
               </el-table-column>
             </el-table>
           </div>
@@ -546,7 +564,7 @@ const tabLabel = computed(() => {
           </el-table-column>
           <el-table-column prop="note" label="备注" min-width="120" />
           <el-table-column label="时间" width="160">
-            <template #default="{ row }">{{ row.created_at?.slice(0, 19) }}</template>
+            <template #default="{ row }">{{ toBJSecond(row.created_at) }}</template>
           </el-table-column>
         </el-table>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'AdminTemplates' })
 import { ref, onMounted } from 'vue'
+import { toBJMinute } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
@@ -87,7 +88,7 @@ onMounted(() => loadTemplates())
         <template #default="{ row }">{{ formatSize(row.size_bytes) }}</template>
       </el-table-column>
       <el-table-column label="上传时间" width="140">
-        <template #default="{ row }">{{ row.created_at?.slice(0, 16) }}</template>
+        <template #default="{ row }">{{ toBJMinute(row.created_at) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="80" fixed="right">
         <template #default="{ row }">

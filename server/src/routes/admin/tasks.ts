@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { db } from '../../db/index.js'
 import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
+import { bjDateRangeClause } from '../../utils/datetime.js'
 
 function parseRow(row: any): any {
   if (!row) return row
@@ -42,13 +43,10 @@ adminTasksRouter.get('/', (req: AuthRequest, res) => {
     where += ' AND t.user_id = ?'
     params.push(userId)
   }
-  if (startDate) {
-    where += ' AND t.created_at >= ?'
-    params.push(startDate)
-  }
-  if (endDate) {
-    where += ' AND t.created_at < ?'
-    params.push(endDate + ' 23:59:59')
+  const range = bjDateRangeClause('t.created_at', startDate, endDate)
+  if (range.clause) {
+    where += range.clause
+    params.push(...range.params)
   }
 
   const countRow = db.prepare(

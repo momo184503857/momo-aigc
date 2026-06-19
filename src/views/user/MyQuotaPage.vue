@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import { toBJMinute, toBJMinuteFromMs } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { pointsApi } from '@/services/pointsApi'
 import { userKeyApi } from '@/services/userKeyApi'
@@ -200,7 +201,7 @@ function formatInterval(s: number): string {
 
 function formatTime(ts: number | null): string {
   if (!ts) return ''
-  return new Date(ts).toLocaleTimeString('zh-CN', { hour12: false })
+  return toBJMinuteFromMs(ts)
 }
 
 onMounted(() => {
@@ -255,7 +256,7 @@ onMounted(() => {
         <h3 class="section-title">最近积分流水</h3>
         <el-table :data="quota?.recentTransactions || []" stripe size="small" empty-text="暂无流水">
           <el-table-column label="时间" width="170">
-            <template #default="{ row }">{{ row.created_at?.slice(0, 16) }}</template>
+            <template #default="{ row }">{{ toBJMinute(row.created_at) }}</template>
           </el-table-column>
           <el-table-column label="变动" width="180">
             <template #default="{ row }">

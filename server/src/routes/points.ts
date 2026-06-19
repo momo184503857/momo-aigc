@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { adminMiddleware } from '../middleware/admin.js'
+import { bjDateRangeClause } from '../utils/datetime.js'
 
 export const pointsRouter = Router()
 
@@ -83,13 +84,10 @@ adminPointsRouter.get('/transactions', (req: AuthRequest, res) => {
     where += ' AND pt.reason = ?'
     params.push(reason)
   }
-  if (startDate) {
-    where += ' AND pt.created_at >= ?'
-    params.push(startDate)
-  }
-  if (endDate) {
-    where += ' AND pt.created_at <= ?'
-    params.push(endDate)
+  const range = bjDateRangeClause('pt.created_at', startDate, endDate)
+  if (range.clause) {
+    where += range.clause
+    params.push(...range.params)
   }
 
   const countRow = db.prepare(`

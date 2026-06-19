@@ -1,5 +1,13 @@
 # Database Schema
 
+## 时间戳约定
+
+- 所有 `created_at` / `updated_at` / `completed_at` / `last_login_at` / `checked_at` / `expires_at` 等 `TIMESTAMP` 列**一律以 UTC 存储**：列默认 `CURRENT_TIMESTAMP`（SQLite，`YYYY-MM-DD HH:MM:SS` UTC），或写入 `new Date().toISOString()`（ISO `...Z`）。**不改成北京时间存储。**
+- **展示与按天逻辑才换算成北京时间（UTC+8）**：前端用 `src/utils/datetime.ts`（`toBJMinute`/`toBJSecond`/`toBJDate` 等）格式化，**禁止裸 `.slice()`**；后端按天统计/过滤用 `server/src/utils/datetime.ts`（`bjDay(col)`=`DATE(col,'+8 hours')`、`bjDateRangeClause(col,start,end)`）。
+- API 返回给前端的 `*_at` 仍是 UTC 原值，由前端负责格式化为北京时间。
+
+详见 `docs/records/decision-log.md`（2026-06-19）。
+
 ## photography_elements
 
 AI摄影功能——管理员配置的元素定义。

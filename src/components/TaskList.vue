@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } fro
 import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { isOssImageUrl } from '@/utils/download'
+import { parseUTC, toBJMinute } from '@/utils/datetime'
 const { success, info, warning, error } = useUiFeedback()
 import type { ModelId } from '@/types/adapter'
 import { MODELS } from '@/types/adapter'
@@ -131,15 +132,6 @@ function displayPrompt(task: TaskItem): string {
   return task.prompt
 }
 
-// Parse DB timestamp as UTC (SQLite strings lack timezone, default to local)
-function parseUTC(s: string): number {
-  let t = s
-  if (t && !t.endsWith('Z') && !t.includes('+') && !t.includes('T')) {
-    t = t.replace(' ', 'T') + 'Z'
-  }
-  return new Date(t).getTime()
-}
-
 function formatDuration(seconds: number): string {
   if (seconds < 0) return ''
   if (seconds < 60) return `${seconds}秒`
@@ -187,16 +179,6 @@ function handleImageDragStart(e: DragEvent, url: string) {
   if (!e.dataTransfer) return
   e.dataTransfer.setData('text/plain', url)
   e.dataTransfer.effectAllowed = 'copy'
-}
-
-function toBeijingTime(isoStr: string): string {
-  const d = new Date(parseUTC(isoStr) + 8 * 60 * 60 * 1000)
-  const y = d.getUTCFullYear()
-  const mo = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  const h = String(d.getUTCHours()).padStart(2, '0')
-  const mi = String(d.getUTCMinutes()).padStart(2, '0')
-  return `${y}-${mo}-${day} ${h}:${mi}`
 }
 </script>
 
@@ -258,7 +240,7 @@ function toBeijingTime(isoStr: string): string {
             </span>
             <span class="task-model">{{ modelDisplayName(task.model) }}</span>
             <span class="task-res">{{ aspectLabel(task) }}</span>
-            <span class="task-time">{{ toBeijingTime(task.created_at) }}</span>
+            <span class="task-time">{{ toBJMinute(task.created_at) }}</span>
           </div>
           <!-- Prompt -->
           <div class="task-prompt">
@@ -349,7 +331,7 @@ function toBeijingTime(isoStr: string): string {
             <span class="gi-value">{{ modelDisplayName(task.model) }} · {{ aspectLabel(task) }}</span>
           </div>
           <div class="grid-info-row">
-            <span class="gi-value time">{{ toBeijingTime(task.created_at) }}</span>
+            <span class="gi-value time">{{ toBJMinute(task.created_at) }}</span>
           </div>
         </div>
 

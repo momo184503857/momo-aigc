@@ -9,6 +9,7 @@ import { UiImagePreview } from '@/components/ui'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { taskApi } from '@/services/taskApi'
 import { downloadUrl, isOssImageUrl } from '@/utils/download'
+import { toBJDate } from '@/utils/datetime'
 import type { TaskItem } from '@/components/TaskList.vue'
 
 const tasks = ref<TaskItem[]>([])
@@ -197,7 +198,7 @@ onMounted(() => { loadResults() })
             <div class="result-meta">
               <span>{{ task.model }}</span>
               <span>{{ task.resolution }} / {{ task.aspectRatio }}</span>
-              <span>{{ task.created_at?.slice(0, 10) }}</span>
+              <span>{{ toBJDate(task.created_at) }}</span>
             </div>
           </div>
           <div class="result-actions" v-if="!bulkMode">
