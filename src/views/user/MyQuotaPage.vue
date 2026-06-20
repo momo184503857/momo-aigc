@@ -60,6 +60,7 @@ const reasonLabel: Record<string, string> = {
   generation: '生图扣费',
   admin_recharge: '管理员充值',
   admin_deduct: '管理员扣减',
+  refund: '失败退款',
 }
 
 async function load() {

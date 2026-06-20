@@ -443,5 +443,45 @@ export function initSchema(): void {
     console.log('[DB] Migration credits_v1 done (yuan → credits, ×200/7)')
   }
 
+  // ── 一次性补退：历史上「失败任务已扣未退」的，按「失败不扣费」规则退还 ──
+  // 幂等守卫：仅当 system_config.refund_failed_v1 未标记 done 时执行。
+  // 与 scripts/refund-failed-tasks.mjs 逻辑一致；本地若已用脚本退过，points_cost 已为 0，此处自动跳过。
+  // 云端部署后首次重启即自动执行，无需手动碰数据库。
+  const refundCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'refund_failed_v1'`).get() as { value: string } | undefined
+  if (refundCfg?.value !== 'done') {
+    const failedTasks = db.prepare(`
+      SELECT id, user_id, points_cost FROM generation_tasks
+      WHERE status = 'failed' AND points_cost > 0
+    `).all() as { id: number; user_id: number; points_cost: number }[]
+
+    const stmtUser = db.prepare('SELECT points FROM users WHERE id = ?')
+    const stmtUpdUser = db.prepare('UPDATE users SET points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    const stmtUpdTask = db.prepare('UPDATE generation_tasks SET points_cost = 0, points_balance_after = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    const stmtInsRefund = db.prepare(`
+      INSERT INTO points_transactions (user_id, amount, balance_after, reason, reference_type, reference_id, note, created_at)
+      VALUES (?, ?, ?, 'refund', 'generation_task', ?, '失败补退(历史)', CURRENT_TIMESTAMP)
+    `)
+    const stmtSetFlag = db.prepare(`
+      INSERT INTO system_config (key, value) VALUES ('refund_failed_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'
+    `)
+
+    const migTxn = db.transaction(() => {
+      for (const t of failedTasks) {
+        const user = stmtUser.get(t.user_id) as { points: number } | undefined
+        if (!user) continue // 用户已删除，跳过（极罕见；FK 下不应发生）
+        const newBalance = Math.round((Number(user.points) + t.points_cost) * 1000) / 1000
+        stmtUpdUser.run(newBalance, t.user_id)
+        stmtUpdTask.run(newBalance, t.id)
+        stmtInsRefund.run(t.user_id, t.points_cost, newBalance, t.id)
+      }
+      stmtSetFlag.run()
+    })
+    migTxn()
+
+    const total = failedTasks.reduce((s, t) => s + t.points_cost, 0)
+    console.log(`[DB] Migration refund_failed_v1 done: 退还 ${failedTasks.length} 笔失败任务，合计 ${total} 积分`)
+  }
+
   console.log('[DB] Schema initialized')
 }

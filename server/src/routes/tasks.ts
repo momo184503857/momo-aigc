@@ -231,10 +231,34 @@ tasksRouter.patch('/:id', (req: AuthRequest, res) => {
     return
   }
 
-  fields.push('updated_at = CURRENT_TIMESTAMP')
-  params.push(req.params.id)
+  // 失败退款：从非终态（submitted/queued/in_progress）转为 failed 且已扣费，则退还。
+  // 不处理 completed→failed：防止「拿到结果图后再标失败」套取退款。
+  // 退完后清零 points_cost —— 既防重复退款，又让消耗统计（SUM(points_cost)）自动不含失败。
+  const becomingFailed = req.body.status === 'failed'
+    && task.status !== 'failed'
+    && task.status !== 'completed'
+    && Number(task.points_cost) > 0
 
-  db.prepare(`UPDATE generation_tasks SET ${fields.join(', ')} WHERE id = ?`).run(...params)
+  fields.push('updated_at = CURRENT_TIMESTAMP')
+
+  if (becomingFailed) {
+    const refund = Number(task.points_cost)
+    db.transaction(() => {
+      const user = db.prepare('SELECT points FROM users WHERE id = ?').get(task.user_id) as any
+      const newBalance = Math.round(((Number(user.points) || 0) + refund) * 1000) / 1000
+      const refundFields = [...fields, 'points_cost = 0', 'points_balance_after = ?']
+      db.prepare(`UPDATE generation_tasks SET ${refundFields.join(', ')} WHERE id = ?`)
+        .run(...params, newBalance, req.params.id)
+      db.prepare('UPDATE users SET points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(newBalance, task.user_id)
+      db.prepare(`
+        INSERT INTO points_transactions (user_id, amount, balance_after, reason, reference_type, reference_id, note, created_at)
+        VALUES (?, ?, ?, 'refund', 'generation_task', ?, '失败自动退款', CURRENT_TIMESTAMP)
+      `).run(task.user_id, refund, newBalance, task.id)
+    })()
+  } else {
+    db.prepare(`UPDATE generation_tasks SET ${fields.join(', ')} WHERE id = ?`).run(...params, req.params.id)
+  }
 
   res.json({ success: true, data: { id: req.params.id } })
 })

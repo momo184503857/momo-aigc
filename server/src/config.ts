@@ -23,5 +23,8 @@ export const config = {
     resultImportWorkerSecret: process.env.OSS_RESULT_IMPORT_WORKER_SECRET || '',
   },
 
-  dbPath: path.resolve(__dirname, '../data/momo.db'),
+  // 可用 MOMO_DB_PATH 指向其它库（备份/测试/运维用）；默认项目内 data/momo.db
+  dbPath: process.env.MOMO_DB_PATH
+    ? path.resolve(process.env.MOMO_DB_PATH)
+    : path.resolve(__dirname, '../data/momo.db'),
 }
