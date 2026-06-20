@@ -43,6 +43,11 @@ export const adminApi = {
     return http.delete(`/admin/tasks/${id}`)
   },
 
+  // 统一活动日志（任务 + 积分流水）
+  listActivity(params?: { page?: number; pageSize?: number; user_id?: number; type?: string; status?: string; start_date?: string; end_date?: string }) {
+    return http.get('/admin/activity', { params })
+  },
+
   // Templates
   listTemplates(user_id?: number) {
     return http.get('/admin/templates', { params: user_id ? { user_id } : {} })
@@ -52,17 +57,17 @@ export const adminApi = {
   },
 
   // Stats
-  getStats() {
-    return http.get('/admin/stats/users')
+  getStats(params?: { start_date?: string; end_date?: string; user_id?: number }) {
+    return http.get('/admin/stats/users', { params })
   },
-  getDailyStats(params?: { start_date?: string; end_date?: string; user_id?: number }) {
+  getDailyStats(params?: { start_date?: string; end_date?: string; user_id?: number; granularity?: string }) {
     return http.get('/admin/stats/daily', { params })
   },
   getTrends(days?: number) {
     return http.get('/admin/stats/trends', { params: days ? { days } : {} })
   },
-  getStatsSummary() {
-    return http.get('/admin/stats/summary')
+  getStatsSummary(params?: { start_date?: string; end_date?: string; user_id?: number }) {
+    return http.get('/admin/stats/summary', { params })
   },
 
   // Points

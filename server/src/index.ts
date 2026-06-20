@@ -10,6 +10,7 @@ import { ossRouter } from './routes/oss.js'
 import { promptsRouter } from './routes/prompts.js'
 import { adminUsersRouter } from './routes/admin/users.js'
 import { adminTasksRouter } from './routes/admin/tasks.js'
+import { adminActivityRouter } from './routes/admin/activity.js'
 import { adminTemplatesRouter } from './routes/admin/templates.js'
 import { adminStatsRouter } from './routes/admin/stats.js'
 import { featurePromptsRouter, adminFeaturePromptsRouter } from './routes/featurePrompts.js'
@@ -44,6 +45,7 @@ app.use('/api/tasks', tasksRouter)
 app.use('/api/prompts', promptsRouter)
 app.use('/api/admin/users', adminUsersRouter)
 app.use('/api/admin/tasks', adminTasksRouter)
+app.use('/api/admin/activity', adminActivityRouter)
 app.use('/api/admin/templates', adminTemplatesRouter)
 app.use('/api/admin/stats', adminStatsRouter)
 app.use('/api/feature-prompts', featurePromptsRouter)

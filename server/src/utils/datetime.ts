@@ -10,6 +10,17 @@ export function bjDay(col: string): string {
   return `DATE(${col}, '+8 hours')`
 }
 
+/** `strftime('%Y-%m', col, '+8 hours')` —— 按北京月分桶（'YYYY-MM'）。 */
+export function bjMonth(col: string): string {
+  return `strftime('%Y-%m', ${col}, '+8 hours')`
+}
+
+/** `strftime('%Y-W%W', col, '+8 hours')` —— 按北京周分桶（'YYYY-Www'，周一为周首）。
+ *  用 %W（SQLite 3.43 支持）；不用 ISO 的 %G/%V（该版本不支持，会返回空）。 */
+export function bjWeek(col: string): string {
+  return `strftime('%Y-W%W', ${col}, '+8 hours')`
+}
+
 export interface DateRangeClause {
   /** 形如 ` AND col >= ... AND col <= ...`；无边界时为空串，可直接拼到现有 WHERE 后。 */
   clause: string

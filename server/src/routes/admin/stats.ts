@@ -2,13 +2,23 @@ import { Router } from 'express'
 import { db } from '../../db/index.js'
 import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
-import { bjDay, bjDateRangeClause } from '../../utils/datetime.js'
+import { bjDay, bjWeek, bjMonth, bjDateRangeClause } from '../../utils/datetime.js'
 
 export const adminStatsRouter = Router()
 
 adminStatsRouter.use(authMiddleware, adminMiddleware)
 
-adminStatsRouter.get('/users', (_req: AuthRequest, res) => {
+adminStatsRouter.get('/users', (req: AuthRequest, res) => {
+  const { start_date, end_date, user_id } = req.query
+  // 日期条件放进 JOIN ON：范围外的任务不计入统计，但用户行仍保留（由 HAVING 过滤掉 0 活动）
+  const range = bjDateRangeClause('t.created_at', start_date as string | undefined, end_date as string | undefined)
+  const params: unknown[] = [...range.params]
+  let userClause = ''
+  if (user_id) {
+    userClause = ' AND u.id = ?'
+    params.push(Number(user_id))
+  }
+
   const stats = db.prepare(`
     SELECT
       u.id AS user_id,
@@ -23,18 +33,23 @@ adminStatsRouter.get('/users', (_req: AuthRequest, res) => {
       MAX(t.created_at) AS last_submitted_at,
       MAX(CASE WHEN t.status = 'completed' THEN t.completed_at END) AS last_completed_at
     FROM users u
-    LEFT JOIN generation_tasks t ON t.user_id = u.id
-    WHERE u.role = 'user'
+    LEFT JOIN generation_tasks t ON t.user_id = u.id${range.clause}
+    WHERE u.role = 'user'${userClause}
     GROUP BY u.id
+    HAVING submitted_count > 0
     ORDER BY submitted_count DESC
-  `).all()
+  `).all(...params)
 
   res.json({ success: true, data: stats })
 })
 
-// Daily stats
+// Daily/period stats（支持 day/week/month 分桶）
 adminStatsRouter.get('/daily', (req: AuthRequest, res) => {
   const { start_date, end_date, user_id } = req.query
+  const granularity = (req.query.granularity as string) || 'day'
+  const bucket = granularity === 'month' ? bjMonth('created_at')
+    : granularity === 'week' ? bjWeek('created_at')
+    : bjDay('created_at')
 
   let where = 'WHERE 1=1'
   const params: unknown[] = []
@@ -51,7 +66,7 @@ adminStatsRouter.get('/daily', (req: AuthRequest, res) => {
 
   const rows = db.prepare(`
     SELECT
-      ${bjDay('created_at')} AS date,
+      ${bucket} AS date,
       COUNT(*) AS total_tasks,
       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
       SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
@@ -59,7 +74,7 @@ adminStatsRouter.get('/daily', (req: AuthRequest, res) => {
       COALESCE(SUM(points_cost), 0) AS total_cost
     FROM generation_tasks
     ${where}
-    GROUP BY ${bjDay('created_at')}
+    GROUP BY ${bucket}
     ORDER BY date ASC
   `).all(...params)
 
@@ -96,7 +111,20 @@ adminStatsRouter.get('/trends', (req: AuthRequest, res) => {
 })
 
 // Summary
-adminStatsRouter.get('/summary', (_req: AuthRequest, res) => {
+adminStatsRouter.get('/summary', (req: AuthRequest, res) => {
+  const { start_date, end_date, user_id } = req.query
+  let where = 'WHERE 1=1'
+  const params: unknown[] = []
+  const range = bjDateRangeClause('created_at', start_date as string | undefined, end_date as string | undefined)
+  if (range.clause) {
+    where += range.clause
+    params.push(...range.params)
+  }
+  if (user_id) {
+    where += ' AND user_id = ?'
+    params.push(Number(user_id))
+  }
+
   const summary = db.prepare(`
     SELECT
       COUNT(*) AS total_tasks,
@@ -105,8 +133,10 @@ adminStatsRouter.get('/summary', (_req: AuthRequest, res) => {
       COALESCE(SUM(points_cost), 0) AS total_points_consumed,
       COUNT(DISTINCT user_id) AS active_users
     FROM generation_tasks
-  `).get() as any
+    ${where}
+  `).get(...params) as any
 
+  // 总余额为当前全用户快照，与日期范围无关
   const balances = db.prepare(`
     SELECT COALESCE(SUM(points), 0) AS total_balance FROM users
   `).get() as any
