@@ -4,6 +4,73 @@
 
 ---
 
+## 2026-06-20 — 失败任务退款（计费规则变更）+ 启动迁移
+
+### 背景
+
+原规则「计费在创建时预扣、失败不退款」（与买家秀一致）导致用户为失败任务付费。用户要求「失败不扣费」。
+
+### 变更
+
+- **正向退款**：`PATCH /api/tasks/:id` 在任务从非终态转 `failed` 且 `points_cost>0` 时，事务内退余额 + 写 `points_transactions`(reason=`refund`) + 清零 `points_cost`。阻止 `completed→failed` 套退。
+- **历史补退**：`server/src/db/schema.ts` 新增幂等启动迁移 `refund_failed_v1`（与 `migration_credits_v1` 同模式，`system_config` 标记只跑一次）；云端部署重启即自动补退。本地 73 笔 / 云端 74 笔已退。附 `scripts/refund-failed-tasks.mjs` 手动补退脚本（幂等，可 `MOMO_DB_PATH` 指库）。
+- **统计自动正确**：退款清零 `points_cost` → `SUM(points_cost)` 自动排除失败，无需改统计代码。
+
+### 规则（确认，见 `docs/requirements/billing.md` §4/§6）
+
+失败不扣费 = 提交时预扣 + 失败时退款；消耗统计用 `SUM(points_cost)`（净，勿加 `status='completed'`）。
+
+### 涉及文件
+
+`server/src/routes/tasks.ts`（退款）、`server/src/db/schema.ts`（迁移）、`server/src/config.ts`（`MOMO_DB_PATH`）、`scripts/refund-failed-tasks.mjs`（新）、前端 `reasonLabel` 三处加 `refund`（AdminDashboard / MyQuotaPage / AdminPointsTransactions）。
+
+---
+
+## 2026-06-20 — 生图日志：任务/积分合并为统一活动日志 + 统计金额维度/日周月
+
+### 背景
+
+`/admin/dashboard` 原「任务管理」「积分流水」两 Tab 高度重复（同一笔生图在两表各一行）；「生成统计」日期筛选只影响趋势图，其余全量；柱状图只有次数看不到钱。
+
+### 变更
+
+- **合并活动日志**：两 Tab 合一为「任务与积分」；新增 `GET /api/admin/activity`（`generation_tasks` UNION ALL 非生成计费流水，生成计费流水由任务行代表去重）；类型标签区分 生成/充值/扣减；仅生成行可删。
+- **统计金额维度 + 周期**：趋势图与柱状图加「次数/金额」+「日/周/月」切换；左图右栏布局、KPI 去图标降噪。金额模式画消耗金额(¥)（柱状按用户降序）。
+- **修复日期联动**：`/admin/stats` 的 `summary`/`users`/`daily` 统一支持日期+用户过滤（`bjDateRangeClause`）；`/daily` 加 `granularity=day|week|month`（新增 `bjWeek`/`bjMonth`，周用 `%W` 因 SQLite 不支持 ISO `%G/%V`）；`/users` 加 `HAVING submitted_count>0`。
+
+### 规则（确认）
+
+消耗金额 = `SUM(points_cost)`（净，失败退款后为 0）；`%G/%V` 在 SQLite 3.43 返回空，周分桶用 `%W`。
+
+### 涉及文件
+
+`server/src/routes/admin/{activity.ts(新),stats.ts}`、`server/src/utils/datetime.ts`（bjWeek/bjMonth）、`server/src/index.ts`、`src/services/adminApi.ts`、`src/views/admin/AdminDashboard.vue`。
+
+---
+
+## 2026-06-20 — 我的消耗页（平台/个人 Key 消耗双线 + 充值趋势）
+
+### 背景
+
+用户此前只能在「我的额度」看余额 + 最近 10 条流水，看不到自己每天花了多少、趋势。要求每人可看自己的每日消耗、充值、趋势。
+
+### 变更
+
+- **新页 `/my-consumption`**（从头像菜单进入）：KPI（余额/累计消费/累计充值）+ 消耗趋势（**平台 Key + 个人 Key 双线**）+ 充值趋势 + 明细表；日/周/月 + 日期范围（默认最近 30 天）。
+- **新端点 `GET /api/points/me/daily`**：按周期返回 `{date, spent(平台净), personal(个人折算), recharged(admin_recharge), count}`，按日期合并。
+- **个人 Key 消耗折算**：平台不记录个人 Key 真实 ToAPIs 花费，故用 `calculateCost(model,resolution,n)`（平台单价）折算；个人任务以「无 `generation` 流水」识别（避免退款过的失败任务被误算），失败任务两侧均不计。
+- **修正**：`/api/points/me` 的 `total_recharged` 原含失败退款（`amount>0`），改为只算 `admin_recharge`；新增 `total_consumed`（净）。
+
+### 规则（确认，见 `docs/requirements/billing.md` §6）
+
+个人 Key 消耗 = 平台单价折算（非真实 ToAPIs 扣费，真实花费以用户 ToAPIs 账户为准）；累计充值不含退款。
+
+### 涉及文件
+
+`server/src/routes/points.ts`（/me/daily、/me 字段、import calculateCost）、`src/services/pointsApi.ts`、`src/views/user/MyConsumptionPage.vue`（新）、`src/router/index.ts`、`src/components/SidebarMenu.vue`（菜单 + TrendCharts 图标）。
+
+---
+
 ## 2026-06-19 — 全项目时间统一为北京时间（UTC+8）+ 修复生图统计日期查询报错
 
 ### 背景

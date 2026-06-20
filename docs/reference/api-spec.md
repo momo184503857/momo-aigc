@@ -113,8 +113,14 @@
 
 ### 余额与流水
 
-- `GET /api/points/me` → `{ balance, total_spent, total_recharged }`（新积分）
-- `GET /api/points/me/transactions?page&pageSize` → 分页流水（amount/balance_after 均为新积分）
+- `GET /api/points/me` → `{ balance, total_spent, total_recharged, total_consumed }`（新积分）。`total_recharged` 仅 `admin_recharge`（**不含失败退款**）；`total_consumed` = `SUM(generation_tasks.points_cost)` 净消耗（失败退款后清零）。
+- `GET /api/points/me/transactions?page&pageSize` → 分页流水（amount/balance_after 均为新积分）。
+- `GET /api/points/me/daily?granularity=day|week|month&start_date&end_date` → 本人每周期消耗/充值 `{ date, spent(平台净), personal(个人 Key 按平台单价折算), recharged(admin_recharge), count }`。
+
+### 管理端活动日志与统计（auth + admin）
+
+- `GET /api/admin/activity?page&pageSize&type&status&user_id&start_date&end_date` → 统一活动日志：`generation_tasks` UNION ALL 非生成计费流水（生成计费流水 `reference_type='generation_task'` 由任务行代表、去重）；类型标签区分 生成/充值/扣减；仅 `type=task` 行可删。
+- `GET /api/admin/stats/{users,daily,summary}` → 均支持 `start_date&end_date&user_id`（北京日闭区间）；`/daily` 支持 `granularity=day|week|month`（周 `strftime('%Y-W%W')`、月 `strftime('%Y-%m')`，均 `+8 hours` 北京时区）。
 
 ### 管理员调账 `POST /api/admin/users/:id/points`（auth + admin）
 

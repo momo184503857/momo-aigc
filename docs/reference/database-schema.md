@@ -175,7 +175,7 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 | user_id | INTEGER FK → users(id) | |
 | amount | REAL | 带符号（新积分），充值正、扣费负 |
 | balance_after | REAL | 变动后余额（新积分） |
-| reason | TEXT | `generation` / `admin_recharge` / `admin_deduct` |
+| reason | TEXT | `generation` 生图扣费 / `admin_recharge` 充值 / `admin_deduct` 扣减 / `refund` 失败退款 |
 | reference_type | VARCHAR | 如 `generation_task` / `admin` |
 | reference_id | INTEGER | 关联任务/管理员 id |
 | operator_id | INTEGER FK → users(id) | 操作者（管理员调账时） |
@@ -183,4 +183,6 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 | created_at | TIMESTAMP | |
 
 索引：`user_id`、`created_at`、`reason`。
+
+> **失败退款与净消耗口径（2026-06-20）**：`generation` 扣费在任务创建时发生（`points_cost` 记入 `generation_tasks`）；任务失败时（`PATCH /api/tasks/:id` 转 `failed`）写一条 `refund` 流水（`amount=+points_cost`，`reference_type='generation_task'`）并**清零该任务 `points_cost`**。故 `SUM(generation_tasks.points_cost)` 即「净消耗」（失败退款后为 0），统计消耗无需再加 `status` 过滤。`completed→failed` 不退款（防套退）。历史已扣未退的失败任务由启动迁移 `refund_failed_v1` 一次性幂等补退（`system_config` 标记，与 `migration_credits_v1` 同模式）；附 `scripts/refund-failed-tasks.mjs` 手动补退脚本。
 

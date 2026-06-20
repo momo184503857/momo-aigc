@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-06-20 — 失败任务被扣费未退 + 累计充值误含退款
+
+**现象**：① 失败的生图任务仍扣了用户积分（创建时预扣、失败不退）；② `/api/points/me` 的 `total_recharged` 把「失败退款」（amount>0）也算进了充值，累计充值虚高。
+
+**根因**：
+1. `POST /api/tasks` 在创建时扣费（预扣），而 `PATCH /api/tasks/:id` 把状态改 failed 时**没有任何退款逻辑**——只更新 status 字段。故失败任务 `points_cost` 保持原值、余额不恢复、无退款流水（旧规则即「失败不退款」，本轮改为退款）。
+2. `/me` 的 `total_recharged = SUM(amount) WHERE amount>0`——退款流水 amount 为正，被误计入「充值」。
+
+**解决方案**：① `PATCH /:id` 加失败退款（见决策日志 2026-06-20）；② `total_recharged` 改为 `SUM(amount) WHERE reason='admin_recharge'`（纯充值，不含退款）；新增 `total_consumed = SUM(points_cost)`（净消耗）。历史失败任务用 `refund_failed_v1` 启动迁移补退（本地 73 笔 / 云端 74 笔已退，金额对账通过：净消耗 = 毛扣费 − 退款）。
+
+**涉及文件**：`server/src/routes/tasks.ts`（退款）、`server/src/routes/points.ts`（/me 口径）、`server/src/db/schema.ts`（迁移）、`scripts/refund-failed-tasks.mjs`。
+
+**预防方式**：
+- 「预扣 + 终态退款」模型下，状态流转到失败必须有对称的退款分支；只更新 status 不处理钱是静默 bug（钱扣了不退，DB 不报错）。
+- 带符号金额按「方向」分类统计时，不能用「正=充值」这类简单符号判断——退款也是正数。按 `reason` 精确归类（`admin_recharge` 才是充值）。
+- 「清零 `points_cost`」一举两得：既防重复退款（幂等守卫），又让 `SUM(points_cost)` 自动成为净口径——退款类操作应把已退金额从原记录抹除，而非仅靠统计时过滤。
+
+---
+
 ## 2026-06-19 — 生图统计日期查询报错 + 全项目时间显示/统计错天（UTC 未换算北京时间）
 
 **现象**：① 生图日志「生成统计」选日期后点查询报错（实际抛 `TypeError` 被吞成「加载统计失败」toast）；② 全项目时间显示比北京时间**晚 8 小时**；③ 每日趋势图 / 日期过滤把北京傍晚提交的任务归到前一天或漏掉。
