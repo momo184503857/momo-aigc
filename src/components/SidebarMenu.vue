@@ -22,6 +22,7 @@ import {
   Goods,
   Setting,
   Money,
+  TrendCharts,
 } from '@element-plus/icons-vue'
 
 defineProps<{ collapsed?: boolean }>()
@@ -115,6 +116,8 @@ function handleCommand(command: string) {
     router.push('/settings')
   } else if (command === 'my-quota') {
     router.push('/my-quota')
+  } else if (command === 'my-consumption') {
+    router.push('/my-consumption')
   } else if (command === 'pricing') {
     router.push('/pricing')
   } else if (command === 'logout') {
@@ -164,6 +167,7 @@ function handleCommand(command: string) {
               {{ auth.user.role === 'admin' ? '管理员' : '用户' }}
             </el-dropdown-item>
             <el-dropdown-item command="my-quota" :icon="Coin">我的额度</el-dropdown-item>
+            <el-dropdown-item command="my-consumption" :icon="TrendCharts">我的消耗</el-dropdown-item>
             <el-dropdown-item command="pricing" :icon="Money">计费说明</el-dropdown-item>
             <el-dropdown-item command="settings" :icon="Setting">个人设置</el-dropdown-item>
             <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
