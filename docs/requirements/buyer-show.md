@@ -1,6 +1,6 @@
 # AI 买家秀（买家秀案例库）
 
-最后更新：2026-06-14  
+最后更新：2026-06-23  
 负责人：管理员（墨墨）  
 菜单位置：侧边栏「AI生图」→「AI买家秀」（路由 `/buyer-show`）
 
@@ -12,11 +12,12 @@
 
 | Tab | 名称 | 状态 | 说明 |
 |-----|------|------|------|
-| 1 | 制作买家秀 | **已实现·构建通过·待端到端验证** | 从 Excel 批量生图、打包下载。本轮已实现并通过类型检查/构建；真实 OSS/ToAPIs 端到端待验证（见 §3） |
-| 2 | 素材库 | **已实现·已验证** | 管理员维护「图 + 提示词 + 标签」案例库，普通用户查看 + 复制。本轮交付（见 §2） |
+| 1 | 制作买家秀 | **已实现·构建通过·待端到端验证** | 从 Excel 批量生图、打包下载。**工作区只保留当前任务**（上传新表=新任务并自动归档旧的，亦可手动归档）。本轮已实现并通过类型检查/构建；真实 OSS/ToAPIs 端到端待验证（见 §3） |
+| 2 | 任务历史 | **已实现·构建通过·待端到端验证** | 按批次（一次上传=一个任务）回看历史：列表/详情/对比弹窗/下载 zip/改名/删除。详见 §3.6 |
+| 3 | 素材库 | **已实现·已验证** | 管理员维护「图 + 提示词 + 标签」案例库，普通用户查看 + 复制（见 §2） |
 
 - 默认进入 Tab：**制作买家秀**（当前默认值，用户设定）。
-- 两个 Tab 在后端相互独立：素材库走 `/api/buyer-show` 与 `/api/admin/buyer-show`；制作买家秀走 `/api/buyer-show-batch`，使用独立表 `buyer_show_batch_items`。
+- 后端独立性：素材库走 `/api/buyer-show` 与 `/api/admin/buyer-show`；制作买家秀与任务历史同走 `/api/buyer-show-batch`（同源数据，表 `buyer_show_batch_items` + 批次元数据 `buyer_show_batches`），与素材库相互独立。
 
 ---
 
@@ -119,38 +120,50 @@
 
 基于商品主图批量生成「买家秀」展示图，并按商品ID 打包下载。
 
-1. **下载模板 / 上传表格**：模板列 = `商品ID / 1:1主图1链接 / 提示词`（与样例 Excel 一致）。上传时客户端 `xlsx` 解析，**模糊匹配列名**（兼容「一比一主图一链接」等写法），缺任一必要列报错；解析后服务端建批次并**追加**到当前工作列表（非覆盖）。
+1. **下载模板 / 上传表格**：模板列 = `商品ID / 1:1主图1链接 / 提示词`（与样例 Excel 一致）。上传时客户端 `xlsx` 解析，**模糊匹配列名**（兼容「一比一主图一链接」等写法），缺任一必要列报错；解析后弹框**可选输入任务名**（留空用「时间 · N个商品」默认），确认后服务端建新批次——**自动归档旧当前任务**，新批次成为当前任务并替换工作区（非追加）。
 2. **列表**：每行 = 主图缩略图（点击 → `UiImagePreview` 放大）+ 商品ID + **可编辑提示词**（失焦/回车即落库 `PATCH`）+ 勾选框；表头内置全选。
 3. **统一参数**：模型 / 分辨率 / 比例（**默认 9:16**）/ 张数（**默认 1**），全部可选。
 4. **一键生图**：对「勾选且状态为 pending/failed」的行，逐行调用现有生图（3s 限流），积分预检 + 确认弹窗；任务 `feature_id='buyer-show'` 写入 `generation_tasks`，**同时出现在全局任务列表与本页**。
 5. **轮询**：每行 4s 轮询 ToAPIs；完成时结果转存 OSS（`ossApi.importResult`）后回写任务与本行。
-6. **结果查看**：结果缩略图点击 → `ImageCompareDialog`（左=主图，右=结果；方向键在已完成项间切换）。
-7. **一键下载**：勾选已完成结果 → 真实打 zip（`jszip`），每张按商品ID 命名；**同商品ID 重复加 `_2/_3`**；OSS 直 fetch 失败回落 `/api/proxy/image`。
+6. **结果查看 / 重新生成**：结果缩略图点击 → `ImageCompareDialog`（左=主图，右=结果；方向键在已完成项间切换）；对**已完成**的行可点「重新生成」（用该行原任务参数重提交，新结果覆盖旧结果，见 §3.3）。
+7. **一键下载 / 归档**：勾选已完成结果 → 真实打 zip（`jszip`），每张按商品ID 命名、**同商品ID 重复加 `_2/_3`**（OSS 直 fetch 失败回落 `/api/proxy/image`）；点「归档当前任务」把当前任务移入「任务历史」（见 §3.6），工作区清空等待新上传。
 
 ### 3.2 后端
 
 - 路由 `/api/buyer-show-batch`（仅 `authMiddleware`，**按 `user_id` 隔离，全员可用**）：
-  - `GET /items`：左联 `generation_tasks` 返回每行最新状态/结果。
-  - `POST /items`：批量建行（服务端生成 `batch_id`）。
-  - `PATCH /items/:id`：改提示词 / 回写任务链接与状态。
-  - `DELETE /items/:id`、`DELETE /all`。
-- 表 `buyer_show_batch_items` 列：`id, user_id, batch_id, product_id, main_image_url, prompt, task_id, toapis_task_id, status, progress, error_message, sort_order, created_at, updated_at`。
-- **关于「缺列」澄清**：`model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` **不是本表列**，而是 `GET /items` 通过 `LEFT JOIN generation_tasks` 取得（本行有 `task_id` 时以任务状态/结果为准，否则取本行 status）。无需补 migration。
+  - `GET /items`：默认只返回**当前任务**（`status='active'` 批次）的行；`?batchId=` 指定批次。左联 `generation_tasks` 取每行最新状态/结果（含 `model/resolution/aspect_ratio/n/result_image_urls`）。
+  - `POST /items`：建新批次（服务端生成 `batch_id`）——事务内先归档该用户所有 `active` 批次，再插新 `active` 批次元数据（入参 `name`），最后插行。返回 `{ batchId, ids }`。
+  - `PATCH /items/:id`：改提示词 / 回写任务链接与状态。**字段名归一化**：同时接受 camelCase（`taskId`/`toapisTaskId`/`errorMessage`）与 snake_case（修复刷新结果丢失，见 `bug-fixes.md` 2026-06-22）。
+  - `DELETE /items/:id`、`DELETE /all`（清空该用户全部行 + 批次）。
+  - `GET /batches`：列出批次（默认仅 `archived` 历史；`?includeActive=1` 含当前），含聚合统计 `itemCount/completedCount/failedCount`。
+  - `GET /batches/:batchId/items`：某批次全部行（任务详情）。
+  - `PATCH /batches/:batchId`：改名 / 手动归档（`status` 仅允许 `active→archived`）。
+  - `DELETE /batches/:batchId`：删除整个任务（元数据 + 行；`generation_tasks` 保留）。
+- 表 `buyer_show_batch_items`：`id, user_id, batch_id, product_id, main_image_url, prompt, task_id, toapis_task_id, status, progress, error_message, sort_order, created_at, updated_at`。
+- 表 `buyer_show_batches`（批次元数据 / 任务历史）：`id, user_id, batch_id(UNIQUE), name, status('active'|'archived'), created_at, archived_at`。
+- **结果图靠 JOIN、不冗余**：`model/resolution/aspect_ratio/n/result_image_urls/input_image_urls/completed_at` 都不是 `buyer_show_batch_items` 的列，而是 `GET /items` 经 `LEFT JOIN generation_tasks ON task_id=gt.id` 取得（本行有 `task_id` 时以任务状态/结果为准，否则取本行 status）。
 
 ### 3.3 业务规则与边界
 
-- **默认参数**：比例 `9:16`（依赖默认分辨率 `2K`；切到 `gpt-image-2 @ 1K` 会自动回退到该档首个比例）、张数 `1`。
-- **积分**：按 `unitPrice × 选中行数 × 张数` 预估；实际在 `taskApi.create` 时由服务端 `calculateCost` 扣除，**失败不退款**。
-- **主图不重传 OSS**：alicdn 主图 URL 直接作为参考图传给 ToAPIs（与「批量传表格做图」一致）；对比弹窗的「参考图」即该 alicdn 链接。
-- **快速失败自动重试（本轮新增规则）**：提交后 **5 秒内**失败视为瞬时失败，弹提示并自动重提；**单行最多自动重试 2 次**，避免对持续失败的任务反复扣分；超过 5s 或达上限则转终态失败，由用户手动重试（手动重试重置自动重试额度）。刷新后恢复轮询的行因无 `submittedAt` 不自动重试。
-- **刷新续跑**：`onMounted` 加载本用户全部行；对 `in_progress` 且有 `toapis_task_id` 的行恢复轮询。
-- **结果须为 OSS URL** 才能写入 `generation_tasks.result_image_urls`（既有约束），故先 `importResult` 再 `taskApi.update`。
+- **一个任务 = 一个 `batch_id`**：上传即开新任务，旧当前任务自动归档；工作区始终只显示当前（active）任务。
+- **归档**：手动（「归档当前任务」按钮）或上传新表时自动。允许归档含未完成（生图中/失败/待生成）行的任务——归档只改 `status`、停前端轮询；行与 task 关系不变，历史详情每次打开取最新（归档时 in_progress 的行若之后 task 完成，刷新详情即见结果）。
+- **重新生成（覆盖旧结果）**：对**已完成**行点「重新生成」，用**该行原任务参数**（model/分辨率/比例/张数）重提交；新任务完成后经 `task_id` 关联自然覆盖旧结果（旧任务记录保留但解除关联）。提交瞬间旧结果即时清空 → 生成中 → 完成填新结果。按正常计费扣积分（失败不扣）。**仅工作区支持；任务历史详情只读**（见 §3.6）。
+- **默认参数**：比例 `9:16`（依赖默认分辨率 `2K`；切到 `gpt-image-2 @ 1K` 自动回退到该档首个比例）、张数 `1`。
+- **积分**：按 `unitPrice × 选中行数 × 张数` 预估；实际在 `taskApi.create` 时由服务端 `calculateCost` 扣除，**失败退款**（预扣 + 失败退，全局规则，见 `billing.md` / `decision-log.md` 2026-06-20）。
+- **主图不重传 OSS**：alicdn 主图 URL 直接作为参考图传给 ToAPIs；对比弹窗的「参考图」即该 alicdn 链接。
+- **快速失败自动重试**：提交后 **5 秒内**失败视为瞬时失败，自动重提；**单行最多自动重试 2 次**；超过 5s 或达上限转终态失败，由用户手动重试或重新生成（均重置自动重试额度）。自动重试用**该行原任务参数**。
+- **刷新续跑**：`onMounted` 仅加载当前任务（active 批次）的行；对 `in_progress` 且有 `toapis_task_id` 的行恢复轮询。
+- **结果须为 OSS URL** 才写入 `generation_tasks.result_image_urls`，故先 `importResult` 再 `taskApi.update`。
+- **统一提交入口 `doSubmit(row, params)`**：一键生图 / 失败重试 / 自动重试 / 重新生成共用；提交时把所用参数回写到行（model/resolution/aspectRatio/n），保证自动重试参数一致。
 
 ### 3.4 已决定 / 风险
 
-- **【待端到端验证】**：导入、逐行生图、轮询恢复、对比弹窗、zip 打包未在真实环境验证。
-- **【已决定·保持现状】系统提示词**：每行直接用表格「提示词」作为生图 prompt，**不拼系统提示词**。如未来需要统一风格，再为 `feature_id='buyer-show'` 追加按模型配置的 system prompt（可挂 `feature_prompts`）。
-- **【已决定·保持现状】失败扣费策略**：积分创建时扣除、**失败不退款**；自动重试上限维持 **2**，**不实现**「失败退积分」。调整改 `MakeBuyerShowPanel.vue` 中 `MAX_AUTO_RETRY` / `FAST_FAIL_MS`。
+- **【待端到端验证】**：导入、逐行生图、轮询恢复、对比弹窗、zip 打包、任务历史、重新生成未在真实 OSS/ToAPIs 环境验证（见 `todo.md`）。
+- **【历史数据限制】**：2026-06-22 修复刷新结果丢失前，`task_id` 因字段名不匹配从未写入 `buyer_show_batch_items`；这些旧行（迁移后已归档进历史）刷新后仍无结果图——结果还在 `generation_tasks` 但已无可关联字段，无法可靠回连，需重新上传生成。
+- **【已决定·保持现状】系统提示词**：每行直接用表格「提示词」作为生图 prompt，不拼系统提示词。如未来需统一风格，再为 `feature_id='buyer-show'` 追加按模型配置的 system prompt（可挂 `feature_prompts`）。
+- **【已决定】计费**：预扣 + 失败退款（全局规则）；自动重试上限 2（`MakeBuyerShowPanel.vue` 的 `MAX_AUTO_RETRY` / `FAST_FAIL_MS`）。
+- **【已决定】结果图存储**：靠 `LEFT JOIN generation_tasks` 取，不在 `buyer_show_batch_items` 冗余存结果图；重新生成覆盖=改 `task_id` 关联，旧 task 保留不删。
+- **【已决定】任务历史只读**：历史详情不支持重新生成/编辑（只查看/下载/对比/改名/删除）；重新生成仅在工作区。
 
 ### 3.5 验收标准
 
@@ -158,7 +171,18 @@
 - 下载模板三列正确；上传样例 56 行；主图放大、提示词改写落库、勾选/全选正常。
 - 一键生图后任务进全局列表与本页，状态推进到 completed，结果转存 OSS。
 - 结果缩略图弹对比弹窗；多选结果一键下载 zip，文件名=商品ID、重复 `_2/_3`。
-- 刷新后批次/结果仍在，`in_progress` 行继续轮询。
+- **刷新后批次/结果仍在**（`task_id` 已正确写入，JOIN 取回结果），`in_progress` 行继续轮询。
+- 已完成行点「重新生成」→ 用原参数重提交 → 旧结果被新结果覆盖（刷新后仍是新结果）。
+- 上传新表自动归档旧任务；手动「归档当前任务」后工作区清空；任务历史可见、可改名/下载/删除/对比。
+
+### 3.6 任务历史（Tab 2）
+
+按批次（任务）回看往期买家秀的全部内容与结果，支持下载/对比/改名/删除（**只读**，不重新生成）。
+
+- **列表**：每个 `archived` 批次一行——名称（自定义或默认「`toBJDate(created_at)` · N 个商品」）、创建时间、完成度（`completedCount/itemCount` + 进度条）、状态（全部完成 / N 失败 / 部分完成）、操作（查看详情 / 下载 zip / 改名 / 删除）。按 `created_at` 倒序，前端分页。
+- **详情**：该批次全部行（主图、商品ID、提示词只读、状态、结果）。结果点击 → `ImageCompareDialog`；顶部「下载全部结果 zip」（按商品ID 命名）。
+- **规则**：任务历史 = 所有 `archived` 批次；当前任务（active）在工作区、不进历史。删除任务删元数据行 + 其行（`generation_tasks` 保留）。改名 `PATCH /batches/:batchId { name }`，空 name 用默认。历史**只读**，不重新生成、不回迁工作区。
+- **复用**：对比弹窗 `ImageCompareDialog`、打包下载 `src/utils/buyerShowZip.ts`（与工作区共用）。
 
 ---
 
@@ -166,3 +190,7 @@
 
 - **2026-06-14**：新增「AI 买家秀」页面与「素材库」功能。素材库由本会话实现并验证（管理员 CRUD + 用户只读复制 + 标签筛选 + 网格/列表 + 批量上传/删除 + 一键复制多条提示词至表格）。关键确认：① 编辑范围 = 提示词 + 标签 + 替换图片；② 批量上传标签 = 整批共用一组；③ 图片流量直传 OSS、服务端只存链接。同页「制作买家秀」Tab 由用户实现，待验证。
 - **2026-06-14（制作买家秀落地）**：实现「制作买家秀」Tab 全流程——Excel 模板下载/上传解析、可编辑提示词、统一参数（默认 9:16 / 张数 1）、一键生图（复用 `generation_tasks`，`feature_id='buyer-show'`）、4s 轮询、对比弹窗、按商品ID 打包 zip；批次持久化到 `buyer_show_batch_items`，刷新续跑。**新增规则：提交后 5s 内失败自动重试，单行上限 2 次。** 已通过类型检查/构建；真实环境端到端待验证。澄清：`model/resolution/result_image_urls` 等为 `GET /items` 左联 `generation_tasks` 所得，**非本表缺失列**（推翻此前「缺 migration」的疑虑）。
+
+- **2026-06-22（任务历史 + 刷新结果修复）**：① 修复刷新后结果图消失——根因前端 PATCH 传 camelCase 而后端认 snake_case，致 `task_id` 写不进表、刷新 JOIN 不到结果；`PATCH /items/:id` 归一化字段名修复（仅对新提交生效）。② 新增「任务历史」Tab：一次上传=一个任务（`batch_id`），新增 `buyer_show_batches` 元数据表（`active`=当前 / `archived`=历史）。③ 工作区改为「只留当前任务」：上传新表自动归档旧任务 + 手动「归档当前任务」按钮；`GET /items` 默认仅 active，`POST /items` 自动归档旧的并接收任务名。④ 历史支持列表/详情/对比弹窗/下载 zip/改名/删除（不支持重生成）；命名上传时可选输入、之后可改。⑤ 幂等迁移 `migration_buyer_show_batches_v1` 将现有批次标记为 `archived`。详见 `docs/records/changelog.md`。
+
+- **2026-06-23（工作区重新生成）**：工作区「操作」列对已完成行新增「重新生成」——用该行原任务参数（model/分辨率/比例/张数）重提交，新结果覆盖旧结果（`task_id` 指向新任务，旧任务解除关联但保留）。任务历史详情保持只读。统一抽 `doSubmit` 提交入口；`fetchItems` 等透传原任务 `n`。重新生成按正常计费扣积分（失败不扣）。详见 `docs/records/changelog.md`。

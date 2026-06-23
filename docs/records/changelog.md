@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-06-23 — AI 买家秀：工作区支持「重新生成」（覆盖旧结果）
+
+### 背景
+
+制作买家秀工作区里，用户对某行生成结果不满意时，无法基于该商品 + 提示词重新生成；原仅失败行可「重试」，且重试用的是工作区当前选择器参数。
+
+### 变更
+
+- **已完成行可重新生成**：工作区表格「操作」列对 `completed` 行新增「重新生成」按钮；任务历史详情保持只读（不做重生成）。
+- **用该行原任务参数**：重新生成用该行上次生成时的 model/分辨率/比例/张数，贴合「重新生成」语义。
+- **覆盖旧结果**：重提交时 `buyer_show_batch_items.task_id` 指向新任务，旧任务记录保留但不再关联；新结果完成后经 `LEFT JOIN generation_tasks` 自然替换旧结果显示（`row.resultUrl` 在提交时即时清空，完成后填新结果；刷新后 JOIN 新 `task_id` 亦显示新结果）。
+- **透传原任务张数 n**：`fetchItems` SELECT 增加 `gt.n`，`mapRow`/`BatchItemRecord`/前端 `BatchItemRow`/`TableRow` 同步加 `n`。
+- **统一提交入口**：抽出 `doSubmit(row, params)` 统一三处提交逻辑（一键生图/失败重试/自动重试），新增 `regenerateRow`（用原参数）；`autoRetry` 改用行原参数，保证重试参数一致。重新生成为新的生图任务，按正常计费扣积分（失败不扣）。
+
+### 涉及文件
+
+后端：`server/src/routes/buyerShowBatch.ts`（fetchItems/mapRow/BatchItemRecord 加 n）。前端：`src/services/buyerShowBatchApi.ts`（BatchItemRow 加 n）、`src/views/buyer-show/MakeBuyerShowPanel.vue`（doSubmit 重构 + regenerateRow + 重新生成按钮）。
+
+---
+
+## 2026-06-22 — AI 买家秀：任务历史 + 修复刷新后结果消失
+
+### 背景
+
+两个问题：① 制作买家秀批量生图完成后，刷新页面结果图消失（行本身还在）；② 缺任务历史，无法回看往期批次。
+
+### 变更
+
+- **修复刷新结果消失（Bug）**：根因为前端 `updateItem` 传 camelCase（`taskId`/`toapisTaskId`/`errorMessage`）而后端 PATCH 白名单只认 snake_case，导致 `task_id` 写不进 `buyer_show_batch_items` → 刷新后 `LEFT JOIN generation_tasks` 关联不到、结果图丢失。`PATCH /items/:id` 归一化 camelCase↔snake_case，修复后所有调用点（提交/重试/autoRetry/状态回写）的 `task_id` 均能落库。修复仅对**新提交**生效；旧 bug 期间 `task_id` 已为 NULL 的行无法可靠回连（结果仍在 `generation_tasks` 但无关联字段）。
+- **任务历史（新 Tab）**：新增「任务历史」Tab。一次 Excel 上传 = 一个「任务」= 一个 `batch_id`。新增 `buyer_show_batches` 批次元数据表（`status`: `active`=当前工作区 / `archived`=历史）。
+- **工作区只留当前任务**：`GET /items` 默认只返回 active 批次；`POST /items`（上传）自动归档旧 active、再建新 active 并接收任务名；工作区新增「归档当前任务」按钮（手动归档），「清空」改为只清当前任务。归档允许含未完成行（如实保留状态、停止轮询）。
+- **历史操作**：列表（名称/时间/完成度/状态）+ 详情（全部行 + 结果 + 对比弹窗）+ 下载 zip + 改名 + 删除；不支持重新生成。
+- **命名**：上传时弹框可选输入任务名（留空用「时间 · N个商品」默认），之后可在工作区/历史改名。
+- **一次性迁移**：`migration_buyer_show_batches_v1` 为现有批次补建元数据并全部标记为 `archived`（现有批次进历史，工作区从空开始）。
+- **复用抽取**：`src/utils/buyerShowZip.ts`（打包下载 + 行→TaskItem 转换）供工作区与历史共用。
+
+### 涉及文件
+
+后端：`server/src/db/schema.ts`（新表+迁移）、`server/src/routes/buyerShowBatch.ts`（修 PATCH + 改造 `/items` + 新增 `/batches` 端点）。前端：`src/views/buyer-show/BuyerShowPage.vue`（加 Tab）、`MakeBuyerShowPanel.vue`（工作区改造）、`BuyerShowHistoryPanel.vue`（新）、`src/services/buyerShowBatchApi.ts`（补批次类型与方法）、`src/utils/buyerShowZip.ts`（新）。
+
+---
+
 ## 2026-06-20 — 失败任务退款（计费规则变更）+ 启动迁移
 
 ### 背景

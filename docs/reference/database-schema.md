@@ -135,7 +135,23 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 索引：`user_id`、`batch_id`、`task_id`。
 
-> `model / resolution / aspect_ratio / result_image_urls / input_image_urls / completed_at` 等字段**不在本表**：`GET /items` 通过 `LEFT JOIN generation_tasks` 取得（本行有 `task_id` 时以任务状态/结果为准）。无需补 migration。
+> `model / resolution / aspect_ratio / n / result_image_urls / input_image_urls / completed_at` 等字段**不在本表**：`GET /items` 通过 `LEFT JOIN generation_tasks` 取得（本行有 `task_id` 时以任务状态/结果为准）。
+
+### buyer_show_batches
+
+买家秀批次元数据（任务历史）。一个 `batch_id` = 一个「任务」；`status='active'` 为当前工作区任务，`'archived'` 为已进任务历史。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK | |
+| user_id | INTEGER FK → users(id) | 所属用户 |
+| batch_id | TEXT NOT NULL UNIQUE | 批次 ID（对应 buyer_show_batch_items.batch_id） |
+| name | TEXT DEFAULT '' | 任务名（空则前端展示默认「时间 · N个商品」） |
+| status | TEXT DEFAULT 'active' | active=当前工作区 / archived=任务历史 |
+| created_at | TIMESTAMP | |
+| archived_at | TIMESTAMP NULL | 归档时间 |
+
+索引：`user_id`、`status`。
 
 ---
 

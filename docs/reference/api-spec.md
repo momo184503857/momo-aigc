@@ -60,19 +60,23 @@
 
 ---
 
-## AI 买家秀 · 制作买家秀（用户开发，待验证）
+## AI 买家秀 · 制作买家秀 + 任务历史
 
 ### 路由 `/api/buyer-show-batch`（任意登录用户，按用户隔离）
 
-> 该模块由用户自行开发，端到端流程待验证。以下据代码记录。
+> 已通过类型检查/构建；真实 OSS/ToAPIs 端到端待验证。一个 `batch_id` = 一个「任务」；工作区只留当前（active）任务，完成的进任务历史（archived）。
 
-- `GET /items` — 列出当前用户的批次行
-- `POST /items` — 创建批次（批量插入行）
-- `PATCH /items/:id` — 更新单行（提示词/勾选/参数等）
+- `GET /items` — 列出条目（默认仅当前任务 active 批次；`?batchId=` 指定批次），左联 `generation_tasks` 取状态/结果
+- `POST /items` body `{ items, name? }` — 建新批次：先归档该用户所有 active 批次，再插新 active 批次元数据 + 行。返回 `{ batchId, ids }`
+- `PATCH /items/:id` — 改提示词 / 回写 `task_id`/`toapis_task_id`/status/progress/error_message（**camelCase 与 snake_case 均接受**）
 - `DELETE /items/:id` — 删除单行
-- `DELETE /all` — 清空当前用户全部行
+- `DELETE /all` — 清空当前用户全部行 + 批次
+- `GET /batches` — 列出批次（默认仅 archived 历史；`?includeActive=1` 含当前），含 `itemCount/completedCount/failedCount`
+- `GET /batches/:batchId/items` — 某批次全部行（任务详情）
+- `PATCH /batches/:batchId` body `{ name?, status? }` — 改名 / 归档（status 仅 `active→archived`）
+- `DELETE /batches/:batchId` — 删除整个任务（元数据 + 行；`generation_tasks` 保留）
 
-生图复用 `generation_tasks`，`feature_id = 'buyer-show'`；故任务同时出现在全局任务列表。
+生图复用 `generation_tasks`，`feature_id = 'buyer-show'`；故任务同时出现在全局任务列表。重新生成=改 `task_id` 关联覆盖旧结果。详见 `requirements/buyer-show.md` §3。
 
 ---
 

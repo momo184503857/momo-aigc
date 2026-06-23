@@ -11,10 +11,10 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { Download, Document, Delete, Refresh, MagicStick } from '@element-plus/icons-vue'
-import { toBJDate } from '@/utils/datetime'
+import { Download, Document, Delete, Refresh, MagicStick, Box } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
-import JSZip from 'jszip'
+
+import { downloadRowsAsZip } from '@/utils/buyerShowZip'
 
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
@@ -53,6 +53,7 @@ interface TableRow {
   model?: string
   resolution?: string
   aspectRatio?: string
+  n?: number
   submittedAt?: number // 提交/重提时刻，用于判定「快速失败」自动重试
   autoRetryCount: number // 本行已自动重试次数（达上限后转为终态失败）
 }
@@ -61,6 +62,7 @@ interface TableRow {
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const tableData = ref<TableRow[]>([])
+const currentBatchId = ref<string | null>(null) // 当前任务（active 批次）的 batch_id
 const isGenerating = ref(false)
 const zipping = ref(false)
 
@@ -189,10 +191,30 @@ function handleFileUpload(e: Event) {
         return
       }
 
-      const res = await buyerShowBatchApi.createBatch(items)
+      // 弹框收集任务名（可选）；当前已有任务时提示将被自动归档
+      const hasCurrent = tableData.value.length > 0
+      let name = ''
+      try {
+        const p = await ElMessageBox.prompt(
+          `${hasCurrent ? '当前任务将自动归档为历史。\n' : ''}为这个任务起个名字（可选，留空用「时间 · N个商品」）：`,
+          '新建买家秀任务',
+          {
+            confirmButtonText: '创建任务',
+            cancelButtonText: '取消',
+            inputPlaceholder: '例如：618女装第一批',
+            inputValidator: () => true,
+          }
+        )
+        name = (p.value || '').trim()
+      } catch { return }
+
+      const res = await buyerShowBatchApi.createBatch(items, name)
+      const batchId: string = res.data.data.batchId
       const ids: number[] = res.data.data.ids
-      // 原地追加，保留既有行的勾选状态
-      const newRows: TableRow[] = items.map((it, i) => ({
+      // 后端已自动归档旧任务；前端停轮询并以新任务替换工作区
+      stopAllPolling()
+      currentBatchId.value = batchId
+      tableData.value = items.map((it, i) => ({
         id: ids[i],
         productId: it.productId,
         mainImageUrl: it.mainImageUrl,
@@ -204,8 +226,7 @@ function handleFileUpload(e: Event) {
         toapisTaskId: null,
         autoRetryCount: 0,
       }))
-      tableData.value.push(...newRows)
-      success(`已导入 ${items.length} 条`)
+      success(`已创建任务，导入 ${items.length} 条${hasCurrent ? '，旧任务已归档' : ''}`)
     } catch (err: any) {
       error('文件解析失败：' + (err?.message || '未知错误'))
     }
@@ -241,6 +262,7 @@ function rowFromRecord(r: BatchItemRow): TableRow {
     model: r.model,
     resolution: r.resolution,
     aspectRatio: r.aspectRatio,
+    n: r.n,
     submittedAt: undefined,
     autoRetryCount: 0,
   }
@@ -251,6 +273,7 @@ async function loadItems() {
     const res = await buyerShowBatchApi.listItems()
     const records: BatchItemRow[] = res.data.data.records
     tableData.value = records.map(rowFromRecord)
+    currentBatchId.value = records.length > 0 ? (records[0].batchId ?? null) : null
     // 恢复未结束任务的轮询
     tableData.value
       .filter(r => r.status === 'in_progress' && r.toapisTaskId)
@@ -268,6 +291,83 @@ const FAST_FAIL_MS = 5000
 const MAX_AUTO_RETRY = 2
 
 let pollTimers: ReturnType<typeof setInterval>[] = []
+
+function stopAllPolling() {
+  pollTimers.forEach(t => clearInterval(t))
+  pollTimers = []
+}
+
+interface SubmitParams {
+  model: ModelId
+  resolution: string
+  aspectRatio: string
+  n: number
+}
+
+function currentParams(): SubmitParams {
+  return {
+    model: selectedModelId.value,
+    resolution: resolution.value,
+    aspectRatio: aspectRatio.value,
+    n: countN.value,
+  }
+}
+
+// 该行原任务参数（重新生成用）；缺失时回落到当前选择器值
+function rowOriginalParams(row: TableRow): SubmitParams {
+  return {
+    model: (row.model || selectedModelId.value) as ModelId,
+    resolution: row.resolution || resolution.value,
+    aspectRatio: row.aspectRatio || aspectRatio.value,
+    n: row.n || 1,
+  }
+}
+
+/**
+ * 对单行提交生图（统一入口）：设置行参数 + submitTask + 回写 task_id/toapis_task_id + 启动轮询。
+ * 新任务完成后结果经 task_id 关联自然覆盖旧结果（旧任务记录保留但不再关联）。
+ * 成功返回 { ok: true }；失败时行已置 failed 并 persistRowStatus，返回 { ok: false, err }。
+ * 不重置 autoRetryCount、不弹提示，由调用方处理。
+ */
+async function doSubmit(row: TableRow, params: SubmitParams): Promise<{ ok: boolean; err?: any }> {
+  row.status = 'submitting'
+  row.errorMsg = undefined
+  row.progress = 0
+  row.model = params.model
+  row.resolution = params.resolution
+  row.aspectRatio = params.aspectRatio
+  row.n = params.n
+  row.resultUrl = undefined
+  row.resultImageUrls = undefined
+  try {
+    const result = await submitTask({
+      model: params.model,
+      prompt: row.prompt,
+      size: params.aspectRatio,
+      resolution: params.resolution,
+      refImages: [{ url: row.mainImageUrl }],
+      featureId: 'buyer-show',
+      n: params.n,
+    })
+    row.taskId = result.dbTaskId
+    row.toapisTaskId = result.toapisTaskId
+    row.status = 'in_progress'
+    row.progress = 0
+    row.submittedAt = Date.now()
+    await buyerShowBatchApi.updateItem(row.id, {
+      status: 'in_progress', taskId: row.taskId, toapisTaskId: result.toapisTaskId, progress: 0, errorMessage: null,
+    })
+    window.dispatchEvent(new CustomEvent('canvas:task-created'))
+    startPollingRow(row)
+    return { ok: true }
+  } catch (e: any) {
+    const msg = e?.response?.data?.error || translateError(e)
+    row.status = 'failed'
+    row.errorMsg = msg
+    await persistRowStatus(row)
+    return { ok: false, err: e }
+  }
+}
 
 async function handleGenerate() {
   if (submittableCount.value === 0) {
@@ -304,54 +404,23 @@ async function handleGenerate() {
 
   for (let i = 0; i < toSubmit.length; i++) {
     const row = toSubmit[i]
-    row.status = 'submitting'
-    row.errorMsg = undefined
-
-    try {
-      // 调用统一入口 submitTask
-      const result = await submitTask({
-        model: selectedModelId.value,
-        prompt: row.prompt,
-        size: aspectRatio.value,
-        resolution: resolution.value,
-        refImages: [{ url: row.mainImageUrl }],
-        featureId: 'buyer-show',
-        n: countN.value,
-      })
-
-      row.taskId = result.dbTaskId
-      row.toapisTaskId = result.toapisTaskId
-      row.status = 'in_progress'
-      row.progress = 0
-      row.submittedAt = Date.now()
-      row.autoRetryCount = 0
-      await buyerShowBatchApi.updateItem(row.id, {
-        status: 'in_progress', taskId: row.taskId, toapisTaskId: result.toapisTaskId, progress: 0, errorMessage: null,
-      })
-      window.dispatchEvent(new CustomEvent('canvas:task-created'))
+    row.autoRetryCount = 0
+    const { ok, err } = await doSubmit(row, currentParams())
+    if (ok) {
       submitted++
-      startPollingRow(row)
-
       if (i < toSubmit.length - 1) await sleep(3000)
-    } catch (e: any) {
-      if (e?.response?.status === 402) {
-        warning(e.response.data?.error || '积分不足，已停止提交')
-        row.status = 'failed'
-        row.errorMsg = '积分不足'
-        await persistRowStatus(row)
-        toSubmit.slice(i + 1).forEach(async r => {
-          r.status = 'failed'
-          r.errorMsg = '未提交'
-          await persistRowStatus(r)
-        })
-        break
-      }
-      const msg = e?.response?.data?.error || translateError(e)
-      row.status = 'failed'
-      row.errorMsg = msg
-      await persistRowStatus(row)
-      error(`第 ${i + 1} 条提交失败：${msg}`)
+      continue
     }
+    if (err?.response?.status === 402) {
+      warning(err.response.data?.error || '积分不足，已停止提交')
+      toSubmit.slice(i + 1).forEach(async r => {
+        r.status = 'failed'
+        r.errorMsg = '未提交'
+        await persistRowStatus(r)
+      })
+      break
+    }
+    error(`第 ${i + 1} 条提交失败：${row.errorMsg}`)
   }
 
   isGenerating.value = false
@@ -424,72 +493,26 @@ async function retryRow(row: TableRow) {
     warning('正在批量生成中，请稍候')
     return
   }
-  row.status = 'submitting'
-  row.errorMsg = undefined
-  row.progress = 0
-  row.autoRetryCount = 0 // 手动重试重置自动重试计数
-  try {
-    // 调用统一入口 submitTask
-    const result = await submitTask({
-      model: selectedModelId.value,
-      prompt: row.prompt,
-      size: aspectRatio.value,
-      resolution: resolution.value,
-      refImages: [{ url: row.mainImageUrl }],
-      featureId: 'buyer-show',
-      n: countN.value,
-    })
-    row.taskId = result.dbTaskId
-    row.toapisTaskId = result.toapisTaskId
-    row.status = 'in_progress'
-    row.submittedAt = Date.now()
-    await buyerShowBatchApi.updateItem(row.id, {
-      status: 'in_progress', taskId: row.taskId, toapisTaskId: result.toapisTaskId, progress: 0, errorMessage: null,
-    })
-    window.dispatchEvent(new CustomEvent('canvas:task-created'))
-    startPollingRow(row)
-  } catch (e: any) {
-    const msg = e?.response?.data?.error || translateError(e)
-    row.status = 'failed'
-    row.errorMsg = msg
-    await persistRowStatus(row)
-    error(`重试失败：${msg}`)
-  }
+  row.autoRetryCount = 0
+  const { ok } = await doSubmit(row, currentParams())
+  if (!ok) error(`重试失败：${row.errorMsg}`)
 }
 
-// 提交后 5 秒内失败的自动重试：新建任务并重新挂到本行，继续轮询
+// 重新生成（对已完成结果不满意）：用该行原任务参数重提交，新结果覆盖旧结果
+async function regenerateRow(row: TableRow) {
+  if (isGenerating.value) {
+    warning('正在批量生成中，请稍候')
+    return
+  }
+  row.autoRetryCount = 0
+  const { ok } = await doSubmit(row, rowOriginalParams(row))
+  if (!ok) error(`重新生成失败：${row.errorMsg}`)
+}
+
+// 提交后 5 秒内失败的自动重试：用该行参数重新提交并继续轮询
 async function autoRetry(row: TableRow) {
   row.autoRetryCount++
-  row.status = 'submitting'
-  row.errorMsg = undefined
-  row.progress = 0
-  try {
-    // 调用统一入口 submitTask
-    const result = await submitTask({
-      model: selectedModelId.value,
-      prompt: row.prompt,
-      size: aspectRatio.value,
-      resolution: resolution.value,
-      refImages: [{ url: row.mainImageUrl }],
-      featureId: 'buyer-show',
-      n: countN.value,
-    })
-    row.taskId = result.dbTaskId
-    row.toapisTaskId = result.toapisTaskId
-    row.status = 'in_progress'
-    row.progress = 0
-    row.submittedAt = Date.now()
-    await buyerShowBatchApi.updateItem(row.id, {
-      status: 'in_progress', taskId: row.taskId, toapisTaskId: result.toapisTaskId, progress: 0, errorMessage: null,
-    })
-    window.dispatchEvent(new CustomEvent('canvas:task-created'))
-    startPollingRow(row)
-  } catch (e: any) {
-    const msg = e?.response?.data?.error || translateError(e)
-    row.status = 'failed'
-    row.errorMsg = msg
-    await persistRowStatus(row)
-  }
+  await doSubmit(row, rowOriginalParams(row))
 }
 
 // ─── Prompt edit（@change 在失焦/回车时触发，直接保存即可）───
@@ -512,19 +535,48 @@ async function deleteRow(row: TableRow) {
   }
 }
 
+// 归档当前任务到任务历史（工作区清空，可在「任务历史」回看）
+async function archiveCurrent() {
+  if (!currentBatchId.value || tableData.value.length === 0) return
+  try {
+    await confirmDanger({
+      title: '归档当前任务',
+      message: `将当前任务（${tableData.value.length} 条）归档到任务历史，工作区将清空。归档后可在「任务历史」查看与下载。`,
+      confirmText: '归档',
+      cancelText: '取消',
+    })
+  } catch { return }
+  try {
+    await buyerShowBatchApi.updateBatch(currentBatchId.value, { status: 'archived' })
+    stopAllPolling()
+    tableData.value = []
+    currentBatchId.value = null
+    success('已归档到任务历史')
+  } catch (err) {
+    error(err, '归档失败')
+  }
+}
+
+// 清空当前任务（连同其历史记录一并删除）
 async function clearAll() {
   if (tableData.value.length === 0) return
   try {
     await confirmDanger({
-      title: '清空批次',
-      message: `将清空当前 ${tableData.value.length} 条记录及其结果映射，且无法恢复。确定继续？`,
+      title: '清空当前任务',
+      message: `将删除当前任务（${tableData.value.length} 条）及其历史记录，且无法恢复。确定继续？`,
       confirmText: '清空',
       cancelText: '取消',
     })
   } catch { return }
   try {
-    await buyerShowBatchApi.deleteAll()
+    if (currentBatchId.value) {
+      await buyerShowBatchApi.deleteBatch(currentBatchId.value)
+    } else {
+      await buyerShowBatchApi.deleteAll()
+    }
+    stopAllPolling()
     tableData.value = []
+    currentBatchId.value = null
     success('已清空')
   } catch (err) {
     error(err, '清空失败')
@@ -577,27 +629,6 @@ function openCompare(row: TableRow) {
 
 // ─── Zip download ───
 
-async function fetchImageBlob(url: string): Promise<{ blob: Blob; contentType: string } | null> {
-  try {
-    const resp = await fetch(url, { cache: 'force-cache' })
-    if (resp.ok) return { blob: await resp.blob(), contentType: resp.headers.get('content-type') || '' }
-  } catch { /* fall back to proxy */ }
-  try {
-    const token = localStorage.getItem('auth_token')
-    const resp = await fetch('/api/proxy/image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ url }),
-    })
-    if (resp.ok) return { blob: await resp.blob(), contentType: resp.headers.get('content-type') || '' }
-  } catch { /* give up */ }
-  return null
-}
-
-function sanitizeName(name: string): string {
-  return (name || '').replace(/[\\/:*?"<>|]/g, '_').trim() || 'image'
-}
-
 async function downloadZip() {
   const rows = [...downloadableRows.value]
   if (rows.length === 0) {
@@ -606,33 +637,11 @@ async function downloadZip() {
   }
   zipping.value = true
   try {
-    const zip = new JSZip()
-    const used = new Map<string, number>()
-    let ok = 0
-    for (const row of rows) {
-      const fetched = await fetchImageBlob(row.resultUrl!)
-      if (!fetched) continue
-      const ext = fetched.contentType.includes('jpeg') ? 'jpg' : 'png'
-      const base = sanitizeName(row.productId || `image_${row.id}`)
-      const c = used.get(base) || 0
-      used.set(base, c + 1)
-      const filename = c === 0 ? `${base}.${ext}` : `${base}_${c + 1}.${ext}`
-      zip.file(filename, fetched.blob)
-      ok++
-    }
+    const ok = await downloadRowsAsZip(rows, '买家秀')
     if (ok === 0) {
       error('下载失败，结果可能尚未转存到 OSS')
       return
     }
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-    const url = URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `买家秀_${toBJDate(new Date().toISOString())}.zip`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
     success(`已打包 ${ok} 张图片`)
   } catch (err) {
     error(err, '打包下载失败')
@@ -655,8 +664,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  pollTimers.forEach(t => clearInterval(t))
-  pollTimers = []
+  stopAllPolling()
 })
 </script>
 
@@ -682,8 +690,9 @@ onUnmounted(() => {
       <div class="bs-toolbar">
         <div class="bs-actions">
           <el-button :icon="Download" @click="downloadTemplate">下载模板</el-button>
-          <el-button type="primary" :icon="Document" @click="fileInputRef?.click()">追加表格</el-button>
-          <el-button :icon="Delete" text type="danger" @click="clearAll">清空</el-button>
+          <el-button type="primary" :icon="Document" @click="fileInputRef?.click()">上传新表格</el-button>
+          <el-button :icon="Box" :disabled="!currentBatchId" @click="archiveCurrent">归档当前任务</el-button>
+          <el-button :icon="Delete" text type="danger" @click="clearAll">清空当前任务</el-button>
           <span class="bs-summary">共 {{ tableData.length }} 条，已选 {{ selectedCount }} 条</span>
         </div>
 
@@ -776,8 +785,12 @@ onUnmounted(() => {
               >重试</el-button>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="72">
+          <el-table-column label="操作" width="120">
             <template #default="{ row }">
+              <el-button
+                v-if="row.status === 'completed'" size="small" type="primary" text :icon="Refresh"
+                @click="regenerateRow(row)"
+              >重新生成</el-button>
               <el-button size="small" type="danger" text :icon="Delete" @click="deleteRow(row)" />
             </template>
           </el-table-column>

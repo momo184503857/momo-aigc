@@ -483,5 +483,49 @@ export function initSchema(): void {
     console.log(`[DB] Migration refund_failed_v1 done: 退还 ${failedTasks.length} 笔失败任务，合计 ${total} 积分`)
   }
 
+  // ── AI 买家秀：批次元数据（任务历史）──
+  // 一个 batch_id = 一个「任务」。status='active' 为当前工作区任务，'archived' 为已进任务历史。
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS buyer_show_batches (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL REFERENCES users(id),
+      batch_id    TEXT NOT NULL UNIQUE,
+      name        TEXT NOT NULL DEFAULT '',
+      status      TEXT NOT NULL DEFAULT 'active',
+      created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      archived_at TIMESTAMP NULL
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_batches_user   ON buyer_show_batches(user_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_buyer_show_batches_status ON buyer_show_batches(status);`)
+
+  // ── 一次性迁移：为现有 buyer_show 批次补建元数据（全部归档为历史）──
+  // 幂等守卫：仅当 system_config.migration_buyer_show_batches_v1 未标记 done 时执行。
+  // 现有批次都「发生过」，视为历史；工作区从空开始，下次上传即为新的当前任务。
+  const bsBatchCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'migration_buyer_show_batches_v1'`).get() as { value: string } | undefined
+  if (bsBatchCfg?.value !== 'done') {
+    const distinctBatches = db.prepare(`
+      SELECT user_id, batch_id, MIN(created_at) AS created_at
+      FROM buyer_show_batch_items
+      GROUP BY user_id, batch_id
+    `).all() as { user_id: number; batch_id: string; created_at: string }[]
+    const stmtInsertBatch = db.prepare(`
+      INSERT OR IGNORE INTO buyer_show_batches (user_id, batch_id, name, status, created_at, archived_at)
+      VALUES (?, ?, '', 'archived', ?, ?)
+    `)
+    const stmtSetFlag = db.prepare(`
+      INSERT INTO system_config (key, value) VALUES ('migration_buyer_show_batches_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'
+    `)
+    const migTxn = db.transaction(() => {
+      for (const b of distinctBatches) {
+        stmtInsertBatch.run(b.user_id, b.batch_id, b.created_at, b.created_at)
+      }
+      stmtSetFlag.run()
+    })
+    migTxn()
+    console.log(`[DB] Migration buyer_show_batches_v1 done: ${distinctBatches.length} 个现有批次归档为历史`)
+  }
+
   console.log('[DB] Schema initialized')
 }

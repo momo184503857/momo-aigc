@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-06-22 — AI 买家秀：刷新后结果图消失（task_id 从未写入）
+
+**现象**：制作买家秀批量生图完成后结果缩略图正常显示；刷新页面后行（商品ID/主图/提示词）还在，但结果图消失。
+
+**根因**：前端 `buyerShowBatchApi.updateItem()` 传的字段是 camelCase（`taskId`/`toapisTaskId`/`errorMessage`），而后端 `PATCH /items/:id` 白名单只认 snake_case（`task_id`/`toapis_task_id`/`error_message`），匹配逻辑 `if (req.body[key] !== undefined)` 按 snake_case key 取值。两者对不上 → `task_id` **永远写不进** `buyer_show_batch_items`（POST 插入时该列本就为 NULL）。当次会话内前端内存 `row.taskId` 有值（来自 `submitTask` 返回）所以能显示；刷新后 `GET /items` 的 `LEFT JOIN generation_tasks ON bi.task_id = gt.id` 因 `task_id IS NULL` JOIN 不到 → `result_image_urls` 取不到 → 结果图消失。只有大小写一致的 `status`/`progress`/`prompt` 能写进表，故「其他内容都还在」。`onPromptChange` 传的 `prompt` 大小写无关所以一直正常，反而掩盖了问题。
+
+**解决方案**：后端 `PATCH /items/:id` 用 `snakeToCamel` 映射归一化——对每个 snake_case 列同时检查两种 key，取非 undefined 的值。一处改完全部调用点（提交/重试/autoRetry/persistRowStatus）生效。
+
+**涉及文件**：`server/src/routes/buyerShowBatch.ts`（PATCH 归一化）。
+
+**预防方式**：
+- 前后端字段命名约定不一致（前端 camelCase、DB snake_case）时，**接口层必须有显式归一化**，不能假设某一侧自适应。Express `req.body[key]` 按字面 key 取值，camelCase 不会自动匹配 snake_case 列名。
+- 「改提示词能存住、但任务关联存不住」这类**部分字段正常**的现象，强烈提示大小写不一致（相同的字段蒙混过关，不同的静默丢失）——排查时优先核对两端 key 拼写。
+- 历史已损坏数据（`task_id` 已 NULL）无法可靠回连，修复只对新提交生效；这类静默写入丢失 bug 要尽早发现，否则脏数据累积不可逆。
+
+---
+
 ## 2026-06-20 — 失败任务被扣费未退 + 累计充值误含退款
 
 **现象**：① 失败的生图任务仍扣了用户积分（创建时预扣、失败不退）；② `/api/points/me` 的 `total_recharged` 把「失败退款」（amount>0）也算进了充值，累计充值虚高。
