@@ -162,11 +162,15 @@ OSS Bucket 当前返回 `Content-Disposition: attachment` 和 `x-oss-force-downl
 
 > 用户表示此问题不需要立即处理。
 
-### ~~OSS CORS 配置验证~~ ✅ 已确认
+### 结果图裂开修复：待浏览器实测 **[待验证·低优先级]**
 
-~~浏览器直传 OSS（PostObject policy）目前正常工作。但未验证 OSS Bucket 是否允许浏览器**直接** `fetch()` GET 请求。~~
+2026-06-24 已移除任务列表 / 对比弹窗 / 任务详情 / 结果页结果图的 `crossorigin`（根因 = crossorigin 触发 OSS CORS 校验失败，图片裂开），并加 `useImageRetry` 失败重试。`npm run check` 通过，但**未做浏览器实测**。建议起前端走一遍：任务列表结果缩略图、点开对比弹窗（含买家秀）、任务详情、`/results` 结果页——确认结果图不再裂开、偶发抖动有自动重试。规则见 `decision-log.md` / `bug-fixes.md` 2026-06-24。
 
-**已确认**：OSS CORS 已正确配置。`<img>` 标签添加 `crossorigin="anonymous"` 后图片正常加载，Canvas 提取不 taint。下载四层降级中策略1（DOM Canvas）可正常命中。
+### OSS CORS 配置状态：与现象矛盾，待重新确认 **[待确认·中优先级]**
+
+2026-06-05 曾结论「OSS CORS 已正确配置、`crossorigin="anonymous"` 不阻止图片加载、下载策略1（DOM Canvas）可命中」。但 2026-06-24 排查发现：带 `crossorigin="anonymous"` 的结果图 OSS URL 在任务列表 / 对比弹窗 / 详情 / 结果页大量裂开，不带该属性的同一张图正常——强烈指向 OSS 对当前部署域名未返回有效 CORS 响应头（`Access-Control-Allow-Origin`），与旧结论冲突。OSS Bucket CORS 的当前实际配置**待确认**：需在阿里云 OSS 控制台核对该 Bucket 的 CORS 规则（是否配置、`allowed origins` 是否含生产/开发域名、`allowed methods` 是否含 GET、是否返回 ACAO）。
+
+注意：即便确认 OSS CORS 正常，结论仍是「展示型结果图不加 `crossorigin`」（图片显示不应依赖 OSS 配置）。本轮已移除全部结果图 `crossorigin`，见 `bug-fixes.md` / `decision-log.md` 2026-06-24。
 
 ### 旧任务 ToAPIs URL 迁移
 

@@ -4,6 +4,39 @@
 
 ---
 
+## 2026-06-24 — 修复结果图裂开（移除 crossorigin + 失败自动重试）
+
+### 背景
+
+任务列表、AI 买家秀对比弹窗、任务详情弹窗、结果页的结果图大量裂开显示不出；买家秀列表缩略图正常、点击进对比弹窗后裂开。根因为结果图 `<img>` 上的 `crossorigin="anonymous"` 触发 OSS CORS 校验失败（同图：不带该属性正常、带则裂开）。本轮同时推翻了 2026-06-05「OSS CORS 已配、crossorigin 不阻止加载」的前提。
+
+### 变更
+
+- **移除 5 处结果图 `crossorigin`**（治本）：`TaskList.vue`（列表+网格视图）、`ImageCompareDialog.vue`（对比弹窗结果图，买家秀共用）、`TaskDetailDialog.vue`、`ResultsPage.vue`。图片不再以 CORS 模式请求，直接正常显示。
+- **新增 `useImageRetry` 组合式函数**：图片 `@error` 时给 src 追加时间戳绕缓存重试一次，兜底网络抖动 / 旧失败响应。接入上述 5 处。每张 URL 最多重试一次，避免死循环。
+- **清理**：上述文件移除后无用的 `isOssImageUrl` import。
+
+### 影响
+
+- 图片显示：任务列表、对比弹窗（含买家秀）、详情、结果页结果图均恢复正常。
+- 下载：`download.ts` 策略1（DOM Canvas）因结果图不再带 `crossorigin` 而失效，实际走策略3服务端代理（`POST /api/proxy/image`）；功能完整、可靠性不变，代价是多一次服务端往返。`download.ts` 代码未改。
+
+### 规则（确认，见 `decision-log.md` 2026-06-24）
+
+展示型 `<img>` / `el-image` 一律不加 `crossorigin`；下载走服务端代理降级，不为「省一次网络」给展示图加 `crossorigin`。
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `src/composables/useImageRetry.ts` | 新增 — @error 失败重试一次（绕缓存） |
+| `src/components/TaskList.vue` | 移除 2 处 crossorigin + @error |
+| `src/components/ImageCompareDialog.vue` | 移除 crossorigin + @error |
+| `src/components/TaskDetailDialog.vue` | 移除 crossorigin + @error |
+| `src/views/results/ResultsPage.vue` | 移除 crossorigin + @error |
+
+---
+
 ## 2026-06-23 — AI 买家秀：工作区支持「重新生成」（覆盖旧结果）
 
 ### 背景

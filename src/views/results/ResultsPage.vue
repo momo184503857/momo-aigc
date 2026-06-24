@@ -3,12 +3,14 @@ defineOptions({ name: 'ResultsPage' })
 import { ref, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
+const { retryOnError } = useImageRetry()
 import { Download, Delete, Picture, Check, Close } from '@element-plus/icons-vue'
 import PageLayout from '@/components/PageLayout.vue'
 import { UiImagePreview } from '@/components/ui'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { taskApi } from '@/services/taskApi'
-import { downloadUrl, isOssImageUrl } from '@/utils/download'
+import { downloadUrl } from '@/utils/download'
+import { useImageRetry } from '@/composables/useImageRetry'
 import { toBJDate } from '@/utils/datetime'
 import type { TaskItem } from '@/components/TaskList.vue'
 
@@ -188,7 +190,7 @@ onMounted(() => { loadResults() })
             <img
               v-if="task.result_image_urls?.[0]"
               :src="task.result_image_urls[0]"
-              :crossorigin="isOssImageUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
+              @error="retryOnError($event, task.result_image_urls[0])"
               alt=""
             />
             <el-icon v-else size="32"><Picture /></el-icon>

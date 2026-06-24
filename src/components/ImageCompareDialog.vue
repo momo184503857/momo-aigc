@@ -2,7 +2,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import type { TaskItem } from './TaskList.vue'
 import { MODELS } from '@/types/adapter'
-import { isOssImageUrl } from '@/utils/download'
+import { useImageRetry } from '@/composables/useImageRetry'
 
 const props = defineProps<{
   tasks: TaskItem[]
@@ -14,6 +14,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
+
+const { retryOnError } = useImageRetry()
 
 const currentIndex = ref(0)
 const activeTaskId = ref<number>(0) // tracks current task by id for keyboard nav
@@ -239,7 +241,7 @@ defineExpose({ open })
           >
             <img
               :src="resultImages[activeResultIndex]"
-              :crossorigin="isOssImageUrl(resultImages[activeResultIndex]) ? 'anonymous' : undefined"
+              @error="retryOnError($event, resultImages[activeResultIndex])"
               :style="{
                 transform: `translate(${resultTranslate.x}px,${resultTranslate.y}px) scale(${resultScale})`,
                 cursor: isDragging ? 'grabbing' : 'grab',

@@ -40,8 +40,9 @@
 点击下载按钮
     ↓
 1. DOM Canvas 提取
-   前提: <img> 已加载 + crossorigin="anonymous"（OSS URL 自动带）
+   前提: <img> 已加载 + crossorigin="anonymous" + 源站 CORS 生效
    零网络开销，直接从浏览器像素缓存取
+   (结果图已于 2026-06-24 移除 crossorigin → 不命中，见下方说明)
     ↓ 失败（Canvas tainted / 无匹配 img）
 2. HTTP 缓存 fetch
    fetch(url, {cache: 'force-cache'})
@@ -62,7 +63,9 @@ ToAPIs（`files.toapis.com`）不发送 CORS 响应头：
 - `fetch(url)`：浏览器 CORS 检查失败 → 策略2跳过
 - 最终走策略3代理
 
-OSS 有 CORS 配置且 `<img>` 带 `crossorigin="anonymous"` → 策略1直接命中。
+~~OSS 有 CORS 配置且 `<img>` 带 `crossorigin="anonymous"` → 策略1直接命中。~~
+
+> **2026-06-24 更正**：上述前提被实测推翻——带 `crossorigin="anonymous"` 的 OSS 结果图会触发 CORS 校验失败、图片裂开（详见 `bug-fixes.md` / `decision-log.md` 2026-06-24）。已移除全部结果图 `<img>` 的 `crossorigin`，故**结果图下载实际落到策略3服务端代理**（策略1 canvas tainted、策略2 fetch 无 CORS 均失效）。功能完整、可靠性不变，仅多一次服务端往返。OSS CORS 当前实际配置状态见 `todo.md`（待确认）；但无论其状态如何，展示图都不再恢复 `crossorigin`。
 
 ### 诊断日志
 

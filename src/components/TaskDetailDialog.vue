@@ -5,8 +5,10 @@ import type { TaskItem } from './TaskList.vue'
 import { MODELS } from '@/types/adapter'
 import { getFeatureLabel } from '@/configs/featureConfig'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-import { downloadUrl, isOssImageUrl } from '@/utils/download'
+import { downloadUrl } from '@/utils/download'
+import { useImageRetry } from '@/composables/useImageRetry'
 const { success, info, warning, error } = useUiFeedback()
+const { retryOnError } = useImageRetry()
 
 const props = defineProps<{ task: TaskItem | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -80,8 +82,8 @@ const statusMap: Record<string, string> = {
           <div v-for="(url, i) in task.result_image_urls" :key="i" class="result-img-wrap">
             <img
               :src="url"
-              :crossorigin="isOssImageUrl(url) ? 'anonymous' : undefined"
               class="result-img"
+              @error="retryOnError($event, url)"
               @click="openImage(url)"
             />
             <el-button size="small" :icon="Download" @click="handleDownload(url)">下载</el-button>

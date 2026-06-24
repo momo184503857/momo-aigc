@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-06-24 — 结果图裂开：crossorigin="anonymous" 触发 OSS CORS 校验失败
+
+**现象**：① 任务列表很多结果缩略图裂开显示不出；② AI 买家秀列表缩略图正常，但点击后「对比弹窗」里结果图裂开；③ 任务详情弹窗、结果页（`/results`）结果图同样裂开。
+
+**根因**：结果图的 `<img>` 带 `crossorigin="anonymous"`，浏览器按 CORS 模式发起图片请求，OSS 未对该请求返回有效的 CORS 响应头（`Access-Control-Allow-Origin`），校验不过 → 图片被拒绝渲染（裂开）。同一张 OSS 图：不带 `crossorigin` 的 `<img>`（买家秀列表缩略图、对比弹窗参考图）正常显示，带 `crossorigin` 的（任务列表结果图、对比弹窗结果图、详情弹窗、结果页）裂开——现象与代码完全吻合。
+
+涉及 5 处 `<img>`：`TaskList.vue`（列表/网格视图 2 处）、`ImageCompareDialog.vue`（对比弹窗结果图，买家秀共用）、`TaskDetailDialog.vue`、`ResultsPage.vue`。
+
+**与既有文档的矛盾（重要）**：本轮现象推翻了 2026-06-05「下载四层降级」的前提——`decision-log.md` / `architecture.md` / `todo.md` 此前均断言「OSS CORS 已正确配置、`crossorigin="anonymous"` 不会阻止图片加载、策略1（DOM Canvas）可命中」。但当前环境下带 `crossorigin` 的 OSS 图无法加载。**OSS CORS 的当前实际配置状态待确认**（可能未配、或 `allowed origins` 不含当前部署域名、或仅配了 GET 但缺 ACAO 等），需在阿里云 OSS 控制台核对 Bucket 的 CORS 规则。无论其状态如何，结论都是「展示图不加 `crossorigin`」。
+
+**解决方案（治本）**：移除上述 5 处结果图 `<img>` 的 `crossorigin` 属性。图片不再以 CORS 模式请求，直接正常显示。新增 `src/composables/useImageRetry.ts`（`@error` 失败时给 src 追加时间戳绕缓存重试一次）兜底偶发的网络抖动 / 旧失败响应缓存——但重试对 CORS 失效无能为力，CORS 问题只能靠「不加 `crossorigin`」解决。
+
+**对下载的影响**：`download.ts` 策略1（DOM Canvas 提取像素）依赖未污染 canvas，本需 `crossorigin` 才能命中；移除后策略1恒失效（canvas tainted）→ 策略2 `fetch(force-cache)` 也因 OSS 无 CORS 失败 → 实际走策略3服务端代理（`POST /api/proxy/image`，绕过 CORS，100% 可靠）。下载功能不受影响，仅多一次服务端往返与代理流量。`download.ts` 代码未改。
+
+**涉及文件**：`src/composables/useImageRetry.ts`（新）；`src/components/{TaskList,ImageCompareDialog,TaskDetailDialog}.vue`、`src/views/results/ResultsPage.vue`（移除 crossorigin + 接入 @error 重试 + 清理无用的 `isOssImageUrl` import）。
+
+**预防方式**：
+- 展示型 `<img>` / `el-image`（OSS 或任意跨域图）**不要加 `crossorigin="anonymous"`**，除非确有 canvas 像素操作需求且已确认源站 CORS 对当前域名生效。CORS 校验失败表现为静默裂开，难以排查。
+- 下载等需要像素数据的场景，优先用不依赖 `crossorigin` 的服务端代理降级（本项目的 `POST /api/proxy/image`），而非为「省一次网络往返」给展示图加 `crossorigin`——后者会牺牲图片显示本身。
+- 同一张图「A 处正常、B 处裂开」，强烈提示 B 处的 `<img>` 多了 `crossorigin`（或 referrerpolicy 等 CORS 相关属性）——排查时 diff 两处 img 标签。
+
+---
+
 ## 2026-06-22 — AI 买家秀：刷新后结果图消失（task_id 从未写入）
 
 **现象**：制作买家秀批量生图完成后结果缩略图正常显示；刷新页面后行（商品ID/主图/提示词）还在，但结果图消失。

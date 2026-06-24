@@ -2,9 +2,10 @@
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-import { isOssImageUrl } from '@/utils/download'
+import { useImageRetry } from '@/composables/useImageRetry'
 import { parseUTC, toBJMinute } from '@/utils/datetime'
 const { success, info, warning, error } = useUiFeedback()
+const { retryOnError } = useImageRetry()
 import type { ModelId } from '@/types/adapter'
 import { MODELS } from '@/types/adapter'
 
@@ -201,8 +202,8 @@ function handleImageDragStart(e: DragEvent, url: string) {
         </div>
         <div class="task-thumb" @click="!bulkMode && emit('compareImages', idx)">
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
-            :crossorigin="isOssImageUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
             draggable="true"
+            @error="retryOnError($event, task.result_image_urls[0])"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <div v-else-if="task.is_importing" class="thumb-status">
             <el-icon class="is-loading spin" size="28"><Loading /></el-icon>
@@ -285,8 +286,8 @@ function handleImageDragStart(e: DragEvent, url: string) {
         </div>
         <div class="grid-thumb" @click="!bulkMode && emit('compareImages', idx)">
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
-            :crossorigin="isOssImageUrl(task.result_image_urls[0]) ? 'anonymous' : undefined"
             draggable="true"
+            @error="retryOnError($event, task.result_image_urls[0])"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <div v-else-if="task.is_importing" class="thumb-status grid-thumb-status">
             <el-icon class="is-loading spin" size="36"><Loading /></el-icon>

@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-06-24 — 结果图 <img> 移除 crossorigin（推翻 2026-06-05「OSS CORS 已配」前提）
+
+**背景**：用户反馈任务列表、对比弹窗（尤其 AI 买家秀点击后的对比弹窗）、任务详情、结果页的结果图大量裂开；而买家秀列表缩略图正常。排查确认根因为结果图 `<img>` 上的 `crossorigin="anonymous"` 触发 OSS CORS 校验失败。
+
+**决策 — 移除所有展示型结果图 `<img>` 的 `crossorigin`，下载放弃 DOM Canvas 策略1**：5 处结果图（`TaskList` 列表/网格、`ImageCompareDialog`、`TaskDetailDialog`、`ResultsPage`）移除 `crossorigin`；新增 `useImageRetry` 做 `@error` 一次重试兜底（绕缓存，应对网络抖动 / 旧失败响应）。**否决**「改为手动刷新按钮」——移除 `crossorigin` 后图片直接正常显示，无需按钮；普通刷新对 CORS 失效无效。**否决**「保留 `crossorigin` 并去配 OSS CORS」——图片显示是核心功能、不应依赖 OSS 控制台配置；下载的 DOM 提取优化不值得以图片可能裂开为代价。
+
+**推翻 2026-06-05 前提**：当年「下载四层降级」以「OSS CORS 已正确配置、`crossorigin` 不阻止加载」为关键前提（见本日志 / `architecture.md` / `todo.md`）。本轮现象证明该前提在当前环境不成立（带 `crossorigin` 的 OSS 图裂开）。OSS CORS 当前实际配置状态**待确认**——但无论其状态如何，结论都是「展示图不加 `crossorigin`」。
+
+**对下载链路的实际影响**：`download.ts` 四层降级代码不变，但策略1（DOM Canvas）因结果图不再带 `crossorigin` 而恒失效（canvas tainted）→ 策略2 `fetch(force-cache)` 因 OSS 无 CORS 亦失败 → 落到策略3服务端代理。即结果图下载从「优先零网络」退化为「走服务端代理」，功能完整、可靠性不变，代价是多一次服务端往返与代理流量。
+
+**后续影响 / 待确认**：
+- 若日后确有 canvas 像素操作需求（如前端裁剪、加水印），再单独处理该 `<img>` 的 CORS（确认 OSS CORS 含当前域名，或走代理取 blob 后绘到 canvas）。
+- 待重新核对 OSS Bucket CORS 规则（见 `todo.md`），但即使配好，展示图也不恢复 `crossorigin`。
+
+---
+
 ## 2026-06-20 — 失败任务退款：预扣 + 失败退款（推翻「失败不退款」）
 
 **背景**：原规则「计费在创建时预扣、失败不退款」（2026-06-14 决策、与买家秀一致）。用户要求失败不应扣费。
