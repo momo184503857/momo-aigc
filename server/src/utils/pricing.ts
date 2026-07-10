@@ -7,8 +7,8 @@ export type ModelId =
 // 单位：新积分（1 新积分 = ¥0.035）。历史曾用元（旧值 ÷0.035 即此处整数）。
 const PRICING: Record<string, Record<string, number>> = {
   'gpt-image-2':                { '1K': 3,   '2K': 4,  '4K': 5  },
-  'gemini-3-pro-image-preview': { '1K': 10,  '2K': 10, '4K': 20 },
-  'gemini-3.1-flash-image-preview': { '512': 5, '1K': 5, '2K': 5, '4K': 5 },
+  'gemini-3-pro-image-preview': { '1K': 10,  '2K': 12, '4K': 16 },
+  'gemini-3.1-flash-image-preview': { '512': 5, '1K': 6, '2K': 8, '4K': 12 },
   'gemini-2.5-flash-image-preview': { '1K': 2.4 },
 }
 

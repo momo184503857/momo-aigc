@@ -49,7 +49,7 @@ export const MODELS: ModelInfo[] = [
     ],
     maxReferenceImages: 14,
     maxPromptChars: 32000,
-    pricing: { '1K': 10, '2K': 10, '4K': 20 },
+    pricing: { '1K': 10, '2K': 12, '4K': 16 },
   },
   {
     id: 'gemini-3.1-flash-image-preview',
@@ -62,7 +62,7 @@ export const MODELS: ModelInfo[] = [
     ],
     maxReferenceImages: 14,
     maxPromptChars: 32000,
-    pricing: { '512': 5, '1K': 5, '2K': 5, '4K': 5 },
+    pricing: { '512': 5, '1K': 6, '2K': 8, '4K': 12 },
   },
   {
     id: 'gemini-2.5-flash-image-preview',
