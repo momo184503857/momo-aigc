@@ -8,6 +8,7 @@ import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { FeatureConfig } from '@/configs/featureConfig'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import PromptEditorPanel from './PromptEditorPanel.vue'
 import ImageSlotUpload from './ImageSlotUpload.vue'
 import type { SlotImage, StarredTemplate } from './ImageSlotUpload.vue'
 import TemplateSelector from './TemplateSelector.vue'
@@ -92,10 +93,29 @@ const promptLoading = ref(false)
 const promptError = ref(false)
 const modelPrompts = ref<Record<string, FeaturePromptItem>>({})
 
+// 当前会话内用户对系统提示词的修改，按 modelId 隔离；不持久化到服务器
+const editedSystemPromptsByModel = ref<Record<string, string>>({})
+
 const currentPrompt = computed(() => modelPrompts.value[selectedModelId.value])
-const systemPrompt = computed(() => currentPrompt.value?.system_prompt || '')
+const systemPrompt = computed(() => {
+  const edited = editedSystemPromptsByModel.value[selectedModelId.value]
+  if (edited !== undefined) return edited
+  return currentPrompt.value?.system_prompt || ''
+})
 const userPromptLabel = computed(() => currentPrompt.value?.user_prompt_label || '补充提示词')
 const userPromptPlaceholder = computed(() => currentPrompt.value?.user_prompt_placeholder || '')
+
+// 提示词折叠面板绑定：单段系统提示词
+const promptPanelModel = computed({
+  get: () => ({ system: systemPrompt.value }),
+  set: (val) => { editedSystemPromptsByModel.value[selectedModelId.value] = val.system },
+})
+
+const defaultPromptPanelModel = computed(() => ({ system: currentPrompt.value?.system_prompt || '' }))
+
+function resetSystemPrompt() {
+  editedSystemPromptsByModel.value[selectedModelId.value] = currentPrompt.value?.system_prompt || ''
+}
 
 async function fetchPrompts() {
   promptLoading.value = true
@@ -106,6 +126,11 @@ async function fetchPrompts() {
     const map: Record<string, FeaturePromptItem> = {}
     items.forEach(item => { map[item.model_id] = item })
     modelPrompts.value = map
+    // 若当前模型还没有本地编辑记录，初始化为后台默认值
+    const currentModelId = selectedModelId.value
+    if (editedSystemPromptsByModel.value[currentModelId] === undefined) {
+      editedSystemPromptsByModel.value[currentModelId] = map[currentModelId]?.system_prompt || ''
+    }
   } catch {
     promptError.value = true
     modelPrompts.value = {}
@@ -126,6 +151,14 @@ watch(config, (cfg) => {
   if (cfg.defaultResolution) resolution.value = cfg.defaultResolution
   if (cfg.defaultAspectRatio) aspectRatio.value = cfg.defaultAspectRatio
 }, { immediate: true })
+
+// 切换模型时，若提示词已加载且该模型还没有本地编辑记录，则初始化为后台默认值
+watch(selectedModelId, (modelId) => {
+  if (Object.keys(modelPrompts.value).length === 0) return
+  if (editedSystemPromptsByModel.value[modelId] === undefined) {
+    editedSystemPromptsByModel.value[modelId] = modelPrompts.value[modelId]?.system_prompt || ''
+  }
+})
 
 // Model computed
 const selectedModel = computed(() => MODELS.find(m => m.id === selectedModelId.value))
@@ -402,6 +435,19 @@ defineExpose({ setParams })
         </div>
       </div>
 
+      <!-- Prompt Editor Panel -->
+      <div class="prompt-panel-row">
+        <PromptEditorPanel
+          v-model="promptPanelModel"
+          title="查看/编辑完整提示词"
+          :sections="[{ key: 'system', label: '系统提示词' }]"
+          :final-prompt="buildFullPrompt()"
+          :default-value="defaultPromptPanelModel"
+          :rows="4"
+          @reset="resetSystemPrompt"
+        />
+      </div>
+
       <!-- Model -->
       <div class="form-row-inline">
         <label class="form-label-left">模型</label>
@@ -572,6 +618,12 @@ defineExpose({ setParams })
   flex-shrink: 0;
   border-top: 1px solid var(--el-border-color-lighter);
   padding-top: 16px;
+}
+
+.prompt-panel-row {
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .placeholder-content {

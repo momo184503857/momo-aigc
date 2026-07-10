@@ -127,10 +127,8 @@ function promptSummary(text: string, maxLen = 60): string {
 }
 
 function displayPrompt(task: TaskItem): string {
-  if (task.feature_id && task.feature_id !== 'free-gen') {
-    return task.user_prompt || ''
-  }
-  return task.prompt
+  // 统一显示最终发送给模型的完整提示词，避免功能任务因 user_prompt 为空而显示空白
+  return task.prompt || ''
 }
 
 function formatDuration(seconds: number): string {

@@ -65,11 +65,20 @@ const statusMap: Record<string, string> = {
         <el-descriptions-item label="进度">{{ task.progress }}%</el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ task.created_at }}</el-descriptions-item>
         <el-descriptions-item label="完成时间">{{ task.completed_at || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="提示词" :span="2">
-          <div class="prompt-block">
-            {{ task.feature_id && task.feature_id !== 'free-gen' ? (task.user_prompt || '') : task.prompt }}
-          </div>
+        <!-- 自由生图：直接显示完整提示词 -->
+        <el-descriptions-item v-if="!task.feature_id || task.feature_id === 'free-gen'" label="提示词" :span="2">
+          <div class="prompt-block">{{ task.prompt }}</div>
         </el-descriptions-item>
+
+        <!-- 功能/AI摄影：拆分为补充提示词 + 最终提示词 -->
+        <template v-else>
+          <el-descriptions-item label="补充提示词" :span="2">
+            <div class="prompt-block">{{ task.user_prompt || '-' }}</div>
+          </el-descriptions-item>
+          <el-descriptions-item label="最终提示词" :span="2">
+            <div class="prompt-block">{{ task.prompt }}</div>
+          </el-descriptions-item>
+        </template>
         <el-descriptions-item label="错误信息" :span="2" v-if="task.error_message">
           <span style="color: var(--el-color-danger)">{{ task.error_message }}</span>
         </el-descriptions-item>

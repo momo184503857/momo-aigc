@@ -12,6 +12,7 @@ import { useServerStatusStore } from '@/stores/serverStatus'
 import { photographyApi } from '@/services/photographyApi'
 import type { PhotographyElement } from '@/services/photographyApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import PromptEditorPanel from './PromptEditorPanel.vue'
 import { Plus, Delete, Camera } from '@element-plus/icons-vue'
 
 const { warning } = useUiFeedback()
@@ -46,16 +47,30 @@ interface ElementDef {
 const photoElements = ref<ElementDef[]>([])
 const elementsLoading = ref(false)
 
+// 当前会话内用户对各元素提示词的修改：elementId -> modelId -> prompt
+const editedElementPrompts = ref<Record<number, Record<string, string>>>({})
+
 async function loadElements() {
   elementsLoading.value = true
   try {
     const res = await photographyApi.getElements()
     photoElements.value = (res.data.data || []) as ElementDef[]
+    // 初始化本地编辑缓存
+    const map: Record<number, Record<string, string>> = {}
+    for (const el of photoElements.value) {
+      map[el.id] = { ...el.prompts }
+    }
+    editedElementPrompts.value = map
   } catch {
     photoElements.value = []
+    editedElementPrompts.value = {}
   } finally {
     elementsLoading.value = false
   }
+}
+
+function getElementPrompt(el: ElementDef, modelId: string): string {
+  return editedElementPrompts.value[el.id]?.[modelId] ?? el.prompts[modelId] ?? ''
 }
 
 // ─── Basic params ───
@@ -75,6 +90,57 @@ const currentPrice = computed(() => {
   if (!selectedModel.value) return 0
   return getPrice(selectedModel.value, resolution.value)
 })
+
+// 已分配图片的活跃元素，按 sort_order 排序
+const activePhotoElements = computed(() => {
+  return photoElements.value
+    .filter(el => getAssignedCount(el.id) > 0)
+    .sort((a, b) => a.sort_order - b.sort_order)
+})
+
+// 提示词折叠面板：当前模型下各活跃元素的提示词
+const elementPromptPanelModel = computed({
+  get: () => {
+    const result: Record<string, string> = {}
+    for (const el of activePhotoElements.value) {
+      result[el.id] = getElementPrompt(el, selectedModelId.value)
+    }
+    return result
+  },
+  set: (val: Record<string, string>) => {
+    const modelId = selectedModelId.value
+    for (const [idStr, prompt] of Object.entries(val)) {
+      const id = Number(idStr)
+      if (!editedElementPrompts.value[id]) editedElementPrompts.value[id] = {}
+      editedElementPrompts.value[id][modelId] = prompt
+    }
+  },
+})
+
+const elementPromptPanelSections = computed(() => {
+  return activePhotoElements.value.map(el => ({
+    key: String(el.id),
+    label: `${el.label} 提示词`,
+  }))
+})
+
+const defaultElementPromptPanelModel = computed(() => {
+  const result: Record<string, string> = {}
+  for (const el of activePhotoElements.value) {
+    result[el.id] = el.prompts[selectedModelId.value] ?? ''
+  }
+  return result
+})
+
+function resetElementPrompts() {
+  const modelId = selectedModelId.value
+  for (const el of activePhotoElements.value) {
+    if (!editedElementPrompts.value[el.id]) editedElementPrompts.value[el.id] = {}
+    editedElementPrompts.value[el.id][modelId] = el.prompts[modelId] ?? ''
+  }
+}
+
+const finalPromptPreview = computed(() => buildPrompt().finalPrompt)
 
 function handleModelChange() {
   const m = selectedModel.value
@@ -283,7 +349,7 @@ function buildPrompt(): { systemPrompt: string; finalPrompt: string } {
   // Build element system prompts
   const systemParts: string[] = []
   for (const el of activeElements) {
-    const prompt = el.prompts[modelId]
+    const prompt = getElementPrompt(el, modelId)
     if (prompt && prompt.trim()) {
       systemParts.push(prompt.trim())
     }
@@ -587,6 +653,19 @@ onMounted(() => loadElements())
           placeholder="描述你想要的摄影效果..."
           maxlength="5000"
           show-word-limit
+        />
+      </div>
+
+      <!-- ─── Element prompt editor panel ─── -->
+      <div class="prompt-section">
+        <PromptEditorPanel
+          v-model="elementPromptPanelModel"
+          title="查看/编辑元素提示词"
+          :sections="elementPromptPanelSections"
+          :final-prompt="finalPromptPreview"
+          :default-value="defaultElementPromptPanelModel"
+          :rows="4"
+          @reset="resetElementPrompts"
         />
       </div>
 
