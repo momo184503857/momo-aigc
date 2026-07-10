@@ -106,6 +106,12 @@ const router = createRouter({
       meta: { title: '批量传表格做图', requiresAuth: true },
     },
     {
+      path: '/toolbox/batch-face-swap',
+      name: 'BatchFaceSwap',
+      component: () => import('@/views/tools/BatchFaceSwapPage.vue'),
+      meta: { title: '批量换脸', requiresAuth: true },
+    },
+    {
       path: '/ai-canvas/:projectId',
       name: 'AICanvas',
       component: () => import('@/views/canvas/AICanvasPage.vue'),

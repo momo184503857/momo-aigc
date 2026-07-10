@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Box, MagicStick, Brush, Document } from '@element-plus/icons-vue'
+import { Box, MagicStick, Brush, Document, User } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -33,6 +33,12 @@ const tools: ToolItem[] = [
     icon: Document,
   },
   {
+    id: 'batch-face-swap',
+    title: '批量换脸',
+    description: '上传多张衣服图和一张模特脸图，批量生成换脸效果图',
+    icon: User,
+  },
+  {
     id: 'placeholder-1',
     title: '敬请期待',
     description: '更多 AI 工具正在开发中，即将上线……',
@@ -47,6 +53,7 @@ function handleToolClick(tool: ToolItem) {
     'batch-clothes-swap': '/toolbox/batch-clothes-swap',
     'batch-pose-swap': '/toolbox/batch-pose-swap',
     'batch-spreadsheet': '/toolbox/batch-spreadsheet',
+    'batch-face-swap': '/toolbox/batch-face-swap',
   }
   const path = routes[tool.id]
   if (path) router.push(path)
