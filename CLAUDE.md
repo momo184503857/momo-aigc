@@ -41,7 +41,7 @@ All ToAPIs calls are proxied through Express (`/api/toapis/*`); the browser neve
 Storage and billing are in **新积分 (credits)**; **1 credit = ¥0.035 RMB**. The RMB value is always shown parenthetically.
 
 - Conversion: `server/src/utils/credits.ts` (`YUAN_PER_CREDIT=0.035`, `creditsToYuan`, `yuanToCredits`) + frontend mirror `src/types/adapter.ts` (`formatCredits(c, opts?)` — every display calls this, never hand-write `×0.035`).
-- Pricing (`server/src/utils/pricing.ts` + `src/types/adapter.ts` `MODELS[].pricing`) is in credits (integers: gpt-image-2 `1K:3/2K:4/4K:5`; gemini-3-pro `1K:10/2K:10/4K:20`; gemini-3.1-flash `×:5`; gemini-2.5-flash `1K:2.4`). `calculateCost`/`getPrice` logic is unit-agnostic.
+- Pricing (`server/src/utils/pricing.ts` + `src/types/adapter.ts` `MODELS[].pricing`) is in credits (integers: gpt-image-2 `1K:3/2K:4/4K:5`; gemini-3-pro `1K:10/2K:12/4K:16`; gemini-3.1-flash `512:5/1K:6/2K:8/4K:12`; gemini-2.5-flash `1K:2.4`). `calculateCost`/`getPrice` logic is unit-agnostic.
 - `users.points`, `points_transactions.{amount,balance_after}`, `generation_tasks.{points_cost,points_balance_after}` all store credits. A one-time idempotent migration (`system_config.migration_credits_v1`) multiplied legacy 元 values by `200/7`.
 - Admin recharge (`/api/admin/users/:id/points`) and user quota (`GET /api/me/quota`) are in credits.
 - **Key credits**: each key's 新积分 comes from a TBD upstream API; `fetchKeyCredits()` in `credits.ts` is a placeholder (returns ToAPIs CNY with `credits=null`, shown as "新积分待接口"). ToAPIs `credits` (1 USD = 200 credits) is unrelated — labeled "credits" in UI, never ×0.035.

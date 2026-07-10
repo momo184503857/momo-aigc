@@ -1,6 +1,6 @@
 # 积分与 Key 计费体系
 
-最后更新：2026-06-20  
+最后更新：2026-07-10  
 状态：已实现·后端已验证（curl + 直连 SQLite）/ 前端已验证（类型检查 + 构建）
 
 > 本文档反映当前实现，取代 PRD v1.0 中「用户 ToAPIs Key 只存浏览器本地，服务器不保存」「不做复杂计费系统」的早期设定。
@@ -60,8 +60,8 @@
   | 模型 | 单价 |
   |------|------|
   | gpt-image-2 | 1K:3 / 2K:4 / 4K:5 |
-  | gemini-3-pro-image-preview | 1K:10 / 2K:10 / 4K:20 |
-  | gemini-3.1-flash-image-preview | 512/1K/2K/4K:5 |
+  | gemini-3-pro-image-preview | 1K:10 / 2K:12 / 4K:16 |
+  | gemini-3.1-flash-image-preview | 512:5 / 1K:6 / 2K:8 / 4K:12 |
   | gemini-2.5-flash-image-preview | 1K:2.4 |
 
 - 个人 Key 加密：优先 env `ENCRYPTION_KEY`（32B hex）；缺失时从 `JWT_SECRET` 用 HKDF-SHA256 派生兜底（启动告警；补配后旧密文需用户重存）。
