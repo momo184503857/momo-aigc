@@ -158,8 +158,8 @@ function handleCommand(command: string) {
       </div>
       <el-dropdown trigger="click" @command="handleCommand" popper-class="sidebar-user-dropdown">
         <div class="user-account-row">
-          <div class="user-avatar">{{ auth.user.username.charAt(0).toUpperCase() }}</div>
-          <span v-if="!collapsed" class="user-name">{{ auth.user.username }}</span>
+          <div class="user-avatar">{{ auth.displayName.charAt(0).toUpperCase() }}</div>
+          <span v-if="!collapsed" class="user-name">{{ auth.displayName }}</span>
           <el-icon v-if="!collapsed" class="user-arrow"><ArrowDown /></el-icon>
         </div>
         <template #dropdown>

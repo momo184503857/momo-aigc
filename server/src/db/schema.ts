@@ -113,6 +113,33 @@ export function initSchema(): void {
     db.exec(`ALTER TABLE users ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`)
   } catch { /* column already exists */ }
 
+  // Migration: add email column to users（邮箱为登录主标识；旧账号为空，仍可用 username 登录）
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN email TEXT`)
+  } catch { /* column already exists */ }
+
+  // Migration: add nickname column to users（可修改的展示名）
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN nickname TEXT`)
+  } catch { /* column already exists */ }
+
+  // email 唯一索引（部分索引：仅非空行参与，保证旧账号 email=NULL 不冲突）
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`)
+
+  // Email verification codes table（注册/登录/重置密码验证码）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email VARCHAR(128) NOT NULL,
+      code VARCHAR(8) NOT NULL,
+      purpose VARCHAR(20) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      consumed INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_email_codes_lookup ON email_codes(email, purpose, consumed);`)
+
   // Migration: add points_cost to generation_tasks
   try {
     db.exec(`ALTER TABLE generation_tasks ADD COLUMN points_cost REAL NOT NULL DEFAULT 0`)

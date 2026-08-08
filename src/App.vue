@@ -5,11 +5,12 @@ import AuthLayout from '@/layouts/AuthLayout.vue'
 import MainLayout from '@/layouts/MainLayout.vue'
 
 const route = useRoute()
-const isLoginPage = computed(() => route.path === '/login')
+// 登录/注册/忘记密码等无需鉴权的页面走 AuthLayout
+const isGuestPage = computed(() => !!route.meta.guest)
 </script>
 
 <template>
-  <AuthLayout v-if="isLoginPage">
+  <AuthLayout v-if="isGuestPage">
     <router-view />
   </AuthLayout>
   <MainLayout v-else>

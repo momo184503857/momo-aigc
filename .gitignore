@@ -3,7 +3,6 @@ dist/
 server/dist/
 server/data/momo.db*
 server/data/database.sqlite*
-.env
 *.log
 *.tsbuildinfo
 vite.config.js

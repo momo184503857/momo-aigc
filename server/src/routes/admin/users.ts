@@ -24,8 +24,8 @@ adminUsersRouter.get('/', (req: AuthRequest, res) => {
   const params: unknown[] = []
 
   if (search) {
-    conditions.push(`u.username LIKE ?`)
-    params.push(`%${search}%`)
+    conditions.push(`u.username LIKE ? OR u.email LIKE ?`)
+    params.push(`%${search}%`, `%${search}%`)
   }
 
   if (tag) {

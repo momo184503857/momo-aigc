@@ -13,6 +13,8 @@ import { UiNumberInput } from '@/components/ui'
 interface UserItem {
   id: number
   username: string
+  email: string | null
+  nickname: string | null
   role: string
   status: string
   points: number
@@ -254,7 +256,7 @@ onMounted(() => {
     <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <el-input
         v-model="searchQuery"
-        placeholder="搜索用户名..."
+        placeholder="搜索用户名或邮箱..."
         clearable
         style="width:240px"
         @change="loadUsers"
@@ -280,7 +282,18 @@ onMounted(() => {
 
     <el-table :data="users" v-loading="loading" stripe>
       <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column prop="username" label="用户名" />
+      <el-table-column label="用户名">
+        <template #default="{ row }">
+          {{ row.nickname || row.username }}
+          <span v-if="row.nickname" class="username-hint">({{ row.username }})</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="email" label="邮箱" width="200">
+        <template #default="{ row }">
+          <span v-if="row.email">{{ row.email }}</span>
+          <span v-else class="username-hint">未绑定</span>
+        </template>
+      </el-table-column>
       <el-table-column label="角色" width="80">
         <template #default="{ row }">
           <el-tag :type="row.role === 'admin' ? 'danger' : 'info'" size="small">
@@ -465,3 +478,11 @@ onMounted(() => {
     </el-dialog>
   </PageLayout>
 </template>
+
+<style scoped>
+.username-hint {
+  font-size: var(--momo-font-size-sm);
+  color: var(--el-text-color-placeholder);
+  margin-left: 4px;
+}
+</style>

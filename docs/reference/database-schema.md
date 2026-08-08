@@ -8,6 +8,41 @@
 
 详见 `docs/records/decision-log.md`（2026-06-19）。
 
+## users
+
+用户账号表。支持邮箱注册与旧用户名账号兼容。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK AUTOINCREMENT | |
+| username | VARCHAR(64) NOT NULL UNIQUE | 登录标识；邮箱注册用户存 email 本身（满足 NOT NULL UNIQUE 约束） |
+| password_hash | VARCHAR(255) NOT NULL | bcrypt 哈希（cost=10） |
+| email | TEXT | 邮箱（新注册必填，旧账号为空）；部分唯一索引 `idx_users_email` 保证非空值唯一 |
+| nickname | TEXT | 可修改的展示名；展示优先级 nickname > username > email |
+| role | VARCHAR(20) DEFAULT 'user' | `admin` / `user` |
+| status | VARCHAR(20) DEFAULT 'active' | `active` / `disabled` |
+| points | REAL DEFAULT 0 | 新积分余额，1 新积分 = ¥0.035 |
+| tags | TEXT DEFAULT '[]' | 用户标签 JSON 数组（历史字段，标签映射另见 `user_tag_mappings`） |
+| last_login_at | TIMESTAMP NULL | UTC |
+| created_at | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | UTC |
+| updated_at | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | UTC |
+
+## email_codes
+
+邮箱验证码表（注册 / 登录 / 重置密码）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK AUTOINCREMENT | |
+| email | VARCHAR(128) NOT NULL | 目标邮箱 |
+| code | VARCHAR(8) NOT NULL | 6 位数字验证码 |
+| purpose | VARCHAR(20) NOT NULL | `register` / `login` / `reset_password` |
+| expires_at | TIMESTAMP NOT NULL | 过期时间（默认 10 分钟） |
+| consumed | INTEGER DEFAULT 0 | 0 未消费 / 1 已消费；验证成功后置 1 |
+| created_at | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | UTC |
+
+索引：`idx_email_codes_lookup(email, purpose, consumed)`。
+
 ## photography_elements
 
 AI摄影功能——管理员配置的元素定义。

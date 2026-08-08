@@ -8,16 +8,37 @@ import { fetchKeyCredits, creditsToYuan } from '../utils/credits.js'
 export const meRouter = Router()
 
 meRouter.get('/', authMiddleware, (req: AuthRequest, res) => {
-  const user = db.prepare('SELECT id, points FROM users WHERE id = ?').get(req.user!.userId) as any
+  const user = db.prepare('SELECT id, username, email, nickname, points FROM users WHERE id = ?').get(req.user!.userId) as any
   res.json({
     success: true,
     data: {
       id: req.user!.userId,
-      username: req.user!.username,
+      username: user?.username ?? req.user!.username,
+      email: user?.email || '',
+      nickname: user?.nickname || '',
       role: req.user!.role,
       points: user?.points ?? 0,
     },
   })
+})
+
+// 修改昵称
+meRouter.put('/profile', authMiddleware, (req: AuthRequest, res) => {
+  const { nickname } = req.body
+
+  if (!nickname || typeof nickname !== 'string' || nickname.trim().length === 0) {
+    res.status(400).json({ success: false, error: '请输入昵称' })
+    return
+  }
+  if (nickname.length > 32) {
+    res.status(400).json({ success: false, error: '昵称最多32个字符' })
+    return
+  }
+
+  db.prepare('UPDATE users SET nickname = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(nickname.trim(), req.user!.userId)
+
+  res.json({ success: true, data: { nickname: nickname.trim() } })
 })
 
 // Change own password

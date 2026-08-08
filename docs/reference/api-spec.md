@@ -10,6 +10,58 @@
 
 ---
 
+## 认证与账号
+
+### 公开路由 `/api/auth`（无需登录）
+
+#### POST `/api/auth/login`
+密码登录（兼容旧用户名账号与邮箱账号）。
+- Body：`{ account: string, password: string }`（`account` 可为邮箱或用户名；兼容旧字段 `username`）
+- Response：`data: { token: string, user: UserInfo }`
+- `UserInfo = { id, username, email, nickname, role, points }`
+- 错误：400 参数缺失；401 账号或密码错误；403 账号已禁用
+
+#### POST `/api/auth/send-code`
+发送验证码邮件。SMTP 未配置时验证码打印到服务端控制台（开发降级）。
+- Body：`{ email: string, purpose: 'register' | 'login' | 'reset_password' }`
+- 语义校验：`register` 时邮箱已存在返回 409；`login`/`reset_password` 时邮箱不存在返回 404
+- 防刷：同邮箱同用途 60s 内重复发送返回 429
+- Response：`{ success: true }`
+
+#### POST `/api/auth/register`
+邮箱注册（验证码 + 设置密码），成功后自动签发 token。
+- Body：`{ email: string, code: string, password: string }`
+- Response：`data: { token: string, user: UserInfo }`
+- 错误：400 验证码错误/密码不足6位；409 邮箱已注册
+
+#### POST `/api/auth/login-code`
+验证码登录。
+- Body：`{ email: string, code: string }`
+- Response：`data: { token: string, user: UserInfo }`
+- 错误：400 验证码错误；404 账号不存在；403 已禁用
+
+#### POST `/api/auth/reset-password`
+忘记密码重置（验证码 + 新密码）。
+- Body：`{ email: string, code: string, new_password: string }`
+- Response：`{ success: true }`
+- 错误：400 验证码错误/密码不足6位；404 账号不存在
+
+#### POST `/api/auth/logout`
+JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true }`
+
+### 个人路由 `/api/me`（需登录）
+
+#### GET `/api/me`
+获取当前用户信息。Response：`data: UserInfo`
+
+#### PUT `/api/me/profile`
+修改昵称。Body：`{ nickname: string }`（1-32 字符）。Response：`{ success: true, data: { nickname } }`
+
+#### PUT `/api/me/password`
+修改密码。Body：`{ old_password: string, new_password: string }`（新密码 ≥6 位）。Response：`{ success: true }`
+
+---
+
 ## AI 买家秀 · 素材库
 
 ### 公开路由 `/api/buyer-show`（任意登录用户，只读）

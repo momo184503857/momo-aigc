@@ -11,6 +11,18 @@ const router = createRouter({
       meta: { guest: true },
     },
     {
+      path: '/register',
+      name: 'Register',
+      component: () => import('@/views/login/RegisterPage.vue'),
+      meta: { guest: true },
+    },
+    {
+      path: '/forgot-password',
+      name: 'ForgotPassword',
+      component: () => import('@/views/login/ForgotPasswordPage.vue'),
+      meta: { guest: true },
+    },
+    {
       path: '/',
       redirect: '/free-gen',
     },
