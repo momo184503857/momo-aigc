@@ -8,3 +8,6 @@ server/data/database.sqlite*
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+# ZCode 临时文件
+.zcode/
