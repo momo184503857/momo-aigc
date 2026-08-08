@@ -11,6 +11,7 @@ import {
 import { getTaskStatus } from '@/adapter/toapisClient'
 import { translateError } from '@/utils/errors'
 import { downloadUrl } from '@/utils/download'
+import { ossApi } from '@/services/ossApi'
 import type { ModelId } from '@/types/adapter'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { TaskItem } from '@/components/TaskList.vue'
@@ -583,6 +584,42 @@ export function useTaskManager() {
     }
   }
 
+  // ─── Image editor result: upload + navigate to generate ───
+
+  async function handleEditDone(
+    result: { dataUrl: string; file: File; sourceUrl?: string },
+    task: TaskItem | null,
+  ) {
+    try {
+      // Upload edited image to OSS (inputs scope) so it can be used as a reference image
+      const { publicUrl } = await ossApi.upload(result.file, 'inputs')
+
+      // Determine target route based on the originating task's feature
+      const isPhotography = task?.feature_id === 'ai-photography'
+      const isFreeGen = !task?.feature_id || task?.feature_id === 'free-gen'
+      const targetRoutePath = isPhotography ? '/photography' : isFreeGen ? '/free-gen' : '/workspace'
+
+      // Reuse the regenerate_task sessionStorage pathway: inject the edited
+      // image as the sole input image so it lands in the reference slot.
+      sessionStorage.setItem('regenerate_task', JSON.stringify({
+        model: task?.model,
+        prompt: task?.prompt || '',
+        resolution: task?.resolution || '',
+        aspectRatio: task?.aspectRatio || '',
+        userPrompt: task?.user_prompt || '',
+        input_image_urls: [publicUrl],
+        feature_id: task?.feature_id,
+        supplementaryImages: task?.supplementaryImages,
+      }))
+
+      const { push } = router
+      await push(targetRoutePath)
+      info('编辑后的图片已加入参考图，请点击生成')
+    } catch (e) {
+      error(e, '编辑图片上传失败')
+    }
+  }
+
   // ─── Detail / Compare ───
 
   function showCompare(index: number) {
@@ -633,6 +670,7 @@ export function useTaskManager() {
     loadUserPoints,
     handleGenerate,
     handleRegenerate,
+    handleEditDone,
     handleDelete,
     handleDownload,
     handleCopyParams,

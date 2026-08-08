@@ -5,6 +5,7 @@ import { useTaskManager } from '@/composables/useTaskManager'
 import TaskList from '@/components/TaskList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
+import ImageEditorDialog from '@/components/ImageEditorDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { Close, List, Grid, FullScreen } from '@element-plus/icons-vue'
 import { formatCredits } from '@/types/adapter'
@@ -21,13 +22,32 @@ function showDetail(task: TaskItem) {
   nextTick(() => taskDetailDialog.value?.open())
 }
 
+// ─── Image editor dialog ───
+const editorVisible = ref(false)
+const editorImageUrl = ref('')
+const editorTask = ref<TaskItem | null>(null)
+
+function handleEdit(task: TaskItem) {
+  const url = task.result_image_urls?.[0]
+  if (!url) return
+  editorImageUrl.value = url
+  editorTask.value = task
+  editorVisible.value = true
+}
+
+function handleEditDone(result: { dataUrl: string; file: File; sourceUrl?: string }) {
+  tm.handleEditDone(result, editorTask.value)
+}
+
 // ─── Drag splitter ───
 const isDragging = ref(false)
+// Guards against the click that fires on the backdrop right after a drag ends
+let suppressNextClick = false
 let dragStartX = 0
 let dragStartWidth = 0
 
 function onSplitterMouseDown(e: MouseEvent) {
-  if (!taskPanel.isSideBySide) return
+  if (taskPanel.isCollapsed) return
   isDragging.value = true
   dragStartX = e.clientX
   dragStartWidth = taskPanel.panelWidth
@@ -47,6 +67,10 @@ function onPointerUp() {
   isDragging.value = false
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
+  // mouseup is followed by a click; if it lands on the backdrop it would
+  // collapse the panel, so suppress that single click.
+  suppressNextClick = true
+  setTimeout(() => { suppressNextClick = false }, 0)
 }
 
 onMounted(() => {
@@ -62,6 +86,7 @@ onUnmounted(() => {
 
 // ─── Overlay backdrop ───
 function onBackdropClick() {
+  if (suppressNextClick) return
   if (taskPanel.isOverlay) {
     taskPanel.collapse()
   }
@@ -90,9 +115,9 @@ const panelStyle = computed(() => ({
     }"
     :style="panelStyle"
   >
-    <!-- Splitter (side-by-side only) -->
+    <!-- Splitter (visible in both expanded modes) -->
     <div
-      v-if="taskPanel.isSideBySide"
+      v-if="!taskPanel.isCollapsed"
       class="task-panel-splitter"
       :class="{ dragging: isDragging }"
       @mousedown="onSplitterMouseDown"
@@ -200,6 +225,7 @@ const panelStyle = computed(() => ({
           @compare-images="tm.showCompare"
           @toggle-select="tm.handleToggleSelect"
           @retry-import="tm.retryImportTask"
+          @edit="handleEdit"
         />
       </div>
 
@@ -238,6 +264,14 @@ const panelStyle = computed(() => ({
     :tasks="tm.tasks.value"
     :initial-index="tm.compareInitialIndex.value"
     :task-id="tm.compareTaskId.value"
+  />
+
+  <!-- Image Editor Dialog -->
+  <ImageEditorDialog
+    v-model="editorVisible"
+    :image-url="editorImageUrl"
+    :task="editorTask"
+    @done="handleEditDone"
   />
 </template>
 

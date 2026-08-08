@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
-import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check } from '@element-plus/icons-vue'
+import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check, Edit } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { parseUTC, toBJMinute } from '@/utils/datetime'
@@ -47,6 +47,7 @@ const emit = defineEmits<{
   'compareImages': [index: number]
   'toggleSelect': [id: number]
   'retryImport': [task: TaskItem]
+  'edit': [task: TaskItem]
 }>()
 
 const statusText = computed(() => (status: string) => {
@@ -255,6 +256,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
           <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">重新编辑</el-button>
           <el-button size="small" :icon="Download" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)">下载</el-button>
+          <el-button size="small" :icon="Edit" :disabled="!task.result_image_urls?.[0]" @click="emit('edit', task)">编辑</el-button>
           <el-dropdown trigger="click">
             <el-button size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
             <template #dropdown>
@@ -340,6 +342,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">重新编辑</el-button>
           <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Download" @click="emit('download', task)">下载</el-button>
           <el-button v-else size="small" disabled>下载</el-button>
+          <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Edit" @click="emit('edit', task)">编辑</el-button>
           <el-dropdown trigger="click">
             <el-button size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
             <template #dropdown>
