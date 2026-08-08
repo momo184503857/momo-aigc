@@ -253,13 +253,13 @@ function handleImageDragStart(e: DragEvent, url: string) {
         </div>
         <div v-if="!bulkMode" class="task-actions">
           <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
+          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">重新编辑</el-button>
           <el-button size="small" :icon="Download" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)">下载</el-button>
           <el-dropdown trigger="click">
             <el-button size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)"><el-icon><View /></el-icon>详情</el-dropdown-item>
-                <el-dropdown-item @click="emit('copyParams', task)"><el-icon><CopyDocument /></el-icon>重新编辑</el-dropdown-item>
                 <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)"><el-icon><CopyDocument /></el-icon>复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)"><el-icon><Delete /></el-icon>删除</el-dropdown-item>
               </el-dropdown-menu>
@@ -337,6 +337,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
         <!-- Actions -->
         <div v-if="!bulkMode" class="grid-card-actions">
           <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
+          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">重新编辑</el-button>
           <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Download" @click="emit('download', task)">下载</el-button>
           <el-button v-else size="small" disabled>下载</el-button>
           <el-dropdown trigger="click">
@@ -344,7 +345,6 @@ function handleImageDragStart(e: DragEvent, url: string) {
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)">详情</el-dropdown-item>
-                <el-dropdown-item @click="emit('copyParams', task)">重新编辑</el-dropdown-item>
                 <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)">复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)">删除</el-dropdown-item>
               </el-dropdown-menu>

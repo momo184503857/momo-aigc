@@ -402,12 +402,14 @@ export function useTaskManager() {
     // Navigate to the correct page if not there
     const currentRoute = router.currentRoute.value
     const isPhotography = task.feature_id === 'ai-photography'
-    const targetRouteName = isPhotography ? 'Photography' : 'Workspace'
-    const targetRoutePath = isPhotography ? '/photography' : '/workspace'
+    const isFreeGen = !task.feature_id || task.feature_id === 'free-gen'
+    const targetRouteName = isPhotography ? 'Photography' : isFreeGen ? 'FreeGen' : 'Workspace'
+    const targetRoutePath = isPhotography ? '/photography' : isFreeGen ? '/free-gen' : '/workspace'
 
     if (currentRoute.name !== targetRouteName) {
       sessionStorage.setItem('regenerate_task', JSON.stringify({
         model: task.model,
+        prompt: task.prompt,
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
         userPrompt: task.user_prompt || '',
@@ -416,7 +418,11 @@ export function useTaskManager() {
         supplementaryImages: task.supplementaryImages,
       }))
       router.push(targetRoutePath)
-      info(isPhotography ? '已跳转到AI摄影，参数已复制到表单' : '已跳转到工作台，请点击生成按钮')
+      info(
+        isPhotography ? '已跳转到AI摄影，参数已复制到表单'
+        : isFreeGen ? '已跳转到自由生图，请点击生成按钮'
+        : '已跳转到工作台，请点击生成按钮'
+      )
       return
     }
 
@@ -445,6 +451,7 @@ export function useTaskManager() {
       aspectRatio: task.aspectRatio,
       count: 1,
       refImages: (task.input_image_urls || []).map((url: string) => ({ url })),
+      featureId: task.feature_id,
     })
   }
 
@@ -469,12 +476,14 @@ export function useTaskManager() {
   function handleCopyParams(task: TaskItem) {
     const currentRoute = router.currentRoute.value
     const isPhotography = task.feature_id === 'ai-photography'
-    const targetRouteName = isPhotography ? 'Photography' : 'Workspace'
-    const targetRoutePath = isPhotography ? '/photography' : '/workspace'
+    const isFreeGen = !task.feature_id || task.feature_id === 'free-gen'
+    const targetRouteName = isPhotography ? 'Photography' : isFreeGen ? 'FreeGen' : 'Workspace'
+    const targetRoutePath = isPhotography ? '/photography' : isFreeGen ? '/free-gen' : '/workspace'
 
     if (currentRoute.name !== targetRouteName) {
       sessionStorage.setItem('regenerate_task', JSON.stringify({
         model: task.model,
+        prompt: task.prompt,
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
         userPrompt: task.user_prompt || '',
@@ -483,7 +492,11 @@ export function useTaskManager() {
         supplementaryImages: task.supplementaryImages,
       }))
       router.push(targetRoutePath)
-      info(isPhotography ? '已跳转到AI摄影页面，参数已复制' : '已跳转到工作台，参数已复制')
+      info(
+        isPhotography ? '已跳转到AI摄影页面，参数已复制'
+        : isFreeGen ? '已跳转到自由生图页面，参数已复制'
+        : '已跳转到工作台，参数已复制'
+      )
       return
     }
     // On target page: emit event for page to handle

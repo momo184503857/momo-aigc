@@ -6,10 +6,8 @@
 import { ref, watch, onMounted, onActivated, nextTick } from 'vue'
 
 defineOptions({ name: 'Workspace' })
-import { useRouter } from 'vue-router'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success } = useUiFeedback()
-const router = useRouter()
 import PageLayout from '@/components/PageLayout.vue'
 import FeatureForm from '@/components/FeatureForm.vue'
 import FeatureNav from '@/components/FeatureNav.vue'
@@ -81,10 +79,9 @@ function handleCopyParamsFromTask(params: {
   feature_id?: string
   supplementaryImages?: { name: string; url: string }[]
 }) {
-  // 自由生图任务已独立成 /free-gen 页面，跳转过去处理
+  // 自由生图任务由独立的 FreeGenPage 处理；useTaskManager 已直接路由到 /free-gen，
+  // 此处若仍收到 free-gen 数据（残留/直接访问），静默丢弃避免参数丢失。
   if (!params.feature_id || params.feature_id === 'free-gen') {
-    sessionStorage.setItem('regenerate_task', JSON.stringify(params))
-    router.push('/free-gen')
     return
   }
   const targetTab = params.feature_id
