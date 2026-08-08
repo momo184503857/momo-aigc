@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/services/authApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { useCodeCountdown } from '@/composables/useCodeCountdown'
 import PageLayout from '@/components/PageLayout.vue'
 
 defineOptions({ name: 'UserSettings' })
@@ -26,6 +27,36 @@ async function handleUpdateNickname() {
     error(e.response?.data?.error || '更新失败')
   } finally {
     nicknameLoading.value = false
+  }
+}
+
+// ── 绑定邮箱 ──
+const bindEmail = ref('')
+const bindCode = ref('')
+const bindLoading = ref(false)
+const { countdown: bindCountdown, sendCustom: sendBindCode } = useCodeCountdown()
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+async function handleSendBindCode() {
+  if (!bindEmail.value) { warning('请输入邮箱'); return }
+  if (!EMAIL_RE.test(bindEmail.value)) { warning('邮箱格式不正确'); return }
+  await sendBindCode(bindEmail.value, (email) => authApi.sendBindCode(email))
+}
+
+async function handleBindEmail() {
+  if (!bindEmail.value || !bindCode.value) { warning('请填写邮箱和验证码'); return }
+  bindLoading.value = true
+  try {
+    await authApi.bindEmail(bindEmail.value, bindCode.value)
+    if (auth.user) auth.user.email = bindEmail.value
+    success('邮箱绑定成功')
+    bindEmail.value = ''
+    bindCode.value = ''
+  } catch (e: any) {
+    error(e.response?.data?.error || '绑定失败')
+  } finally {
+    bindLoading.value = false
   }
 }
 
@@ -69,12 +100,52 @@ async function handleChangePassword() {
         <el-descriptions-item label="邮箱">
           {{ auth.user?.email || '未绑定' }}
         </el-descriptions-item>
+        <el-descriptions-item label="用户名">
+          {{ auth.user?.username }}
+        </el-descriptions-item>
         <el-descriptions-item label="角色">
           <el-tag :type="auth.isAdmin ? 'danger' : 'info'" size="small">
             {{ auth.isAdmin ? '管理员' : '用户' }}
           </el-tag>
         </el-descriptions-item>
       </el-descriptions>
+    </div>
+
+    <!-- 绑定邮箱（仅未绑定时显示） -->
+    <div v-if="!auth.user?.email" class="settings-card">
+      <h3 class="card-title">绑定邮箱</h3>
+      <p class="card-desc">绑定后可用邮箱登录和接收验证码。</p>
+      <el-form label-position="top" class="settings-form">
+        <el-form-item label="邮箱">
+          <el-input
+            v-model="bindEmail"
+            placeholder="请输入邮箱"
+            :disabled="bindLoading"
+          />
+        </el-form-item>
+        <el-form-item label="验证码">
+          <div class="code-row">
+            <el-input
+              v-model="bindCode"
+              placeholder="请输入验证码"
+              :disabled="bindLoading"
+            />
+            <el-button
+              :disabled="bindCountdown > 0 || bindLoading"
+              @click="handleSendBindCode"
+            >
+              {{ bindCountdown > 0 ? `${bindCountdown}s` : '获取验证码' }}
+            </el-button>
+          </div>
+        </el-form-item>
+        <el-button
+          type="primary"
+          :loading="bindLoading"
+          @click="handleBindEmail"
+        >
+          绑定邮箱
+        </el-button>
+      </el-form>
     </div>
 
     <!-- 修改昵称 -->
@@ -158,10 +229,23 @@ async function handleChangePassword() {
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
+.card-desc {
+  margin: 0 0 var(--momo-space-4, 16px);
+  font-size: var(--momo-font-size-sm);
+  color: var(--el-text-color-secondary);
+}
 .settings-form {
   max-width: 420px;
 }
 .settings-form .el-button {
   margin-top: 8px;
+}
+.code-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.code-row .el-input {
+  flex: 1;
 }
 </style>

@@ -4,7 +4,9 @@ import { useUiFeedback } from './useUiFeedback'
 
 /**
  * 验证码发送 + 倒计时逻辑。
- * 返回 send 函数（传入邮箱 + 用途）和剩余秒数。
+ * - send(email, purpose)：走 authApi.sendCode（注册/登录/重置密码）
+ * - sendCustom(email, fn)：走自定义发送函数（如绑定邮箱）
+ * 返回剩余秒数。
  */
 export function useCodeCountdown() {
   const { success, error } = useUiFeedback()
@@ -36,9 +38,22 @@ export function useCodeCountdown() {
     }
   }
 
+  async function sendCustom(email: string, fn: (email: string) => Promise<unknown>): Promise<boolean> {
+    if (countdown.value > 0) return false
+    try {
+      await fn(email)
+      success('验证码已发送，请查收邮箱')
+      start(60)
+      return true
+    } catch (e: any) {
+      error(e.response?.data?.error || '验证码发送失败')
+      return false
+    }
+  }
+
   onUnmounted(() => {
     if (timer) clearInterval(timer)
   })
 
-  return { countdown, send }
+  return { countdown, send, sendCustom }
 }

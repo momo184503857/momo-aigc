@@ -44,4 +44,10 @@ export const authApi = {
   updatePassword(oldPassword: string, newPassword: string) {
     return http.put('/me/password', { old_password: oldPassword, new_password: newPassword })
   },
+  sendBindCode(email: string) {
+    return http.post('/me/send-bind-code', { email })
+  },
+  bindEmail(email: string, code: string) {
+    return http.put<{ success: boolean; data: { email: string } }>('/me/bind-email', { email, code })
+  },
 }
