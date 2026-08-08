@@ -75,8 +75,8 @@
 
 第一版不做：
 
-1. 用户自行修改密码。
-2. 用户注册。
+1. ~~用户自行修改密码。~~（已实现，见 §9.1.3）
+2. ~~用户注册。~~（已实现邮箱注册，见 §9.1.1）
 3. 对外售卖。
 4. 团队空间 / 多租户公司管理。
 5. 服务器保存用户 ToAPIs Key。
@@ -153,28 +153,30 @@
 
 权限：
 
-1. 登录系统。
-2. 在本地浏览器保存自己的 ToAPIs Key。
-3. 删除本地 ToAPIs Key。
-4. 上传模板图片到 OSS。
-5. 查看自己的模板图库。
-6. 选择自己的模板图参与生图。
-7. 选择模型。
-8. 输入 Prompt。
-9. 创建图像生成任务。
-10. 查看自己的任务历史。
-11. 查询自己的任务状态。
-12. 一键重新生成自己的历史任务。
+1. 登录系统（邮箱密码 / 邮箱验证码 / 用户名密码 三种方式）。
+2. 自行注册账号（邮箱 + 验证码）。
+3. 自行修改密码和昵称。
+4. 绑定邮箱（旧用户名账号可补绑邮箱）。
+5. 在本地浏览器保存自己的 ToAPIs Key。
+6. 删除本地 ToAPIs Key。
+7. 上传模板图片到 OSS。
+8. 查看自己的模板图库。
+9. 选择自己的模板图参与生图。
+10. 选择模型。
+11. 输入 Prompt。
+12. 创建图像生成任务。
+13. 查看自己的任务历史。
+14. 查询自己的任务状态。
+15. 一键重新生成自己的历史任务。
 
 限制：
 
-1. 不能注册账号。
-2. 不能修改密码。
-3. 密码只能由管理员重置。
-4. 不能看到其他用户的任务。
-5. 不能看到其他用户的模板图。
-6. 不能看到管理员统计后台。
-7. ToAPIs Key 只保存在自己的浏览器本地。
+1. ~~不能注册账号。~~（已开放邮箱注册）
+2. ~~不能修改密码。~~（已开放自行修改密码）
+3. 不能看到其他用户的任务。
+4. 不能看到其他用户的模板图。
+5. 不能看到管理员统计后台。
+6. ToAPIs Key 只保存在自己的浏览器本地。
 
 ---
 
@@ -348,22 +350,59 @@ templates/10001/2026/05/8f4a2c7e.png
 
 ### 9.1.1 登录页
 
-字段：
+登录页支持 Tab 切换两种登录模式：
 
-1. 用户名。
+**密码登录：**
+
+1. 账号（邮箱或用户名）。
 2. 密码。
 3. 登录按钮。
 
+**验证码登录：**
+
+1. 邮箱。
+2. 验证码 + 获取验证码按钮（60s 倒计时）。
+3. 登录按钮。
+
+页面底部链接：注册账号、忘记密码。
+
 规则：
 
-1. 用户名和密码由管理员创建。
-2. 普通用户不能自行注册。
-3. 普通用户不能自行修改密码。
-4. 用户忘记密码，由管理员重置。
-5. 登录成功后进入自由生图（默认入口）。
-6. 登录失败时提示：账号或密码错误。
+1. 支持邮箱密码登录和用户名密码登录（兼容旧账号）。
+2. 支持邮箱验证码登录（需邮箱已注册）。
+3. 普通用户可自行注册账号（邮箱 + 验证码 + 密码）。
+4. 普通用户可自行修改密码和昵称（个人设置页）。
+5. 用户忘记密码可通过邮箱验证码重置。
+6. 登录成功后进入自由生图（默认入口）。
+7. 登录失败时提示：账号或密码错误。
+8. 管理员仍可在后台创建用户（用户名 + 密码，不要求邮箱）。
 
-### 9.1.2 会话
+### 9.1.2 邮箱注册
+
+字段：
+
+1. 邮箱。
+2. 验证码 + 获取验证码按钮（60s 倒计时防刷）。
+3. 密码（至少 6 位）。
+4. 确认密码。
+
+规则：
+
+1. 邮箱不能与已注册邮箱重复。
+2. 验证码 10 分钟内有效，验证后消费。
+3. 注册成功后自动登录并跳转工作台。
+4. 新注册用户 username 字段存 email 本身，nickname 取邮箱 @ 前部分。
+
+### 9.1.3 个人设置
+
+已登录用户可在「个人设置」页管理账号：
+
+1. 查看账号信息（昵称、邮箱、用户名、角色）。
+2. 修改昵称（1-32 字符，随时可改）。
+3. 修改密码（需输入旧密码 + 新密码 + 确认密码）。
+4. 绑定邮箱（仅未绑定时显示；旧用户名账号补绑邮箱后可用邮箱登录）。
+
+### 9.1.4 会话
 
 要求：
 
@@ -381,13 +420,14 @@ templates/10001/2026/05/8f4a2c7e.png
 字段：
 
 1. 用户 ID。
-2. 用户名。
-3. 角色。
-4. 状态。
-5. 创建时间。
-6. 最近登录时间。
-7. 生成次数。
-8. 最近生成时间。
+2. 用户名（显示优先 nickname > username）。
+3. 邮箱。
+4. 角色。
+5. 状态。
+6. 创建时间。
+7. 最近登录时间。
+8. 生成次数。
+9. 最近生成时间。
 
 操作：
 
@@ -969,12 +1009,18 @@ CREATE TABLE users (
   id BIGINT PRIMARY KEY,
   username VARCHAR(64) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  email TEXT,                              -- 邮箱（新注册必填，旧账号为空）
+  nickname TEXT,                           -- 可修改的展示名
   role VARCHAR(20) NOT NULL DEFAULT 'user',
   status VARCHAR(20) NOT NULL DEFAULT 'active',
+  points REAL NOT NULL DEFAULT 0,          -- 新积分余额
+  tags TEXT NOT NULL DEFAULT '[]',         -- 用户标签 JSON 数组
   last_login_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL,
   updated_at TIMESTAMP NOT NULL
 );
+-- email 部分唯一索引（仅非空值参与，保证旧账号 NULL 不冲突）
+CREATE UNIQUE INDEX idx_users_email ON users(email) WHERE email IS NOT NULL;
 ```
 
 字段说明：
@@ -982,13 +1028,42 @@ CREATE TABLE users (
 | 字段 | 说明 |
 |---|---|
 | id | 用户 ID |
-| username | 用户名 |
-| password_hash | 密码哈希 |
+| username | 用户名；邮箱注册用户存 email 本身（满足 NOT NULL UNIQUE） |
+| password_hash | 密码哈希（bcrypt，cost=10） |
+| email | 邮箱（登录主标识；旧账号为空，可补绑） |
+| nickname | 可修改的展示名；展示优先级 nickname > username > email |
 | role | `admin` / `user` |
 | status | `active` / `disabled` |
+| points | 新积分余额，1 新积分 = ¥0.035 |
+| tags | 用户标签 JSON 数组 |
 | last_login_at | 最近登录时间 |
 | created_at | 创建时间 |
 | updated_at | 更新时间 |
+
+## 12.1a email_codes
+
+邮箱验证码表（注册 / 登录 / 重置密码 / 绑定邮箱）。
+
+```sql
+CREATE TABLE email_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email VARCHAR(128) NOT NULL,
+  code VARCHAR(8) NOT NULL,
+  purpose VARCHAR(20) NOT NULL,            -- register | login | reset_password
+  expires_at TIMESTAMP NOT NULL,
+  consumed INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_email_codes_lookup ON email_codes(email, purpose, consumed);
+```
+
+| 字段 | 说明 |
+|---|---|
+| email | 目标邮箱 |
+| code | 6 位数字验证码 |
+| purpose | 用途：`register` / `login` / `reset_password` |
+| expires_at | 过期时间（默认 10 分钟） |
+| consumed | 0 未消费 / 1 已消费；验证成功后置 1 |
 
 ---
 
@@ -1111,11 +1186,13 @@ GROUP BY user_id;
 POST /api/auth/login
 ```
 
+密码登录，`account` 可为邮箱或用户名（兼容旧字段 `username`）。
+
 请求：
 
 ```json
 {
-  "username": "user01",
+  "account": "user@example.com",
   "password": "password"
 }
 ```
@@ -1125,15 +1202,87 @@ POST /api/auth/login
 ```json
 {
   "success": true,
-  "user": {
-    "id": 1,
-    "username": "user01",
-    "role": "user"
+  "data": {
+    "token": "jwt-token",
+    "user": {
+      "id": 1,
+      "username": "user@example.com",
+      "email": "user@example.com",
+      "nickname": "user",
+      "role": "user",
+      "points": 0
+    }
   }
 }
 ```
 
----
+## 13.1a 发送验证码
+
+```http
+POST /api/auth/send-code
+```
+
+请求：
+
+```json
+{
+  "email": "user@example.com",
+  "purpose": "register"       // register | login | reset_password
+}
+```
+
+语义校验：`register` 时邮箱已存在返回 409；`login`/`reset_password` 时邮箱不存在返回 404。60s 防刷返回 429。
+
+## 13.1b 邮箱注册
+
+```http
+POST /api/auth/register
+```
+
+请求：
+
+```json
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "password": "password"
+}
+```
+
+注册成功后自动签发 token，响应同 §13.1。
+
+## 13.1c 验证码登录
+
+```http
+POST /api/auth/login-code
+```
+
+请求：
+
+```json
+{
+  "email": "user@example.com",
+  "code": "123456"
+}
+```
+
+响应同 §13.1。
+
+## 13.1d 重置密码
+
+```http
+POST /api/auth/reset-password
+```
+
+请求：
+
+```json
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "new_password": "newPassword"
+}
+```
 
 ## 13.2 退出登录
 
@@ -1148,6 +1297,35 @@ POST /api/auth/logout
 ```http
 GET /api/me
 ```
+
+响应包含 `email`、`nickname` 字段。
+
+## 13.3a 修改昵称
+
+```http
+PUT /api/me/profile
+```
+
+请求：`{ "nickname": "新昵称" }`（1-32 字符）
+
+## 13.3b 修改密码
+
+```http
+PUT /api/me/password
+```
+
+请求：`{ "old_password": "旧密码", "new_password": "新密码" }`（新密码 ≥6 位）
+
+## 13.3c 绑定邮箱
+
+```http
+POST /api/me/send-bind-code    // 发送绑定验证码
+PUT  /api/me/bind-email         // 绑定/换绑邮箱
+```
+
+绑定请求：`{ "email": "user@example.com", "code": "123456" }`
+
+邮箱被其他账号占用返回 409。
 
 ---
 
@@ -1517,10 +1695,12 @@ Authorization: Bearer 用户自己的 ToAPIs Key
 
 ### 19.1 登录与账号
 
-- 管理员可以创建普通用户。
-- 普通用户可以登录。
-- 普通用户不能注册。
-- 普通用户不能修改密码。
+- 管理员可以创建普通用户（用户名 + 密码，不要求邮箱）。
+- 普通用户可以登录（邮箱密码 / 邮箱验证码 / 用户名密码）。
+- 普通用户可以自行注册账号（邮箱 + 验证码）。
+- 普通用户可以自行修改密码和昵称。
+- 普通用户可以绑定邮箱（旧用户名账号补绑）。
+- 用户忘记密码可通过邮箱验证码重置。
 - 管理员可以重置普通用户密码。
 - 禁用用户不能登录。
 
@@ -1646,6 +1826,19 @@ Authorization: Bearer 用户自己的 ToAPIs Key
 ---
 
 ## 23. 需求变更记录
+
+### 2026-08-08 - 邮箱账号系统重构
+
+- **邮箱注册**：新增注册页（`/register`），用户可通过邮箱 + 验证码 + 密码自助注册，注册成功自动登录。原「普通用户不能注册」限制取消。详见 §9.1.2。
+- **双模式登录**：登录页（`/login`）改为 Tab 切换「密码登录」/「验证码登录」。密码登录支持邮箱或用户名（兼容旧账号）；验证码登录用邮箱 + 验证码。详见 §9.1.1。
+- **忘记密码**：新增忘记密码页（`/forgot-password`），用户可通过邮箱验证码重置密码，不再依赖管理员。详见 §9.1.1 规则第 5 条。
+- **个人设置**：原占位页改为账号信息展示 + 修改昵称 + 修改密码 + 绑定邮箱。原「普通用户不能修改密码」限制取消。详见 §9.1.3。
+- **绑定邮箱**：旧用户名账号（如 admin）可在个人设置页补绑邮箱，绑定后可用邮箱登录，用户名登录仍保留。详见 §9.1.3 第 4 条。
+- **数据模型**：users 表新增 `email`、`nickname` 列；新增 `email_codes` 验证码表。详见 §12.1、§12.1a。
+- **接口**：新增 `send-code`、`register`、`login-code`、`reset-password`、`me/profile`、`me/send-bind-code`、`me/bind-email` 等接口。详见 §13.1a-13.1d、§13.3a-13.3c。
+- **发信通道**：通用 SMTP 配置（阿里云 DirectMail），未配置 SMTP_HOST 时验证码降级打印到服务端控制台。
+- **管理后台**：用户列表新增邮箱列，搜索支持邮箱；用户名列显示优先 nickname。详见 §9.2.1。
+
 
 ### 2026-08-08 — 自由生图独立成页 + 快速生图改名 + UI 设计系统对齐 DDB 规范
 
