@@ -437,7 +437,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
 
     <!-- Starred mode hint -->
     <div v-if="starredMode" class="starred-hint-bar">
-      <el-icon color="#E6A23C"><StarFilled /></el-icon>
+      <el-icon :color="'var(--momo-color-warning)'"><StarFilled /></el-icon>
       <span>将上方图片拖到下方区域设为收藏，拖动调整顺序，越靠左越靠前</span>
     </div>
 
@@ -464,8 +464,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
 
           <!-- Star indicator -->
           <div v-if="t.is_starred" class="star-badge">
-            <el-icon size="14" color="#E6A23C"><StarFilled /></el-icon>
-            <span class="star-order">{{ t.sort_order }}</span>
+            <el-icon size="14" :color="'var(--momo-color-warning)'"><StarFilled /></el-icon>
           </div>
 
           <!-- Image -->
@@ -606,11 +605,11 @@ async function removeFromStarred(tmpl: TemplateItem) {
 .starred-hint-bar {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 16px; margin-bottom: 12px;
-  background: #fdf6ec;
-  border: 1px solid #faecd8;
-  border-radius: var(--el-border-radius-base);
+  background: var(--momo-color-warning-subtle);
+  border: 1px solid var(--momo-color-warning);
+  border-radius: var(--momo-radius-sm);
   font-size: var(--momo-font-size-sm);
-  color: #b88230;
+  color: var(--momo-color-warning);
 }
 
 /* ─── Grid ─── */
@@ -694,12 +693,9 @@ async function removeFromStarred(tmpl: TemplateItem) {
 /* Star badge */
 .star-badge {
   position: absolute; top: 10px; right: 10px; z-index: 2;
-  display: flex; align-items: center; gap: 2px;
-  background: rgba(0,0,0,0.5); border-radius: 10px;
-  padding: 2px 6px 2px 4px;
-}
-.star-order {
-  font-size: 10px; color: #fff; font-weight: 600;
+  display: flex; align-items: center;
+  background: rgba(0,0,0,0.5); border-radius: 999px;
+  padding: 3px;
 }
 
 /* Star hint in dialog */
