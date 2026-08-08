@@ -61,7 +61,8 @@ const menuSections = computed<MenuSection[]>(() => {
     {
       title: 'AI生图',
       items: [
-        { path: '/workspace', title: '生图工作台', icon: MagicStick },
+        { path: '/free-gen', title: '自由生图', icon: EditPen },
+        { path: '/workspace', title: '快速生图', icon: MagicStick },
         { path: '/photography', title: 'AI摄影', icon: Camera },
         { path: '/canvas-projects', title: 'AI画布', icon: Share },
         { path: '/toolbox', title: 'AI工具箱', icon: Box },
@@ -180,17 +181,17 @@ function handleCommand(command: string) {
 
 <style scoped>
 .sidebar {
-  width: var(--tf-sidebar-width, 220px);
-  background: var(--tf-sidebar-bg);
+  width: var(--momo-sidebar-width);
+  background: var(--momo-sidebar-bg);
   border-right: 1px solid var(--el-border-color-lighter);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width var(--tf-sidebar-transition, 0.3s ease);
+  transition: width var(--momo-sidebar-transition);
 }
 
 .sidebar.collapsed {
-  width: var(--tf-sidebar-collapsed-width, 64px);
+  width: var(--momo-sidebar-collapsed-width);
 }
 
 .sidebar-brand {
@@ -240,13 +241,13 @@ function handleCommand(command: string) {
 }
 
 .nav-item {
-  height: var(--tf-sidebar-menu-height, 42px);
+  height: var(--momo-sidebar-menu-height);
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 0 16px;
-  border-radius: var(--tf-sidebar-menu-radius, 8px);
-  color: var(--tf-sidebar-text);
+  border-radius: var(--momo-radius-md);
+  color: var(--momo-sidebar-text);
   cursor: pointer;
   transition: all 0.2s;
   margin-bottom: 2px;
@@ -254,11 +255,11 @@ function handleCommand(command: string) {
 
 .nav-item:hover {
   background: var(--el-fill-color-light);
-  color: var(--tf-sidebar-text-hover);
+  color: var(--momo-sidebar-text-hover);
 }
 
 .nav-item.active {
-  background: var(--tf-sidebar-active-bg);
+  background: var(--momo-sidebar-active-bg);
   color: var(--el-color-primary);
   font-weight: 500;
 }
@@ -313,7 +314,7 @@ function handleCommand(command: string) {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  border-radius: var(--tf-sidebar-menu-radius, 8px);
+  border-radius: var(--momo-radius-md);
   cursor: pointer;
   transition: background 0.2s;
 }

@@ -12,13 +12,19 @@ const router = createRouter({
     },
     {
       path: '/',
-      redirect: '/workspace',
+      redirect: '/free-gen',
+    },
+    {
+      path: '/free-gen',
+      name: 'FreeGen',
+      component: () => import('@/views/free-gen/FreeGenPage.vue'),
+      meta: { title: '自由生图', requiresAuth: true },
     },
     {
       path: '/workspace',
       name: 'Workspace',
       component: () => import('@/views/workspace/WorkspacePage.vue'),
-      meta: { title: '生图工作台', requiresAuth: true },
+      meta: { title: '快速生图', requiresAuth: true },
     },
     {
       path: '/templates',

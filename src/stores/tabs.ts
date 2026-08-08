@@ -28,7 +28,8 @@ const STORAGE_KEY = 'momo_tabs'
 
 // Route path -> { title, icon, componentName } mapping
 const ROUTE_META_MAP: Record<string, { title: string; icon: Component; componentName: string }> = {
-  '/workspace': { title: '生图工作台', icon: MagicStick, componentName: 'Workspace' },
+  '/free-gen': { title: '自由生图', icon: EditPen, componentName: 'FreeGen' },
+  '/workspace': { title: '快速生图', icon: MagicStick, componentName: 'Workspace' },
   '/templates': { title: '模板图库', icon: PictureFilled, componentName: 'TemplatesPage' },
   '/results': { title: '生图结果', icon: Picture, componentName: 'ResultsPage' },
   '/prompts': { title: '提示词库', icon: Collection, componentName: 'PromptLibraryPage' },

@@ -1,15 +1,16 @@
 <script setup lang="ts">
 /**
- * WorkspacePage - AI 生图工作台
+ * WorkspacePage - 快速生图
  * 任务列表已移至全局 TaskPanel（MainLayout 级别）
  */
 import { ref, watch, onMounted, onActivated, nextTick } from 'vue'
 
 defineOptions({ name: 'Workspace' })
+import { useRouter } from 'vue-router'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success } = useUiFeedback()
+const router = useRouter()
 import PageLayout from '@/components/PageLayout.vue'
-import GenerationForm from '@/components/GenerationForm.vue'
 import FeatureForm from '@/components/FeatureForm.vue'
 import FeatureNav from '@/components/FeatureNav.vue'
 import type { TabGroup } from '@/components/FeatureNav.vue'
@@ -19,12 +20,11 @@ import type { ModelId } from '@/types/adapter'
 
 const serverStatus = useServerStatusStore()
 const tm = useTaskManager()
-const generationForm = ref<InstanceType<typeof GenerationForm>>()
 const featureForm = ref<InstanceType<typeof FeatureForm>>()
 
 // ─── 功能导航 ───
 const FEATURE_NAV_WIDTH = 180
-const activeTab = ref('free-gen')
+const activeTab = ref('change-clothes')
 
 const tabGroups: TabGroup[] = [
   {
@@ -49,12 +49,6 @@ const tabGroups: TabGroup[] = [
     tabs: [
       { id: 'model-gen', label: '模特生成' },
       { id: 'three-view', label: '三视图' },
-    ],
-  },
-  {
-    name: '高级',
-    tabs: [
-      { id: 'free-gen', label: '自由生图' },
     ],
   },
 ]
@@ -87,11 +81,16 @@ function handleCopyParamsFromTask(params: {
   feature_id?: string
   supplementaryImages?: { name: string; url: string }[]
 }) {
-  const targetTab = params.feature_id || 'free-gen'
+  // 自由生图任务已独立成 /free-gen 页面，跳转过去处理
+  if (!params.feature_id || params.feature_id === 'free-gen') {
+    sessionStorage.setItem('regenerate_task', JSON.stringify(params))
+    router.push('/free-gen')
+    return
+  }
+  const targetTab = params.feature_id
   activeTab.value = targetTab
   nextTick(() => {
-    const form = targetTab === 'free-gen' ? generationForm.value : featureForm.value
-    form?.setParams({
+    featureForm.value?.setParams({
       modelId: params.modelId,
       prompt: params.prompt,
       resolution: params.resolution,
@@ -107,13 +106,15 @@ function handleCopyParamsFromTask(params: {
 }
 
 // ─── 监听来自任务面板的参数复制事件 ───
+// 自由生图任务由独立的 FreeGenPage 处理，此处忽略 free-gen 任务
 
 watch(() => tm.copyParamsEvent.value, (evt) => {
   if (!evt) return
   const task = evt.task
+  if (!task.feature_id || task.feature_id === 'free-gen') return
   handleCopyParamsFromTask({
     modelId: task.model,
-    prompt: task.feature_id && task.feature_id !== 'free-gen' ? (task.user_prompt || '') : task.prompt,
+    prompt: task.user_prompt || '',
     resolution: task.resolution,
     aspectRatio: task.aspectRatio,
     input_image_urls: task.input_image_urls || [],
@@ -165,9 +166,7 @@ onActivated(async () => {
 
       <!-- Content Panel -->
       <div class="content-panel">
-        <GenerationForm v-if="activeTab === 'free-gen'" ref="generationForm"
-          @generate="(p) => handleGenerate({ ...p, featureId: 'free-gen' })" />
-        <FeatureForm v-else :key="activeTab" ref="featureForm" :feature-id="activeTab"
+        <FeatureForm :key="activeTab" ref="featureForm" :feature-id="activeTab"
           @generate="(p) => handleGenerate({ ...p, featureId: activeTab })" />
       </div>
     </div>
