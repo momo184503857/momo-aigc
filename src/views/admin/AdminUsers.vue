@@ -30,6 +30,7 @@ interface UserItem {
 const users = ref<UserItem[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
+const statusFilter = ref('active')
 // 后端排序状态（积分/累计消耗/累计充值）
 const sortField = ref<string>('')
 const sortOrder = ref<'asc' | 'desc'>('desc')
@@ -70,6 +71,7 @@ async function loadUsers() {
   try {
     const params: any = {}
     if (searchQuery.value) params.search = searchQuery.value
+    if (statusFilter.value) params.status = statusFilter.value
     if (sortField.value) {
       params.sort = sortField.value
       params.order = sortOrder.value
@@ -226,7 +228,7 @@ onMounted(() => {
     </template>
 
     <!-- Search -->
-    <div style="margin-bottom:16px">
+    <div style="margin-bottom:16px; display:flex; gap:12px; align-items:center">
       <el-input
         v-model="searchQuery"
         placeholder="搜索用户名或邮箱..."
@@ -237,6 +239,11 @@ onMounted(() => {
       >
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
+      <el-select v-model="statusFilter" style="width:120px" @change="loadUsers">
+        <el-option label="全部" value="" />
+        <el-option label="正常" value="active" />
+        <el-option label="已禁用" value="disabled" />
+      </el-select>
     </div>
 
     <el-table :data="users" v-loading="loading" stripe @sort-change="handleSortChange">

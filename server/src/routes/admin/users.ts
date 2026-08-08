@@ -10,7 +10,7 @@ adminUsersRouter.use(authMiddleware, adminMiddleware)
 
 // List all users with optional search and sorting
 adminUsersRouter.get('/', (req: AuthRequest, res) => {
-  const { search, sort, order } = req.query
+  const { search, status, sort, order } = req.query
 
   let sql = `
     SELECT u.*,
@@ -28,6 +28,11 @@ adminUsersRouter.get('/', (req: AuthRequest, res) => {
   if (search) {
     conditions.push(`u.username LIKE ? OR u.email LIKE ?`)
     params.push(`%${search}%`, `%${search}%`)
+  }
+
+  if (status) {
+    conditions.push(`u.status = ?`)
+    params.push(status)
   }
 
   if (conditions.length > 0) {

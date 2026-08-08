@@ -2,7 +2,7 @@ import http from './http'
 
 export const adminApi = {
   // Users
-  listUsers(params?: { search?: string; sort?: string; order?: 'asc' | 'desc' }) {
+  listUsers(params?: { search?: string; sort?: string; order?: 'asc' | 'desc'; status?: string }) {
     return http.get('/admin/users', { params })
   },
   createUser(username: string, password: string) {
