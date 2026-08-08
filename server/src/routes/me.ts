@@ -88,15 +88,28 @@ meRouter.put('/bind-email', authMiddleware, (req: AuthRequest, res) => {
     return
   }
 
-  // 邮箱不能已被其他账号占用
-  const owner = db.prepare('SELECT id FROM users WHERE email = ?').get(email) as { id: number } | undefined
-  if (owner && owner.id !== req.user!.userId) {
-    res.status(409).json({ success: false, error: '该邮箱已被其他账号绑定' })
-    return
-  }
+  // 事务内原子操作：查重 + 更新，避免竞态导致重复绑定
+  try {
+    const ok = db.transaction(() => {
+      const owner = db.prepare('SELECT id FROM users WHERE email = ?').get(email) as { id: number } | undefined
+      if (owner && owner.id !== req.user!.userId) return false
+      db.prepare('UPDATE users SET email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(email, req.user!.userId)
+      return true
+    })()
 
-  db.prepare('UPDATE users SET email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(email, req.user!.userId)
+    if (!ok) {
+      res.status(409).json({ success: false, error: '该邮箱已被其他账号绑定' })
+      return
+    }
+  } catch (err: any) {
+    // 兜底：唯一索引冲突（极小竞态窗口）
+    if (String(err?.message || '').includes('UNIQUE')) {
+      res.status(409).json({ success: false, error: '该邮箱已被其他账号绑定' })
+      return
+    }
+    throw err
+  }
 
   res.json({ success: true, data: { email } })
 })

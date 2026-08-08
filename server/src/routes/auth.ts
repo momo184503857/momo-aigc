@@ -109,19 +109,34 @@ authRouter.post('/register', (req, res) => {
     return
   }
 
-  // 邮箱是否已注册
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email)
-  if (existing) {
-    res.status(409).json({ success: false, error: '该邮箱已注册，请直接登录' })
-    return
-  }
-
   // username 用 email 兜底（满足 NOT NULL UNIQUE 约束）；nickname 取邮箱 @ 前部分
   const nickname = email.split('@')[0]
   const hash = hashPassword(password)
-  const result = db.prepare(
-    'INSERT INTO users (username, password_hash, role, email, nickname) VALUES (?, ?, ?, ?, ?)'
-  ).run(email, hash, 'user', email, nickname)
+
+  // 事务内原子操作：查重 + 插入，避免竞态导致重复邮箱
+  let result: { lastInsertRowid: number } | null = null
+  try {
+    result = db.transaction(() => {
+      const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email)
+      if (existing) return null
+      const r = db.prepare(
+        'INSERT INTO users (username, password_hash, role, email, nickname) VALUES (?, ?, ?, ?, ?)'
+      ).run(email, hash, 'user', email, nickname)
+      return r as { lastInsertRowid: number }
+    })()
+  } catch (err: any) {
+    // 兜底：唯一索引冲突（极小竞态窗口）
+    if (String(err?.message || '').includes('UNIQUE')) {
+      res.status(409).json({ success: false, error: '该邮箱已注册，请直接登录' })
+      return
+    }
+    throw err
+  }
+
+  if (!result) {
+    res.status(409).json({ success: false, error: '该邮箱已注册，请直接登录' })
+    return
+  }
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid) as any
 
