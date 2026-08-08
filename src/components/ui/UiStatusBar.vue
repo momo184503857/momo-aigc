@@ -30,7 +30,7 @@ withDefaults(defineProps<{
   min-height: 44px;
   padding: 10px 12px;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--tf-radius-md, 8px);
+  border-radius: var(--momo-radius-md);
   background: var(--el-fill-color-lighter);
 }
 

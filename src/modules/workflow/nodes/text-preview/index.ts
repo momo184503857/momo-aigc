@@ -6,7 +6,7 @@ const textPreview: NodeModule = {
   title: '文本预览',
   description: '展示并透传上游文本。',
   icon: 'View',
-  color: '#909399',
+  color: '#86909c',
   inputs: [{ id: 'text', name: 'Text', dataType: 'Text', direction: 'input', required: true }],
   outputs: [{ id: 'text', name: 'Text', dataType: 'Text', direction: 'output' }],
   defaultConfig: {},

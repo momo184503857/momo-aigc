@@ -39,7 +39,7 @@ const textAi: NodeModule = {
   title: '文字 AI',
   description: '调用全局文字模型生成提示词或文案。',
   icon: 'ChatDotRound',
-  color: '#9266F5',
+  color: '#722ed1',
   inputs: [
     { id: 'text', name: 'Text', dataType: 'Text', direction: 'input' },
     { id: 'image', name: 'Image', dataType: 'Image', direction: 'input' },

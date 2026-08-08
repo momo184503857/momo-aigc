@@ -5,6 +5,7 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { pointsApi } from '@/services/pointsApi'
 import { formatCredits, creditsToYuan } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
+import { CHART_COLORS, CHART_NEUTRALS, withAlpha } from '@/plugins/echartsPalette'
 
 defineOptions({ name: 'MyConsumption' })
 
@@ -61,15 +62,14 @@ async function loadDaily() {
 watch([granularity, dateRange], () => loadDaily())
 
 // 通用趋势图构造：消耗(橙) / 充值(绿)
-function makeTrendOption(rgb: [number, number, number], field: 'spent' | 'recharged', name: string) {
-  const c = (a: string) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`
+function makeTrendOption(hex: string, field: 'spent' | 'recharged', name: string) {
   return {
-    color: [`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`],
+    color: [hex],
     tooltip: {
       trigger: 'axis' as const,
       backgroundColor: 'rgba(255,255,255,0.95)',
-      borderColor: '#e5e7eb',
-      textStyle: { color: '#374151', fontSize: 13 },
+      borderColor: CHART_NEUTRALS.tooltipBorder,
+      textStyle: { color: CHART_NEUTRALS.textPrimary, fontSize: 13 },
       formatter: (p: any) => {
         const credits = daily.value[p[0].dataIndex]?.[field] ?? 0
         return `${p[0].axisValue}<br/>${name} ${formatCredits(credits, { creditDigits: 1, yuanDigits: 2 })}`
@@ -79,33 +79,33 @@ function makeTrendOption(rgb: [number, number, number], field: 'spent' | 'rechar
     xAxis: {
       type: 'category' as const,
       data: daily.value.map(d => d.date),
-      axisLabel: { rotate: 45, color: '#9ca3af', fontSize: 11 },
-      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      axisLabel: { rotate: 45, color: CHART_NEUTRALS.textTertiary, fontSize: 11 },
+      axisLine: { lineStyle: { color: CHART_NEUTRALS.axisLine } },
     },
     yAxis: {
       type: 'value' as const,
-      axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: '#9ca3af' },
-      splitLine: { lineStyle: { color: '#f3f4f6' } },
+      axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: CHART_NEUTRALS.textTertiary },
+      splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
     },
     series: [{
       name, type: 'line',
       data: daily.value.map(d => creditsToYuan(d[field])),
       smooth: true, symbol: 'circle', symbolSize: 6,
-      lineStyle: { width: 3, shadowBlur: 8, shadowColor: c('0.3') },
+      lineStyle: { width: 3, shadowBlur: 8, shadowColor: withAlpha(hex, 0.3) },
       areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [{ offset: 0, color: c('0.18') }, { offset: 1, color: c('0') }] } },
+        colorStops: [{ offset: 0, color: withAlpha(hex, 0.18) }, { offset: 1, color: withAlpha(hex, 0) }] } },
       markPoint: { data: [{ type: 'max', name: '最大' }], symbolSize: 40, label: { fontSize: 10 } },
     }],
   }
 }
 // 消耗趋势：平台 Key（实际扣费）+ 个人 Key（按平台单价折算）两条线
 const consumptionOption = computed(() => ({
-  color: ['#E6A23C', '#409EFF'],
+  color: [CHART_COLORS.orange, CHART_COLORS.blue],
   tooltip: {
     trigger: 'axis' as const,
     backgroundColor: 'rgba(255,255,255,0.95)',
-    borderColor: '#e5e7eb',
-    textStyle: { color: '#374151', fontSize: 13 },
+    borderColor: CHART_NEUTRALS.tooltipBorder,
+    textStyle: { color: CHART_NEUTRALS.textPrimary, fontSize: 13 },
     formatter: (params: any) => {
       const row = daily.value[params[0].dataIndex]
       if (!row) return ''
@@ -116,18 +116,18 @@ const consumptionOption = computed(() => ({
       return `${params[0].axisValue}<br/>${lines.join('<br/>')}`
     },
   },
-  legend: { data: ['平台 Key', '个人 Key'], bottom: 0, textStyle: { color: '#6b7280' } },
+  legend: { data: ['平台 Key', '个人 Key'], bottom: 0, textStyle: { color: CHART_NEUTRALS.textSecondary } },
   grid: { left: '3%', right: '4%', bottom: '40px', top: '20px', containLabel: true },
   xAxis: {
     type: 'category' as const,
     data: daily.value.map(d => d.date),
-    axisLabel: { rotate: 45, color: '#9ca3af', fontSize: 11 },
-    axisLine: { lineStyle: { color: '#e5e7eb' } },
+    axisLabel: { rotate: 45, color: CHART_NEUTRALS.textTertiary, fontSize: 11 },
+    axisLine: { lineStyle: { color: CHART_NEUTRALS.axisLine } },
   },
   yAxis: {
     type: 'value' as const,
-    axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: '#9ca3af' },
-    splitLine: { lineStyle: { color: '#f3f4f6' } },
+    axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: CHART_NEUTRALS.textTertiary },
+    splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
   },
   series: [
     {
@@ -136,7 +136,7 @@ const consumptionOption = computed(() => ({
       smooth: true, symbol: 'circle', symbolSize: 6,
       lineStyle: { width: 3 },
       areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [{ offset: 0, color: 'rgba(230,162,60,0.18)' }, { offset: 1, color: 'rgba(230,162,60,0)' }] } },
+        colorStops: [{ offset: 0, color: withAlpha(CHART_COLORS.orange, 0.18) }, { offset: 1, color: withAlpha(CHART_COLORS.orange, 0) }] } },
     },
     {
       name: '个人 Key', type: 'line',
@@ -144,11 +144,11 @@ const consumptionOption = computed(() => ({
       smooth: true, symbol: 'circle', symbolSize: 6,
       lineStyle: { width: 3 },
       areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [{ offset: 0, color: 'rgba(64,158,255,0.18)' }, { offset: 1, color: 'rgba(64,158,255,0)' }] } },
+        colorStops: [{ offset: 0, color: withAlpha(CHART_COLORS.blue, 0.18) }, { offset: 1, color: withAlpha(CHART_COLORS.blue, 0) }] } },
     },
   ],
 }))
-const rechargeOption = computed(() => makeTrendOption([103, 194, 58], 'recharged', '充值'))
+const rechargeOption = computed(() => makeTrendOption(CHART_COLORS.green, 'recharged', '充值'))
 
 // 明细表按周期倒序（接口返回升序）
 const tableData = computed(() => [...daily.value].reverse())

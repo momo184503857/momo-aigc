@@ -70,7 +70,7 @@ const pointsLoading = ref(false)
 // Tag manage dialog
 const tagManageVisible = ref(false)
 const newTagName = ref('')
-const newTagColor = ref('#409EFF')
+const newTagColor = ref('#0088ff')
 const tagLoading = ref(false)
 
 async function loadUsers() {

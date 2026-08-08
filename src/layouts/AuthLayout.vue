@@ -26,7 +26,7 @@
   width: 400px;
   padding: 40px;
   background: var(--el-bg-color);
-  border-radius: var(--tf-card-radius, 12px);
+  border-radius: var(--momo-card-radius);
   box-shadow: var(--el-box-shadow);
 }
 

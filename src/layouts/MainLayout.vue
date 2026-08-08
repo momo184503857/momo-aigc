@@ -235,14 +235,14 @@ onUnmounted(() => {
 }
 
 .page-title {
-  font-size: var(--tf-page-title-size, 22px);
+  font-size: var(--momo-font-size-2xl);
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
 
 .main-body {
   flex: 1;
-  padding: var(--tf-page-padding, 20px);
+  padding: var(--momo-page-padding);
   overflow: auto;
 }
 

@@ -340,13 +340,13 @@ onUnmounted(() => {
 .workflow-node__port { position: relative; display: flex; align-items: center; gap: 4px; min-height: 16px; }
 .workflow-node__port--right { flex-direction: row-reverse; }
 .workflow-node__port-tag { font-size: 9px; padding: 0 4px; border-radius: 2px; font-weight: 600; line-height: 13px; white-space: nowrap; }
-.tag--text { background: #ecf5ff; color: #409eff; }
-.tag--image { background: #f0f9eb; color: #67c23a; }
-.tag--any { background: #f4f4f5; color: #909399; }
+.tag--text { background: var(--momo-color-brand-subtle); color: var(--momo-color-brand); }
+.tag--image { background: var(--momo-color-success-subtle); color: var(--momo-color-success); }
+.tag--any { background: var(--momo-color-info-subtle); color: var(--momo-color-info); }
 .workflow-node__handle { width: 8px; height: 8px; border: 2px solid var(--el-bg-color); cursor: crosshair; z-index: 5; }
-.handle--text { background: #409eff; }
-.handle--image { background: #67c23a; }
-.handle--any { background: #909399; }
+.handle--text { background: var(--momo-color-brand); }
+.handle--image { background: var(--momo-color-success); }
+.handle--any { background: var(--momo-color-info); }
 
 /* 3-5. 配置/输入/输出 */
 .workflow-node__section {

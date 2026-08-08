@@ -66,7 +66,7 @@ import { Close } from '@element-plus/icons-vue'
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0, 0, 0, 0.75);
+  background: var(--momo-overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -85,7 +85,7 @@ import { Close } from '@element-plus/icons-vue'
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #fff;
+  color: var(--momo-overlay-text);
   transition: background 0.2s;
   z-index: 1;
 }

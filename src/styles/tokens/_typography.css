@@ -1,29 +1,37 @@
 /* ============================================
    墨墨 AI 生图 — Typography Tokens
-   字体 / 字号 / 字重 / 行高
+   中文优先字体栈，对齐 DDB 字号阶梯
    ============================================ */
 
 :root {
-  --momo-font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
-  --momo-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  /* 中文优先字体栈 */
+  --momo-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --momo-font-mono: 'JetBrains Mono', 'Fira Code', Consolas, Menlo, monospace;
 
-  --momo-font-size-xs: 11px;
-  --momo-font-size-sm: 12px;
-  --momo-font-size-base: 14px;
-  --momo-font-size-lg: 16px;
-  --momo-font-size-xl: 18px;
-  --momo-font-size-2xl: 22px;
-  --momo-font-size-3xl: 28px;
+  /* 字号阶梯（对齐 DDB，sm 保留为兼容别名 = xs） */
+  --momo-font-size-xs: 12px;   /* 辅助：状态标签、补充说明 */
+  --momo-font-size-sm: 12px;   /* 兼容别名（= xs） */
+  --momo-font-size-md: 13px;   /* 紧凑控件：搜索控件、Tab、信息格 */
+  --momo-font-size-base: 14px; /* 正文：页面正文、表格 */
+  --momo-font-size-lg: 16px;   /* 弹窗标题 */
+  --momo-font-size-xl: 18px;   /* 页面小标题 */
+  --momo-font-size-2xl: 22px;  /* 页面标题 */
+  --momo-font-size-3xl: 28px;  /* 大标题 */
+  --momo-font-size-metric: 30px; /* 数据指标 */
 
+  /* 字重 */
   --momo-font-weight-normal: 400;
   --momo-font-weight-medium: 500;
   --momo-font-weight-semibold: 600;
   --momo-font-weight-bold: 700;
 
+  /* 行高 */
   --momo-leading-tight: 1.25;
   --momo-leading-normal: 1.5;
-  --momo-leading-relaxed: 1.75;
+  --momo-leading-relaxed: 1.6;
 
+  /* 字距 */
   --momo-tracking-tight: -0.01em;
   --momo-tracking-normal: 0;
   --momo-tracking-wide: 0.02em;

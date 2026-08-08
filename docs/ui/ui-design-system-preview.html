@@ -1,0 +1,3850 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="抖动巴电商管理平台 UI 设计系统可视化规范">
+  <title>抖动巴 UI 设计系统 · 可视化规范</title>
+  <style>
+    :root {
+      --ddb-primary: #0088ff;
+      --ddb-primary-antd: #1890ff;
+      --ddb-primary-soft: #e6f7ff;
+      --ddb-success: #31c19e;
+      --ddb-warning: #fa742b;
+      --ddb-edit: #e6a23c;
+      --ddb-danger: #ff4d4f;
+      --ddb-price: #f56c6c;
+      --ddb-page: #f0f2f5;
+      --ddb-surface: #ffffff;
+      --ddb-surface-muted: #f7f9fc;
+      --ddb-text: #1d2129;
+      --ddb-text-secondary: #4e5969;
+      --ddb-text-muted: #86909c;
+      --ddb-placeholder: #b8b8b8;
+      --ddb-border: #d9d9d9;
+      --ddb-border-soft: #eef0f4;
+      --ddb-search: #d9d9d9;
+      --ddb-search-hover: #40a9ff;
+      --ddb-search-focus: #1890ff;
+      --ddb-table-head: #fafafa;
+      --ddb-table-head-border: #f0f0f0;
+      --ddb-table-head-text: #3d332e;
+      --ddb-table-hover: #e6f7ff;
+      --ddb-shadow-card: 0 2px 10px rgba(15, 23, 42, .04);
+      --ddb-shadow-hover: 0 6px 20px rgba(15, 23, 42, .08);
+      --ddb-shadow-float: 0 12px 40px rgba(15, 23, 42, .16);
+      --sidebar-width: 248px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ddb-text);
+      background:
+        radial-gradient(circle at 83% 6%, rgba(243, 183, 185, .16), transparent 22rem),
+        var(--ddb-page);
+      font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    :focus-visible {
+      outline: 3px solid rgba(0, 136, 255, .24);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 100;
+      padding: 8px 14px;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--ddb-primary);
+      transform: translateY(-160%);
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+      transition: grid-template-columns .2s ease;
+    }
+
+    .layout.is-nav-collapsed {
+      --sidebar-width: 64px;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px 18px;
+      color: rgba(255, 255, 255, .78);
+      background: #001529;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .brand {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      align-items: center;
+      gap: 12px;
+      padding: 0 6px 24px;
+      color: #fff;
+    }
+
+    .sidebar-toggle {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      place-items: center;
+      padding: 0;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 8px;
+      color: rgba(255, 255, 255, .68);
+      background: rgba(255, 255, 255, .05);
+      cursor: pointer;
+      transition: color .18s ease, border-color .18s ease, background-color .18s ease;
+    }
+
+    .sidebar-toggle:hover {
+      color: #fff;
+      border-color: rgba(77, 171, 255, .4);
+      background: rgba(0, 136, 255, .14);
+    }
+
+    .sidebar-toggle svg {
+      width: 16px;
+      height: 16px;
+      transition: transform .2s ease;
+    }
+
+    .is-nav-collapsed .sidebar {
+      padding-right: 17px;
+      padding-left: 17px;
+      overflow: hidden;
+    }
+
+    .is-nav-collapsed .sidebar-header {
+      justify-content: center;
+    }
+
+    .is-nav-collapsed .brand,
+    .is-nav-collapsed .nav-tree,
+    .is-nav-collapsed .sidebar-note {
+      display: none;
+    }
+
+    .is-nav-collapsed .sidebar-toggle svg {
+      transform: rotate(180deg);
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #4dabff, var(--ddb-primary));
+      box-shadow: 0 6px 16px rgba(0, 136, 255, .28);
+    }
+
+    .brand-mark svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .brand strong,
+    .brand span {
+      display: block;
+    }
+
+    .brand strong {
+      font-size: 15px;
+      letter-spacing: .04em;
+    }
+
+    .brand span {
+      margin-top: 1px;
+      color: rgba(255, 255, 255, .48);
+      font-size: 11px;
+    }
+
+    .nav-tree {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav-section {
+      border-radius: 10px;
+    }
+
+    .nav-section summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      color: rgba(255, 255, 255, .48);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      cursor: pointer;
+      list-style: none;
+      text-transform: uppercase;
+      user-select: none;
+    }
+
+    .nav-section summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .nav-section summary::after {
+      color: rgba(255, 255, 255, .32);
+      font-size: 14px;
+      content: "⌄";
+      transform: rotate(-90deg);
+      transition: transform .18s ease;
+    }
+
+    .nav-section[open] summary::after {
+      transform: rotate(0);
+    }
+
+    .nav {
+      display: grid;
+      gap: 5px;
+    }
+
+    .nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: color .18s ease, background-color .18s ease;
+    }
+
+    .nav a::before {
+      width: 6px;
+      height: 6px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      content: "";
+    }
+
+    .nav a:hover,
+    .nav a[aria-current="true"] {
+      color: #fff;
+      background: #002d4f;
+    }
+
+    .nav a[aria-current="true"]::before {
+      border-color: var(--ddb-primary);
+      background: var(--ddb-primary);
+      box-shadow: 0 0 0 4px rgba(0, 136, 255, .16);
+    }
+
+    .sidebar-note {
+      margin-top: 24px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 12px;
+      color: rgba(255, 255, 255, .5);
+      background: rgba(255, 255, 255, .035);
+      font-size: 12px;
+    }
+
+    main {
+      width: min(1440px, 100%);
+      padding: 32px clamp(20px, 4vw, 56px) 80px;
+    }
+
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .page-view[hidden] {
+      display: none;
+    }
+
+    .section.page-view {
+      margin-top: 0;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 18px;
+    }
+
+    .section-kicker {
+      margin-bottom: 5px;
+      color: var(--ddb-primary);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: 24px;
+      line-height: 1.25;
+    }
+
+    .section-heading p {
+      max-width: 560px;
+      margin-bottom: 1px;
+      color: var(--ddb-text-muted);
+      text-align: right;
+    }
+
+    .panel {
+      padding: 22px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 16px;
+      background: var(--ddb-surface);
+      box-shadow: var(--ddb-shadow-card);
+    }
+
+    .panel + .panel {
+      margin-top: 16px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .panel-header h3 {
+      margin-bottom: 3px;
+      font-size: 16px;
+    }
+
+    .panel-header p {
+      margin-bottom: 0;
+      color: var(--ddb-text-muted);
+      font-size: 12px;
+    }
+
+    .token-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .color-token {
+      width: 100%;
+      padding: 0;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 12px;
+      color: inherit;
+      background: #fff;
+      text-align: left;
+      cursor: pointer;
+      overflow: hidden;
+      transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+    }
+
+    .color-token:hover {
+      border-color: #b7ddff;
+      box-shadow: 0 5px 15px rgba(15, 23, 42, .07);
+      transform: translateY(-1px);
+    }
+
+    .swatch {
+      display: block;
+      height: 72px;
+      background: var(--swatch);
+    }
+
+    .token-copy {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+    }
+
+    .token-copy strong {
+      display: block;
+      font-size: 12px;
+    }
+
+    .token-copy code {
+      color: var(--ddb-text-muted);
+      font-size: 11px;
+    }
+
+    .copy-icon {
+      width: 16px;
+      height: 16px;
+      color: var(--ddb-text-muted);
+    }
+
+    .token-spec-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: stretch;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .token-spec-grid > .panel {
+      height: 100%;
+      margin-top: 0;
+    }
+
+    .type-row,
+    .spacing-row,
+    .radius-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 46px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--ddb-border-soft);
+    }
+
+    .type-row:last-child,
+    .spacing-row:last-child,
+    .radius-row:last-child {
+      border-bottom: 0;
+    }
+
+    .type-sample {
+      color: var(--ddb-text);
+      font-size: var(--size);
+      font-weight: var(--weight);
+      white-space: nowrap;
+    }
+
+    .spec-code {
+      color: var(--ddb-text-muted);
+      font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      text-align: right;
+    }
+
+    .spacing-block {
+      width: var(--space);
+      height: 12px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--ddb-primary), #73c5ff);
+    }
+
+    .radius-sample {
+      width: 54px;
+      height: 30px;
+      border: 1px solid #b7ddff;
+      border-radius: var(--radius);
+      background: var(--ddb-primary-soft);
+    }
+
+    .color-review-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .color-review-summary .panel {
+      min-height: 112px;
+      margin-top: 0;
+    }
+
+    .color-review-count {
+      display: block;
+      margin-top: 8px;
+      color: var(--ddb-primary);
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .color-review-preview {
+      --review-header-bg: #fafafa;
+      --review-border: #f0f0f0;
+      --review-hover: #e6f7ff;
+      margin-bottom: 24px;
+    }
+
+    .color-review-current {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .color-review-current span {
+      padding: 6px 10px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 999px;
+      color: var(--ddb-text-secondary);
+      background: var(--ddb-surface-muted);
+      font-size: 12px;
+    }
+
+    .color-review-current code {
+      margin-left: 4px;
+      color: var(--ddb-text);
+    }
+
+    .color-review-table-wrap {
+      overflow-x: auto;
+      border-radius: 14px;
+    }
+
+    .color-review-table {
+      min-width: 680px;
+      border-color: var(--review-border);
+    }
+
+    .color-review-table th,
+    .color-review-table td {
+      border-color: var(--review-border);
+    }
+
+    .color-review-table thead th {
+      background: var(--review-header-bg);
+      border-color: var(--review-border);
+    }
+
+    .color-review-table tbody tr:hover td,
+    .color-review-table tbody tr.is-hover-demo td {
+      background: var(--review-hover);
+    }
+
+    .color-review-table .status-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 20px;
+      white-space: nowrap;
+    }
+
+    .color-review-table .status-success {
+      color: #16845f;
+      background: #eaf9f4;
+    }
+
+    .color-review-table .status-warning {
+      color: #b75a0b;
+      background: #fff4e8;
+    }
+
+    .color-review-table .status-muted {
+      color: #68717d;
+      background: #f0f2f5;
+    }
+
+    .color-review-hint {
+      margin: 12px 0 0;
+      color: var(--ddb-text-muted);
+      font-size: 12px;
+    }
+
+    .color-preset-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .color-preset {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 5px 12px;
+      border: 1px solid var(--ddb-border);
+      border-radius: 999px;
+      color: var(--ddb-text-secondary);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .color-preset:hover,
+    .color-preset:focus-visible {
+      border-color: var(--ddb-primary-antd);
+      color: var(--ddb-primary-antd);
+      outline: none;
+    }
+
+    .color-preset-swatch {
+      display: inline-grid;
+      grid-template-columns: repeat(3, 10px);
+      width: 30px;
+      height: 14px;
+      overflow: hidden;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 4px;
+    }
+
+    .color-preset-swatch i {
+      background: var(--preset-color);
+    }
+
+    .color-choice-panel + .color-choice-panel {
+      margin-top: 16px;
+    }
+
+    .color-choice-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .color-choice {
+      min-width: 0;
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 10px;
+      color: var(--ddb-text);
+      background: #fff;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+
+    .color-choice:hover {
+      transform: translateY(-1px);
+      border-color: #91caff;
+      box-shadow: var(--ddb-shadow-hover);
+    }
+
+    .color-choice:focus-visible,
+    .color-choice[aria-pressed="true"] {
+      border-color: var(--ddb-primary-antd);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(24, 144, 255, .14);
+    }
+
+    .color-choice-swatch {
+      display: block;
+      height: 58px;
+      background: var(--choice-color);
+    }
+
+    .color-choice[data-color-role="border"] .color-choice-swatch {
+      margin: 14px;
+      height: 30px;
+      border: 4px solid var(--choice-color);
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .color-choice[data-color-role="hover"] .color-choice-swatch {
+      position: relative;
+      margin: 10px 0 0;
+      height: 48px;
+      background: #fff;
+    }
+
+    .color-choice[data-color-role="hover"] .color-choice-swatch::after {
+      position: absolute;
+      inset: 8px 0;
+      background: var(--choice-color);
+      content: "";
+    }
+
+    .color-choice-copy {
+      display: block;
+      min-height: 62px;
+      padding: 9px 11px;
+    }
+
+    .color-choice-copy strong,
+    .color-choice-copy code,
+    .color-choice-copy small {
+      display: block;
+    }
+
+    .color-choice-copy strong {
+      font-size: 12px;
+    }
+
+    .color-choice-copy code,
+    .color-choice-copy small {
+      margin-top: 2px;
+      color: var(--ddb-text-muted);
+      font-size: 11px;
+    }
+
+    .special-color-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .special-color-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 8px;
+      color: var(--ddb-text-secondary);
+      background: var(--ddb-surface-muted);
+      font-size: 12px;
+    }
+
+    .special-color-item i {
+      width: 24px;
+      height: 24px;
+      border: 1px solid rgba(0, 0, 0, .06);
+      border-radius: 6px;
+      background: var(--special-color);
+    }
+
+    .component-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .specimen {
+      min-width: 0;
+      padding: 20px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 14px;
+      background: var(--ddb-surface);
+    }
+
+    .specimen--wide {
+      grid-column: 1 / -1;
+    }
+
+    .specimen-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .specimen-title strong {
+      font-size: 14px;
+    }
+
+    .specimen-title code {
+      color: var(--ddb-text-muted);
+      font-size: 11px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .row + .row {
+      margin-top: 14px;
+    }
+
+    .btn {
+      display: inline-flex;
+      min-width: 72px;
+      height: 30px;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 16px;
+      border: 1px solid var(--ddb-border);
+      border-radius: 999px;
+      color: var(--ddb-text-secondary);
+      background: #fff;
+      cursor: pointer;
+      transition: border-color .18s ease, color .18s ease, filter .18s ease, box-shadow .18s ease;
+    }
+
+    .btn:hover {
+      border-color: var(--ddb-primary);
+      color: var(--ddb-primary);
+    }
+
+    .btn-primary,
+    .btn-success,
+    .btn-warning,
+    .btn-danger {
+      border-color: transparent;
+      color: #fff;
+    }
+
+    .btn-primary {
+      background: var(--ddb-primary);
+    }
+
+    .btn-success {
+      background: var(--ddb-success);
+    }
+
+    .btn-warning {
+      background: var(--ddb-warning);
+    }
+
+    .btn-danger {
+      background: var(--ddb-danger);
+    }
+
+    .btn-primary:hover,
+    .btn-success:hover,
+    .btn-warning:hover,
+    .btn-danger:hover {
+      border-color: transparent;
+      color: #fff;
+      filter: brightness(1.05);
+      box-shadow: 0 4px 12px rgba(0, 136, 255, .18);
+    }
+
+    .btn[disabled] {
+      border-color: #e5e6eb;
+      color: #c9cdd4;
+      background: #f7f8fa;
+      cursor: not-allowed;
+      box-shadow: none;
+      filter: none;
+    }
+
+    .spinner {
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255, 255, 255, .42);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .search-demo {
+      padding: 14px;
+      border-radius: 12px;
+      background: var(--ddb-surface-muted);
+    }
+
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .search-field {
+      position: relative;
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr);
+      width: 100%;
+      align-items: center;
+      transition: width .2s ease;
+    }
+
+    .search-field.is-active {
+      width: 100%;
+    }
+
+    .search-field--span-2 {
+      grid-column: span 2;
+    }
+
+    .field-label {
+      flex: 0 0 auto;
+      padding-right: 10px;
+      color: var(--ddb-text-secondary);
+      font-size: 13px;
+      text-align: right;
+      pointer-events: none;
+    }
+
+    .search-field input,
+    .search-field select {
+      width: 100%;
+      height: 32px;
+      min-width: 0;
+      padding: 0 11px;
+      border: 1px solid var(--ddb-search);
+      border-radius: 4px;
+      outline: 0;
+      color: #333;
+      background: #fff;
+      font-size: 13px;
+      text-align: left;
+      transition: border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .search-field input:hover,
+    .search-field select:hover,
+    .single-select-trigger:hover,
+    .date-range-trigger:hover,
+    .filter-range:hover {
+      border-color: var(--ddb-search-hover);
+    }
+
+    .search-field input:focus,
+    .search-field select:focus,
+    .single-select-trigger:focus,
+    .date-range-trigger:focus,
+    .filter-range:focus-within {
+      border-color: var(--ddb-search-focus);
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, .2);
+    }
+
+    .search-field select {
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .single-select-field.is-open {
+      z-index: 10;
+    }
+
+    .single-select-field.is-open .single-select-trigger {
+      border-color: var(--ddb-search-focus);
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, .2);
+    }
+
+    .single-select-trigger {
+      display: flex;
+      min-width: 0;
+      height: 32px;
+      flex: 1;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 0 11px;
+      border: 1px solid var(--ddb-search);
+      border-radius: 4px;
+      color: #333;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .single-select-trigger .select-arrow {
+      position: static;
+      width: 12px;
+      height: 12px;
+      flex: 0 0 12px;
+      transition: transform .18s ease;
+    }
+
+    .single-select-field.is-open .single-select-trigger .select-arrow {
+      transform: rotate(180deg);
+    }
+
+    .single-select-popover {
+      position: absolute;
+      top: 38px;
+      right: 0;
+      z-index: 30;
+      width: max(calc(100% - 76px), 220px);
+      padding: 6px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--ddb-shadow-float);
+    }
+
+    .single-select-popover[hidden] {
+      display: none;
+    }
+
+    .single-select-option {
+      display: flex;
+      width: 100%;
+      min-height: 34px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border: 0;
+      border-radius: 6px;
+      color: var(--ddb-text-secondary);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .single-select-option:hover,
+    .single-select-option:focus-visible {
+      color: #006ac6;
+      background: var(--ddb-primary-soft);
+      outline: 0;
+    }
+
+    .single-select-option[aria-selected="true"] {
+      color: #006ac6;
+      background: var(--ddb-primary-soft);
+      font-weight: 600;
+    }
+
+    .single-select-option[aria-selected="true"]::after {
+      color: var(--ddb-primary);
+      content: "✓";
+      font-weight: 700;
+    }
+
+    .multi-select-trigger .filter-multi {
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 0;
+    }
+
+    .multi-select-trigger .filter-chip {
+      margin-right: 0;
+    }
+
+    .filter-placeholder {
+      color: var(--ddb-placeholder);
+    }
+
+    .search-field input[type="date"] {
+      color-scheme: light;
+    }
+
+    .filter-multi {
+      min-width: 0;
+      flex: 1;
+      padding: 0 30px 0 7px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .filter-chip {
+      display: inline-flex;
+      height: 22px;
+      align-items: center;
+      margin-right: 4px;
+      padding: 0 8px;
+      border-radius: 4px;
+      color: #006ac6;
+      background: var(--ddb-primary-soft);
+      font-size: 12px;
+    }
+
+    .filter-range {
+      display: grid;
+      min-width: 0;
+      height: 32px;
+      flex: 1;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      border: 1px solid var(--ddb-search);
+      border-radius: 4px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .filter-range input {
+      width: 100%;
+      height: 30px;
+      padding: 0 5px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      text-align: center;
+    }
+
+    .search-field .filter-range input:focus {
+      border: 0;
+      box-shadow: none;
+    }
+
+    .date-range-field {
+      z-index: 5;
+    }
+
+    .date-range-trigger {
+      display: flex;
+      min-width: 0;
+      height: 32px;
+      flex: 1;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 12px;
+      border: 1px solid var(--ddb-search);
+      border-radius: 4px;
+      color: var(--ddb-text);
+      background: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .date-range-trigger svg {
+      width: 15px;
+      height: 15px;
+      flex: 0 0 15px;
+      color: var(--ddb-text-muted);
+    }
+
+    .calendar-popover {
+      position: absolute;
+      top: 38px;
+      left: 76px;
+      z-index: 20;
+      width: 292px;
+      padding: 14px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: var(--ddb-shadow-float);
+    }
+
+    .calendar-popover[hidden] {
+      display: none;
+    }
+
+    .calendar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .calendar-header strong {
+      font-size: 14px;
+    }
+
+    .calendar-weekdays,
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px;
+    }
+
+    .calendar-weekdays span {
+      color: var(--ddb-text-muted);
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .calendar-grid {
+      margin-top: 6px;
+    }
+
+    .calendar-day,
+    .calendar-empty {
+      width: 100%;
+      height: 30px;
+    }
+
+    .calendar-day {
+      border: 0;
+      border-radius: 4px;
+      color: var(--ddb-text-secondary);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .calendar-day:hover {
+      color: var(--ddb-primary);
+      background: var(--ddb-primary-soft);
+    }
+
+    .calendar-day.is-in-range {
+      border-radius: 0;
+      color: #006ac6;
+      background: var(--ddb-primary-soft);
+    }
+
+    .calendar-day.is-range-start,
+    .calendar-day.is-range-end {
+      border-radius: 4px;
+      color: #fff;
+      background: var(--ddb-primary);
+    }
+
+    .calendar-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--ddb-border-soft);
+    }
+
+    .calendar-hint {
+      color: var(--ddb-text-muted);
+      font-size: 11px;
+    }
+
+    .calendar-done {
+      height: 28px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--ddb-primary);
+      cursor: pointer;
+    }
+
+    .calendar-done:disabled {
+      color: var(--ddb-placeholder);
+      background: var(--ddb-surface-muted);
+      cursor: not-allowed;
+    }
+
+    .range-divider {
+      color: var(--ddb-text-muted);
+      font-size: 12px;
+    }
+
+    .filter-options {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px 20px;
+      margin-top: 12px;
+    }
+
+    .filter-choice-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    .filter-choice-group legend {
+      float: left;
+      margin-right: 2px;
+      color: var(--ddb-text-secondary);
+      font-size: 13px;
+    }
+
+    .filter-choice-group label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--ddb-text-secondary);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .filter-choice-group input {
+      accent-color: var(--ddb-primary);
+    }
+
+    .select-arrow {
+      position: absolute;
+      right: 12px;
+      width: 12px;
+      height: 12px;
+      color: var(--ddb-text-muted);
+      pointer-events: none;
+    }
+
+    .search-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .search-action-btn {
+      min-width: 58px;
+      height: 32px;
+      padding: 0 14px;
+      border: 1px solid var(--ddb-border);
+      border-radius: 4px;
+      color: var(--ddb-text-secondary);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .search-action-btn:first-child {
+      color: #fff;
+      border-color: var(--ddb-primary-antd);
+      background: var(--ddb-primary-antd);
+    }
+
+    .search-action-btn:last-child {
+      border-color: var(--ddb-border);
+      color: var(--ddb-text-secondary);
+    }
+
+    .search-action-btn:hover {
+      border-color: var(--ddb-search-hover);
+      color: var(--ddb-search-focus);
+    }
+
+    .search-action-btn:first-child:hover {
+      color: #fff;
+      background: var(--ddb-search-hover);
+    }
+
+    .help-list,
+    .control-state-grid,
+    .alert-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .help-row {
+      display: flex;
+      min-height: 38px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 8px;
+      color: var(--ddb-text-secondary);
+      background: var(--ddb-surface-muted);
+    }
+
+    .help-tooltip {
+      position: relative;
+      display: inline-flex;
+    }
+
+    .help-icon {
+      display: grid;
+      width: 20px;
+      height: 20px;
+      place-items: center;
+      padding: 0;
+      border: 1px solid #b7c0cc;
+      border-radius: 50%;
+      color: #68717d;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: help;
+    }
+
+    .help-icon:hover,
+    .help-icon:focus-visible {
+      border-color: var(--ddb-primary);
+      color: var(--ddb-primary);
+    }
+
+    .help-popover,
+    .confirm-popover {
+      position: absolute;
+      right: -8px;
+      bottom: calc(100% + 9px);
+      z-index: 20;
+      width: 230px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: #fff;
+      background: #273142;
+      box-shadow: var(--ddb-shadow-float);
+      font-size: 12px;
+      line-height: 1.55;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(4px);
+      transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
+      pointer-events: none;
+    }
+
+    .help-popover::after,
+    .confirm-popover::after {
+      position: absolute;
+      right: 12px;
+      bottom: -5px;
+      width: 10px;
+      height: 10px;
+      background: inherit;
+      content: "";
+      transform: rotate(45deg);
+    }
+
+    .help-tooltip:hover .help-popover,
+    .help-tooltip:focus-within .help-popover,
+    .confirm-demo:hover .confirm-popover,
+    .confirm-demo:focus-within .confirm-popover {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .control-sample {
+      display: grid;
+      grid-template-columns: 68px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      color: var(--ddb-text-muted);
+      font-size: 12px;
+    }
+
+    .control-sample input {
+      min-width: 0;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--ddb-border);
+      border-radius: 4px;
+      color: var(--ddb-text);
+      background: #fff;
+    }
+
+    .control-sample.is-focus input {
+      border-color: var(--ddb-primary);
+      box-shadow: 0 0 0 3px rgba(0, 136, 255, .12);
+    }
+
+    .control-sample.is-error input {
+      border-color: var(--ddb-danger);
+    }
+
+    .control-sample.is-disabled input {
+      color: var(--ddb-placeholder);
+      background: #f5f6f7;
+      cursor: not-allowed;
+    }
+
+    .ui-alert {
+      display: grid;
+      grid-template-columns: 7px minmax(0, 1fr);
+      gap: 9px;
+      align-items: start;
+      padding: 10px 12px;
+      border: 1px solid var(--alert-border);
+      border-radius: 8px;
+      color: var(--alert-color);
+      background: var(--alert-bg);
+      font-size: 12px;
+    }
+
+    .ui-alert::before {
+      width: 7px;
+      height: 7px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      content: "";
+    }
+
+    .confirm-stage {
+      display: grid;
+      min-height: 160px;
+      place-items: end center;
+      padding: 16px;
+      border-radius: 10px;
+      background: var(--ddb-surface-muted);
+    }
+
+    .confirm-demo {
+      position: relative;
+    }
+
+    .confirm-popover {
+      right: 50%;
+      width: 245px;
+      color: var(--ddb-text);
+      background: #fff;
+      transform: translate(50%, 4px);
+      pointer-events: auto;
+    }
+
+    .confirm-demo:hover .confirm-popover,
+    .confirm-demo:focus-within .confirm-popover {
+      transform: translate(50%, 0);
+    }
+
+    .confirm-popover::after {
+      right: calc(50% - 5px);
+    }
+
+    .confirm-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .upload-card {
+      display: grid;
+      min-height: 118px;
+      place-items: center;
+      padding: 14px;
+      border: 1px dashed #b8c3cf;
+      border-radius: 10px;
+      color: var(--ddb-text-muted);
+      background: var(--ddb-surface-muted);
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .upload-card strong {
+      color: var(--ddb-text-secondary);
+      font-size: 13px;
+    }
+
+    .upload-card span {
+      display: block;
+      margin-top: 4px;
+      font-size: 11px;
+    }
+
+    .upload-mark {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ddb-primary);
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .steps-demo {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    .step-item {
+      position: relative;
+      display: grid;
+      flex: 1;
+      justify-items: center;
+      gap: 5px;
+      color: var(--ddb-text-muted);
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .step-item:not(:last-child)::after {
+      position: absolute;
+      top: 13px;
+      left: calc(50% + 16px);
+      width: calc(100% - 32px);
+      height: 2px;
+      background: var(--ddb-border-soft);
+      content: "";
+    }
+
+    .step-dot {
+      display: grid;
+      width: 28px;
+      height: 28px;
+      z-index: 1;
+      place-items: center;
+      border: 1px solid var(--ddb-border);
+      border-radius: 50%;
+      background: #fff;
+    }
+
+    .step-item.is-done .step-dot,
+    .step-item.is-active .step-dot {
+      border-color: var(--ddb-primary);
+      color: #fff;
+      background: var(--ddb-primary);
+    }
+
+    .step-item.is-active {
+      color: var(--ddb-primary);
+      font-weight: 600;
+    }
+
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 18px;
+      color: var(--ddb-text-secondary);
+      font-size: 12px;
+    }
+
+    .progress-track {
+      height: 8px;
+      flex: 1;
+      border-radius: 999px;
+      background: var(--ddb-border-soft);
+      overflow: hidden;
+    }
+
+    .progress-track span {
+      display: block;
+      width: 68%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--ddb-primary);
+    }
+
+    .behavior-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--ddb-text-secondary);
+    }
+
+    .ui-switch {
+      position: relative;
+      display: inline-flex;
+      width: 40px;
+      height: 22px;
+    }
+
+    .ui-switch input {
+      position: absolute;
+      opacity: 0;
+    }
+
+    .ui-switch span {
+      width: 100%;
+      border-radius: 999px;
+      background: #c9cdd4;
+      cursor: pointer;
+      transition: background .16s ease;
+    }
+
+    .ui-switch span::after {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      content: "";
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+      transition: transform .16s ease;
+    }
+
+    .ui-switch input:checked + span {
+      background: var(--ddb-primary);
+    }
+
+    .ui-switch input:checked + span::after {
+      transform: translateX(18px);
+    }
+
+    .disclosure {
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .disclosure summary {
+      padding: 9px 11px;
+      color: var(--ddb-text-secondary);
+      cursor: pointer;
+    }
+
+    .disclosure p,
+    .disclosure-menu {
+      margin: 0;
+      padding: 0 11px 11px;
+      color: var(--ddb-text-muted);
+      font-size: 12px;
+    }
+
+    .disclosure-menu {
+      display: flex;
+      gap: 6px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      display: inline-flex;
+      min-height: 26px;
+      align-items: center;
+      gap: 5px;
+      padding: 0 11px;
+      border-radius: 999px;
+      color: var(--tag-color);
+      background: var(--tag-bg);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .tag::before {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      content: "";
+    }
+
+    .tabs {
+      display: flex;
+      gap: 22px;
+      min-height: 44px;
+      align-items: end;
+      border-bottom: 1px solid var(--ddb-border-soft);
+    }
+
+    .tab {
+      position: relative;
+      padding: 12px 0 10px;
+      border: 0;
+      color: #6f6f6f;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .tab[aria-selected="true"] {
+      color: var(--ddb-primary-antd);
+      font-weight: 700;
+    }
+
+    .tab[aria-selected="true"]::after {
+      position: absolute;
+      right: 0;
+      bottom: -1px;
+      left: 0;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--ddb-primary-antd);
+      content: "";
+    }
+
+    .table-variant-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .table-variant-bar p {
+      margin-bottom: 0;
+      color: var(--ddb-text-secondary);
+      font-size: 12px;
+    }
+
+    .table-variant-toggle {
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--ddb-surface-muted);
+    }
+
+    .table-variant-toggle button {
+      min-height: 28px;
+      padding: 4px 12px;
+      border: 0;
+      border-radius: 999px;
+      color: var(--ddb-text-secondary);
+      background: transparent;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .table-variant-toggle button[aria-pressed="true"] {
+      color: #fff;
+      background: var(--ddb-primary);
+      box-shadow: 0 2px 8px rgba(24, 144, 255, .2);
+    }
+
+    .table-variant-toggle button:focus-visible {
+      outline: 2px solid rgba(24, 144, 255, .3);
+      outline-offset: 2px;
+    }
+
+    .table-wrap {
+      border: 1px solid var(--ddb-border);
+      border-radius: 14px;
+      overflow-x: auto;
+    }
+
+    .table-wrap:not(.has-selection) .selection-column {
+      display: none;
+    }
+
+    .selection-column {
+      width: 52px;
+      padding-right: 8px;
+      padding-left: 8px;
+    }
+
+    .selection-column input {
+      width: 15px;
+      height: 15px;
+      margin: 0;
+      accent-color: var(--ddb-primary-antd);
+      cursor: pointer;
+    }
+
+    table {
+      width: 100%;
+      min-width: 680px;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      height: 46px;
+      padding: 8px 14px;
+      border-right: 1px solid var(--ddb-border);
+      border-bottom: 1px solid var(--ddb-border);
+      text-align: center;
+    }
+
+    th:last-child,
+    td:last-child {
+      border-right: 0;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    th {
+      color: var(--ddb-table-head-text);
+      background: var(--ddb-table-head);
+      font-weight: 700;
+    }
+
+    thead th {
+      border-top: 1px solid var(--ddb-table-head-border);
+      border-right-color: var(--ddb-table-head-border);
+      border-bottom-color: var(--ddb-table-head-border);
+    }
+
+    thead th:first-child {
+      border-left: 1px solid var(--ddb-table-head-border);
+    }
+
+    thead th:last-child {
+      border-right: 1px solid var(--ddb-table-head-border);
+    }
+
+    tbody tr:hover td {
+      background: var(--ddb-table-hover);
+    }
+
+    tbody tr.is-current td {
+      background: var(--ddb-primary-soft);
+    }
+
+    .table-link {
+      padding: 4px;
+      border-radius: 4px;
+      color: var(--link);
+      font-weight: 500;
+      text-decoration: none;
+    }
+
+    .table-link:hover {
+      text-decoration: underline;
+    }
+
+    .pagination {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .pagination-total {
+      color: var(--ddb-text-secondary);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .page-size {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ddb-text-secondary);
+      font-size: 12px;
+    }
+
+    .page-size select {
+      height: 30px;
+      min-width: 96px;
+      padding: 0 26px 0 10px;
+      border: 1px solid var(--ddb-border);
+      border-radius: 4px;
+      color: var(--ddb-text-secondary);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .page-size select:hover {
+      border-color: var(--ddb-primary-antd);
+    }
+
+    .pagination-pages {
+      display: flex;
+      gap: 6px;
+    }
+
+    .page {
+      display: grid;
+      min-width: 30px;
+      height: 30px;
+      place-items: center;
+      padding: 0 8px;
+      border: 1px solid var(--ddb-border);
+      border-radius: 4px;
+      color: var(--ddb-text-secondary);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .page:hover:not(:disabled):not(.page-ellipsis) {
+      border-color: var(--ddb-primary);
+      color: var(--ddb-primary);
+    }
+
+    .page:disabled {
+      color: var(--ddb-placeholder);
+      background: var(--ddb-surface-muted);
+      cursor: not-allowed;
+    }
+
+    .page.page-ellipsis {
+      min-width: 20px;
+      padding: 0;
+      border-color: transparent;
+      background: transparent;
+      cursor: default;
+    }
+
+    .page.is-active {
+      border-color: var(--ddb-primary);
+      color: var(--ddb-primary);
+    }
+
+    .pagination-jump {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--ddb-text-secondary);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pagination-jump input {
+      width: 54px;
+      height: 30px;
+      padding: 0 7px;
+      border: 1px solid var(--ddb-border);
+      border-radius: 4px;
+      color: var(--ddb-text);
+      background: #fff;
+      text-align: center;
+    }
+
+    .modal-stage {
+      display: grid;
+      min-height: 330px;
+      padding: 28px;
+      place-items: center;
+      border-radius: 14px;
+      background:
+        linear-gradient(rgba(15, 23, 42, .42), rgba(15, 23, 42, .42)),
+        var(--ddb-surface-muted);
+    }
+
+    .modal {
+      width: min(520px, 100%);
+      border-radius: 38px;
+      background: #fff;
+      box-shadow: var(--ddb-shadow-float);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      position: relative;
+      padding: 18px 56px;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 11px;
+      right: 16px;
+      display: grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      color: var(--ddb-text-muted);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      padding: 8px 18px 18px;
+      background: var(--ddb-surface-muted);
+    }
+
+    .detail-section {
+      padding: 13px 14px;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: var(--ddb-shadow-card);
+    }
+
+    .detail-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 9px;
+      border-bottom: 1px dashed var(--ddb-border-soft);
+      font-weight: 600;
+    }
+
+    .detail-icon {
+      display: grid;
+      width: 22px;
+      height: 22px;
+      place-items: center;
+      border-radius: 7px;
+      color: #fff;
+      background: linear-gradient(135deg, #4dabff, var(--ddb-primary));
+    }
+
+    .detail-icon svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .info-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      min-height: 34px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: var(--ddb-surface-muted);
+      font-size: 12px;
+    }
+
+    .info-cell span:first-child {
+      flex: 0 0 66px;
+      color: var(--ddb-text-muted);
+    }
+
+    .info-cell strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 20px 18px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .state-card {
+      min-height: 128px;
+      padding: 16px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 12px;
+      text-align: center;
+      background: #fff;
+    }
+
+    .state-symbol {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      margin: 0 auto 9px;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--state);
+      background: var(--state-bg);
+    }
+
+    .state-symbol svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .state-card strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 13px;
+    }
+
+    .state-card p {
+      margin-bottom: 0;
+      color: var(--ddb-text-muted);
+      font-size: 11px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 50;
+      padding: 10px 16px;
+      border-radius: 10px;
+      color: #fff;
+      background: #1d2129;
+      box-shadow: var(--ddb-shadow-float);
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .18s ease, transform .18s ease;
+      pointer-events: none;
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .search-audit-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .search-audit-summary .panel {
+      min-height: 132px;
+    }
+
+    .search-audit-count {
+      display: block;
+      margin: 8px 0 2px;
+      color: var(--ddb-primary);
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .search-audit-list {
+      display: grid;
+      gap: 20px;
+    }
+
+    .search-audit-card {
+      overflow: visible;
+    }
+
+    .search-audit-card.is-dominant {
+      border-top: 3px solid #f3b7b9;
+    }
+
+    .search-audit-card.is-local {
+      border-top: 3px solid var(--ddb-primary-antd);
+    }
+
+    .search-audit-card.is-legacy {
+      border-top: 3px solid #bfbfbf;
+    }
+
+    .search-audit-card.is-selected {
+      border-top-color: var(--ddb-primary-antd);
+      border-right: 2px solid var(--ddb-primary-antd);
+      border-bottom: 2px solid var(--ddb-primary-antd);
+      border-left: 2px solid var(--ddb-primary-antd);
+    }
+
+    .search-audit-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .search-audit-heading h3 {
+      margin-bottom: 4px;
+    }
+
+    .search-audit-heading p {
+      margin: 0;
+      color: var(--ddb-text-muted);
+      font-size: 12px;
+    }
+
+    .search-audit-badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .search-audit-badge {
+      padding: 3px 9px;
+      border: 1px solid #d6eaff;
+      border-radius: 999px;
+      color: #006ac6;
+      background: #f2f9ff;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .search-audit-demo {
+      margin-top: 16px;
+      padding: 18px;
+      border: 1px solid var(--ddb-border-soft);
+      border-radius: 12px;
+      background: #fafbfc;
+    }
+
+    .search-audit-controls {
+      display: flex;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .audit-field {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 230px;
+      height: 32px;
+      padding: 0 14px;
+      border: 1px solid var(--audit-border, #d9d9d9);
+      border-radius: var(--audit-radius, 4px);
+      color: var(--ddb-text);
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .audit-field.is-wide {
+      width: 300px;
+    }
+
+    .audit-field-label {
+      margin-right: auto;
+      color: var(--ddb-placeholder);
+    }
+
+    .audit-field-value {
+      margin-left: 10px;
+      white-space: nowrap;
+    }
+
+    .audit-field-arrow {
+      margin-left: 8px;
+      color: #68717d;
+    }
+
+    .audit-actions {
+      display: inline-flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .audit-btn {
+      height: 30px;
+      padding: 0 16px;
+      border: 1px solid #d9d9d9;
+      border-radius: var(--audit-button-radius, 4px);
+      color: var(--ddb-text-secondary);
+      background: #fff;
+    }
+
+    .audit-btn.is-primary {
+      border-color: var(--ddb-primary-antd);
+      color: #fff;
+      background: var(--ddb-primary-antd);
+    }
+
+    .audit-btn.is-icon {
+      width: 54px;
+      padding: 0;
+      border-radius: 15px;
+      color: var(--ddb-primary);
+      font-size: 16px;
+    }
+
+    .audit-btn.is-icon.is-primary {
+      color: #fff;
+      background: var(--ddb-primary);
+    }
+
+    .audit-style-pill-pink {
+      --audit-border: #f3b7b9;
+      --audit-radius: 15px;
+    }
+
+    .audit-style-pill-blue {
+      --audit-border: #1890ff;
+      --audit-radius: 15px;
+      --audit-button-radius: 999px;
+    }
+
+    .audit-style-legacy .search-audit-controls {
+      align-items: center;
+    }
+
+    .audit-style-legacy .audit-btn {
+      height: 32px;
+      border-radius: 4px;
+    }
+
+    .audit-legacy-item {
+      display: grid;
+      grid-template-columns: 58px 220px;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .audit-legacy-item > span {
+      text-align: right;
+    }
+
+    .audit-style-compact .search-audit-controls {
+      justify-content: flex-start;
+    }
+
+    .audit-style-compact .audit-actions {
+      margin-left: 0;
+    }
+
+    .audit-filter-panel {
+      padding: 16px;
+      border: 1px solid #f0f0f0;
+      border-radius: 4px;
+      background: #fafafa;
+    }
+
+    .audit-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(140px, 1fr)) auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .audit-filter-grid label {
+      display: grid;
+      gap: 4px;
+      color: var(--ddb-text-secondary);
+      font-size: 12px;
+    }
+
+    .audit-filter-grid .audit-field {
+      width: 100%;
+    }
+
+    .audit-side-filter {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .audit-filter-aside {
+      padding: 16px;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: var(--ddb-shadow-card);
+    }
+
+    .audit-filter-aside strong {
+      display: block;
+      margin-bottom: 12px;
+    }
+
+    .audit-filter-option {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--ddb-border-soft);
+      color: var(--ddb-text-secondary);
+      font-size: 12px;
+    }
+
+    .audit-filter-result {
+      display: grid;
+      min-height: 144px;
+      place-items: center;
+      border: 1px dashed #c7d7e8;
+      border-radius: 18px;
+      color: var(--ddb-text-muted);
+      background: rgba(255, 255, 255, .72);
+    }
+
+    .search-audit-meta {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .search-audit-meta div {
+      padding: 11px 13px;
+      border-radius: 8px;
+      background: var(--ddb-surface-muted);
+      color: var(--ddb-text-secondary);
+      font-size: 12px;
+    }
+
+    .search-audit-meta strong {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--ddb-text);
+    }
+
+    @media (max-width: 1100px) {
+      .token-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .token-spec-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .color-choice-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .search-audit-summary,
+      .audit-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 860px) {
+      .layout {
+        display: block;
+      }
+
+      .sidebar {
+        position: sticky;
+        z-index: 30;
+        width: 100%;
+        height: auto;
+        padding: 12px 16px;
+      }
+
+      .is-nav-collapsed .sidebar {
+        padding: 12px 16px;
+      }
+
+      .sidebar-header {
+        align-items: center;
+      }
+
+      .color-review-summary {
+        grid-template-columns: 1fr;
+      }
+
+      .search-audit-summary,
+      .audit-filter-grid,
+      .audit-side-filter,
+      .search-audit-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .is-nav-collapsed .sidebar-header {
+        justify-content: flex-end;
+      }
+
+      .brand {
+        padding: 0 0 10px;
+      }
+
+      .brand-mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+      }
+
+      .sidebar-note {
+        display: none;
+      }
+
+      .nav-tree {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+      }
+
+      .nav-section {
+        flex: 0 0 auto;
+      }
+
+      .nav-section summary {
+        padding: 7px 9px;
+      }
+
+      .nav {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .nav::-webkit-scrollbar {
+        display: none;
+      }
+
+      .nav a {
+        flex: 0 0 auto;
+        padding: 7px 10px;
+        font-size: 12px;
+      }
+
+      main {
+        padding-top: 20px;
+      }
+
+      .component-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .section {
+        margin-top: 36px;
+      }
+
+      .section-heading {
+        display: block;
+      }
+
+      .section-heading p {
+        margin-top: 8px;
+        text-align: left;
+      }
+
+      .panel,
+      .specimen {
+        padding: 16px;
+      }
+
+      .token-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .color-choice-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .swatch {
+        height: 58px;
+      }
+
+      .search-field,
+      .search-field.is-active {
+        width: 100%;
+      }
+
+      .filter-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .upload-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .search-field--span-2 {
+        grid-column: auto;
+      }
+
+      .calendar-popover {
+        left: 76px;
+        width: min(292px, calc(100vw - 72px));
+      }
+
+      .search-actions {
+        width: 100%;
+        justify-content: end;
+      }
+
+      .state-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <div class="layout">
+    <aside class="sidebar" aria-label="规范导航">
+      <div class="sidebar-header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 7h16M7 4v6M17 4v6M5 12h6v7H5zM14 12h5v3h-5zM14 17h5v2h-5z"/>
+            </svg>
+          </span>
+          <span>
+            <strong>抖动巴 UI 规范</strong>
+            <span>视觉规范 · 2.0</span>
+          </span>
+        </div>
+        <button class="sidebar-toggle" type="button" aria-label="折叠菜单" aria-expanded="true" title="折叠菜单">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="m15 5-7 7 7 7"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="nav-tree">
+        <details class="nav-section" open>
+          <summary>UI 规范</summary>
+          <nav class="nav" aria-label="UI 规范">
+            <a href="#tokens" aria-current="true">Token</a>
+            <a href="#components">组件规则</a>
+          </nav>
+        </details>
+        <details class="nav-section">
+          <summary>业务模板库</summary>
+          <nav class="nav" aria-label="业务模板库">
+            <a href="ui-design-system/templates/table-list.html">标准表格页</a>
+            <a href="ui-design-system/templates/tabs-table.html">多 Tab 表格页</a>
+            <a href="ui-design-system/templates/card-table.html">卡片 / 表格双视图</a>
+            <a href="ui-design-system/templates/dashboard.html">数据看板</a>
+            <a href="ui-design-system/templates/detail.html">独立详情页</a>
+            <a href="ui-design-system/templates/form.html">整页表单</a>
+            <a href="ui-design-system/templates/import-wizard.html">分步骤导入</a>
+            <a href="ui-design-system/templates/tree-management.html">树形管理页</a>
+            <a href="ui-design-system/templates/master-detail.html">主从结构页</a>
+            <a href="ui-design-system/templates/status.html">状态结果页</a>
+          </nav>
+        </details>
+        <details class="nav-section">
+          <summary>归档</summary>
+          <nav class="nav" aria-label="归档">
+            <a href="#table-colors">表格配色审核</a>
+            <a href="#search-filters">搜索筛选区域审核</a>
+          </nav>
+        </details>
+      </div>
+
+      <div class="sidebar-note">
+        这是视觉速查文件。正式约束、迁移流程和例外处理，以同目录
+        <strong>UI_DESIGN_GUIDELINES.md</strong> 为准。
+      </div>
+    </aside>
+
+    <main id="main">
+      <section class="section page-view" id="tokens" data-page="tokens" aria-labelledby="tokens-title" hidden>
+        <div class="section-heading">
+          <div>
+            <div class="section-kicker">Foundation</div>
+            <h2 id="tokens-title">Token</h2>
+          </div>
+          <p>颜色、字体、间距和圆角是所有组件的共同底座。点击色块可复制色值。</p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>品牌与语义颜色</h3>
+              <p>主操作使用蓝色；成功、警告和危险只表达对应业务语义。</p>
+            </div>
+            <code class="spec-code">semantic colors</code>
+          </div>
+          <div class="token-grid">
+            <button class="color-token" type="button" data-copy="#0088ff" style="--swatch:#0088ff">
+              <span class="swatch"></span>
+              <span class="token-copy">
+                <span><strong>操作蓝</strong><code>#0088ff</code></span>
+                <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg>
+              </span>
+            </button>
+            <button class="color-token" type="button" data-copy="#1890ff" style="--swatch:#1890ff">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>品牌蓝</strong><code>#1890ff</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+            <button class="color-token" type="button" data-copy="#31c19e" style="--swatch:#31c19e">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>业务成功</strong><code>#31c19e</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+            <button class="color-token" type="button" data-copy="#fa742b" style="--swatch:#fa742b">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>业务警告</strong><code>#fa742b</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+            <button class="color-token" type="button" data-copy="#ff4d4f" style="--swatch:#ff4d4f">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>危险</strong><code>#ff4d4f</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+            <button class="color-token" type="button" data-copy="#d9d9d9" style="--swatch:#d9d9d9">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>表单默认边框</strong><code>#d9d9d9</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+            <button class="color-token" type="button" data-copy="#fafafa" style="--swatch:#fafafa">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>表头背景</strong><code>#fafafa</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0 2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+            <button class="color-token" type="button" data-copy="#f0f0f0" style="--swatch:#f0f0f0">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>表头边框</strong><code>#f0f0f0</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+            <button class="color-token" type="button" data-copy="#e6f7ff" style="--swatch:#e6f7ff">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>表格行 Hover</strong><code>#e6f7ff</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+            <button class="color-token" type="button" data-copy="#1d2129" style="--swatch:#1d2129">
+              <span class="swatch"></span>
+              <span class="token-copy"><span><strong>一级文字</strong><code>#1d2129</code></span><svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="token-spec-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <div><h3>字体层级</h3><p>系统字体栈，不额外加载网络字体。</p></div>
+            </div>
+            <div class="type-row"><span class="type-sample" style="--size:20px;--weight:600">页面标题</span><code class="spec-code">20 / 600</code></div>
+            <div class="type-row"><span class="type-sample" style="--size:16px;--weight:600">弹窗标题</span><code class="spec-code">16 / 600</code></div>
+            <div class="type-row"><span class="type-sample" style="--size:14px;--weight:400">正文内容</span><code class="spec-code">14 / 400</code></div>
+            <div class="type-row"><span class="type-sample" style="--size:13px;--weight:400">紧凑控件</span><code class="spec-code">13 / 400</code></div>
+            <div class="type-row"><span class="type-sample" style="--size:12px;--weight:400">辅助说明</span><code class="spec-code">12 / 400</code></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div><h3>间距节奏</h3><p>基础序列 4 / 8 / 12 / 16 / 20 / 24 / 32。</p></div>
+            </div>
+            <div class="spacing-row"><span class="spacing-block" style="--space:16px"></span><code class="spec-code">4px</code></div>
+            <div class="spacing-row"><span class="spacing-block" style="--space:32px"></span><code class="spec-code">8px</code></div>
+            <div class="spacing-row"><span class="spacing-block" style="--space:48px"></span><code class="spec-code">12px</code></div>
+            <div class="spacing-row"><span class="spacing-block" style="--space:64px"></span><code class="spec-code">16px</code></div>
+            <div class="spacing-row"><span class="spacing-block" style="--space:80px"></span><code class="spec-code">20px</code></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div><h3>圆角层级</h3><p>按组件层级使用，不是所有元素都最大圆角。</p></div>
+            </div>
+            <div class="radius-row"><span class="radius-sample" style="--radius:4px"></span><code class="spec-code">4px · 分页</code></div>
+            <div class="radius-row"><span class="radius-sample" style="--radius:8px"></span><code class="spec-code">8px · 信息</code></div>
+            <div class="radius-row"><span class="radius-sample" style="--radius:12px"></span><code class="spec-code">12px · 分区</code></div>
+            <div class="radius-row"><span class="radius-sample" style="--radius:14px"></span><code class="spec-code">14px · 表格</code></div>
+            <div class="radius-row"><span class="radius-sample" style="--radius:999px"></span><code class="spec-code">999px · 胶囊</code></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section page-view" id="table-colors" data-page="table-colors" aria-labelledby="table-colors-title" hidden>
+        <div class="section-heading">
+          <div>
+            <div class="section-kicker">Color Review</div>
+            <h2 id="table-colors-title">表格配色审核</h2>
+          </div>
+          <p>汇总项目实际使用的表头背景、表头边框和普通记录 Hover 色。点击候选色或组合方案，实时查看表格效果。</p>
+        </div>
+
+        <div class="color-review-summary" aria-label="候选颜色统计">
+          <div class="panel"><strong>表头背景</strong><span class="color-review-count">7</span><p>常规候选，另有 3 种特殊状态色</p></div>
+          <div class="panel"><strong>表头边框</strong><span class="color-review-count">7</span><p>包含公共组件、历史页面与 Ant 默认值</p></div>
+          <div class="panel"><strong>记录 Hover</strong><span class="color-review-count">6</span><p>仅统计普通记录，不含选中、合计和逾期状态</p></div>
+        </div>
+
+        <div class="panel color-review-preview" id="color-review-preview">
+          <div class="panel-header">
+            <div><h3>组合实时预览</h3><p>第二行固定展示 Hover 状态；也可以把鼠标移到其他记录上比较。</p></div>
+            <code class="spec-code">interactive preview</code>
+          </div>
+          <div class="color-preset-list" aria-label="快捷组合">
+            <button class="color-preset" type="button" data-review-preset data-header="#fafafa" data-border="#f0f0f0" data-hover="#e6f7ff"><span class="color-preset-swatch"><i style="--preset-color:#fafafa"></i><i style="--preset-color:#f0f0f0"></i><i style="--preset-color:#e6f7ff"></i></span>当前规范（已定稿）</button>
+            <button class="color-preset" type="button" data-review-preset data-header="#faf1f1" data-border="#d9d9d9" data-hover="#fafafa"><span class="color-preset-swatch"><i style="--preset-color:#faf1f1"></i><i style="--preset-color:#d9d9d9"></i><i style="--preset-color:#fafafa"></i></span>原公共组件</button>
+            <button class="color-preset" type="button" data-review-preset data-header="#fafafa" data-border="#f0f0f0" data-hover="#e6f7ff"><span class="color-preset-swatch"><i style="--preset-color:#fafafa"></i><i style="--preset-color:#f0f0f0"></i><i style="--preset-color:#e6f7ff"></i></span>Ant 默认（与规范一致）</button>
+            <button class="color-preset" type="button" data-review-preset data-header="#faf1f1" data-border="#eef0f4" data-hover="#eef4ff"><span class="color-preset-swatch"><i style="--preset-color:#faf1f1"></i><i style="--preset-color:#eef0f4"></i><i style="--preset-color:#eef4ff"></i></span>详情浅蓝</button>
+            <button class="color-preset" type="button" data-review-preset data-header="#f8fafc" data-border="#e5e7eb" data-hover="rgba(59, 130, 246, 0.04)"><span class="color-preset-swatch"><i style="--preset-color:#f8fafc"></i><i style="--preset-color:#e5e7eb"></i><i style="--preset-color:rgba(59,130,246,.04)"></i></span>现代冷灰</button>
+          </div>
+          <div class="color-review-current" aria-live="polite">
+            <span>表头背景 <code data-selected-value="header">#fafafa</code></span>
+            <span>表头边框 <code data-selected-value="border">#f0f0f0</code></span>
+            <span>记录 Hover <code data-selected-value="hover">#e6f7ff</code></span>
+          </div>
+          <div class="color-review-table-wrap">
+            <table class="color-review-table">
+              <thead><tr><th>商品信息</th><th>店铺</th><th>可用库存</th><th>状态</th><th>更新时间</th></tr></thead>
+              <tbody>
+                <tr><td>夏季轻薄防晒衬衫</td><td>抖音旗舰店</td><td>286</td><td><span class="status-tag status-success">● 在售</span></td><td>2026-07-31 10:30</td></tr>
+                <tr class="is-hover-demo"><td>法式肌理感连衣裙</td><td>视频号女装店</td><td>72</td><td><span class="status-tag status-warning">● 待审核</span></td><td>2026-07-31 09:18</td></tr>
+                <tr><td>高腰垂感阔腿裤</td><td>淘宝企业店</td><td>0</td><td><span class="status-tag status-muted">● 已下架</span></td><td>2026-07-30 18:42</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="color-review-hint">当前规范已定稿为 Ant 默认组合。此页面的点击选择仅用于临时对比，不会改写正式 Token。</p>
+        </div>
+
+        <div class="panel color-choice-panel">
+          <div class="panel-header"><div><h3>表头背景候选</h3><p>包含实际业务代码中的常规值，以及当前规范值。</p></div><code class="spec-code">header background</code></div>
+          <div class="color-choice-grid">
+            <button class="color-choice" type="button" data-color-role="header" data-color-value="#e6f7ff" aria-pressed="false" style="--choice-color:#e6f7ff"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>旧规范浅蓝</strong><code>#e6f7ff</code><small>历史 UI 2.0 Token</small></span></button>
+            <button class="color-choice" type="button" data-color-role="header" data-color-value="#faf1f1" aria-pressed="false" style="--choice-color:#faf1f1"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>公共组件浅粉</strong><code>#faf1f1</code><small>DdbTable / 历史主流</small></span></button>
+            <button class="color-choice" type="button" data-color-role="header" data-color-value="#fafafa" aria-pressed="true" style="--choice-color:#fafafa"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>当前规范 / Ant 默认</strong><code>#fafafa</code><small>UI 2.0 Token</small></span></button>
+            <button class="color-choice" type="button" data-color-role="header" data-color-value="#e6f4ff" aria-pressed="false" style="--choice-color:#e6f4ff"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>账户页浅蓝</strong><code>#e6f4ff</code><small>账户新增 / 编辑</small></span></button>
+            <button class="color-choice" type="button" data-color-role="header" data-color-value="#f8fafc" aria-pressed="false" style="--choice-color:#f8fafc"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>现代冷灰</strong><code>#f8fafc</code><small>部门及自定义列表</small></span></button>
+            <button class="color-choice" type="button" data-color-role="header" data-color-value="#ffffff" aria-pressed="false" style="--choice-color:#ffffff"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>纯白</strong><code>#ffffff</code><small>个别详情表格</small></span></button>
+            <button class="color-choice" type="button" data-color-role="header" data-color-value="rgba(236, 242, 250, 0.92)" aria-pressed="false" style="--choice-color:rgba(236,242,250,.92)"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>半透明蓝灰</strong><code>rgba(236,242,250,.92)</code><small>自动分配设置</small></span></button>
+          </div>
+        </div>
+
+        <div class="panel color-choice-panel">
+          <div class="panel-header"><div><h3>表头边框候选</h3><p>预览中同时作用于表头外围和列分隔线。</p></div><code class="spec-code">header border</code></div>
+          <div class="color-choice-grid">
+            <button class="color-choice" type="button" data-color-role="border" data-color-value="#d9d9d9" aria-pressed="false" style="--choice-color:#d9d9d9"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>旧规范灰</strong><code>#d9d9d9</code><small>历史 DdbTable</small></span></button>
+            <button class="color-choice" type="button" data-color-role="border" data-color-value="#e4d6d6" aria-pressed="false" style="--choice-color:#e4d6d6"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>暖灰粉</strong><code>#e4d6d6</code><small>历史浅粉表格</small></span></button>
+            <button class="color-choice" type="button" data-color-role="border" data-color-value="#e8edf2" aria-pressed="false" style="--choice-color:#e8edf2"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>蓝灰</strong><code>#e8edf2</code><small>统计 / 评分页面</small></span></button>
+            <button class="color-choice" type="button" data-color-role="border" data-color-value="#edf0f2" aria-pressed="false" style="--choice-color:#edf0f2"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>弱冷灰</strong><code>#edf0f2</code><small>角色人员表格</small></span></button>
+            <button class="color-choice" type="button" data-color-role="border" data-color-value="#e5e7eb" aria-pressed="false" style="--choice-color:#e5e7eb"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>现代中性灰</strong><code>#e5e7eb</code><small>部门管理</small></span></button>
+            <button class="color-choice" type="button" data-color-role="border" data-color-value="#f0f0f0" aria-pressed="true" style="--choice-color:#f0f0f0"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>当前规范 / Ant 默认</strong><code>#f0f0f0</code><small>UI 2.0 Token</small></span></button>
+            <button class="color-choice" type="button" data-color-role="border" data-color-value="#eef0f4" aria-pressed="false" style="--choice-color:#eef0f4"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>详情弱边框</strong><code>#eef0f4</code><small>详情表格外框</small></span></button>
+          </div>
+        </div>
+
+        <div class="panel color-choice-panel">
+          <div class="panel-header"><div><h3>普通记录 Hover 候选</h3><p>不包含选中、合计、逾期等业务状态，第二行会持续显示当前候选色。</p></div><code class="spec-code">row hover</code></div>
+          <div class="color-choice-grid">
+            <button class="color-choice" type="button" data-color-role="hover" data-color-value="#fafafa" aria-pressed="false" style="--choice-color:#fafafa"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>旧规范灰</strong><code>#fafafa</code><small>历史 DdbTable</small></span></button>
+            <button class="color-choice" type="button" data-color-role="hover" data-color-value="#fff7f0" aria-pressed="false" style="--choice-color:#fff7f0"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>历史暖色</strong><code>#fff7f0</code><small>统计 / 评分页面主流</small></span></button>
+            <button class="color-choice" type="button" data-color-role="hover" data-color-value="#eef4ff" aria-pressed="false" style="--choice-color:#eef4ff"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>详情浅蓝</strong><code>#eef4ff</code><small>详情与录入弹窗</small></span></button>
+            <button class="color-choice" type="button" data-color-role="hover" data-color-value="#e6f7ff" aria-pressed="true" style="--choice-color:#e6f7ff"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>当前规范 / Ant 默认</strong><code>#e6f7ff</code><small>UI 2.0 Token</small></span></button>
+            <button class="color-choice" type="button" data-color-role="hover" data-color-value="rgba(24, 144, 255, 0.04)" aria-pressed="false" style="--choice-color:rgba(24,144,255,.04)"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>透明品牌蓝</strong><code>rgba(24,144,255,.04)</code><small>商品定时详情</small></span></button>
+            <button class="color-choice" type="button" data-color-role="hover" data-color-value="rgba(59, 130, 246, 0.04)" aria-pressed="false" style="--choice-color:rgba(59,130,246,.04)"><span class="color-choice-swatch"></span><span class="color-choice-copy"><strong>透明现代蓝</strong><code>rgba(59,130,246,.04)</code><small>部门管理</small></span></button>
+          </div>
+        </div>
+
+        <div class="panel color-choice-panel">
+          <div class="panel-header"><div><h3>特殊状态颜色</h3><p>这些颜色表达特殊列或特殊状态，不作为普通表格主配色候选。</p></div><code class="spec-code">excluded states</code></div>
+          <div class="special-color-list">
+            <span class="special-color-item"><i style="--special-color:#fff9ce"></i>特殊表头列 <code>#fff9ce</code></span>
+            <span class="special-color-item"><i style="--special-color:#dfecfb"></i>表头拖拽态 <code>#dfecfb</code></span>
+            <span class="special-color-item"><i style="--special-color:#f5f5f5"></i>合计行 <code>#f5f5f5</code></span>
+            <span class="special-color-item"><i style="--special-color:rgba(245,108,108,.3)"></i>逾期行 <code>rgba(245,108,108,.3)</code></span>
+            <span class="special-color-item"><i style="--special-color:#303030"></i>夜间主题边框 <code>#303030</code></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section page-view" id="search-filters" data-page="search-filters" aria-labelledby="search-filters-title" hidden>
+        <div class="section-heading">
+          <div>
+            <div class="section-kicker">Pattern Review</div>
+            <h2 id="search-filters-title">搜索筛选区域审核</h2>
+          </div>
+          <p>按真实代码结构归并项目中的搜索筛选样式。“Ant 表单项 + 矩形文字按钮”已定稿，其余方案保留用于回归比较。</p>
+        </div>
+
+        <div class="search-audit-summary" aria-label="搜索筛选样式统计">
+          <div class="panel"><strong>可辨认视觉族</strong><span class="search-audit-count">6</span><p>按结构、控件外观和操作按钮组合归类，不按页面数量重复计算。</p></div>
+          <div class="panel"><strong>主流搜索容器</strong><span class="search-audit-count">208</span><p>代码中使用 <code>class=&quot;search&quot;</code> 的 Vue 文件数量。</p></div>
+          <div class="panel"><strong>主流公共组合</strong><span class="search-audit-count">193</span><p>同时采用搜索容器和 <code>ActionIconButtons</code> 的文件数量。</p></div>
+        </div>
+
+        <div class="search-audit-list">
+          <article class="panel search-audit-card is-dominant audit-style-pill-pink">
+            <div class="search-audit-heading">
+              <div><h3>01 · 公共胶囊筛选 + 粉色边框 + 图标操作</h3><p>当前项目覆盖面最大的公共实现，也是用户所说的“以前的风格”主体。</p></div>
+              <div class="search-audit-badges"><span class="search-audit-badge">主流</span><span class="search-audit-badge">约 193 文件</span></div>
+            </div>
+            <div class="search-audit-demo">
+              <div class="search-audit-controls">
+                <div class="audit-field"><span class="audit-field-label">款号：</span><span class="audit-field-value">DDB-0728</span></div>
+                <div class="audit-field is-wide"><span class="audit-field-label">店铺：</span><span class="audit-field-value">抖音旗舰店</span><span class="audit-field-arrow">⌄</span></div>
+                <div class="audit-field"><span class="audit-field-label">状态：</span><span class="audit-field-value">全部</span><span class="audit-field-arrow">⌄</span></div>
+                <div class="audit-actions" aria-label="图标操作示意"><button class="audit-btn is-icon is-primary" type="button" title="查询">⌕</button><button class="audit-btn is-icon" type="button" title="重置">↻</button><button class="audit-btn is-icon" type="button" title="展开或收起">⌄</button></div>
+              </div>
+            </div>
+            <div class="search-audit-meta"><div><strong>来源</strong><code>table-page-theme.less</code>、<code>ActionIconButtons</code>；用户、库存、商品等大量表格页。</div><div><strong>视觉特征</strong>32px 胶囊控件、粉色默认边框、右对齐值、图标查询/重置/展开。</div></div>
+          </article>
+
+          <article class="panel search-audit-card is-local audit-style-pill-blue">
+            <div class="search-audit-heading">
+              <div><h3>02 · 蓝色胶囊筛选 + 中文文字操作</h3><p>应付管理 9 个页面局部覆盖后的 UI 2.0 方案。</p></div>
+              <div class="search-audit-badges"><span class="search-audit-badge">局部新规范</span><span class="search-audit-badge">9 文件</span></div>
+            </div>
+            <div class="search-audit-demo">
+              <div class="search-audit-controls">
+                <div class="audit-field"><span class="audit-field-label">关键词：</span><span class="audit-field-value">单号 / 款号</span></div>
+                <div class="audit-field is-wide"><span class="audit-field-label">业务日期：</span><span class="audit-field-value">2026/07/01 至 2026/07/31</span></div>
+                <div class="audit-actions"><button class="audit-btn is-primary" type="button">搜索</button><button class="audit-btn" type="button">重置</button></div>
+              </div>
+            </div>
+            <div class="search-audit-meta"><div><strong>来源</strong><code>views/finance/payable*</code> 与 <code>payable-search.less</code>。</div><div><strong>视觉特征</strong>品牌蓝边框、胶囊形态不变、按钮改为可直接理解的中文文字。</div></div>
+          </article>
+
+          <article class="panel search-audit-card is-legacy is-selected audit-style-legacy">
+            <div class="search-audit-heading">
+              <div><h3>03 · Ant 表单项 + 矩形文字按钮</h3><p>正式搜索筛选规范：外置 label、Ant 默认控件和中文矩形操作按钮。</p></div>
+              <div class="search-audit-badges"><span class="search-audit-badge">已定稿</span><span class="search-audit-badge">52 个搜索结构样本</span></div>
+            </div>
+            <div class="search-audit-demo">
+              <div class="search-audit-controls">
+                <label class="audit-legacy-item"><span>姓名</span><span class="audit-field"><span class="audit-field-label">请填写</span></span></label>
+                <label class="audit-legacy-item"><span>角色</span><span class="audit-field"><span class="audit-field-label">请选择</span><span class="audit-field-arrow">⌄</span></span></label>
+                <div class="audit-actions"><button class="audit-btn is-primary" type="button">查询</button><button class="audit-btn" type="button">重置</button></div>
+              </div>
+            </div>
+            <div class="search-audit-meta"><div><strong>来源</strong><code>views_provider/wx-bind/index.vue</code> 等 Provider / Root 历史页。</div><div><strong>视觉特征</strong>标签在控件外、4px 圆角、Ant 默认灰边框、矩形文字按钮。</div></div>
+          </article>
+
+          <article class="panel search-audit-card audit-style-pill-pink audit-style-compact">
+            <div class="search-audit-heading">
+              <div><h3>04 · 弹窗紧凑单行筛选</h3><p>只保留一两个条件，和表格并排放在弹窗内部。</p></div>
+              <div class="search-audit-badges"><span class="search-audit-badge">局部弹窗</span><span class="search-audit-badge">7 个 search-bar</span></div>
+            </div>
+            <div class="search-audit-demo">
+              <div class="search-audit-controls">
+                <div class="audit-field is-wide"><span class="audit-field-label">库存归属：</span><span class="audit-field-value">杭州仓、广州仓</span><span class="audit-field-arrow">⌄</span></div>
+                <div class="audit-actions"><button class="audit-btn is-icon is-primary" type="button" title="查询">⌕</button></div>
+              </div>
+            </div>
+            <div class="search-audit-meta"><div><strong>来源</strong><code>statisticDailyStock/components/stockAnaly.vue</code> 等库存分析弹窗。</div><div><strong>视觉特征</strong>单行紧凑、粉色胶囊条件、只保留一个蓝色图标查询按钮。</div></div>
+          </article>
+
+          <article class="panel search-audit-card">
+            <div class="search-audit-heading">
+              <div><h3>05 · 浅灰筛选卡 + 标签置顶网格</h3><p>复杂筛选项较多时使用独立浅灰容器和响应式网格。</p></div>
+              <div class="search-audit-badges"><span class="search-audit-badge">特殊业务列表</span><span class="search-audit-badge">2 个 filter-grid</span></div>
+            </div>
+            <div class="search-audit-demo audit-filter-panel">
+              <div class="audit-filter-grid">
+                <label>关键词<span class="audit-field"><span class="audit-field-label">搜索模板名称 / ID</span></span></label>
+                <label>创建时间<span class="audit-field"><span class="audit-field-value">2026/07/01 — 07/31</span></span></label>
+                <label>分类<span class="audit-field"><span class="audit-field-label">请选择分类</span><span class="audit-field-arrow">⌄</span></span></label>
+                <label>是否带车<span class="audit-field"><span class="audit-field-value">全部</span><span class="audit-field-arrow">⌄</span></span></label>
+                <div class="audit-actions"><button class="audit-btn is-primary" type="button">查询</button><button class="audit-btn" type="button">重置</button></div>
+              </div>
+            </div>
+            <div class="search-audit-meta"><div><strong>来源</strong><code>aiTools/hotVideoTemplateLibrary.vue</code> 等 AI 工具列表。</div><div><strong>视觉特征</strong>浅灰卡片、字段名在控件上方、网格自适应、Ant 默认矩形控件。</div></div>
+          </article>
+
+          <article class="panel search-audit-card">
+            <div class="search-audit-heading">
+              <div><h3>06 · 左侧筛选面板 + 右侧结果</h3><p>筛选本身成为页面结构的一列，适合素材库和高维度浏览。</p></div>
+              <div class="search-audit-badges"><span class="search-audit-badge">业务自定义</span><span class="search-audit-badge">少量页面</span></div>
+            </div>
+            <div class="search-audit-demo">
+              <div class="audit-side-filter">
+                <aside class="audit-filter-aside"><strong>筛选条件</strong><div class="audit-filter-option"><span>素材类型</span><span>视频 ⌄</span></div><div class="audit-filter-option"><span>归属范围</span><span>公司 ⌄</span></div><div class="audit-filter-option"><span>创建人</span><span>全部 ⌄</span></div></aside>
+                <div class="audit-filter-result">右侧列表 / 卡片结果区域</div>
+              </div>
+            </div>
+            <div class="search-audit-meta"><div><strong>来源</strong><code>aiTools/materialCenterPrototype.vue</code> 等素材中心原型。</div><div><strong>视觉特征</strong>筛选常驻左栏、分组纵向排列、与右侧内容形成主从结构。</div></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section page-view" id="components" data-page="components" aria-labelledby="components-title" hidden>
+        <div class="section-heading">
+          <div>
+            <div class="section-kicker">Patterns</div>
+            <h2 id="components-title">组件规则</h2>
+          </div>
+          <p>展示项目中最常见组件的默认形态、语义层级与关键状态。</p>
+        </div>
+
+        <div class="component-grid">
+          <article class="specimen">
+            <div class="specimen-title"><strong>按钮</strong><code>DdbModal / .operator</code></div>
+            <div class="row">
+              <button class="btn btn-primary" type="button">主要操作</button>
+              <button class="btn" type="button">次要操作</button>
+              <button class="btn btn-success" type="button">通过</button>
+              <button class="btn btn-warning" type="button">待定</button>
+              <button class="btn btn-danger" type="button">删除</button>
+            </div>
+            <div class="row">
+              <button class="btn btn-primary" type="button" aria-busy="true"><span class="spinner" aria-hidden="true"></span>提交中</button>
+              <button class="btn" type="button" disabled>禁用状态</button>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>状态标签</strong><code>text + color</code></div>
+            <div class="tags">
+              <span class="tag" style="--tag-color:#16845f;--tag-bg:#eaf9f4">已完成</span>
+              <span class="tag" style="--tag-color:#b75a0b;--tag-bg:#fff4e8">待处理</span>
+              <span class="tag" style="--tag-color:#c83b3d;--tag-bg:#fff0f0">已拒绝</span>
+              <span class="tag" style="--tag-color:#006ac6;--tag-bg:#eaf6ff">进行中</span>
+              <span class="tag" style="--tag-color:#68717d;--tag-bg:#f0f2f5">已取消</span>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>帮助说明</strong><code>HelpTooltip / a-tooltip</code></div>
+            <div class="help-list">
+              <div class="help-row"><span>可用库存</span><span class="help-tooltip"><button class="help-icon" type="button" aria-describedby="help-stock">?</button><span class="help-popover" id="help-stock" role="tooltip">可用库存 = 实际库存 − 已锁定库存，用于判断当前可售数量。</span></span></div>
+              <div class="help-row"><span>毛利率口径</span><span class="help-tooltip"><button class="help-icon" type="button" aria-describedby="help-profit">?</button><span class="help-popover" id="help-profit" role="tooltip">毛利率按支付金额扣除商品成本计算，不包含平台补贴。</span></span></div>
+              <div class="help-row"><span>批量导入说明</span><span class="help-tooltip"><button class="help-icon" type="button" aria-describedby="help-import">?</button><span class="help-popover" id="help-import" role="tooltip">先下载系统模板，保留表头后填写数据；单次最多导入 5,000 行。</span></span></div>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>表单控件状态</strong><code>default / focus / error / disabled</code></div>
+            <div class="control-state-grid">
+              <label class="control-sample"><span>默认</span><input value="轻法式连衣裙" aria-label="默认状态示例"></label>
+              <label class="control-sample is-focus"><span>聚焦</span><input value="DDB-0728" aria-label="聚焦状态示例"></label>
+              <label class="control-sample is-error"><span>错误</span><input value="-10" aria-invalid="true" aria-describedby="control-error"><small id="control-error" style="grid-column:2;color:#ff4d4f">库存不能小于 0</small></label>
+              <label class="control-sample is-disabled"><span>禁用</span><input value="系统生成" disabled aria-label="禁用状态示例"></label>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>提示信息</strong><code>a-alert</code></div>
+            <div class="alert-list">
+              <div class="ui-alert" role="status" style="--alert-color:#006ac6;--alert-bg:#eaf6ff;--alert-border:#b7ddff">库存数据每 10 分钟同步一次。</div>
+              <div class="ui-alert" role="status" style="--alert-color:#16845f;--alert-bg:#eaf9f4;--alert-border:#bcebdc">商品资料已保存，可继续维护规格。</div>
+              <div class="ui-alert" role="alert" style="--alert-color:#b75a0b;--alert-bg:#fff4e8;--alert-border:#ffd5ad">还有 3 行导入数据需要确认。</div>
+              <div class="ui-alert" role="alert" style="--alert-color:#c83b3d;--alert-bg:#fff0f0;--alert-border:#ffc9ca">保存失败，请检查网络后重试。</div>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>危险操作确认</strong><code>a-popconfirm</code></div>
+            <div class="confirm-stage">
+              <span class="confirm-demo">
+                <button class="btn btn-danger" type="button" aria-describedby="delete-confirm">删除商品</button>
+                <span class="confirm-popover" id="delete-confirm" role="dialog" aria-label="删除确认"><strong>确认删除这个商品？</strong><br><span style="color:#86909c;font-size:11px">删除后将从全部店铺下架，且无法恢复。</span><span class="confirm-actions"><button class="btn" type="button">取消</button><button class="btn btn-danger" type="button">确认删除</button></span></span>
+              </span>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>文件与图片上传</strong><code>FileUpload / ImageUpload</code></div>
+            <div class="upload-grid">
+              <button class="upload-card" type="button"><span><b class="upload-mark">＋</b><strong>上传商品图片</strong><span>JPG / PNG，单张不超过 5MB</span></span></button>
+              <button class="upload-card" type="button"><span><b class="upload-mark">⇧</b><strong>上传数据文件</strong><span>XLSX，最多 5,000 行</span></span></button>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>步骤与进度</strong><code>a-steps / a-progress</code></div>
+            <div class="steps-demo" aria-label="导入步骤"><div class="step-item is-done"><span class="step-dot">✓</span><span>上传</span></div><div class="step-item is-active"><span class="step-dot">2</span><span>校验</span></div><div class="step-item"><span class="step-dot">3</span><span>确认</span></div><div class="step-item"><span class="step-dot">4</span><span>完成</span></div></div>
+            <div class="progress-row"><span>处理进度</span><span class="progress-track" aria-label="处理进度 68%"><span></span></span><strong>68%</strong></div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>开关</strong><code>a-switch</code></div>
+            <div class="behavior-grid">
+              <div class="switch-row"><span>启用自动同步</span><label class="ui-switch"><input type="checkbox" checked aria-label="启用自动同步"><span aria-hidden="true"></span></label></div>
+              <div class="switch-row"><span>显示已删除商品</span><label class="ui-switch"><input type="checkbox" aria-label="显示已删除商品"><span aria-hidden="true"></span></label></div>
+              <div class="switch-row"><span>锁定库存编辑</span><label class="ui-switch"><input type="checkbox" disabled aria-label="锁定库存编辑"><span aria-hidden="true" style="opacity:.45;cursor:not-allowed"></span></label></div>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>下拉操作与折叠内容</strong><code>a-dropdown / a-collapse</code></div>
+            <div class="behavior-grid">
+              <details class="disclosure"><summary>更多操作</summary><div class="disclosure-menu"><button class="btn" type="button">复制</button><button class="btn" type="button">导出</button><button class="btn btn-danger" type="button">删除</button></div></details>
+              <details class="disclosure" open><summary>高级设置</summary><p>低频配置默认折叠；展开后不应清空用户已填写的内容。</p></details>
+            </div>
+          </article>
+
+          <article class="specimen specimen--wide">
+            <div class="specimen-title"><strong>搜索筛选区</strong><code>Ant Form · 4px radius · 32px</code></div>
+            <div class="search-demo">
+              <div class="filter-grid">
+                <label class="search-field">
+                  <span class="field-label">关键词：</span>
+                  <input type="text" placeholder="款号 / 商品名" aria-label="关键词">
+                </label>
+                <div class="search-field single-select-field" id="single-shop-field">
+                  <span class="field-label">单选：</span>
+                  <button class="single-select-trigger" id="single-shop-trigger" type="button" role="combobox" aria-label="单选店铺" aria-haspopup="listbox" aria-expanded="false" aria-controls="single-shop-listbox">
+                    <span id="single-shop-value">抖音旗舰店</span>
+                    <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  <div class="single-select-popover" id="single-shop-listbox" role="listbox" aria-label="店铺选项" hidden>
+                    <button class="single-select-option" type="button" role="option" aria-selected="true" data-select-value="抖音旗舰店">抖音旗舰店</button>
+                    <button class="single-select-option" type="button" role="option" aria-selected="false" data-select-value="视频号女装店">视频号女装店</button>
+                    <button class="single-select-option" type="button" role="option" aria-selected="false" data-select-value="淘宝企业店">淘宝企业店</button>
+                    <button class="single-select-option" type="button" role="option" aria-selected="false" data-select-value="全部店铺">全部店铺</button>
+                  </div>
+                </div>
+                <div class="search-field single-select-field multi-select-field" id="multi-channel-field">
+                  <span class="field-label">多选：</span>
+                  <button class="single-select-trigger multi-select-trigger" id="multi-channel-trigger" type="button" role="combobox" aria-label="多选渠道，已选择抖音、淘宝" aria-haspopup="listbox" aria-expanded="false" aria-controls="multi-channel-listbox">
+                    <span class="filter-multi" id="multi-channel-value"><span class="filter-chip">抖音</span><span class="filter-chip">淘宝</span></span>
+                    <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  <div class="single-select-popover multi-select-popover" id="multi-channel-listbox" role="listbox" aria-label="渠道选项" aria-multiselectable="true" hidden>
+                    <button class="single-select-option multi-select-option" type="button" role="option" aria-selected="true" data-select-value="抖音">抖音</button>
+                    <button class="single-select-option multi-select-option" type="button" role="option" aria-selected="true" data-select-value="淘宝">淘宝</button>
+                    <button class="single-select-option multi-select-option" type="button" role="option" aria-selected="false" data-select-value="视频号">视频号</button>
+                    <button class="single-select-option multi-select-option" type="button" role="option" aria-selected="false" data-select-value="小红书">小红书</button>
+                  </div>
+                </div>
+                <label class="search-field">
+                  <span class="field-label">级联：</span>
+                  <select aria-label="商品类目">
+                    <option>女装 / 连衣裙</option>
+                  </select>
+                  <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </label>
+                <label class="search-field">
+                  <span class="field-label">日期：</span>
+                  <input type="date" value="2026-07-31" aria-label="上架日期">
+                </label>
+                <label class="search-field">
+                  <span class="field-label">数值：</span>
+                  <input type="number" value="100" min="0" aria-label="库存上限">
+                </label>
+                <div class="search-field search-field--span-2 date-range-field">
+                  <span class="field-label">日期区间：</span>
+                  <button class="date-range-trigger" id="date-range-trigger" type="button" aria-expanded="false" aria-controls="date-range-panel">
+                    <span id="date-range-value">2026/07/01 至 2026/07/31</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16v13H4zM8 4v6M16 4v6M4 11h16"/></svg>
+                  </button>
+                  <div class="calendar-popover" id="date-range-panel" role="dialog" aria-label="选择日期区间" hidden>
+                    <div class="calendar-header"><strong>2026 年 7 月</strong><span class="calendar-hint">选择开始和结束日期</span></div>
+                    <div class="calendar-weekdays" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+                    <div class="calendar-grid" id="date-range-calendar" role="grid" aria-label="2026 年 7 月"></div>
+                    <div class="calendar-footer">
+                      <span class="calendar-hint" id="date-range-hint" aria-live="polite">已选择 7 月 1 日至 7 月 31 日</span>
+                      <button class="calendar-done" id="date-range-done" type="button">完成</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="search-field">
+                  <span class="field-label">数值区间：</span>
+                  <span class="filter-range">
+                    <input type="number" value="50" min="0" aria-label="最低价格">
+                    <span class="range-divider">至</span>
+                    <input type="number" value="300" min="0" aria-label="最高价格">
+                  </span>
+                </div>
+              </div>
+              <div class="filter-options">
+                <fieldset class="filter-choice-group">
+                  <legend>单选：</legend>
+                  <label><input type="radio" name="filter-status" checked> 全部</label>
+                  <label><input type="radio" name="filter-status"> 在售</label>
+                  <label><input type="radio" name="filter-status"> 下架</label>
+                </fieldset>
+                <fieldset class="filter-choice-group">
+                  <legend>复选：</legend>
+                  <label><input type="checkbox" checked> 有库存</label>
+                  <label><input type="checkbox"> 仅活动商品</label>
+                  <label><input type="checkbox"> 含已删除</label>
+                </fieldset>
+                <div class="search-actions" aria-label="搜索操作">
+                  <button class="search-action-btn" type="button">查询</button>
+                  <button class="search-action-btn" type="button">重置</button>
+                  <button class="search-action-btn" type="button">排序</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>页内 Tab</strong><code>tabs-card-theme.less</code></div>
+            <div class="tabs" role="tablist" aria-label="商品信息">
+              <button class="tab" type="button" role="tab" aria-selected="true">基本信息</button>
+              <button class="tab" type="button" role="tab" aria-selected="false">库存数量</button>
+              <button class="tab" type="button" role="tab" aria-selected="false">操作日志</button>
+            </div>
+          </article>
+
+          <article class="specimen">
+            <div class="specimen-title"><strong>异步反馈</strong><code>loading / empty / error</code></div>
+            <div class="state-grid">
+              <div class="state-card">
+                <span class="state-symbol" style="--state:#0088ff;--state-bg:#eaf6ff"><span class="spinner" style="border-color:rgba(0,136,255,.25);border-top-color:#0088ff"></span></span>
+                <strong>加载中</strong><p>正在获取数据</p>
+              </div>
+              <div class="state-card">
+                <span class="state-symbol" style="--state:#86909c;--state-bg:#f0f2f5">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4zM8 4h8v3"/><path d="M8 12h8"/></svg>
+                </span>
+                <strong>暂无数据</strong><p>调整筛选条件试试</p>
+              </div>
+              <div class="state-card">
+                <span class="state-symbol" style="--state:#ff4d4f;--state-bg:#fff0f0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>
+                </span>
+                <strong>加载失败</strong><p>说明原因并提供重试</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="specimen specimen--wide">
+            <div class="specimen-title"><strong>数据表格</strong><code>DdbTable · #fafafa / #f0f0f0 / hover #e6f7ff</code></div>
+            <div class="table-variant-bar">
+              <p>首列选择框仅在页面提供批量操作时显示，普通列表不保留空白选择列。</p>
+              <div class="table-variant-toggle" aria-label="表格首列形态">
+                <button type="button" data-table-selection="off" aria-pressed="true">普通列表</button>
+                <button type="button" data-table-selection="on" aria-pressed="false">批量选择</button>
+              </div>
+            </div>
+            <div class="table-wrap" id="component-table-demo">
+              <table>
+                <thead>
+                  <tr><th class="selection-column"><input type="checkbox" aria-label="全选当前页"></th><th>商品信息</th><th>店铺</th><th>库存</th><th>状态</th><th>操作</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="selection-column"><input type="checkbox" aria-label="选择夏季轻薄防晒衬衫"></td><td>夏季轻薄防晒衬衫</td><td>抖音旗舰店</td><td>286</td><td><span class="tag" style="--tag-color:#16845f;--tag-bg:#eaf9f4">在售</span></td>
+                    <td><a class="table-link" style="--link:#1890ff" href="#components">查看</a> <a class="table-link" style="--link:#e6a23c" href="#components">编辑</a></td>
+                  </tr>
+                  <tr class="is-current">
+                    <td class="selection-column"><input type="checkbox" checked aria-label="选择法式肌理感连衣裙"></td><td>法式肌理感连衣裙</td><td>视频号女装店</td><td>72</td><td><span class="tag" style="--tag-color:#b75a0b;--tag-bg:#fff4e8">待审核</span></td>
+                    <td><a class="table-link" style="--link:#1890ff" href="#components">查看</a> <a class="table-link" style="--link:#ff4d4f" href="#components">拒绝</a></td>
+                  </tr>
+                  <tr>
+                    <td class="selection-column"><input type="checkbox" aria-label="选择高腰垂感阔腿裤"></td><td>高腰垂感阔腿裤</td><td>淘宝企业店</td><td>0</td><td><span class="tag" style="--tag-color:#68717d;--tag-bg:#f0f2f5">已下架</span></td>
+                    <td><a class="table-link" style="--link:#1890ff" href="#components">查看</a> <a class="table-link" style="--link:#ff4d4f" href="#components">删除</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="pagination" aria-label="分页">
+              <span class="pagination-total">共 1,286 条数据</span>
+              <div class="pagination-pages" aria-label="页码">
+                <button class="page" type="button" aria-label="上一页" disabled>‹</button>
+                <button class="page is-active" type="button" aria-current="page">1</button>
+                <button class="page" type="button">2</button>
+                <button class="page" type="button">3</button>
+                <button class="page" type="button">4</button>
+                <button class="page" type="button">5</button>
+                <span class="page page-ellipsis" aria-hidden="true">•••</span>
+                <button class="page" type="button">129</button>
+                <button class="page" type="button" aria-label="下一页">›</button>
+              </div>
+              <label class="page-size">
+                <select aria-label="每页显示条数">
+                  <option value="10" selected>10 条/页</option>
+                  <option value="20">20 条/页</option>
+                  <option value="50">50 条/页</option>
+                  <option value="100">100 条/页</option>
+                  <option value="200">200 条/页</option>
+                </select>
+              </label>
+              <label class="pagination-jump">
+                <span>跳至</span>
+                <input type="number" min="1" max="129" inputmode="numeric" aria-label="跳转页码">
+                <span>页</span>
+              </label>
+            </div>
+          </article>
+
+          <article class="specimen specimen--wide">
+            <div class="specimen-title"><strong>详情弹窗</strong><code>DdbModal + detail sections</code></div>
+            <div class="modal-stage">
+              <div class="modal" role="dialog" aria-modal="false" aria-labelledby="modal-title">
+                <div class="modal-header" id="modal-title">
+                  商品详情
+                  <button class="modal-close" type="button" aria-label="关闭弹窗" title="关闭">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                  </button>
+                </div>
+                <div class="modal-body">
+                  <div class="detail-section">
+                    <div class="detail-title">
+                      <span class="detail-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>
+                      </span>
+                      基本信息
+                    </div>
+                    <div class="info-grid">
+                      <div class="info-cell"><span>商品编号</span><strong>SPU-20260731</strong></div>
+                      <div class="info-cell"><span>商品状态</span><strong style="color:#16845f">在售</strong></div>
+                      <div class="info-cell"><span>款号</span><strong>DDB-0728-A</strong></div>
+                      <div class="info-cell"><span>拿货价</span><strong style="color:#f56c6c">¥ 128.00</strong></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button class="btn" type="button">关闭</button>
+                  <button class="btn btn-primary" type="button">确认</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      var toast = document.getElementById("toast");
+      var toastTimer;
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("is-visible");
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(function () {
+          toast.classList.remove("is-visible");
+        }, 1800);
+      }
+
+      document.querySelectorAll("[data-copy]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var value = button.getAttribute("data-copy");
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(value).then(function () {
+              showToast("已复制 " + value);
+            });
+            return;
+          }
+
+          var input = document.createElement("textarea");
+          input.value = value;
+          input.setAttribute("readonly", "");
+          input.style.position = "fixed";
+          input.style.opacity = "0";
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand("copy");
+          input.remove();
+          showToast("已复制 " + value);
+        });
+      });
+
+      var singleShopField = document.getElementById("single-shop-field");
+      var singleShopTrigger = document.getElementById("single-shop-trigger");
+      var singleShopPanel = document.getElementById("single-shop-listbox");
+      var singleShopValue = document.getElementById("single-shop-value");
+
+      function getShopOptions() {
+        return Array.prototype.slice.call(singleShopPanel.querySelectorAll("[role='option']"));
+      }
+
+      function closeShopPanel(restoreFocus) {
+        singleShopPanel.hidden = true;
+        singleShopField.classList.remove("is-open");
+        singleShopTrigger.setAttribute("aria-expanded", "false");
+        if (restoreFocus) singleShopTrigger.focus();
+      }
+
+      function openShopPanel(moveFocus) {
+        singleShopPanel.hidden = false;
+        singleShopField.classList.add("is-open");
+        singleShopTrigger.setAttribute("aria-expanded", "true");
+        if (moveFocus) {
+          window.setTimeout(function () {
+            var selectedOption = singleShopPanel.querySelector("[aria-selected='true']");
+            if (selectedOption) selectedOption.focus();
+          }, 0);
+        }
+      }
+
+      function selectShopOption(option) {
+        getShopOptions().forEach(function (item) {
+          item.setAttribute("aria-selected", String(item === option));
+        });
+        singleShopValue.textContent = option.getAttribute("data-select-value");
+        closeShopPanel(true);
+      }
+
+      singleShopTrigger.addEventListener("click", function () {
+        if (singleShopPanel.hidden) {
+          openShopPanel(false);
+        } else {
+          closeShopPanel(false);
+        }
+      });
+
+      singleShopTrigger.addEventListener("keydown", function (event) {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          openShopPanel(true);
+        } else if (event.key === "Escape" && !singleShopPanel.hidden) {
+          event.preventDefault();
+          closeShopPanel(false);
+        }
+      });
+
+      singleShopPanel.addEventListener("click", function (event) {
+        var option = event.target.closest("[role='option']");
+        if (option) selectShopOption(option);
+      });
+
+      singleShopPanel.addEventListener("keydown", function (event) {
+        var options = getShopOptions();
+        var currentIndex = options.indexOf(document.activeElement);
+        var nextIndex;
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeShopPanel(true);
+          return;
+        }
+        if ((event.key === "Enter" || event.key === " ") && currentIndex >= 0) {
+          event.preventDefault();
+          selectShopOption(options[currentIndex]);
+          return;
+        }
+        if (event.key === "Home" || event.key === "End") {
+          event.preventDefault();
+          options[event.key === "Home" ? 0 : options.length - 1].focus();
+          return;
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+        event.preventDefault();
+        nextIndex = event.key === "ArrowDown" ? currentIndex + 1 : currentIndex - 1;
+        if (nextIndex < 0) nextIndex = options.length - 1;
+        if (nextIndex >= options.length) nextIndex = 0;
+        options[nextIndex].focus();
+      });
+
+      singleShopField.addEventListener("focusout", function () {
+        window.setTimeout(function () {
+          if (!singleShopField.contains(document.activeElement)) closeShopPanel(false);
+        }, 0);
+      });
+
+      document.addEventListener("click", function (event) {
+        if (!singleShopPanel.hidden && !singleShopField.contains(event.target)) {
+          closeShopPanel(false);
+        }
+      });
+
+      var multiChannelField = document.getElementById("multi-channel-field");
+      var multiChannelTrigger = document.getElementById("multi-channel-trigger");
+      var multiChannelPanel = document.getElementById("multi-channel-listbox");
+      var multiChannelValue = document.getElementById("multi-channel-value");
+
+      function getChannelOptions() {
+        return Array.prototype.slice.call(multiChannelPanel.querySelectorAll("[role='option']"));
+      }
+
+      function getSelectedChannels() {
+        return getChannelOptions().filter(function (option) {
+          return option.getAttribute("aria-selected") === "true";
+        });
+      }
+
+      function renderSelectedChannels() {
+        var selectedOptions = getSelectedChannels();
+        multiChannelValue.innerHTML = "";
+
+        if (!selectedOptions.length) {
+          var placeholder = document.createElement("span");
+          placeholder.className = "filter-placeholder";
+          placeholder.textContent = "请选择";
+          multiChannelValue.appendChild(placeholder);
+          multiChannelTrigger.setAttribute("aria-label", "多选渠道，未选择");
+          return;
+        }
+
+        selectedOptions.forEach(function (option) {
+          var chip = document.createElement("span");
+          chip.className = "filter-chip";
+          chip.textContent = option.getAttribute("data-select-value");
+          multiChannelValue.appendChild(chip);
+        });
+        multiChannelTrigger.setAttribute("aria-label", "多选渠道，已选择" + selectedOptions.map(function (option) {
+          return option.getAttribute("data-select-value");
+        }).join("、"));
+      }
+
+      function closeChannelPanel(restoreFocus) {
+        multiChannelPanel.hidden = true;
+        multiChannelField.classList.remove("is-open");
+        multiChannelTrigger.setAttribute("aria-expanded", "false");
+        if (restoreFocus) multiChannelTrigger.focus();
+      }
+
+      function openChannelPanel(moveFocus) {
+        multiChannelPanel.hidden = false;
+        multiChannelField.classList.add("is-open");
+        multiChannelTrigger.setAttribute("aria-expanded", "true");
+        if (moveFocus) {
+          window.setTimeout(function () {
+            var selectedOption = multiChannelPanel.querySelector("[aria-selected='true']");
+            (selectedOption || getChannelOptions()[0]).focus();
+          }, 0);
+        }
+      }
+
+      function toggleChannelOption(option) {
+        var isSelected = option.getAttribute("aria-selected") === "true";
+        option.setAttribute("aria-selected", String(!isSelected));
+        renderSelectedChannels();
+      }
+
+      multiChannelTrigger.addEventListener("click", function () {
+        if (multiChannelPanel.hidden) {
+          openChannelPanel(false);
+        } else {
+          closeChannelPanel(false);
+        }
+      });
+
+      multiChannelTrigger.addEventListener("keydown", function (event) {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          openChannelPanel(true);
+        } else if (event.key === "Escape" && !multiChannelPanel.hidden) {
+          event.preventDefault();
+          closeChannelPanel(false);
+        }
+      });
+
+      multiChannelPanel.addEventListener("click", function (event) {
+        var option = event.target.closest("[role='option']");
+        if (option) toggleChannelOption(option);
+      });
+
+      multiChannelPanel.addEventListener("keydown", function (event) {
+        var options = getChannelOptions();
+        var currentIndex = options.indexOf(document.activeElement);
+        var nextIndex;
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeChannelPanel(true);
+          return;
+        }
+        if ((event.key === "Enter" || event.key === " ") && currentIndex >= 0) {
+          event.preventDefault();
+          toggleChannelOption(options[currentIndex]);
+          return;
+        }
+        if (event.key === "Home" || event.key === "End") {
+          event.preventDefault();
+          options[event.key === "Home" ? 0 : options.length - 1].focus();
+          return;
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+        event.preventDefault();
+        nextIndex = event.key === "ArrowDown" ? currentIndex + 1 : currentIndex - 1;
+        if (nextIndex < 0) nextIndex = options.length - 1;
+        if (nextIndex >= options.length) nextIndex = 0;
+        options[nextIndex].focus();
+      });
+
+      multiChannelField.addEventListener("focusout", function () {
+        window.setTimeout(function () {
+          if (!multiChannelField.contains(document.activeElement)) closeChannelPanel(false);
+        }, 0);
+      });
+
+      document.addEventListener("click", function (event) {
+        if (!multiChannelPanel.hidden && !multiChannelField.contains(event.target)) {
+          closeChannelPanel(false);
+        }
+      });
+
+      var rangeField = document.querySelector(".date-range-field");
+      var rangeTrigger = document.getElementById("date-range-trigger");
+      var rangePanel = document.getElementById("date-range-panel");
+      var rangeCalendar = document.getElementById("date-range-calendar");
+      var rangeValue = document.getElementById("date-range-value");
+      var rangeHint = document.getElementById("date-range-hint");
+      var rangeDone = document.getElementById("date-range-done");
+      var rangeStart = 1;
+      var rangeEnd = 31;
+
+      function formatRangeDay(day) {
+        return day < 10 ? "0" + day : String(day);
+      }
+
+      function updateRangeText() {
+        if (rangeEnd === null) {
+          rangeValue.textContent = "2026/07/" + formatRangeDay(rangeStart) + " 至 请选择结束日期";
+          rangeHint.textContent = "请选择结束日期";
+          rangeDone.disabled = true;
+          return;
+        }
+
+        rangeValue.textContent = "2026/07/" + formatRangeDay(rangeStart) + " 至 2026/07/" + formatRangeDay(rangeEnd);
+        rangeHint.textContent = "已选择 7 月 " + rangeStart + " 日至 7 月 " + rangeEnd + " 日";
+        rangeDone.disabled = false;
+      }
+
+      function renderRangeCalendar() {
+        var fragment = document.createDocumentFragment();
+        var offset = 2;
+        var day;
+
+        rangeCalendar.innerHTML = "";
+        for (day = 0; day < offset; day += 1) {
+          var empty = document.createElement("span");
+          empty.className = "calendar-empty";
+          empty.setAttribute("aria-hidden", "true");
+          fragment.appendChild(empty);
+        }
+
+        for (day = 1; day <= 31; day += 1) {
+          var dayButton = document.createElement("button");
+          dayButton.className = "calendar-day";
+          dayButton.type = "button";
+          dayButton.textContent = day;
+          dayButton.setAttribute("aria-label", "2026 年 7 月 " + day + " 日");
+          dayButton.setAttribute("data-range-day", day);
+
+          if (rangeEnd !== null && day > rangeStart && day < rangeEnd) {
+            dayButton.classList.add("is-in-range");
+          }
+          if (day === rangeStart) {
+            dayButton.classList.add("is-range-start");
+            dayButton.setAttribute("aria-pressed", "true");
+          }
+          if (rangeEnd !== null && day === rangeEnd) {
+            dayButton.classList.add("is-range-end");
+            dayButton.setAttribute("aria-pressed", "true");
+          }
+
+          fragment.appendChild(dayButton);
+        }
+        rangeCalendar.appendChild(fragment);
+      }
+
+      function closeRangePanel(restoreFocus) {
+        rangePanel.hidden = true;
+        rangeTrigger.setAttribute("aria-expanded", "false");
+        if (restoreFocus) {
+          rangeTrigger.focus();
+        }
+      }
+
+      rangeTrigger.addEventListener("click", function () {
+        var willOpen = rangePanel.hidden;
+        rangePanel.hidden = !willOpen;
+        rangeTrigger.setAttribute("aria-expanded", String(willOpen));
+        if (willOpen) {
+          window.setTimeout(function () {
+            var selectedDay = rangeCalendar.querySelector(".is-range-start");
+            if (selectedDay) selectedDay.focus();
+          }, 0);
+        }
+      });
+
+      rangeCalendar.addEventListener("click", function (event) {
+        var dayButton = event.target.closest("[data-range-day]");
+        if (!dayButton) return;
+        var selectedDay = Number(dayButton.getAttribute("data-range-day"));
+
+        if (rangeEnd !== null) {
+          rangeStart = selectedDay;
+          rangeEnd = null;
+        } else if (selectedDay < rangeStart) {
+          rangeEnd = rangeStart;
+          rangeStart = selectedDay;
+        } else {
+          rangeEnd = selectedDay;
+        }
+
+        renderRangeCalendar();
+        updateRangeText();
+      });
+
+      rangeDone.addEventListener("click", function () {
+        if (rangeEnd !== null) closeRangePanel(true);
+      });
+
+      document.addEventListener("click", function (event) {
+        if (!rangePanel.hidden && !rangeField.contains(event.target)) {
+          closeRangePanel(false);
+        }
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !rangePanel.hidden) {
+          closeRangePanel(true);
+        }
+      });
+
+      renderRangeCalendar();
+      updateRangeText();
+
+      var colorReviewPreview = document.getElementById("color-review-preview");
+      var colorReviewProperties = {
+        header: "--review-header-bg",
+        border: "--review-border",
+        hover: "--review-hover"
+      };
+
+      function setReviewColor(role, value) {
+        if (!colorReviewPreview || !colorReviewProperties[role] || !value) return;
+
+        colorReviewPreview.style.setProperty(colorReviewProperties[role], value);
+        var valueLabel = document.querySelector("[data-selected-value='" + role + "']");
+        if (valueLabel) valueLabel.textContent = value;
+
+        Array.prototype.slice.call(document.querySelectorAll("[data-color-role='" + role + "']")).forEach(function (choice) {
+          choice.setAttribute("aria-pressed", String(choice.getAttribute("data-color-value") === value));
+        });
+      }
+
+      Array.prototype.slice.call(document.querySelectorAll("[data-color-role]")).forEach(function (choice) {
+        choice.addEventListener("click", function () {
+          setReviewColor(choice.getAttribute("data-color-role"), choice.getAttribute("data-color-value"));
+        });
+      });
+
+      Array.prototype.slice.call(document.querySelectorAll("[data-review-preset]")).forEach(function (preset) {
+        preset.addEventListener("click", function () {
+          setReviewColor("header", preset.getAttribute("data-header"));
+          setReviewColor("border", preset.getAttribute("data-border"));
+          setReviewColor("hover", preset.getAttribute("data-hover"));
+        });
+      });
+
+      var componentTableDemo = document.getElementById("component-table-demo");
+      var tableSelectionButtons = Array.prototype.slice.call(document.querySelectorAll("[data-table-selection]"));
+
+      tableSelectionButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          var showSelection = button.getAttribute("data-table-selection") === "on";
+          componentTableDemo.classList.toggle("has-selection", showSelection);
+          tableSelectionButtons.forEach(function (item) {
+            item.setAttribute("aria-pressed", String(item === button));
+          });
+        });
+      });
+
+      var navLinks = Array.prototype.slice.call(document.querySelectorAll(".nav a"));
+      var pageViews = Array.prototype.slice.call(document.querySelectorAll("[data-page]"));
+      var layout = document.querySelector(".layout");
+      var sidebarToggle = document.querySelector(".sidebar-toggle");
+      var pageTitles = {
+        tokens: "Token",
+        "table-colors": "表格配色审核",
+        "search-filters": "搜索筛选区域审核",
+        components: "组件规则"
+      };
+
+      function getPageId() {
+        var id = window.location.hash.slice(1);
+        return pageTitles[id] ? id : "tokens";
+      }
+
+      function showPage() {
+        var pageId = getPageId();
+        if (window.location.hash !== "#" + pageId) {
+          window.history.replaceState(null, "", "#" + pageId);
+        }
+
+        pageViews.forEach(function (page) {
+          page.hidden = page.getAttribute("data-page") !== pageId;
+        });
+
+        navLinks.forEach(function (link) {
+          if (link.getAttribute("href") === "#" + pageId) {
+            link.setAttribute("aria-current", "true");
+            var navSection = link.closest("details");
+            if (navSection) navSection.open = true;
+          } else {
+            link.removeAttribute("aria-current");
+          }
+        });
+
+        document.title = pageTitles[pageId] + " · 抖动巴 UI 设计系统";
+        window.scrollTo(0, 0);
+      }
+
+      sidebarToggle.addEventListener("click", function () {
+        var isCollapsed = layout.classList.toggle("is-nav-collapsed");
+        var label = isCollapsed ? "展开菜单" : "折叠菜单";
+        sidebarToggle.setAttribute("aria-expanded", String(!isCollapsed));
+        sidebarToggle.setAttribute("aria-label", label);
+        sidebarToggle.setAttribute("title", label);
+      });
+
+      window.addEventListener("hashchange", showPage);
+      showPage();
+    }());
+  </script>
+</body>
+</html>

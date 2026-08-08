@@ -17,7 +17,7 @@ const promptSplitter: NodeModule = {
   title: '提示词拆分',
   description: '按分隔符拆分文本，动态生成输出口。',
   icon: 'Scissor',
-  color: '#E6A23C',
+  color: '#fa742b',
   inputs: [{ id: 'text', name: 'Text', dataType: 'Text', direction: 'input', required: true }],
   outputs: [{ id: 'output_1', name: '输出1', dataType: 'Text', direction: 'output' }],
   defaultConfig: { delimiter: '---', trimWhitespace: true, ignoreEmpty: true, editedOutputs: {} },

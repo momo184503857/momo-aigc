@@ -1,10 +1,15 @@
 /* ============================================
    墨墨 AI 生图 — Shadow Tokens
+   对齐 DDB 4 级阴影
    ============================================ */
 
 :root {
-  --momo-shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06);
-  --momo-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
-  --momo-shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
-  --momo-shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  /* 卡片静止 */
+  --momo-shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.04);
+  /* 卡片 hover */
+  --momo-shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
+  /* 浮层 */
+  --momo-shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.16);
+  /* 蓝色操作（强调按钮） */
+  --momo-shadow-brand: 0 2px 8px rgba(24, 144, 255, 0.28);
 }

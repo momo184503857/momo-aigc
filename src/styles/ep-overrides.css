@@ -1,18 +1,18 @@
 /* ============================================
    墨墨 AI 生图 — Element Plus Overrides
-   将 --momo-* token 映射到 --el-* 变量，
+   将 --momo-* (DDB 规范) token 映射到 --el-* 变量，
    使得所有 Element Plus 组件自动跟随设计 token。
    此文件必须在 element-plus/dist/index.css 之后加载。
    ============================================ */
 
 :root {
-  /* ---- Brand / Primary ---- */
+  /* ---- Brand / Primary（操作蓝为主色） ---- */
   --el-color-primary: var(--momo-color-brand);
   --el-color-primary-light-3: color-mix(in srgb, var(--momo-color-brand) 70%, white);
   --el-color-primary-light-5: color-mix(in srgb, var(--momo-color-brand) 50%, white);
   --el-color-primary-light-7: color-mix(in srgb, var(--momo-color-brand) 30%, white);
   --el-color-primary-light-8: color-mix(in srgb, var(--momo-color-brand) 20%, white);
-  --el-color-primary-light-9: color-mix(in srgb, var(--momo-color-brand) 10%, white);
+  --el-color-primary-light-9: var(--momo-color-brand-subtle);
   --el-color-primary-dark-2: var(--momo-color-brand-hover);
 
   /* ---- Semantic ---- */
@@ -21,7 +21,7 @@
   --el-color-success-light-5: color-mix(in srgb, var(--momo-color-success) 50%, white);
   --el-color-success-light-7: color-mix(in srgb, var(--momo-color-success) 30%, white);
   --el-color-success-light-8: color-mix(in srgb, var(--momo-color-success) 20%, white);
-  --el-color-success-light-9: color-mix(in srgb, var(--momo-color-success) 10%, white);
+  --el-color-success-light-9: var(--momo-color-success-subtle);
   --el-color-success-dark-2: color-mix(in srgb, var(--momo-color-success) 80%, black);
 
   --el-color-warning: var(--momo-color-warning);
@@ -29,7 +29,7 @@
   --el-color-warning-light-5: color-mix(in srgb, var(--momo-color-warning) 50%, white);
   --el-color-warning-light-7: color-mix(in srgb, var(--momo-color-warning) 30%, white);
   --el-color-warning-light-8: color-mix(in srgb, var(--momo-color-warning) 20%, white);
-  --el-color-warning-light-9: color-mix(in srgb, var(--momo-color-warning) 10%, white);
+  --el-color-warning-light-9: var(--momo-color-warning-subtle);
   --el-color-warning-dark-2: color-mix(in srgb, var(--momo-color-warning) 80%, black);
 
   --el-color-danger: var(--momo-color-danger);
@@ -37,7 +37,7 @@
   --el-color-danger-light-5: color-mix(in srgb, var(--momo-color-danger) 50%, white);
   --el-color-danger-light-7: color-mix(in srgb, var(--momo-color-danger) 30%, white);
   --el-color-danger-light-8: color-mix(in srgb, var(--momo-color-danger) 20%, white);
-  --el-color-danger-light-9: color-mix(in srgb, var(--momo-color-danger) 10%, white);
+  --el-color-danger-light-9: var(--momo-color-danger-subtle);
   --el-color-danger-dark-2: color-mix(in srgb, var(--momo-color-danger) 80%, black);
 
   --el-color-info: var(--momo-color-info);
@@ -45,15 +45,15 @@
   --el-color-info-light-5: color-mix(in srgb, var(--momo-color-info) 50%, white);
   --el-color-info-light-7: color-mix(in srgb, var(--momo-color-info) 30%, white);
   --el-color-info-light-8: color-mix(in srgb, var(--momo-color-info) 20%, white);
-  --el-color-info-light-9: color-mix(in srgb, var(--momo-color-info) 10%, white);
+  --el-color-info-light-9: var(--momo-color-info-subtle);
   --el-color-info-dark-2: color-mix(in srgb, var(--momo-color-info) 80%, black);
 
   /* ---- Text ---- */
   --el-text-color-primary: var(--momo-color-text);
   --el-text-color-regular: var(--momo-color-text-secondary);
   --el-text-color-secondary: var(--momo-color-text-tertiary);
-  --el-text-color-placeholder: var(--momo-color-text-tertiary);
-  --el-text-color-disabled: var(--momo-color-text-tertiary);
+  --el-text-color-placeholder: var(--momo-color-text-placeholder);
+  --el-text-color-disabled: var(--momo-color-text-placeholder);
 
   /* ---- Background ---- */
   --el-bg-color: var(--momo-color-bg);
@@ -69,7 +69,7 @@
 
   /* ---- Border ---- */
   --el-border-color: var(--momo-color-border);
-  --el-border-color-light: var(--momo-color-border-light);
+  --el-border-color-light: var(--momo-color-border-soft);
   --el-border-color-lighter: var(--momo-color-border-light);
   --el-border-color-dark: var(--momo-color-border-strong);
   --el-border-color-extra-light: var(--momo-color-border-light);
@@ -83,19 +83,19 @@
   /* ---- Shadow ---- */
   --el-box-shadow: var(--momo-shadow-md);
   --el-box-shadow-light: var(--momo-shadow-sm);
-  --el-box-shadow-lighter: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --el-box-shadow-lighter: var(--momo-shadow-sm);
   --el-box-shadow-dark: var(--momo-shadow-lg);
 
   /* ---- Typography ---- */
   --el-font-size-extra-large: var(--momo-font-size-xl);
   --el-font-size-large: var(--momo-font-size-lg);
   --el-font-size-base: var(--momo-font-size-base);
-  --el-font-size-small: var(--momo-font-size-sm);
+  --el-font-size-small: var(--momo-font-size-md);
   --el-font-weight-primary: var(--momo-font-weight-medium);
 
   /* ---- Disabled ---- */
   --el-disabled-bg-color: var(--momo-color-bg-muted);
-  --el-disabled-text-color: var(--momo-color-text-tertiary);
+  --el-disabled-text-color: var(--momo-color-text-placeholder);
   --el-disabled-border-color: var(--momo-color-border-light);
 
   /* ---- Transition ---- */
@@ -107,4 +107,21 @@
   --el-menu-item-height: var(--momo-sidebar-menu-height);
   --el-menu-base-level-padding: 8px;
   --el-menu-sub-item-height: 36px;
+}
+
+/* ---- 表格：表头 / hover / 选中 / 斑马纹（EP 表格不直接暴露 token，需规则覆盖） ---- */
+.el-table {
+  --el-table-header-bg-color: var(--momo-color-table-head-bg);
+  --el-table-border-color: var(--momo-color-table-head-border);
+  --el-table-header-text-color: var(--momo-color-table-head-text);
+  --el-table-row-hover-bg-color: var(--momo-color-table-row-hover);
+  --el-table-current-row-bg-color: var(--momo-color-table-row-selected);
+}
+
+/* ---- 操作区按钮：胶囊形态（仅 .operator 区域内、且非默认链接按钮） ---- */
+.el-table .operator .el-button:not(.is-link):not(.is-text),
+.operator-pills .el-button:not(.is-link):not(.is-text) {
+  height: var(--momo-operator-btn-height);
+  padding: 0 var(--momo-space-4);
+  border-radius: var(--momo-radius-full);
 }

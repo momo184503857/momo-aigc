@@ -58,7 +58,7 @@ const emit = defineEmits<{
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--tf-radius-md, 8px);
+  border-radius: var(--momo-radius-md);
   background: var(--el-fill-color-lighter);
   color: var(--el-text-color-placeholder);
 }

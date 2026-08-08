@@ -1,16 +1,17 @@
 /* ============================================
    墨墨 AI 生图 — Spacing Tokens
-   4px 基准间距阶梯
+   4px 基准间距阶梯（对齐 DDB）
    ============================================ */
 
 :root {
-  --momo-space-1: 4px;
-  --momo-space-2: 8px;
-  --momo-space-3: 12px;
-  --momo-space-4: 16px;
-  --momo-space-5: 20px;
-  --momo-space-6: 24px;
-  --momo-space-8: 32px;
+  --momo-space-1: 4px;   /* 图标内部、超紧凑 */
+  --momo-space-2: 8px;   /* 同组元素、按钮间距 */
+  --momo-space-3: 12px;  /* 卡片内部小间距 */
+  --momo-space-4: 16px;  /* 标准内边距、块内间距 */
+  --momo-space-5: 20px;  /* 表页搜索/操作/表格区之间的垂直节奏 */
+  --momo-space-6: 24px;  /* 页面内容外边距、主区块间距 */
+  --momo-space-7: 28px;  /* 大块分隔补充 */
+  --momo-space-8: 32px;  /* 大块分隔 */
   --momo-space-10: 40px;
   --momo-space-12: 48px;
   --momo-space-16: 64px;

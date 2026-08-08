@@ -258,7 +258,7 @@ const panelStyle = computed(() => ({
   display: flex;
   background: var(--el-bg-color);
   box-shadow: var(--el-box-shadow);
-  max-width: calc(100vw - var(--tf-sidebar-collapsed-width, 64px));
+  max-width: calc(100vw - var(--momo-sidebar-collapsed-width));
   animation: task-panel-slide-in 0.25s ease-out;
 }
 

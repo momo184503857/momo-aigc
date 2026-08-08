@@ -384,7 +384,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .task-card {
   display: flex; gap: 12px; padding: 12px;
   background: var(--el-fill-color-lighter);
-  border-radius: var(--tf-radius-md, 8px);
+  border-radius: var(--momo-radius-md);
   transition: box-shadow 0.2s;
   position: relative;
 }

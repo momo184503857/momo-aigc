@@ -1,42 +1,81 @@
 /* ============================================
    墨墨 AI 生图 — Color Tokens
-   品牌色 / 中性色 / 语义色
+   对齐 DDB UI 设计规范：操作蓝主色 / Ant 中性灰 / DDB 语义色
    ============================================ */
 
 :root {
-  /* Brand */
-  --momo-color-brand: #4f46e5;
-  --momo-color-brand-hover: #4338ca;
-  --momo-color-brand-active: #3730a3;
-  --momo-color-brand-subtle: #eef2ff;
-  --momo-color-brand-border: #c7d2fe;
+  /* Brand — 操作蓝为主色，品牌蓝用于链接/Tab 激活，扩展蓝用于品牌表达 */
+  --momo-color-brand: #0088ff;
+  --momo-color-brand-antd: #1890ff;
+  --momo-color-brand-extended: #2b7de9;
+  --momo-color-brand-hover: #096dd9;
+  --momo-color-brand-active: #0050b3;
+  --momo-color-brand-subtle: #e6f7ff;
+  --momo-color-brand-border: #91d5ff;
 
   /* Neutral — backgrounds */
   --momo-color-bg: #ffffff;
-  --momo-color-bg-soft: #f8fafc;
-  --momo-color-bg-muted: #f1f5f9;
-  --momo-color-bg-page: #f1f5f9;
+  --momo-color-bg-soft: #f7f9fc;
+  --momo-color-bg-muted: #f5f7fa;
+  --momo-color-bg-page: #f0f2f5;
 
-  /* Neutral — text */
-  --momo-color-text: #0f172a;
-  --momo-color-text-secondary: #475569;
-  --momo-color-text-tertiary: #94a3b8;
+  /* Neutral — text（Ant 中性灰系） */
+  --momo-color-text: #1d2129;
+  --momo-color-text-secondary: #4e5969;
+  --momo-color-text-tertiary: #86909c;
+  --momo-color-text-placeholder: #b8b8b8;
   --momo-color-text-inverse: #ffffff;
 
   /* Neutral — border */
-  --momo-color-border: #e2e8f0;
-  --momo-color-border-strong: #cbd5e1;
-  --momo-color-border-light: #f1f5f9;
+  --momo-color-border: #d9d9d9;
+  --momo-color-border-strong: #c0c4cc;
+  --momo-color-border-soft: #eef0f4;
+  --momo-color-border-light: #f0f0f0;
 
-  /* Semantic */
-  --momo-color-success: #10b981;
-  --momo-color-success-subtle: #ecfdf5;
-  --momo-color-warning: #f59e0b;
-  --momo-color-warning-subtle: #fffbeb;
-  --momo-color-danger: #ef4444;
-  --momo-color-danger-subtle: #fef2f2;
-  --momo-color-info: #6b7280;
-  --momo-color-info-subtle: #f3f4f6;
+  /* Semantic（DDB 业务语义色） */
+  --momo-color-success: #31c19e;
+  --momo-color-success-antd: #52c41a;
+  --momo-color-success-subtle: #eaf9f4;
+  --momo-color-warning: #fa742b;
+  --momo-color-warning-antd: #faad14;
+  --momo-color-warning-subtle: #fff4e8;
+  --momo-color-danger: #ff4d4f;
+  --momo-color-danger-antd: #f5222d;
+  --momo-color-danger-subtle: #fff0f0;
+  --momo-color-info: #86909c;
+  --momo-color-info-subtle: #f0f2f5;
+  --momo-color-price: #f56c6c;
+
+  /* 状态标签语义对（文字色 / 背景色） */
+  --momo-color-status-done-text: #16845f;
+  --momo-color-status-done-bg: #eaf9f4;
+  --momo-color-status-pending-text: #b75a0b;
+  --momo-color-status-pending-bg: #fff4e8;
+  --momo-color-status-running-text: #006ac6;
+  --momo-color-status-running-bg: #eaf6ff;
+  --momo-color-status-rejected-text: #c83b3d;
+  --momo-color-status-rejected-bg: #fff0f0;
+  --momo-color-status-cancelled-text: #68717d;
+  --momo-color-status-cancelled-bg: #f0f2f5;
+
+  /* 表格专用 */
+  --momo-color-table-head-bg: #fafafa;
+  --momo-color-table-head-border: #f0f0f0;
+  --momo-color-table-head-text: #3d332e;
+  --momo-color-table-row-hover: #e6f7ff;
+  --momo-color-table-row-selected: #e6f7ff;
+  --momo-color-table-row-zebra: #fbfcfd;
+  --momo-color-table-summary-bg: #f5f5f5;
+
+  /* 表单控件 */
+  --momo-color-control-border: #d9d9d9;
+  --momo-color-control-hover: #40a9ff;
+  --momo-color-control-focus: #1890ff;
+
+  /* 扩展强调（分类/图表系列，禁止用于主操作） */
+  --momo-color-accent-purple: #722ed1;
+  --momo-color-accent-magenta: #c32bac;
+  --momo-color-accent-cyan: #00b0ff;
 
   /* Overlay */
   --momo-color-overlay: rgba(15, 23, 42, 0.5);

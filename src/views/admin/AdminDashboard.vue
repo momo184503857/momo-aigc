@@ -6,6 +6,7 @@ const { success, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import PageLayout from '@/components/PageLayout.vue'
 import { MODELS, formatCredits, creditsToYuan } from '@/types/adapter'
+import { CHART_COLORS, CHART_NEUTRALS, tooltipBase, withAlpha } from '@/plugins/echartsPalette'
 
 defineOptions({ name: 'AdminDashboard' })
 
@@ -156,33 +157,18 @@ const statsUserId = ref<number | null>(null)
 const statsMetric = ref<'count' | 'cost'>('cost')
 const statsGranularity = ref<'day' | 'week' | 'month'>('day')
 
-const CHART_COLORS = {
-  blue: '#409EFF',
-  green: '#67C23A',
-  red: '#F56C6C',
-  orange: '#E6A23C',
-  purple: '#A855F7',
-  teal: '#14B8A6',
-}
-
 const trendTitle = computed(() => {
   const period = statsGranularity.value === 'month' ? '每月' : statsGranularity.value === 'week' ? '每周' : '每日'
   return statsMetric.value === 'cost' ? `${period}消耗金额` : `${period}生成趋势`
 })
 
 const trendOption = computed(() => {
-  const tooltipBase = {
-    trigger: 'axis' as const,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderColor: '#e5e7eb',
-    textStyle: { color: '#374151', fontSize: 13 },
-  }
   const grid = { left: '3%', right: '4%', bottom: '40px', top: '20px', containLabel: true }
   const xAxis = {
     type: 'category' as const,
     data: dailyStats.value.map(d => d.date),
-    axisLabel: { rotate: 45, color: '#9ca3af', fontSize: 11 },
-    axisLine: { lineStyle: { color: '#e5e7eb' } },
+    axisLabel: { rotate: 45, color: CHART_NEUTRALS.textTertiary, fontSize: 11 },
+    axisLine: { lineStyle: { color: CHART_NEUTRALS.axisLine } },
   }
 
   // 金额：消耗金额（¥）随时间
@@ -197,16 +183,16 @@ const trendOption = computed(() => {
       xAxis,
       yAxis: {
         type: 'value' as const,
-        axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: '#9ca3af' },
-        splitLine: { lineStyle: { color: '#f3f4f6' } },
+        axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: CHART_NEUTRALS.textTertiary },
+        splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
       },
       series: [{
         name: '消耗金额', type: 'line',
         data: dailyStats.value.map(d => creditsToYuan(d.total_cost)),
         smooth: true, symbol: 'circle', symbolSize: 6,
-        lineStyle: { width: 3, shadowBlur: 8, shadowColor: 'rgba(230,162,60,0.3)' },
+        lineStyle: { width: 3, shadowBlur: 8, shadowColor: withAlpha(CHART_COLORS.orange, 0.3) },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [{ offset: 0, color: 'rgba(230,162,60,0.18)' }, { offset: 1, color: 'rgba(230,162,60,0)' }] } },
+          colorStops: [{ offset: 0, color: withAlpha(CHART_COLORS.orange, 0.18) }, { offset: 1, color: withAlpha(CHART_COLORS.orange, 0) }] } },
         markPoint: { data: [{ type: 'max', name: '最大' }], symbolSize: 40, label: { fontSize: 10 } },
       }],
     }
@@ -216,37 +202,37 @@ const trendOption = computed(() => {
   return {
     color: [CHART_COLORS.blue, CHART_COLORS.green, CHART_COLORS.red],
     tooltip: { ...tooltipBase, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
-    legend: { data: ['总任务', '成功', '失败'], bottom: 0, textStyle: { color: '#6b7280' } },
+    legend: { data: ['总任务', '成功', '失败'], bottom: 0, textStyle: { color: CHART_NEUTRALS.textSecondary } },
     grid,
     xAxis,
     yAxis: {
       type: 'value' as const,
       minInterval: 1,
-      axisLabel: { color: '#9ca3af' },
-      splitLine: { lineStyle: { color: '#f3f4f6' } },
+      axisLabel: { color: CHART_NEUTRALS.textTertiary },
+      splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
     },
     series: [
       {
         name: '总任务', type: 'line', data: dailyStats.value.map(d => d.total_tasks),
         smooth: true, symbol: 'circle', symbolSize: 6,
-        lineStyle: { width: 3, shadowBlur: 8, shadowColor: 'rgba(64,158,255,0.3)' },
+        lineStyle: { width: 3, shadowBlur: 8, shadowColor: withAlpha(CHART_COLORS.blue, 0.3) },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [{ offset: 0, color: 'rgba(64,158,255,0.12)' }, { offset: 1, color: 'rgba(64,158,255,0)' }] } },
+          colorStops: [{ offset: 0, color: withAlpha(CHART_COLORS.blue, 0.12) }, { offset: 1, color: withAlpha(CHART_COLORS.blue, 0) }] } },
         markPoint: { data: [{ type: 'max', name: '最大' }], symbolSize: 40, label: { fontSize: 10 } },
       },
       {
         name: '成功', type: 'line', data: dailyStats.value.map(d => d.completed),
         smooth: true, symbol: 'circle', symbolSize: 6,
-        lineStyle: { width: 3, shadowBlur: 8, shadowColor: 'rgba(103,194,58,0.3)' },
+        lineStyle: { width: 3, shadowBlur: 8, shadowColor: withAlpha(CHART_COLORS.green, 0.3) },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [{ offset: 0, color: 'rgba(103,194,58,0.1)' }, { offset: 1, color: 'rgba(103,194,58,0)' }] } },
+          colorStops: [{ offset: 0, color: withAlpha(CHART_COLORS.green, 0.1) }, { offset: 1, color: withAlpha(CHART_COLORS.green, 0) }] } },
       },
       {
         name: '失败', type: 'line', data: dailyStats.value.map(d => d.failed),
         smooth: true, symbol: 'circle', symbolSize: 6,
-        lineStyle: { width: 2, shadowBlur: 6, shadowColor: 'rgba(245,108,108,0.2)', type: 'dashed' },
+        lineStyle: { width: 2, shadowBlur: 6, shadowColor: withAlpha(CHART_COLORS.red, 0.2), type: 'dashed' },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [{ offset: 0, color: 'rgba(245,108,108,0.08)' }, { offset: 1, color: 'rgba(245,108,108,0)' }] } },
+          colorStops: [{ offset: 0, color: withAlpha(CHART_COLORS.red, 0.08) }, { offset: 1, color: withAlpha(CHART_COLORS.red, 0) }] } },
       },
     ],
   }
@@ -257,17 +243,17 @@ const pieOption = computed(() => ({
   tooltip: {
     trigger: 'item' as const,
     backgroundColor: 'rgba(255,255,255,0.95)',
-    borderColor: '#e5e7eb',
-    textStyle: { color: '#374151' },
+    borderColor: CHART_NEUTRALS.tooltipBorder,
+    textStyle: { color: CHART_NEUTRALS.textPrimary },
     formatter: '{b}: {c} ({d}%)' as any,
   },
-  legend: { bottom: 0, textStyle: { color: '#6b7280' } },
+  legend: { bottom: 0, textStyle: { color: CHART_NEUTRALS.textSecondary } },
   graphic: [
     { type: 'text', left: 'center', top: '38%',
       style: { text: `${summary.value.total_tasks}`, textAlign: 'center',
-        fill: '#374151', fontSize: 22, fontWeight: 700 } },
+        fill: CHART_NEUTRALS.textPrimary, fontSize: 22, fontWeight: 700 } },
     { type: 'text', left: 'center', top: '50%',
-      style: { text: '总任务', textAlign: 'center', fill: '#9ca3af', fontSize: 12 } },
+      style: { text: '总任务', textAlign: 'center', fill: CHART_NEUTRALS.textTertiary, fontSize: 12 } },
   ],
   series: [{
     name: '任务分布', type: 'pie',
@@ -288,14 +274,8 @@ const pieOption = computed(() => ({
 const barTitle = computed(() => statsMetric.value === 'cost' ? '用户消耗金额' : '用户生成统计')
 
 const barOption = computed(() => {
-  const tooltipBase = {
-    trigger: 'axis' as const,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderColor: '#e5e7eb',
-    textStyle: { color: '#374151' },
-  }
   const grid = { left: '3%', right: '4%', bottom: '40px', top: '10px', containLabel: true }
-  const axisLine = { lineStyle: { color: '#e5e7eb' } }
+  const axisLine = { lineStyle: { color: CHART_NEUTRALS.axisLine } }
 
   // 金额：每个用户的消耗金额（¥），按消耗降序
   if (statsMetric.value === 'cost') {
@@ -309,12 +289,12 @@ const barOption = computed(() => {
       grid,
       xAxis: {
         type: 'category' as const, data: sorted.map(s => s.username),
-        axisLabel: { rotate: 30, color: '#9ca3af' }, axisLine,
+        axisLabel: { rotate: 30, color: CHART_NEUTRALS.textTertiary }, axisLine,
       },
       yAxis: {
         type: 'value' as const,
-        axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: '#9ca3af' },
-        splitLine: { lineStyle: { color: '#f3f4f6' } },
+        axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: CHART_NEUTRALS.textTertiary },
+        splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
       },
       series: [{
         name: '消耗金额', type: 'bar',
@@ -330,16 +310,16 @@ const barOption = computed(() => {
   return {
     color: [CHART_COLORS.green, CHART_COLORS.red],
     tooltip: tooltipBase,
-    legend: { data: ['成功', '失败'], bottom: 0, textStyle: { color: '#6b7280' } },
+    legend: { data: ['成功', '失败'], bottom: 0, textStyle: { color: CHART_NEUTRALS.textSecondary } },
     grid,
     xAxis: {
       type: 'category' as const, data: stats.value.map(s => s.username),
-      axisLabel: { rotate: 30, color: '#9ca3af' }, axisLine,
+      axisLabel: { rotate: 30, color: CHART_NEUTRALS.textTertiary }, axisLine,
     },
     yAxis: {
       type: 'value' as const, minInterval: 1,
-      axisLabel: { color: '#9ca3af' },
-      splitLine: { lineStyle: { color: '#f3f4f6' } },
+      axisLabel: { color: CHART_NEUTRALS.textTertiary },
+      splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
     },
     series: [
       {

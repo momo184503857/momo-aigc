@@ -16,9 +16,19 @@
   --momo-sidebar-menu-radius: var(--momo-radius-md);
 
   /* 页面布局 */
-  --momo-page-padding: var(--momo-space-5);
+  --momo-page-padding: var(--momo-space-6);
   --momo-card-padding: var(--momo-space-6);
-  --momo-card-radius: var(--momo-radius-lg);
+  --momo-card-radius: var(--momo-radius-xl);
+
+  /* 表页节奏：搜索/操作/表格区之间的垂直间距（对齐 DDB 20px） */
+  --momo-table-rhythm: var(--momo-space-5);
+
+  /* 控件尺寸（对齐 DDB） */
+  --momo-control-height: 32px;
+  --momo-control-filter-width: 200px;
+  --momo-control-filter-width-complex: 280px;
+  --momo-control-filter-width-range: 320px;
+  --momo-operator-btn-height: 28px;
 
   /* 对话框宽度分级 */
   --momo-dialog-xs: 480px;

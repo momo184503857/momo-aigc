@@ -13,7 +13,7 @@ const imagePreview: NodeModule = {
   title: '图片预览',
   description: '展示并透传上游图片。',
   icon: 'Monitor',
-  color: '#909399',
+  color: '#86909c',
   inputs: [{ id: 'image', name: 'Image', dataType: 'Image', direction: 'input' }],
   outputs: [{ id: 'image', name: 'Image', dataType: 'Image', direction: 'output' }],
   defaultConfig: {},

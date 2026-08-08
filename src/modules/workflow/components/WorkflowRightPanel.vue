@@ -18,7 +18,7 @@ const selectedNode = computed(() => workflowStore.selectedNode)
 const activeTab = ref('config')
 const collapsed = ref(true)
 
-const theme = computed(() => selectedNode.value ? getNodeTheme(selectedNode.value.type) : { icon: 'Setting', color: '#909399' })
+const theme = computed(() => selectedNode.value ? getNodeTheme(selectedNode.value.type) : { icon: 'Setting', color: '#86909c' })
 const nodeIcon = computed(() => {
   const icons = Icons as Record<string, Component>
   return icons[theme.value.icon] ?? icons.Setting
@@ -420,9 +420,9 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   flex-shrink: 0;
 }
 
-.tag--text { background: #ecf5ff; color: #409eff; }
-.tag--image { background: #f0f9eb; color: #67c23a; }
-.tag--any { background: #f4f4f5; color: #909399; }
+.tag--text { background: var(--momo-color-brand-subtle); color: var(--momo-color-brand); }
+.tag--image { background: var(--momo-color-success-subtle); color: var(--momo-color-success); }
+.tag--any { background: var(--momo-color-info-subtle); color: var(--momo-color-info); }
 
 .panel__port-name { flex: 1; color: var(--el-text-color-regular); }
 .panel__port-from { color: var(--el-text-color-secondary); font-size: 11px; }

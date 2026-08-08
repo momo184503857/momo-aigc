@@ -33,7 +33,7 @@ export const getNodeDefinitions = (): NodeDefinition[] => {
 /** 获取节点类型对应的图标名和主题色 */
 export const getNodeTheme = (type: string): { icon: string; color: string } => {
   const mod = getNodeModule(type)
-  return { icon: mod?.icon ?? 'Setting', color: mod?.color ?? '#909399' }
+  return { icon: mod?.icon ?? 'Setting', color: mod?.color ?? '#86909c' }
 }
 
 /** 获取节点配置摘要 */

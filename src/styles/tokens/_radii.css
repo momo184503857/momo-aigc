@@ -1,11 +1,15 @@
 /* ============================================
    墨墨 AI 生图 — Border Radius Tokens
+   对齐 DDB 圆角阶梯（4/6/8/12/14/16/38/999）
    ============================================ */
 
 :root {
-  --momo-radius-sm: 4px;
-  --momo-radius-md: 8px;
-  --momo-radius-lg: 12px;
-  --momo-radius-xl: 16px;
-  --momo-radius-full: 9999px;
+  --momo-radius-sm: 4px;      /* 表单控件、查询按钮、分页 */
+  --momo-radius-image: 6px;   /* 表格缩略图 */
+  --momo-radius-md: 8px;      /* 信息格、附件、局部内容块 */
+  --momo-radius-lg: 12px;     /* 详情分区、灰底列表 */
+  --momo-radius-xl: 14px;     /* 表格/Tab 卡 */
+  --momo-radius-2xl: 16px;    /* 详情兼容层 */
+  --momo-radius-dialog: 38px; /* 标准弹窗（PageLayout/弹窗外壳） */
+  --momo-radius-full: 999px;  /* 胶囊：状态标签、Tab 指示条、操作区按钮 */
 }

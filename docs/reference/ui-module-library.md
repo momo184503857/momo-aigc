@@ -4,6 +4,9 @@
 
 ## 1. 参考设计系统
 
+> 视觉参数（颜色/字体/圆角/阴影 token）权威正本见 [`docs/ui/ui-design-guidelines.md`](../ui/ui-design-guidelines.md)（对齐 DDB UI 设计规范）。
+> 本模块库中的 `UiStatusBadge`、`UiEmptyState` 等组件已通过 `--momo-*` token + `ep-overrides.css` 自动跟随 DDB 语义色。
+
 本项目继续使用 Vue 3 + Element Plus 作为实现基础，设计方法参考以下成熟设计系统：
 
 - Ant Design：适合作为后台、表单、表格、分页、反馈组件的参考。

@@ -1,5 +1,8 @@
 # 墨墨 AI 生图 UI 设计规范
 
+> **视觉参数权威正本**已迁移至 [`docs/ui/ui-design-guidelines.md`](../ui/ui-design-guidelines.md)（对齐 DDB UI 设计规范）。
+> 本文保留产品定位、三层设计方法、信息优先级、交互流程等业务设计基准；§3 视觉参数表已更新为当前 `--momo-*` token 取值，详细 token 清单以正本为准。
+
 本文档是本项目的前端 UI 设计基准。后续任何 AI 或开发者修改 Vue 页面、组件、样式、文案、交互状态时，都必须先阅读并遵循本文档。
 
 本规范不是审美建议，而是可执行的设计标准。判断一个 UI 修改是否合格时，按顺序检查三层：信息结构层、交互流程层、视觉表达层。
@@ -151,25 +154,27 @@ font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
 
 ### 3.2 颜色
 
-主色使用蓝色，保持和 Element Plus 当前风格兼容。
+> 权威取值见 `src/styles/tokens/_colors.css` 与 [`docs/ui/ui-design-guidelines.md`](../ui/ui-design-guidelines.md) §2.1。
+> 所有颜色必须通过 `--momo-*` token 引用，禁止硬编码。主色为操作蓝，对齐 DDB UI 设计规范。
 
-| 语义 | 颜色 | 用途 |
-| --- | --- | --- |
-| Primary | `#409EFF` | 主按钮、选中态、链接、关键图标 |
-| Primary Hover | `#66B1FF` | 主按钮 hover |
-| Primary Light | `#ECF5FF` | 选中背景、轻提示背景 |
-| Success | `#67C23A` | 已完成、成功 |
-| Warning | `#E6A23C` | 排队、生成中、注意 |
-| Danger | `#F56C6C` | 删除、失败、危险动作 |
-| Page BG | `#F5F7FA` | 页面背景 |
-| Surface | `#FFFFFF` | 主内容面板、表单区 |
-| Subtle Surface | `#F8FAFC` | 任务卡片、浅层分组 |
-| Border | `#E4E7ED` | 分割线、输入框边框 |
-| Border Light | `#EBEEF5` | 次级分割线 |
-| Text Primary | `#1F2937` | 标题、主要正文 |
-| Text Regular | `#606266` | 普通正文 |
-| Text Secondary | `#909399` | 辅助信息 |
-| Text Placeholder | `#A8ABB2` | 占位、弱信息 |
+| 语义 | Token | 值 | 用途 |
+| --- | --- | --- | --- |
+| 主色（操作蓝） | `--momo-color-brand` | `#0088ff` | 主按钮、查询、关键动作 |
+| 品牌蓝 | `--momo-color-brand-antd` | `#1890ff` | 链接、Tab 激活 |
+| 主色 hover | `--momo-color-brand-hover` | `#096dd9` | 主按钮 hover |
+| 主色浅底 | `--momo-color-brand-subtle` | `#e6f7ff` | 选中背景、hover 行 |
+| 成功 | `--momo-color-success` | `#31c19e` | 已完成、成功 |
+| 警告 | `--momo-color-warning` | `#fa742b` | 排队、生成中、注意 |
+| 危险 | `--momo-color-danger` | `#ff4d4f` | 删除、失败、危险动作 |
+| 页面底色 | `--momo-color-bg-page` | `#f0f2f5` | 页面背景 |
+| 卡片背景 | `--momo-color-bg` | `#ffffff` | 主内容面板、表单区 |
+| 弱区块背景 | `--momo-color-bg-soft` | `#f7f9fc` | 任务卡片、浅层分组 |
+| 常规边框 | `--momo-color-border` | `#d9d9d9` | 分割线、输入框边框 |
+| 弱边框 | `--momo-color-border-soft` | `#eef0f4` | 次级分割线 |
+| 一级文字 | `--momo-color-text` | `#1d2129` | 标题、主要正文 |
+| 二级文字 | `--momo-color-text-secondary` | `#4e5969` | 普通正文 |
+| 辅助文字 | `--momo-color-text-tertiary` | `#86909c` | 辅助信息 |
+| 占位符 | `--momo-color-text-placeholder` | `#b8b8b8` | 占位、弱信息（不可用于正文） |
 
 使用规则：
 

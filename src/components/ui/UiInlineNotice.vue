@@ -27,6 +27,6 @@ withDefaults(defineProps<{
 <style scoped>
 .ui-inline-notice {
   margin-bottom: 16px;
-  border-radius: var(--tf-radius-md, 8px);
+  border-radius: var(--momo-radius-md);
 }
 </style>

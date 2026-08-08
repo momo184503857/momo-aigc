@@ -12,7 +12,7 @@ const imageInput: NodeModule = {
   title: '图片输入',
   description: '上传商品图、参考图或模板图。',
   icon: 'Picture',
-  color: '#67C23A',
+  color: '#31c19e',
   inputs: [],
   outputs: [{ id: 'image', name: 'Image', dataType: 'Image', direction: 'output' }],
   defaultConfig: { images: [] },

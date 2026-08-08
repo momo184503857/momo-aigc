@@ -14,7 +14,7 @@ const save: NodeModule = {
   title: '保存',
   description: '保存上游图片或文本到任务文件夹。',
   icon: 'FolderAdd',
-  color: '#67C23A',
+  color: '#31c19e',
   inputs: [
     { id: 'image_1', name: '图1', dataType: 'Image', direction: 'input' },
     { id: 'image_2', name: '图2', dataType: 'Image', direction: 'input' },

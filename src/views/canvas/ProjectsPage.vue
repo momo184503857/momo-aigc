@@ -12,9 +12,10 @@ defineOptions({ name: 'CanvasProjects' })
 const router = useRouter()
 const { success, error: showError, confirmDanger } = useUiFeedback()
 
+// 项目缩略图预设色板：DDB 业务语义色 + 扩展强调色（分类/装饰用途）
 const PRESET_COLORS = [
-  '#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#9266F5',
-  '#20A0C8', '#E040A0', '#8B7FFF', '#36CFC9', '#FF7A45',
+  '#0088ff', '#31c19e', '#fa742b', '#ff4d4f', '#722ed1',
+  '#00b0ff', '#c32bac', '#52c41a', '#13c2c2', '#fa8c16',
 ]
 
 const projects = ref<CanvasProject[]>([])

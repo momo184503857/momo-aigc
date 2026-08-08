@@ -47,7 +47,7 @@ const statusMap: Record<string, string> = {
   <el-dialog
     v-model="visible"
     title="任务详情"
-    :width="'var(--tf-dialog-lg, 1000px)'"
+    :width="'var(--momo-dialog-lg)'"
     @close="close"
   >
     <div v-if="task" class="detail-content">

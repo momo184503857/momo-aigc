@@ -38,9 +38,9 @@ const props = withDefaults(defineProps<Props>(), {
 
 .page-card {
   background: var(--el-bg-color);
-  border-radius: var(--tf-card-radius, 12px);
+  border-radius: var(--momo-card-radius);
   box-shadow: var(--el-box-shadow-light);
-  padding: var(--tf-card-padding, 24px);
+  padding: var(--momo-card-padding);
   height: 100%;
   display: flex;
   flex-direction: column;
