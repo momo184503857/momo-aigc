@@ -4,12 +4,12 @@
  * 从 ToolFlux 复制并改造：去掉 ChannelId/Electron/提示词库，接入 Web API
  */
 import { ref, computed } from 'vue'
-import { Plus, Delete, Picture, Collection } from '@element-plus/icons-vue'
+import { Plus, Delete, Picture, Collection, Search, Star, StarFilled } from '@element-plus/icons-vue'
 import type { ModelId } from '@/types/adapter'
 import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
-import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
+import { usePromptLibrary } from '@/composables/usePromptLibrary'
 import TemplateSelector from './TemplateSelector.vue'
 
 const emit = defineEmits<{
@@ -41,35 +41,24 @@ function openPreview(url: string) {
 
 // Prompt library selector
 const showPromptLibrary = ref(false)
-const promptLibraryItems = ref<PromptLibraryItem[]>([])
-const promptLibraryLoading = ref(false)
-const promptLibraryActiveTag = ref<string | undefined>(undefined)
-
-const promptLibraryFiltered = computed(() => {
-  if (!promptLibraryActiveTag.value) return promptLibraryItems.value
-  return promptLibraryItems.value.filter((item) => item.tags.includes(promptLibraryActiveTag.value!))
-})
-
-const promptLibraryAllTags = computed(() => {
-  const tagSet = new Set<string>()
-  for (const item of promptLibraryItems.value) {
-    for (const tag of item.tags) tagSet.add(tag)
-  }
-  return Array.from(tagSet).sort()
-})
+const {
+  items: promptLibraryItems,
+  loading: promptLibraryLoading,
+  keyword: promptLibraryKeyword,
+  activeTag: promptLibraryActiveTag,
+  onlyFavorites: promptLibraryOnlyFavorites,
+  allTags: promptLibraryAllTags,
+  displayItems: promptLibraryDisplayItems,
+  total: promptLibraryTotal,
+  page: promptLibraryPage,
+  pageSize: promptLibraryPageSize,
+  load: loadPromptLibrary,
+  toggleFavorite: togglePromptFavorite,
+} = usePromptLibrary({ pageSize: 8 })
 
 async function openPromptLibrary() {
   showPromptLibrary.value = true
-  promptLibraryActiveTag.value = undefined
-  promptLibraryLoading.value = true
-  try {
-    const res = await promptLibraryApi.list()
-    promptLibraryItems.value = res.data.data || []
-  } catch {
-    promptLibraryItems.value = []
-  } finally {
-    promptLibraryLoading.value = false
-  }
+  await loadPromptLibrary()
 }
 
 function selectPromptFromLibrary(item: PromptLibraryItem) {
@@ -449,7 +438,22 @@ defineExpose({ setParams })
       </Teleport>
 
       <!-- Prompt Library Dialog -->
-      <el-dialog v-model="showPromptLibrary" title="选择提示词" width="1200px" :close-on-click-modal="false">
+      <el-dialog v-model="showPromptLibrary" title="选择提示词" width="760px" :close-on-click-modal="false">
+        <!-- 筛选容器：模糊搜索 + 仅看收藏 -->
+        <div class="pl-filter-bar">
+          <el-input
+            v-model="promptLibraryKeyword"
+            :prefix-icon="Search"
+            placeholder="搜索提示词标题和正文"
+            clearable
+            class="pl-filter-search"
+          />
+          <div class="pl-filter-fav">
+            <span class="pl-filter-fav-label">仅看收藏</span>
+            <el-switch v-model="promptLibraryOnlyFavorites" />
+          </div>
+        </div>
+
         <!-- Tag filter -->
         <div v-if="promptLibraryAllTags.length > 0" class="pl-tag-filter">
           <el-tag
@@ -476,18 +480,36 @@ defineExpose({ setParams })
           <el-icon class="is-loading" :size="24"><Collection /></el-icon>
           <p style="margin-top:8px;color:var(--el-text-color-secondary)">加载中...</p>
         </div>
-        <div v-else-if="promptLibraryFiltered.length === 0" style="text-align:center;padding:40px">
+        <div v-else-if="promptLibraryDisplayItems.length === 0" style="text-align:center;padding:40px">
           <el-empty v-if="promptLibraryItems.length === 0" description="提示词库为空，请先在提示词库页面添加" :image-size="50" />
           <el-empty v-else description="没有匹配的提示词" :image-size="50" />
         </div>
         <div v-else class="prompt-select-list">
-          <div v-for="item in promptLibraryFiltered" :key="item.id" class="prompt-select-item" @click="selectPromptFromLibrary(item)">
-            <div class="psi-name">{{ item.name }}</div>
-            <div class="psi-content">{{ item.content }}</div>
-            <div v-if="item.tags.length > 0" class="psi-tags">
-              <el-tag v-for="tag in item.tags" :key="tag" size="small">{{ tag }}</el-tag>
+          <div v-for="item in promptLibraryDisplayItems" :key="item.id" class="prompt-select-item" @click="selectPromptFromLibrary(item)">
+            <el-icon class="psi-fav" :class="{ active: item.is_starred }" :size="16" @click.stop="togglePromptFavorite(item)">
+              <StarFilled v-if="item.is_starred" />
+              <Star v-else />
+            </el-icon>
+            <div class="psi-main">
+              <div class="psi-name">{{ item.name }}</div>
+              <div class="psi-content">{{ item.content }}</div>
+              <div v-if="item.tags.length > 0" class="psi-tags">
+                <el-tag v-for="tag in item.tags" :key="tag" size="small">{{ tag }}</el-tag>
+              </div>
             </div>
           </div>
+        </div>
+
+        <!-- 分页器 -->
+        <div v-if="promptLibraryTotal > promptLibraryPageSize" class="pl-pagination">
+          <el-pagination
+            v-model:current-page="promptLibraryPage"
+            :page-size="promptLibraryPageSize"
+            :total="promptLibraryTotal"
+            layout="prev, pager, next, total"
+            background
+            small
+          />
         </div>
       </el-dialog>
     </div>
@@ -630,27 +652,36 @@ defineExpose({ setParams })
 .prompt-limit-exceeded { font-size: var(--momo-font-size-xs); color: var(--el-color-danger); }
 .prompt-exceeded :deep(.el-textarea__inner) { border-color: var(--el-color-danger); }
 
+.pl-filter-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.pl-filter-search { max-width: 320px; }
+.pl-filter-fav { display: flex; align-items: center; gap: 8px; }
+.pl-filter-fav-label { font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); }
+
 .pl-tag-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .pl-tag-chip { cursor: pointer; user-select: none; }
 
 .prompt-select-list {
-  max-height: 500px; overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  max-height: 440px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
 }
 .prompt-select-item {
+  display: flex; align-items: flex-start; gap: 10px;
   padding: 10px 12px; border: 1px solid var(--el-border-color-light);
   border-radius: var(--momo-radius-md); cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
 }
 .prompt-select-item:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
+.psi-fav { flex-shrink: 0; cursor: pointer; margin-top: 2px; color: var(--el-text-color-placeholder); transition: color 0.2s; }
+.psi-fav:hover { color: var(--el-color-warning); }
+.psi-fav.active { color: var(--el-color-warning); }
+.psi-main { flex: 1; min-width: 0; }
 .psi-name { font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary); margin-bottom: 4px; }
 .psi-content {
   font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); white-space: pre-wrap; word-break: break-all;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .psi-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+.pl-pagination { display: flex; justify-content: center; margin-top: 14px; }
 
 /* ─── Preview Lightbox ─── */
 .preview-overlay {

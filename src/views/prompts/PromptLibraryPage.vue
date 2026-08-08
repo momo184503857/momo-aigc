@@ -1,14 +1,21 @@
 <script setup lang="ts">
 defineOptions({ name: 'PromptLibraryPage' })
-import { ref, computed, onMounted, nextTick } from 'vue'
-import { Plus, Edit, Delete } from '@element-plus/icons-vue'
+import { ref, onMounted, nextTick } from 'vue'
+import { Plus, Edit, Delete, Search, Star, StarFilled } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-const { success, info, warning, error, confirmDanger } = useUiFeedback()
+const { success, error, confirmDanger } = useUiFeedback()
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
+import { usePromptLibrary } from '@/composables/usePromptLibrary'
 import PageLayout from '@/components/PageLayout.vue'
 
-const items = ref<PromptLibraryItem[]>([])
+// 列表/筛选/分页/收藏 共享逻辑
+const {
+  items, allTags, displayItems, total,
+  keyword, activeTag, onlyFavorites, page, pageSize,
+  load, toggleFavorite,
+} = usePromptLibrary({ pageSize: 10 })
+
 const dialogVisible = ref(false)
 const isEditing = ref(false)
 const editingId = ref<string | null>(null)
@@ -17,24 +24,8 @@ const formRef = ref<any>(null)
 
 const form = ref({ name: '', content: '', tags: [] as string[] })
 
-const allTags = ref<string[]>([])
-const activeTag = ref<string | undefined>(undefined)
-
-const filteredItems = computed(() => {
-  if (!activeTag.value) return items.value
-  return items.value.filter((item) => item.tags.includes(activeTag.value!))
-})
-
 async function loadList() {
-  try {
-    const res = await promptLibraryApi.list()
-    items.value = res.data.data || []
-    const tagSet = new Set<string>()
-    for (const item of items.value) {
-      for (const tag of item.tags) tagSet.add(tag)
-    }
-    allTags.value = Array.from(tagSet).sort()
-  } catch { /* silent */ }
+  await load()
 }
 
 function openCreate() {
@@ -103,7 +94,22 @@ onMounted(loadList)
       <el-button type="primary" :icon="Plus" @click="openCreate">新建提示词</el-button>
     </template>
 
-    <!-- Tag filter -->
+    <!-- 筛选容器 -->
+    <div class="filter-bar">
+      <el-input
+        v-model="keyword"
+        :prefix-icon="Search"
+        placeholder="搜索提示词标题和正文"
+        clearable
+        class="filter-search"
+      />
+      <div class="filter-fav">
+        <span class="filter-fav-label">仅看收藏</span>
+        <el-switch v-model="onlyFavorites" />
+      </div>
+    </div>
+
+    <!-- 标签筛选条 -->
     <div v-if="allTags.length > 0" class="tag-filter">
       <el-tag
         :type="!activeTag ? 'primary' : 'info'"
@@ -125,10 +131,14 @@ onMounted(loadList)
       </el-tag>
     </div>
 
-    <el-empty v-if="!filteredItems.length" description="暂无提示词，点击右上角创建" :image-size="60" />
+    <el-empty v-if="!displayItems.length" description="暂无提示词，点击右上角创建" :image-size="60" />
 
     <div v-else class="prompt-list">
-      <div v-for="item in filteredItems" :key="item.id" class="prompt-item">
+      <div v-for="item in displayItems" :key="item.id" class="prompt-item">
+        <el-icon class="fav-btn" :class="{ active: item.is_starred }" :size="18" @click="toggleFavorite(item)">
+          <StarFilled v-if="item.is_starred" />
+          <Star v-else />
+        </el-icon>
         <div class="item-main">
           <div class="item-name">{{ item.name }}</div>
           <div class="item-content">{{ item.content }}</div>
@@ -141,6 +151,18 @@ onMounted(loadList)
           <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(item)">删除</el-button>
         </div>
       </div>
+    </div>
+
+    <!-- 分页器 -->
+    <div v-if="total > pageSize" class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        :total="total"
+        layout="prev, pager, next, total"
+        background
+        small
+      />
     </div>
 
     <el-dialog v-model="dialogVisible" :title="isEditing ? '编辑提示词' : '新建提示词'" width="1120px" class="edit-dialog-lg" :close-on-click-modal="false">
@@ -169,6 +191,14 @@ onMounted(loadList)
 </template>
 
 <style scoped>
+.filter-bar {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 12px;
+}
+.filter-search { max-width: 320px; }
+.filter-fav { display: flex; align-items: center; gap: 8px; }
+.filter-fav-label { font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); }
+
 .tag-filter {
   display: flex; flex-wrap: wrap; gap: 6px;
   margin-bottom: 14px;
@@ -177,10 +207,16 @@ onMounted(loadList)
 
 .prompt-list { display: flex; flex-direction: column; gap: 8px; }
 .prompt-item {
-  display: flex; align-items: flex-start; gap: 12px;
+  display: flex; align-items: flex-start; gap: 10px;
   padding: 12px; background: var(--el-fill-color-lighter);
   border-radius: var(--momo-radius-md); border: 1px solid var(--el-border-color-light);
 }
+.fav-btn {
+  flex-shrink: 0; cursor: pointer; margin-top: 2px;
+  color: var(--el-text-color-placeholder); transition: color 0.2s;
+}
+.fav-btn:hover { color: var(--el-color-warning); }
+.fav-btn.active { color: var(--el-color-warning); }
 .item-main { flex: 1; min-width: 0; }
 .item-name { font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary); margin-bottom: 4px; }
 .item-content {
@@ -189,6 +225,8 @@ onMounted(loadList)
 }
 .item-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
 .item-actions { flex-shrink: 0; display: flex; gap: 4px; }
+
+.pagination-wrap { display: flex; justify-content: center; margin-top: 16px; }
 </style>
 
 <style>

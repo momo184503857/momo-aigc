@@ -88,6 +88,13 @@ export function initSchema(): void {
     CREATE INDEX IF NOT EXISTS idx_template_image_tags_image ON template_image_tags(template_image_id);
   `)
 
+  // Migration: prompt_library 改为用户私有 + 收藏置顶
+  // 历史上该表无 user_id、无登录校验，导致所有用户共享同一份提示词（隔离 bug）。
+  // 这里仅补 user_id / is_starred 列与索引；历史数据归属迁移放到 system_config 表创建之后执行。
+  try { db.exec(`ALTER TABLE prompt_library ADD COLUMN user_id INTEGER`) } catch { /* column already exists */ }
+  try { db.exec(`ALTER TABLE prompt_library ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0`) } catch { /* column already exists */ }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_library_user ON prompt_library(user_id);`)
+
   // Migration: add aspect_ratio column if missing
   try {
     db.exec(`ALTER TABLE generation_tasks ADD COLUMN aspect_ratio VARCHAR(50)`)
@@ -204,6 +211,18 @@ export function initSchema(): void {
   `)
   const insertCfg = db.prepare(`INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)`)
   insertCfg.run('toapis_api_key', '')
+
+  // 一次性迁移：prompt_library 修复为用户私有后，旧数据无 user_id。
+  // 这些提示词是上线前管理员预置的，全部归给第一个管理员；其他用户上线后从空库开始。
+  // 幂等守卫：仅当 system_config.migration_prompt_library_owner_v1 未标记 done 时执行。
+  const promptOwnerCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'migration_prompt_library_owner_v1'`).get() as { value: string } | undefined
+  if (promptOwnerCfg?.value !== 'done') {
+    db.prepare(
+      `UPDATE prompt_library SET user_id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1) WHERE user_id IS NULL`
+    ).run()
+    db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_prompt_library_owner_v1', 'done')
+                ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+  }
 
   // 用户个人 ToAPIs Key（AES-256-GCM 加密存储，每用户至多一行）
   db.exec(`
