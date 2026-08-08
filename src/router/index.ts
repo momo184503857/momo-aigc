@@ -193,9 +193,8 @@ const router = createRouter({
     },
     {
       path: '/admin/points',
-      name: 'AdminPoints',
-      component: () => import('@/views/admin/AdminPoints.vue'),
-      meta: { title: '积分管理', requiresAuth: true, requiresAdmin: true },
+      redirect: '/admin/users',
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
   ],
 })

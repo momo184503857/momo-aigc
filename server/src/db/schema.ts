@@ -108,11 +108,6 @@ export function initSchema(): void {
     db.exec(`ALTER TABLE users ADD COLUMN points REAL NOT NULL DEFAULT 0`)
   } catch { /* column already exists */ }
 
-  // Migration: add tags column to users (JSON array)
-  try {
-    db.exec(`ALTER TABLE users ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`)
-  } catch { /* column already exists */ }
-
   // Migration: add email column to users（邮箱为登录主标识；旧账号为空，仍可用 username 登录）
   try {
     db.exec(`ALTER TABLE users ADD COLUMN email TEXT`)
@@ -173,25 +168,6 @@ export function initSchema(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_points_txn_user ON points_transactions(user_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_points_txn_created ON points_transactions(created_at);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_points_txn_reason ON points_transactions(reason);`)
-
-  // User tags definition table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS user_tags (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name VARCHAR(64) NOT NULL UNIQUE,
-      color VARCHAR(7) DEFAULT '#409EFF',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-  `)
-
-  // User-tag mappings (many-to-many)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS user_tag_mappings (
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      tag_id INTEGER NOT NULL REFERENCES user_tags(id) ON DELETE CASCADE,
-      PRIMARY KEY (user_id, tag_id)
-    );
-  `)
 
   // ToAPIs balance check history
   db.exec(`
@@ -552,6 +528,18 @@ export function initSchema(): void {
     })
     migTxn()
     console.log(`[DB] Migration buyer_show_batches_v1 done: ${distinctBatches.length} 个现有批次归档为历史`)
+  }
+
+  // ── 一次性清理：删除已废弃的用户标签功能相关表 ──
+  // 用户标签（user_tags / user_tag_mappings）功能已移除，清理遗留表。
+  // 幂等守卫：仅当 system_config.drop_user_tags_v1 未标记 done 时执行。
+  const dropTagsCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'drop_user_tags_v1'`).get() as { value: string } | undefined
+  if (dropTagsCfg?.value !== 'done') {
+    db.exec(`DROP TABLE IF EXISTS user_tag_mappings;`)
+    db.exec(`DROP TABLE IF EXISTS user_tags;`)
+    db.prepare(`INSERT INTO system_config (key, value) VALUES ('drop_user_tags_v1', 'done')
+                ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+    console.log('[DB] Dropped legacy user_tags / user_tag_mappings tables')
   }
 
   console.log('[DB] Schema initialized')

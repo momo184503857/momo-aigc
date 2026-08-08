@@ -89,7 +89,6 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
         { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
         { path: '/admin/photography', title: 'AI摄影配置', icon: Camera },
-        { path: '/admin/points', title: '积分管理', icon: Coin },
         { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
       ],
     })

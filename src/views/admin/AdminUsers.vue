@@ -5,10 +5,9 @@ import { Search } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
-import { formatCredits } from '@/types/adapter'
+import { formatCredits, creditsToYuan } from '@/types/adapter'
 import { toBJMinute } from '@/utils/datetime'
 import PageLayout from '@/components/PageLayout.vue'
-import { UiNumberInput } from '@/components/ui'
 
 interface UserItem {
   id: number
@@ -18,26 +17,22 @@ interface UserItem {
   role: string
   status: string
   points: number
-  tags: string
   submitted_count: number
   completed_count: number
   failed_count: number
   last_submitted_at: string | null
   last_login_at: string | null
   created_at: string
-}
-
-interface TagItem {
-  id: number
-  name: string
-  color: string
+  total_spent?: number
+  total_recharged?: number
 }
 
 const users = ref<UserItem[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
-const filterTag = ref('')
-const tags = ref<TagItem[]>([])
+// 后端排序状态（积分/累计消耗/累计充值）
+const sortField = ref<string>('')
+const sortOrder = ref<'asc' | 'desc'>('desc')
 
 // Create dialog
 const createVisible = ref(false)
@@ -45,42 +40,40 @@ const createUsername = ref('')
 const createPassword = ref('')
 const createLoading = ref(false)
 
-// Reset password dialog
-const resetVisible = ref(false)
-const resetUserId = ref(0)
-const resetUsername = ref('')
-const resetPassword = ref('')
-
 // Edit dialog
 const editVisible = ref(false)
 const editUser = ref<UserItem | null>(null)
-const editUsername = ref('')
-const editPassword = ref('')
 const editStatus = ref('')
 const editRole = ref('')
-const editTags = ref<string[]>([])
 const editLoading = ref(false)
 
 // Points dialog
 const pointsVisible = ref(false)
 const pointsUserId = ref(0)
 const pointsUsername = ref('')
-const pointsAmount = ref(0)
+const pointsMode = ref<'recharge' | 'deduct'>('recharge')
+const pointsAmount = ref<string>('')
 const pointsNote = ref('')
 const pointsLoading = ref(false)
 
-// Tag manage dialog
-const tagManageVisible = ref(false)
-const newTagName = ref('')
-const newTagColor = ref('#0088ff')
-const tagLoading = ref(false)
+// 解析后的积分数值（无效或为空时返回 0）
+const pointsValue = computed(() => {
+  const n = parseFloat(pointsAmount.value)
+  return Number.isFinite(n) && n > 0 ? n : 0
+})
+
+// 参考金额：积分 × 0.035 元
+const pointsYuan = computed(() => creditsToYuan(pointsValue.value))
 
 async function loadUsers() {
   loading.value = true
   try {
     const params: any = {}
     if (searchQuery.value) params.search = searchQuery.value
-    if (filterTag.value) params.tag = filterTag.value
+    if (sortField.value) {
+      params.sort = sortField.value
+      params.order = sortOrder.value
+    }
     const res = await adminApi.listUsers(params)
     users.value = res.data.data || []
   } catch {
@@ -90,15 +83,17 @@ async function loadUsers() {
   }
 }
 
-async function loadTags() {
-  try {
-    const res = await adminApi.listTags()
-    tags.value = res.data.data || []
-  } catch { /* ignore */ }
-}
-
-function parseTags(tagsStr: string): string[] {
-  try { return JSON.parse(tagsStr) } catch { return [] }
+// 表头排序：委托后端排序
+function handleSortChange({ prop, order }: { prop: string; order: string | null }) {
+  if (order) {
+    sortField.value = prop
+    sortOrder.value = order === 'ascending' ? 'asc' : 'desc'
+  } else {
+    // 取消排序，恢复默认
+    sortField.value = ''
+    sortOrder.value = 'desc'
+  }
+  loadUsers()
 }
 
 async function handleCreate() {
@@ -121,27 +116,6 @@ async function handleCreate() {
   }
 }
 
-function openReset(user: UserItem) {
-  resetUserId.value = user.id
-  resetUsername.value = user.username
-  resetPassword.value = ''
-  resetVisible.value = true
-}
-
-async function handleReset() {
-  if (!resetPassword.value) {
-    warning('请输入新密码')
-    return
-  }
-  try {
-    await adminApi.resetPassword(resetUserId.value, resetPassword.value)
-    success('密码已重置')
-    resetVisible.value = false
-  } catch (e: any) {
-    error(e.response?.data?.error || '重置失败')
-  }
-}
-
 async function handleToggleStatus(user: UserItem) {
   const newStatus = user.status === 'active' ? 'disabled' : 'active'
   const action = newStatus === 'disabled' ? '禁用' : '启用'
@@ -155,11 +129,8 @@ async function handleToggleStatus(user: UserItem) {
 
 function openEdit(user: UserItem) {
   editUser.value = user
-  editUsername.value = user.username
-  editPassword.value = ''
   editStatus.value = user.status
   editRole.value = user.role
-  editTags.value = parseTags(user.tags)
   editVisible.value = true
 }
 
@@ -167,11 +138,8 @@ async function handleEdit() {
   editLoading.value = true
   try {
     await adminApi.updateUser(editUser.value!.id, {
-      username: editUsername.value,
-      password: editPassword.value || undefined,
       status: editStatus.value,
       role: editRole.value,
-      tags: editTags.value,
     })
     success('保存成功')
     editVisible.value = false
@@ -186,20 +154,56 @@ async function handleEdit() {
 function openPoints(user: UserItem) {
   pointsUserId.value = user.id
   pointsUsername.value = user.username
-  pointsAmount.value = 0
+  pointsMode.value = 'recharge'
+  pointsAmount.value = ''
   pointsNote.value = ''
   pointsVisible.value = true
 }
 
-async function handleAdjustPoints() {
-  if (pointsAmount.value === 0) {
-    warning('请输入金额')
-    return
+// 校验输入：正数，最多 1 位小数
+function validatePointsInput(): number | null {
+  const raw = pointsAmount.value.trim()
+  if (!raw) {
+    warning('请输入积分数量')
+    return null
   }
+  const n = parseFloat(raw)
+  if (!Number.isFinite(n) || n <= 0) {
+    warning('积分数量必须为正数')
+    return null
+  }
+  // 最多 1 位小数
+  if (!/^\d+(\.\d)?$/.test(raw)) {
+    warning('积分数量最多保留 1 位小数')
+    return null
+  }
+  return n
+}
+
+async function handleAdjustPoints() {
+  const amount = validatePointsInput()
+  if (amount === null) return
+
+  const signedAmount = pointsMode.value === 'deduct' ? -amount : amount
+  const actionLabel = pointsMode.value === 'deduct' ? '扣减' : '充值'
+
+  // 扣减二次确认
+  if (pointsMode.value === 'deduct') {
+    try {
+      await confirmDanger({
+        title: '确认扣减积分',
+        message: `确定从用户 "${pointsUsername.value}" 扣减 ${amount} 积分（约 ¥${pointsYuan.value.toFixed(2)}）吗？`,
+        confirmText: '确认扣减',
+      })
+    } catch {
+      return // 取消
+    }
+  }
+
   pointsLoading.value = true
   try {
-    await adminApi.adjustPoints(pointsUserId.value, pointsAmount.value, pointsNote.value)
-    success(pointsAmount.value > 0 ? '充值成功' : '扣减成功')
+    await adminApi.adjustPoints(pointsUserId.value, signedAmount, pointsNote.value)
+    success(`${actionLabel}成功`)
     pointsVisible.value = false
     await loadUsers()
   } catch (e: any) {
@@ -209,36 +213,8 @@ async function handleAdjustPoints() {
   }
 }
 
-async function handleAddTag() {
-  if (!newTagName.value) {
-    warning('请输入标签名')
-    return
-  }
-  tagLoading.value = true
-  try {
-    await adminApi.createTag(newTagName.value, newTagColor.value)
-    success('标签创建成功')
-    newTagName.value = ''
-    await loadTags()
-  } catch (e: any) {
-    error(e.response?.data?.error || '创建失败')
-  } finally {
-    tagLoading.value = false
-  }
-}
-
-async function handleDeleteTag(tag: TagItem) {
-  try {
-    await confirmDanger({ title: '删除标签', message: `确定删除标签 "${tag.name}" 吗？` })
-    await adminApi.deleteTag(tag.id)
-    success('已删除')
-    await loadTags()
-  } catch { /* cancelled */ }
-}
-
 onMounted(() => {
   loadUsers()
-  loadTags()
 })
 </script>
 
@@ -246,14 +222,11 @@ onMounted(() => {
   <PageLayout>
     <template #header><h2>用户管理</h2></template>
     <template #extra>
-      <div style="display:flex;gap:8px">
-        <el-button type="primary" @click="createVisible = true">创建用户</el-button>
-        <el-button @click="tagManageVisible = true">管理标签</el-button>
-      </div>
+      <el-button type="primary" @click="createVisible = true">创建用户</el-button>
     </template>
 
-    <!-- Search & Filter -->
-    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <!-- Search -->
+    <div style="margin-bottom:16px">
       <el-input
         v-model="searchQuery"
         placeholder="搜索用户名或邮箱..."
@@ -264,23 +237,9 @@ onMounted(() => {
       >
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
-      <el-select
-        v-model="filterTag"
-        placeholder="按标签筛选"
-        clearable
-        style="width:200px"
-        @change="loadUsers"
-      >
-        <el-option
-          v-for="t in tags"
-          :key="t.id"
-          :label="t.name"
-          :value="t.name"
-        />
-      </el-select>
     </div>
 
-    <el-table :data="users" v-loading="loading" stripe>
+    <el-table :data="users" v-loading="loading" stripe @sort-change="handleSortChange">
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column label="用户名">
         <template #default="{ row }">
@@ -308,35 +267,34 @@ onMounted(() => {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="积分" width="170">
+      <el-table-column label="积分" width="170" prop="points" sortable="custom">
         <template #default="{ row }">
           <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'var(--el-color-primary)', fontWeight: 600 }">
             {{ formatCredits(row.points, { creditDigits: 0, yuanDigits: 2 }) }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="标签" width="180">
+      <el-table-column label="累计消耗" width="170" prop="total_spent" sortable="custom">
         <template #default="{ row }">
-          <el-tag
-            v-for="t in parseTags(row.tags)"
-            :key="t"
-            size="small"
-            style="margin-right:4px"
-          >{{ t }}</el-tag>
+          <span style="color:var(--el-color-danger)">-{{ formatCredits(Math.abs(row.total_spent || 0), { creditDigits: 0, yuanDigits: 2 }) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="累计充值" width="170" prop="total_recharged" sortable="custom">
+        <template #default="{ row }">
+          <span style="color:var(--el-color-success)">+{{ formatCredits(row.total_recharged || 0, { creditDigits: 0, yuanDigits: 2 }) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="提交" width="70" prop="submitted_count" />
       <el-table-column label="成功" width="70" prop="completed_count" />
       <el-table-column label="失败" width="70" prop="failed_count" />
-      <el-table-column label="最近登录" width="140">
+      <el-table-column label="最近登录" width="168" prop="last_login_at" sortable="custom">
         <template #default="{ row }">{{ toBJMinute(row.last_login_at) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="240" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <div style="display:flex;gap:4px;flex-wrap:nowrap;align-items:center">
             <el-button size="small" @click="openEdit(row)">编辑</el-button>
             <el-button size="small" @click="openPoints(row)">积分</el-button>
-            <el-button size="small" @click="openReset(row)">密码</el-button>
             <el-button
               size="small"
               :type="row.status === 'active' ? 'danger' : 'success'"
@@ -366,26 +324,9 @@ onMounted(() => {
       </template>
     </el-dialog>
 
-    <!-- Reset Password Dialog -->
-    <el-dialog v-model="resetVisible" :title="`重置密码 - ${resetUsername}`" width="400px">
-      <el-form-item label="新密码">
-        <el-input v-model="resetPassword" type="password" placeholder="输入新密码" show-password />
-      </el-form-item>
-      <template #footer>
-        <el-button @click="resetVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleReset">确认重置</el-button>
-      </template>
-    </el-dialog>
-
     <!-- Edit User Dialog -->
     <el-dialog v-model="editVisible" :title="`编辑用户 - ${editUser?.username}`" width="500px">
       <el-form>
-        <el-form-item label="用户名">
-          <el-input v-model="editUsername" />
-        </el-form-item>
-        <el-form-item label="新密码（留空不修改）">
-          <el-input v-model="editPassword" type="password" placeholder="留空则不修改" show-password />
-        </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="editStatus">
             <el-radio value="active">正常</el-radio>
@@ -398,23 +339,6 @@ onMounted(() => {
             <el-radio value="admin">管理员</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="标签">
-          <el-select
-            v-model="editTags"
-            multiple
-            filterable
-            allow-create
-            placeholder="选择或创建标签"
-            style="width:100%"
-          >
-            <el-option
-              v-for="t in tags"
-              :key="t.id"
-              :label="t.name"
-              :value="t.name"
-            />
-          </el-select>
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editVisible = false">取消</el-button>
@@ -423,58 +347,44 @@ onMounted(() => {
     </el-dialog>
 
     <!-- Points Adjustment Dialog -->
-    <el-dialog v-model="pointsVisible" :title="`调整积分 - ${pointsUsername}`" width="400px">
-      <el-form>
-        <el-form-item label="积分">
-          <UiNumberInput v-model="pointsAmount" :precision="3" :step="1" />
+    <el-dialog v-model="pointsVisible" :title="`调整积分 - ${pointsUsername}`" width="420px">
+      <el-form label-width="72px">
+        <el-form-item label="操作类型">
+          <el-radio-group v-model="pointsMode">
+            <el-radio-button value="recharge">充值</el-radio-button>
+            <el-radio-button value="deduct">扣减</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="积分数量">
+          <div style="display:flex;align-items:center;gap:12px;width:100%">
+            <el-input
+              v-model="pointsAmount"
+              placeholder="输入积分数量"
+              type="number"
+              :step="1"
+              min="0"
+              style="flex:1"
+            />
+            <span class="points-yuan-hint">
+              ≈ ¥{{ pointsYuan.toFixed(2) }}
+            </span>
+          </div>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="pointsNote" placeholder="可选：调整理由" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <div style="display:flex;justify-content:flex-end;gap:8px">
-          <el-button @click="pointsVisible = false">取消</el-button>
-          <el-button
-            type="danger"
-            :disabled="pointsAmount >= 0"
-            :loading="pointsLoading"
-            @click="pointsAmount = Math.abs(pointsAmount) * -1; handleAdjustPoints()"
-          >
-            扣减
-          </el-button>
-          <el-button
-            type="success"
-            :disabled="pointsAmount <= 0"
-            :loading="pointsLoading"
-            @click="handleAdjustPoints"
-          >
-            充值
-          </el-button>
-        </div>
+        <el-button @click="pointsVisible = false">取消</el-button>
+        <el-button
+          :type="pointsMode === 'deduct' ? 'danger' : 'success'"
+          :loading="pointsLoading"
+          :disabled="pointsValue <= 0"
+          @click="handleAdjustPoints"
+        >
+          {{ pointsMode === 'deduct' ? '确认扣减' : '确认充值' }}
+        </el-button>
       </template>
-    </el-dialog>
-
-    <!-- Tag Management Dialog -->
-    <el-dialog v-model="tagManageVisible" title="标签管理" width="500px">
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <el-input v-model="newTagName" placeholder="标签名" style="width:160px" />
-        <el-color-picker v-model="newTagColor" />
-        <el-button type="primary" :loading="tagLoading" @click="handleAddTag">添加</el-button>
-      </div>
-      <el-table :data="tags" size="small" max-height="300">
-        <el-table-column label="颜色" width="60">
-          <template #default="{ row }">
-            <div :style="{ width:'20px',height:'20px',borderRadius:'4px',background:row.color }" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="name" label="名称" />
-        <el-table-column label="操作" width="80">
-          <template #default="{ row }">
-            <el-button size="small" type="danger" plain @click="handleDeleteTag(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
     </el-dialog>
   </PageLayout>
 </template>
@@ -484,5 +394,12 @@ onMounted(() => {
   font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-placeholder);
   margin-left: 4px;
+}
+
+.points-yuan-hint {
+  font-size: var(--momo-font-size-sm);
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  min-width: 72px;
 }
 </style>

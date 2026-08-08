@@ -9,7 +9,6 @@ import {
   UserFilled,
   EditPen,
   Key,
-  Coin,
   DataBoard,
   Share,
 } from '@element-plus/icons-vue'
@@ -37,7 +36,6 @@ const ROUTE_META_MAP: Record<string, { title: string; icon: Component; component
   '/admin/dashboard': { title: '生图日志', icon: DataBoard, componentName: 'AdminDashboard' },
   '/admin/templates': { title: '模板管理', icon: PictureFilled, componentName: 'AdminTemplates' },
   '/admin/feature-prompts': { title: '功能提示词', icon: EditPen, componentName: 'AdminFeaturePrompts' },
-  '/admin/points': { title: '积分管理', icon: Coin, componentName: 'AdminPoints' },
   '/admin/toapis-key': { title: 'API Key 管理', icon: Key, componentName: 'AdminToApisKey' },
   '/canvas-projects': { title: 'AI画布', icon: Share, componentName: 'CanvasProjects' },
 }

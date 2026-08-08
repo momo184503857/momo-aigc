@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
-import { adminMiddleware } from '../middleware/admin.js'
 import { bjDay, bjWeek, bjMonth, bjDateRangeClause } from '../utils/datetime.js'
 import { calculateCost } from '../utils/pricing.js'
 
@@ -129,61 +128,4 @@ pointsRouter.get('/me/daily', authMiddleware, (req: AuthRequest, res) => {
   const rows = [...map.values()].sort((a, b) => (a.date < b.date ? -1 : 1))
 
   res.json({ success: true, data: rows })
-})
-
-// ── Admin points routes ──
-
-export const adminPointsRouter = Router()
-adminPointsRouter.use(authMiddleware, adminMiddleware)
-
-// List all transactions
-adminPointsRouter.get('/transactions', (req: AuthRequest, res) => {
-  const page = parseInt(req.query.page as string) || 1
-  const pageSize = parseInt(req.query.pageSize as string) || 20
-  const userId = req.query.user_id as string | undefined
-  const reason = req.query.reason as string | undefined
-  const startDate = req.query.start_date as string | undefined
-  const endDate = req.query.end_date as string | undefined
-
-  let where = 'WHERE 1=1'
-  const params: unknown[] = []
-
-  if (userId) {
-    where += ' AND pt.user_id = ?'
-    params.push(Number(userId))
-  }
-  if (reason) {
-    where += ' AND pt.reason = ?'
-    params.push(reason)
-  }
-  const range = bjDateRangeClause('pt.created_at', startDate, endDate)
-  if (range.clause) {
-    where += range.clause
-    params.push(...range.params)
-  }
-
-  const countRow = db.prepare(`
-    SELECT COUNT(*) as total FROM points_transactions pt ${where}
-  `).get(...params) as any
-
-  const rows = db.prepare(`
-    SELECT pt.*, u.username,
-      COALESCE(op.username, '') AS operator_name
-    FROM points_transactions pt
-    JOIN users u ON u.id = pt.user_id
-    LEFT JOIN users op ON op.id = pt.operator_id
-    ${where}
-    ORDER BY pt.created_at DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, pageSize, (page - 1) * pageSize)
-
-  res.json({
-    success: true,
-    data: {
-      records: rows,
-      total: countRow.total,
-      page,
-      pageSize,
-    },
-  })
 })

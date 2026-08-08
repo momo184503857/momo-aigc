@@ -51,6 +51,7 @@ const reasonLabel: Record<string, string> = {
 interface ActivityRow {
   type: 'task' | 'txn'
   id: number
+  toapis_task_id: string | null
   user_id: number
   username: string
   model: string | null
@@ -71,7 +72,8 @@ const activityPageSize = ref(20)
 const activityTotal = ref(0)
 const actFilterType = ref('')
 const actFilterStatus = ref('')
-const actFilterUserId = ref('')
+const actFilterUser = ref('')
+const actFilterTaskId = ref('')
 const actDateRange = ref<[Date, Date] | null>(null)
 
 async function loadActivity() {
@@ -82,7 +84,8 @@ async function loadActivity() {
       pageSize: activityPageSize.value,
       type: actFilterType.value || undefined,
       status: actFilterStatus.value || undefined,
-      user_id: actFilterUserId.value ? Number(actFilterUserId.value) : undefined,
+      user: actFilterUser.value.trim() || undefined,
+      task_id: actFilterTaskId.value.trim() || undefined,
     }
     if (actDateRange.value) {
       params.start_date = fmtDate(actDateRange.value[0])
@@ -112,7 +115,7 @@ async function handleDeleteActivity(row: ActivityRow) {
   } catch { /* cancelled */ }
 }
 
-watch([actFilterType, actFilterStatus, actFilterUserId, actDateRange], () => {
+watch([actFilterType, actFilterStatus, actFilterUser, actFilterTaskId, actDateRange], () => {
   activityPage.value = 1
   loadActivity()
 })
@@ -392,6 +395,8 @@ onMounted(async () => {
       <!-- ═══ Tab 1: 任务与积分（统一活动日志）═══ -->
       <el-tab-pane label="任务与积分" name="activity">
         <div class="tab-filters">
+          <el-input v-model="actFilterUser" placeholder="用户名/昵称/邮箱" clearable size="default" style="width:180px" />
+          <el-input v-model="actFilterTaskId" placeholder="任务ID" clearable size="default" style="width:200px" />
           <el-date-picker
             v-model="actDateRange"
             type="daterange"
@@ -400,7 +405,7 @@ onMounted(async () => {
             end-placeholder="结束日期"
             :shortcuts="dateShortcuts"
             value-format="YYYY-MM-DD"
-            style="width:280px"
+            style="width:220px"
           />
           <el-select v-model="actFilterType" placeholder="类型" clearable size="default" style="width:130px">
             <el-option label="生成" value="task" />
@@ -409,7 +414,6 @@ onMounted(async () => {
           <el-select v-model="actFilterStatus" placeholder="状态筛选" clearable size="default" style="width:130px">
             <el-option v-for="(label, key) in statusMap" :key="key" :label="label" :value="key" />
           </el-select>
-          <el-input v-model="actFilterUserId" placeholder="用户ID" clearable size="default" style="width:120px" />
           <el-button @click="loadActivity">刷新</el-button>
         </div>
 
@@ -419,6 +423,11 @@ onMounted(async () => {
           stripe
           :row-key="activityRowKey"
         >
+          <el-table-column label="任务ID" width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.type === 'task' ? (row.toapis_task_id || '-') : '-' }}
+            </template>
+          </el-table-column>
           <el-table-column label="类型" width="96">
             <template #default="{ row }">
               <el-tag
