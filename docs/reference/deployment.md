@@ -4,7 +4,13 @@
 
 - **服务器**：阿里云 ECS
 - **操作系统**：Ubuntu 26.04 LTS (64位)
-- **域名/IP**：`http://REDACTED-OLD-SERVER-IP`
+- **域名/IP**：`http://REDACTED-SERVER-IP`
+
+> **2026-08-08 迁移记录**：生产服务器已从 `REDACTED-OLD-SERVER-IP` 整机迁移至 `REDACTED-SERVER-IP`（应用、PM2、Nginx、SQLite 数据均在迁移范围内）。下方文档中涉及服务器 IP 的命令均应使用新地址。历史地址已废弃，请勿再连接。
+>
+> 迁移当日一并完成的运维配置（后续部署依赖，勿回退）：
+> - **SSH 免密登录**：开发机 Mac 的 `~/.ssh/id_ed25519.pub` 已加入服务器 root 授权列表，可直接 `ssh root@REDACTED-SERVER-IP`。
+> - **Gitee SSH remote**：服务器仓库 remote 从 HTTPS 改为 `git@gitee.com:hellolihaoran/momo-aigc.git`，并配置了 Gitee 专用密钥 `~/.ssh/id_ed25519_gitee`（见服务器 `~/.ssh/config`）。`git pull` 不再需要 Gitee 账号密码。
 - **代码仓库**：`https://gitee.com/hellolihaoran/momo-aigc`
 
 ## 技术栈
@@ -410,7 +416,9 @@ TypeError: Cannot open database because the directory does not exist
 
 ## 日常更新部署流程
 
-当本地代码有更新，需要同步到服务器时：
+当本地代码有更新，需要同步到服务器时。
+
+> 前提：开发机已配置 SSH 免密登录（见上文迁移记录）。未配置时，下面的远程命令会要求输入服务器密码。
 
 ### 步骤 1：本地提交并推送
 
@@ -421,57 +429,68 @@ git commit -m "描述你的改动"
 git push origin master
 ```
 
-### 步骤 2：服务器拉取代码
+### 步骤 2：判断本次需要构建什么
+
+在服务器上构建前，先看本次改动涉及哪些目录，避免无谓的 `build` / `restart`：
 
 ```bash
-ssh root@你的服务器IP
+# 在本地（或任何能看到远程仓库的机器）查看待部署提交的改动
+git fetch origin
+git diff --stat <服务器当前 HEAD>..origin/master
+```
+
+| 本次改动了 | 需要执行 | 是否要重启 PM2 |
+|------------|---------|---------------|
+| 仅 `src/`（前端） | `npm run build` | ❌ 不需要（静态产物即时生效） |
+| `server/`（后端） | `npm run build:server` | ✅ `pm2 restart momo-aigc --update-env` |
+| `package.json` / `package-lock.json` | `npm install` 后再构建对应部分 | 视情况 |
+| `.env` | 改服务器 `.env` 后 | ✅ `--update-env` 必须加 |
+
+### 步骤 3：远程部署（推荐方式 —— 一条命令，无需 ssh 进去）
+
+利用 SSH 免密，直接从开发机远程执行：
+
+```bash
+# 仅前端改动的最常见情况
+ssh root@REDACTED-SERVER-IP 'cd ~/momo-aigc && git pull origin master && npm run build'
+```
+
+> 注意：`npm run build` 包含 `vue-tsc -b` 类型检查，类型错误会中断构建。提交前最好本地跑一次 `npm run build`。
+
+### 步骤 4：验证
+
+```bash
+# 服务可用性
+ssh root@REDACTED-SERVER-IP 'curl -s -o /dev/null -w "首页: %{http_code}\n" http://localhost/'
+# 期望输出: 首页: 200
+
+# PM2 状态
+ssh root@REDACTED-SERVER-IP 'pm2 status'
+```
+
+浏览器打开 `http://REDACTED-SERVER-IP/`，**强制刷新**（Cmd+Shift+R）验收新功能。
+
+### 回滚
+
+每次部署前，服务器会自动把上一个 HEAD 写入 `~/.momo-aigc-last-deploy-head`。需要回滚时：
+
+```bash
+ssh root@REDACTED-SERVER-IP 'cd ~/momo-aigc && git reset --hard $(cat ~/.momo-aigc-last-deploy-head) && npm run build && npm run build:server && pm2 restart momo-aigc --update-env'
+```
+
+> 若只回滚前端，去掉 `build:server` 和 `pm2 restart` 即可。
+
+### 旧方式（手动 ssh 进服务器逐条敲）
+
+仍可用，适合不确定改动范围时交互式排查：
+
+```bash
+ssh root@REDACTED-SERVER-IP
 cd ~/momo-aigc
 git pull origin master
-```
-
-### 步骤 3：重新构建
-
-```bash
-npm run build:server   # 如果后端代码有改动
-npm run build           # 如果前端代码有改动
-```
-
-> 如果只有前端改动，只需要 `npm run build`；只有后端改动，只需要 `npm run build:server`。
-
-### 步骤 4：重启后端服务
-
-```bash
-pm2 restart momo-aigc --update-env
-```
-
-> `--update-env` 很重要：如果 `.env` 有新变量或修改，不加这个参数 PM2 不会重新加载。
-
-### 步骤 5：验证
-
-浏览器刷新页面，检查新功能是否生效。
-
-### 快捷脚本
-
-可以在项目根目录创建一个 `deploy.sh`：
-
-```bash
-#!/bin/bash
-set -e
-echo "[Deploy] Pulling latest code..."
-git pull origin master
-echo "[Deploy] Building frontend..."
-npm run build
-echo "[Deploy] Building backend..."
-npm run build:server
-echo "[Deploy] Restarting server..."
-pm2 restart momo-aigc --update-env
-echo "[Deploy] Done!"
-```
-
-以后只需要：
-
-```bash
-cd ~/momo-aigc && bash deploy.sh
+npm run build           # 前端有改动时
+npm run build:server    # 后端有改动时
+pm2 restart momo-aigc --update-env   # 仅后端改动时需要
 ```
 
 ---

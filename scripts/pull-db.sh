@@ -10,7 +10,7 @@
 #
 # 配置优先级：shell 环境变量 > 项目根 .env > 脚本内默认值
 #   REMOTE_USER  默认 root
-#   REMOTE_HOST  默认 REDACTED-OLD-SERVER-IP
+#   REMOTE_HOST  默认 REDACTED-SERVER-IP
 #   REMOTE_PORT  默认 22
 #   REMOTE_PATH  默认 ~/momo-aigc
 #
@@ -39,7 +39,7 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
 fi
 
 REMOTE_USER="${REMOTE_USER:-root}"
-REMOTE_HOST="${REMOTE_HOST:-REDACTED-OLD-SERVER-IP}"
+REMOTE_HOST="${REMOTE_HOST:-REDACTED-SERVER-IP}"
 REMOTE_PORT="${REMOTE_PORT:-22}"
 REMOTE_PATH="${REMOTE_PATH:-~/momo-aigc}"
 
