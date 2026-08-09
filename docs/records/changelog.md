@@ -4,6 +4,131 @@
 
 ---
 
+## 2026-08-09 — 提示词工坊重构（结构化模块卡片社区库 + 拼接预览）
+
+### 背景
+
+旧版提示词工坊是「六层权重表单（主体/风格/场景/光影/构图/画质）+ 看图选词」的纯拼接工具，结果只能存到私有库。重构为「**模块化提示词卡片社区库 + 右侧拼接预览**」：管理员维护模块体系（要求/元素/禁止出现），用户上传带模块+多图+备注的提示词卡片到公开社区库，点击「复用」把内容追加进右侧可编辑的拼接预览，最终保存到私有提示词库。
+
+### 变更
+
+#### 模块体系（需求 1）
+
+- 新增 `prompt_modules` 表：`type` = `requirement`（要求）/ `element`（元素）/ `forbidden`（禁止出现）。
+- 「要求」「禁止出现」为系统内置模块（`is_system=1`，固定首尾，不可改名/删除）；预置 5 个常用元素模块（风格/场景/光影/构图/画质，`is_system=0`，管理员可改可删）。
+- 新增管理后台「提示词模块」页（`/admin/prompt-modules`、`AdminPromptModules.vue`）：表格 + 新增/编辑/删除（系统内置按钮禁用 + tooltip）。侧边栏与路由同步新增。
+
+#### 卡片社区库（需求 2/3/7/8）
+
+- 新增 `prompt_cards` 表：模块 + 内容 + 多图（JSON 数组，1~10 张）+ `cover_index`（置顶图）+ 备注 + 互动计数。
+- 新增 `prompt_card_favorites` / `prompt_card_likes` 表（参考 `work_favorites` / `work_likes`，点赞每人每天 1 次）。
+- 新增 `GET/POST /api/prompt-cards`（列表分页+筛选/上传）、`/:id`、`/like`、`/favorite`、`/reuse`、`DELETE /:id`、`/modules`。`cover_url` = `images[cover_index]||images[0]`。
+- 重写工坊页（`PromptWorkshopPage.vue`）为瀑布流卡片库 + 顶部筛选区（搜索 + 范围 + 模块 + 排序，参考作品库）+ 卡片互动按钮（赞/收藏/复用计数/复制 + 作者）。
+- 新增上传弹窗 `PromptCardUpload.vue`（模块下拉 + 内容 + 1~10 图上传 + 置顶选择 + 备注）、多图预览弹窗 `PromptCardPreview.vue`（大图+缩略图条+左右翻页+点击放大）。
+
+#### 拼接预览（需求 4/5/6/9）
+
+- 新增拼接逻辑（`promptAssembler.ts` 的 `appendSegmentToText` / `renderPreviewText`，**保留**旧六层逻辑供 `AdminPromptCases` / `PromptLibraryPage` 使用）：
+  - 要求固定第一段，禁止出现固定最后一段，元素按添加顺序排在中间，同模块多条并列不去重；
+  - 每段格式「模块名：内容；」，段间 `\n` 换行；
+  - 复用时按类型归位，保留用户手动编辑内容。
+- 右侧拼接预览为可编辑 `textarea`（需求 6）；底部放原右上角三按钮（重置/复制/保存到提示词库，需求 9），保存到现有私有 `prompt_library`。
+
+#### 删除（需求 10）
+
+- 删除 `.workshop-intro` 容器（六层权重公式说明）及 `CaseSelector.vue`（看图选词弹窗）。`prompt_cases` 表与 `AdminPromptCases` 官方案例管理页保留不动。
+
+### 数据
+
+- 新增 4 张表 + seed 守卫 `seed_prompt_modules_v1`。
+
+---
+
+## 2026-08-09 — 作品库重构（菜单分组 + 广场改版 + 每日点赞 + 去标题 + 备注 + 详情页改版）
+
+### 背景
+
+作品库上线后暴露一系列体验问题：侧边栏分组不合理、广场交互粗糙（分页器、卡片无操作按钮、显示冗余信息）、点赞只能一次、标题字段无实际价值、描述与备注重复、详情页视觉粗糙。
+
+### 变更
+
+#### 侧边栏菜单
+
+- **新增「AI学习」菜单组**：作品库（`/works`）和提示词工坊（`/prompt-workshop`）从原分组移入新组。侧边栏现为三组：AI生图 / AI学习 / 资产管理。
+
+#### 作品广场（`/works`）
+
+- **Tab 改筛选下拉**：原三个 Tab（作品广场/我的作品/我的收藏）改为筛选栏的范围下拉，与其他筛选项并排。
+- **排序栏独立**：排序按钮组从筛选栏移出，独占下方一行。
+- **瀑布流懒加载**：移除 `el-pagination` 分页器，改用 `IntersectionObserver` 无限滚动（rootMargin 300px，组件卸载 disconnect）。
+- **卡片操作按钮**：每张卡片常驻操作按钮行（赞 N / 收藏 / 同款 N / 复制提示词 + 作者名），蓝底白字 `el-button primary`，已赞/已收藏切 `plain`，可直接点击无需进详情。
+- **卡片精简**：移除标题、模式标签、模型名、时间的显示。
+
+#### 点赞改为每日一次
+
+- `work_likes` 表主键从 `(user_id, work_id)` 改为 `(user_id, work_id, like_date)`，`like_date` 为北京日。
+- 同一用户每天可对同一作品点赞一次（含自己的作品），跨天可重复点赞。
+- `like_count` 为累计总数，`is_liked` 语义改为「今天是否已赞」。
+- 旧数据迁移：`like_date` 取原 `created_at` 的北京日期（幂等守卫）。
+
+#### 去标题 + 备注合并
+
+- **移除标题**：发布弹窗、广场卡片、详情页均不再有标题；数据库 `works.title` 列保留（NOT NULL，统一存空串）；搜索不再匹配 title。
+- **描述合并到备注**：原 `description` 字段废弃，数据迁移到 `remark`；发布弹窗「描述」改名为「备注」；前端 `WorkItem` 类型移除 `title`/`description`，统一用 `remark`。
+- 新增 `PATCH /api/works/:id/remark` 接口（仅作者或管理员可改）。
+
+#### 详情页改版（`/works/:id`）
+
+- 改为「沉浸式大图 + 卡片参数」布局。
+- 左侧大图可点击放大预览（`useImagePreview`），图下统计行 + 操作按钮行。
+- 右侧每段信息改为独立 `.info-card`（圆角 + 阴影 + 细边框）：作者卡、备注卡（可编辑，橙色左边框）、生成参数、参考图（可预览）、提示词结构（高亮填充字段）、完整提示词（带复制）、负面词（浅红底）、标签。
+- 删除按钮移至 header 右上角（仅作者可见）。
+
+### 影响
+
+- `WorkItem` 类型变化：移除 `title`、`description`，新增 `remark`。前端所有引用处已同步。
+- `worksApi.publish` / `adminWorksApi.publishOfficial` 参数变化：`description` → `remark`，移除 `title`。
+- 数据库迁移幂等（`system_config` 守卫），重启即自动执行。
+
+---
+
+## 2026-08-09 — 管理后台拆分为独立网页入口
+
+### 背景
+
+此前管理员功能嵌在用户端左侧栏的「管理员」分组里（8 个菜单项），与用户功能混在一起，既不专业也容易误触。需要把管理后台拆成一个独立网页，与用户端入口分离，但账号保持一致（同一套 JWT）。
+
+### 变更
+
+- **新增独立入口 `admin.html`**：`vite.config.ts` 通过 `build.rollupOptions.input` 注册双入口，`npm run build` 同时产出 `dist/index.html`（用户端）+ `dist/admin.html`（管理后台），各自独立的入口 chunk。
+- **管理后台 SPA 骨架**（`src/admin/`，全部复用用户端共享层，零重复代码）：独立 `main.ts` / `AdminApp.vue` / 独立 hash 路由（内路径去掉 `/admin` 前缀，如 `/users`）/ `AdminLayout` + `AdminSidebar`（8 菜单 + 「返回用户端」+ 当前管理员）/ 独立登录页 `AdminLoginPage`（仅密码登录，登录后校验 `role==='admin'`，普通用户被拒并提示无权限）。
+- **登录态互通**：两端共享 `localStorage.auth_token` 与同一套 JWT；在用户端登录过的管理员，打开 `/admin.html` 即已登录，无需重复登录。`src/services/http.ts` 的 401 拦截按入口分流（`admin.html` → `/admin.html#/login`，否则 → 用户端 `/#/login`）。
+- **用户端侧边栏清理**：`src/components/SidebarMenu.vue` 移除 `if (auth.isAdmin)` 追加的「管理员」分组——用户端侧边栏对所有角色只展示 AI生图 / 资产管理两组。
+- **后端零改动**：`/api/admin/*` 路由、`authMiddleware` + `adminMiddleware`、JWT 签发（payload 含 `role`）全部沿用，管理后台调用的 API 与原来完全相同。
+
+### 影响
+
+- 访问入口：用户端 `http://站点/`，管理后台 `http://站点/admin.html`，普通用户登录管理后台被拒。
+- 用户端 `/#/admin/*` 路由与 `requiresAdmin` 守卫保留作兜底（无 UI 入口指向，仅防历史链接/误访问白屏）。
+- 生产 Nginx **无需改动**：`admin.html` 是 dist 下真实文件，`try_files $uri $uri/ /index.html` 第一段直接命中；管理后台用 hash 路由，深链刷新不会回退到 `index.html`。
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `admin.html` | 新增 — 管理后台入口 |
+| `src/admin/main.ts` `AdminApp.vue` `router/index.ts` | 新增 — 管理后台 SPA 入口/根/独立路由 |
+| `src/admin/layouts/{AdminLayout,AdminSidebar,AdminAuthLayout}.vue` | 新增 — 主框架/侧栏/登录外壳 |
+| `src/admin/views/AdminLoginPage.vue` | 新增 — 独立登录页 |
+| `vite.config.ts` | 加 `rollupOptions.input` 双入口 |
+| `src/services/http.ts` | 401 拦截按入口分流（用户端 / 管理后台） |
+| `src/styles/global.css` | `#admin-app` 撑满高度 |
+| `src/components/SidebarMenu.vue` | 移除管理员菜单分组 + 清理无用图标 import |
+
+> 完整架构说明见 `docs/reference/architecture.md`「管理后台独立入口」章节；部署说明见 `docs/reference/deployment.md` 注意事项 11。
+
+---
+
 ## 2026-06-24 — 修复结果图裂开（移除 crossorigin + 失败自动重试）
 
 ### 背景

@@ -564,11 +564,12 @@ export function initSchema(): void {
   // ── 作品库 ──
   // 用户从已完成的生图任务一键「发布到作品库」，展示结果图 + 模式/模板/提示词/参数，
   // 其他人可浏览学习并「一键同款」复用参数生成。先发后审（admin 可下架）。
+  // title 列已废弃（保留以兼容 NOT NULL 约束），统一存空串。
   db.exec(`
     CREATE TABLE IF NOT EXISTS works (
       id                   TEXT PRIMARY KEY,
       user_id              INTEGER NOT NULL REFERENCES users(id),
-      title                TEXT NOT NULL,
+      title                TEXT NOT NULL DEFAULT '',
       description          TEXT DEFAULT '',
       image_url            TEXT NOT NULL,
       thumb_url            TEXT DEFAULT '',
@@ -598,6 +599,18 @@ export function initSchema(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_works_likes ON works(like_count DESC);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_works_reuse ON works(reuse_count DESC);`)
 
+  // ── 迁移：works 增加 remark 列（备注，原 description 字段合并至此）──
+  try { db.exec(`ALTER TABLE works ADD COLUMN remark TEXT DEFAULT ''`) } catch { /* column already exists */ }
+
+  // ── 迁移：把旧 description 的内容合并到 remark（幂等，仅执行一次）──
+  const descMigCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'migration_works_desc_to_remark_v1'`).get() as { value: string } | undefined
+  if (!descMigCfg) {
+    db.exec(`UPDATE works SET remark = description WHERE (remark IS NULL OR remark = '') AND description IS NOT NULL AND description != ''`)
+    db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_works_desc_to_remark_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+    console.log('[DB] Migrated works.description -> remark')
+  }
+
   // 全局作品标签（全局共享，区别于用户私有的 gallery_tags）
   db.exec(`
     CREATE TABLE IF NOT EXISTS work_tags (
@@ -616,15 +629,7 @@ export function initSchema(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_work_tag_relations_work ON work_tag_relations(work_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_work_tag_relations_tag ON work_tag_relations(tag_id);`)
 
-  // 互动：点赞 / 收藏（联合主键防重）
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS work_likes (
-      user_id    INTEGER NOT NULL REFERENCES users(id),
-      work_id    TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (user_id, work_id)
-    );
-  `)
+  // 互动：收藏（联合主键防重）
   db.exec(`
     CREATE TABLE IF NOT EXISTS work_favorites (
       user_id    INTEGER NOT NULL REFERENCES users(id),
@@ -633,8 +638,56 @@ export function initSchema(): void {
       PRIMARY KEY (user_id, work_id)
     );
   `)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_work_likes_work ON work_likes(work_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_work_favorites_user ON work_favorites(user_id);`)
+
+  // 互动：点赞 —— 每人每天可对同一作品点赞一次。
+  // 联合主键 (user_id, work_id, like_date) 保证「同一天只能赞一次」，
+  // 跨天可重复点赞，like_count 随点赞记录数累加；取消则删除当天记录。
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_likes (
+      user_id    INTEGER NOT NULL REFERENCES users(id),
+      work_id    TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+      like_date  TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, work_id, like_date)
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_work_likes_work ON work_likes(work_id);`)
+
+  // ── 迁移：work_likes 从「(user_id, work_id) 单次防重」改为「每日可赞一次」──
+  // 旧表主键 (user_id, work_id) 限制每人只能赞一次；新版主键 (user_id, work_id, like_date)
+  // 允许每天赞一次。幂等守卫，仅在旧结构存在时执行一次。
+  const likeMigCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'migration_work_likes_daily_v1'`).get() as { value: string } | undefined
+  if (!likeMigCfg) {
+    const tableInfo = db.prepare(`PRAGMA table_info(work_likes)`).all() as any[]
+    const hasLikeDate = tableInfo.some((c) => c.name === 'like_date')
+    if (!hasLikeDate) {
+      // 旧结构：按 (user_id, work_id) 单次防重，created_at 为原始点赞时间
+      db.exec(`ALTER TABLE work_likes RENAME TO work_likes_old`)
+      db.exec(`
+        CREATE TABLE work_likes (
+          user_id    INTEGER NOT NULL REFERENCES users(id),
+          work_id    TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+          like_date  TEXT NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (user_id, work_id, like_date)
+        );
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_work_likes_work ON work_likes(work_id);`)
+      // 迁移历史点赞：like_date 取 created_at 的日期部分（北京时间）
+      db.exec(`
+        INSERT INTO work_likes (user_id, work_id, like_date, created_at)
+        SELECT user_id, work_id,
+          date(created_at, 'modified', '+8 hours') AS like_date,
+          created_at
+        FROM work_likes_old
+      `)
+      db.exec(`DROP TABLE work_likes_old`)
+    }
+    db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_work_likes_daily_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+    console.log('[DB] Migrated work_likes to daily-like model')
+  }
 
   // ── 结构化提示词参考案例库 ──
   // 官方预生成：针对某个结构化字段（如光影）的某个关键词（如「柔光」）配一组参考图，
@@ -663,6 +716,97 @@ export function initSchema(): void {
   // 任务提交时若有结构化数据则写入；发布作品时直接拷贝，无需用户手填。
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN prompt_segments TEXT DEFAULT '{}'`) } catch { /* column already exists */ }
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN negative_prompt TEXT DEFAULT ''`) } catch { /* column already exists */ }
+
+  // ────────────────────────────────────────────────────────────
+  //  提示词工坊 · 结构化模块体系（重构版）
+  //
+  //  prompt_modules   模块定义（要求/元素/禁止出现）
+  //  prompt_cards     提示词卡片（公开社区库，带多图 + 置顶 + 备注）
+  //  prompt_card_favorites / prompt_card_likes  互动表（参考 works 体系）
+  //
+  //  「要求」与「禁止出现」为系统内置模块（is_system=1，固定首尾，不可删），
+  //  管理员在此基础上自由增删「元素」模块（风格/场景/光影/构图/画质等）。
+  // ────────────────────────────────────────────────────────────
+
+  // 模块定义
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_modules (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        VARCHAR(100) NOT NULL,
+      type        VARCHAR(20)  NOT NULL DEFAULT 'element',   -- requirement | element | forbidden
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      is_system   INTEGER NOT NULL DEFAULT 0,                -- 系统内置模块不可删除/改名
+      created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_modules_type ON prompt_modules(type, sort_order);`)
+
+  // 预置系统内置模块 + 常用元素模块（幂等守卫，仅执行一次）
+  const seedModulesCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'seed_prompt_modules_v1'`).get() as { value: string } | undefined
+  if (seedModulesCfg?.value !== 'done') {
+    const insertSystem = db.prepare(`INSERT INTO prompt_modules (name, type, sort_order, is_system) VALUES (?, ?, ?, 1)`)
+    const insertElement = db.prepare(`INSERT OR IGNORE INTO prompt_modules (name, type, sort_order, is_system) VALUES (?, 'element', ?, 0)`)
+    insertSystem.run('要求', 'requirement', 0)
+    // 常用元素模块（管理员后续可改名/删除/新增）
+    insertElement.run('风格', 10)
+    insertElement.run('场景', 20)
+    insertElement.run('光影', 30)
+    insertElement.run('构图', 40)
+    insertElement.run('画质', 50)
+    insertSystem.run('禁止出现', 'forbidden', 9999)
+    db.prepare(`INSERT INTO system_config (key, value) VALUES ('seed_prompt_modules_v1', 'done')
+                ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+    console.log('[DB] Seeded prompt modules')
+  }
+
+  // 提示词卡片（公开社区库）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_cards (
+      id              TEXT PRIMARY KEY,
+      user_id         INTEGER NOT NULL REFERENCES users(id),
+      module_id       INTEGER REFERENCES prompt_modules(id) ON DELETE SET NULL,
+      content         TEXT NOT NULL,
+      images          TEXT NOT NULL DEFAULT '[]',            -- JSON 数组（OSS URL），1~10 张
+      cover_index     INTEGER NOT NULL DEFAULT 0,            -- 置顶图下标
+      remark          TEXT DEFAULT '',
+      status          TEXT NOT NULL DEFAULT 'published',     -- published | hidden
+      is_official     INTEGER NOT NULL DEFAULT 0,
+      like_count      INTEGER NOT NULL DEFAULT 0,
+      favorite_count  INTEGER NOT NULL DEFAULT 0,
+      reuse_count     INTEGER NOT NULL DEFAULT 0,
+      created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_cards_status_created ON prompt_cards(status, created_at DESC);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_cards_module ON prompt_cards(module_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_cards_user ON prompt_cards(user_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_cards_likes ON prompt_cards(like_count DESC);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_cards_reuse ON prompt_cards(reuse_count DESC);`)
+
+  // 互动：收藏（联合主键防重）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_card_favorites (
+      user_id    INTEGER NOT NULL REFERENCES users(id),
+      card_id    TEXT NOT NULL REFERENCES prompt_cards(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, card_id)
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_card_favorites_user ON prompt_card_favorites(user_id);`)
+
+  // 互动：点赞 —— 每人每天可对同一卡片点赞一次（参考 work_likes 体系）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_card_likes (
+      user_id    INTEGER NOT NULL REFERENCES users(id),
+      card_id    TEXT NOT NULL REFERENCES prompt_cards(id) ON DELETE CASCADE,
+      like_date  TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, card_id, like_date)
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_card_likes_card ON prompt_card_likes(card_id);`)
 
   console.log('[DB] Schema initialized')
 }

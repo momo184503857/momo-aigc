@@ -10,11 +10,8 @@ import {
   PictureFilled,
   Picture,
   Collection,
-  UserFilled,
   EditPen,
-  Key,
   Coin,
-  DataBoard,
   ArrowDown,
   Share,
   Box,
@@ -68,7 +65,13 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/canvas-projects', title: 'AI画布', icon: Share },
         { path: '/toolbox', title: 'AI工具箱', icon: Box },
         { path: '/buyer-show', title: 'AI买家秀', icon: Goods },
+      ],
+    },
+    {
+      title: 'AI学习',
+      items: [
         { path: '/works', title: '作品库', icon: Trophy },
+        { path: '/prompt-workshop', title: '提示词工坊', icon: EditPen },
       ],
     },
     {
@@ -76,28 +79,10 @@ const menuSections = computed<MenuSection[]>(() => {
       items: [
         { path: '/templates', title: '模板图库', icon: PictureFilled },
         { path: '/prompts', title: '提示词库', icon: Collection },
-        { path: '/prompt-workshop', title: '提示词工坊', icon: EditPen },
         { path: '/results', title: '生图结果', icon: Picture },
       ],
     },
   ]
-
-  if (auth.isAdmin) {
-    sections.push({
-      title: '管理员',
-      adminOnly: true,
-      items: [
-        { path: '/admin/users', title: '用户管理', icon: UserFilled },
-        { path: '/admin/dashboard', title: '生图日志', icon: DataBoard },
-        { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
-        { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
-        { path: '/admin/photography', title: 'AI摄影配置', icon: Camera },
-        { path: '/admin/works', title: '作品库管理', icon: Trophy },
-        { path: '/admin/prompt-cases', title: '提示词案例', icon: Picture },
-        { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
-      ],
-    })
-  }
 
   return sections
 })

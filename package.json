@@ -10,7 +10,8 @@
     "dev:server": "tsx watch server/src/index.ts",
     "build:server": "tsc -p server/tsconfig.json",
     "start:server": "node server/dist/index.js",
-    "check": "vue-tsc -b && tsc -p server/tsconfig.json --noEmit"
+    "check": "vue-tsc -b && tsc -p server/tsconfig.json --noEmit",
+    "pull-db": "bash scripts/pull-db.sh"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

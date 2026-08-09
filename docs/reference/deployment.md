@@ -113,6 +113,8 @@ npm run build
 
 构建成功后，后端输出在 `server/dist/`，前端输出在 `dist/`。
 
+> 前端为**双入口**：`vite.config.ts` 通过 `build.rollupOptions.input` 注册 `index.html`（用户端）和 `admin.html`（管理后台），`npm run build` 会同时产出 `dist/index.html` 与 `dist/admin.html` 两个入口（各自独立的入口 chunk）。后端 `/api/admin/*` 路由与 JWT 账号体系两端共用，无需为管理后台单独部署后端。
+
 ### 7. 安装 Nginx
 
 ```bash
@@ -134,7 +136,10 @@ server {
     root /root/momo-aigc/dist;
     index index.html;
 
-    # SPA 路由支持
+    # SPA 路由支持（同时覆盖用户端 index.html 与管理后台 admin.html）
+    # admin.html 是 dist 下的真实文件，try_files 第一段 $uri 会直接命中并返回，
+    # 因此管理后台无需任何额外 SPA 回退配置；深链刷新（/admin.html#/xxx）由
+    # 浏览器侧 hash 路由处理，请求的始终是 /admin.html 本身。
     location / {
         try_files $uri $uri/ /index.html;
     }
@@ -195,6 +200,8 @@ pm2 startup
 
 - 用户名：`admin`
 - 密码：`admin123`
+
+管理后台独立入口：访问 `http://<公网IP>/admin.html`，同一套账号登录（普通用户登录会被拒绝）。两端共享登录态，无需重复登录。
 
 ---
 
@@ -529,3 +536,4 @@ pm2 restart momo-aigc --update-env   # 仅后端改动时需要
 8. **每次 pushes 之前本地跑一下构建**：`npm run build && npm run build:server`，确保类型检查和编译都通过，问题 7 那种情况就不会推到服务器上。
 9. **数据库自动迁移（2026-08-09 作品库 + 提示词工坊上线）**：本次上线涉及数据库迁移--新增 6 张表（`works`/`work_tags`/`work_tag_relations`/`work_likes`/`work_favorites`/`prompt_cases`）+ 3 个迁移列（`prompt_library.segments`、`generation_tasks.prompt_segments`/`negative_prompt`）。迁移在 `server/src/db/schema.ts` 启动时幂等执行（`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN` 用 try/catch 容错），**部署后首次 `pm2 restart` 即自动跑迁移，无需手动 SQL**。观察 PM2 日志确认出现 `[DB] Schema initialized`。
 10. **部署后验证新页面**：访问 `/works`（作品库广场）、`/works/:id`（作品详情）、`/prompt-workshop`（提示词工坊）、`/admin/works`（作品库管理）、`/admin/prompt-cases`（案例管理）确认页面正常加载。
+11. **管理后台独立入口（2026-08-09 上线）**：前端改为双入口构建——`index.html`（用户端）+ `admin.html`（管理后台）。部署 `npm run build` 后确认 `dist/` 下同时存在这两个文件。管理后台访问 `/admin.html`（账号与用户端共用，普通用户登录被拒）；用户端侧边栏不再显示管理员菜单。**Nginx 无需改动**：现有 `try_files $uri $uri/ /index.html` 的 `$uri` 段会直接命中 `admin.html` 这个静态文件。管理后台用 hash 路由（`/admin.html#/users`），深链刷新不会回退到 `index.html`。

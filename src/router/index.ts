@@ -216,6 +216,12 @@ const router = createRouter({
       meta: { title: '提示词案例管理', requiresAuth: true, requiresAdmin: true },
     },
     {
+      path: '/admin/prompt-modules',
+      name: 'AdminPromptModules',
+      component: () => import('@/views/admin/AdminPromptModules.vue'),
+      meta: { title: '提示词模块管理', requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/admin/toapis-key',
       name: 'AdminToApisKey',
       component: () => import('@/views/admin/AdminToApisKey.vue'),

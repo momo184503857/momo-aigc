@@ -150,11 +150,11 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 ### 用户路由 `/api/works`（需登录）
 
 #### GET `/api/works`
-作品列表（瀑布流）。默认只看 `status='published'`。
+作品列表（瀑布流懒加载）。默认只看 `status='published'`。关键词搜索只匹配 `prompt`（不再匹配 title）。
 
-- Query：`page`（默认 1）、`pageSize`（默认 20，上限 60）、`sort`（`latest`/`hot`/`most_reused`，默认 `latest`）、`feature_id?`、`tag_id?`、`keyword?`、`scope`（`gallery`/`mine`/`favorites`，默认 `gallery`）
+- Query：`page`（默认 1）、`pageSize`（默认 20，上限 60）、`sort`（`latest`/`hot`/`most_reused`，默认 `latest`）、`feature_id?`、`tag_id?`、`keyword?`（只搜 prompt）、`scope`（`gallery`/`mine`/`favorites`，默认 `gallery`）
 - Response：`data: { records: WorkItem[], total, page, pageSize, totalPages }`
-- `WorkItem` 含：`id, title, description, image_url, prompt, user_prompt, prompt_segments, negative_prompt, model, resolution, aspect_ratio, feature_id, reference_image_urls, status, is_official, like_count, favorite_count, reuse_count, view_count, created_at, author: {id,username,nickname}, tags: [{id,name}], is_liked, is_favorited`
+- `WorkItem` 含：`id, user_id, remark, image_url, thumb_url, prompt, user_prompt, prompt_segments, negative_prompt, model, resolution, aspect_ratio, feature_id, reference_image_urls, source_task_id, status, is_official, like_count, favorite_count, reuse_count, view_count, created_at, author: {id,username,nickname}, tags: [{id,name}], is_liked（今天是否已赞）, is_favorited`
 - `scope=mine` 只看自己的作品；`scope=favorites` 只看自己收藏的
 
 #### GET `/api/works/tags`
@@ -166,16 +166,18 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 #### POST `/api/works`
 从任务发布作品。防重复：同一 `source_task_id` 只能发布一次（重复返回 409）。
 
-- Body：`{ source_task_id: number, title?: string, description?: string, tagIds?: number[] }`
-- 逻辑：按 `source_task_id` + `user_id` 查 `generation_tasks`，校验 `status='completed'` 且有结果图，拷贝 prompt/user_prompt/prompt_segments/negative_prompt/model/resolution/aspect_ratio/feature_id/input_image_urls/result_image_urls[0] 写入 works
-- title 默认取 prompt 前 30 字
+- Body：`{ source_task_id: number, remark?: string, tagIds?: number[] }`
+- 逻辑：按 `source_task_id` + `user_id` 查 `generation_tasks`，校验 `status='completed'` 且有结果图，拷贝 prompt/user_prompt/prompt_segments/negative_prompt/model/resolution/aspect_ratio/feature_id/input_image_urls/result_image_urls[0] 写入 works（title 固定存空串）
 - Response：`data: WorkItem`
 
 #### POST `/api/works/:id/like`
-点赞/取消（toggle）。Response：`data: { is_liked: boolean, like_count: number }`
+点赞/取消今日点赞（每人每天可赞一次，含自己的作品）。已赞今天则取消（`-1`），未赞则新增今日记录（`+1`）。Response：`data: { is_liked: boolean（今天是否已赞）, like_count: number（累计总数） }`
 
 #### POST `/api/works/:id/favorite`
 收藏/取消（toggle）。Response：`data: { is_favorited: boolean, favorite_count: number }`
+
+#### PATCH `/api/works/:id/remark`
+更新备注（仅作者或管理员，否则 403）。Body：`{ remark: string }`（截断 500 字）。Response：`data: { remark: string }`
 
 #### POST `/api/works/:id/reuse`
 记录复用（`reuse_count +1`）并返回完整参数供前端跳转生图。Response：`data: { model, prompt, userPrompt, resolution, aspectRatio, feature_id, input_image_urls }`
@@ -185,10 +187,10 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 
 ### 管理员路由 `/api/admin/works`（auth + admin）
 
-- `GET /` - 全部作品列表（含 hidden）。Query：`page, pageSize, status?, keyword?`
+- `GET /` - 全部作品列表（含 hidden）。Query：`page, pageSize, status?, keyword?`（keyword 只搜 prompt）
 - `PATCH /:id/status` body `{ status: 'published' | 'hidden' }` - 上架/下架
 - `DELETE /:id` - 强制删除任意作品
-- `POST /official` - 发布官方种子作品（手动填参数 + 图片 URL，`is_official=1`，无 `source_task_id`）。Body：`{ title, description?, image_url, prompt, user_prompt?, prompt_segments?, negative_prompt?, model, resolution?, aspect_ratio?, feature_id?, reference_image_urls?, tagIds? }`
+- `POST /official` - 发布官方种子作品（手动填参数 + 图片 URL，`is_official=1`，无 `source_task_id`）。Body：`{ remark?, image_url, prompt, user_prompt?, prompt_segments?, negative_prompt?, model, resolution?, aspect_ratio?, feature_id?, reference_image_urls?, tagIds? }`
 - `GET /tags` - 标签列表（含使用数为 0 的）
 - `POST /tags` body `{ name }` - 新建标签（幂等：同名返回已存在 id）
 - `DELETE /tags/:id` - 删除标签（级联清理关联行）
@@ -215,6 +217,36 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 - `POST /` body `{ segment_key, keyword, image_url, prompt_snapshot?, model?, sort_order? }` - 新增案例（`is_official=1`）
 - `PATCH /:id` body `{ segment_key?, keyword?, image_url?, prompt_snapshot?, model?, sort_order? }` - 编辑
 - `DELETE /:id` - 删除
+
+---
+
+## 提示词工坊 · 模块卡片社区库（重构版）
+
+提示词工坊核心。模块分三类：要求（`requirement`，固定首段）/ 元素（`element`，中间）/ 禁止出现（`forbidden`，固定末段）。「要求」「禁止出现」为系统内置，管理员可自由增删元素模块。
+
+### 用户路由 `/api/prompt-cards`（需登录）
+
+- `GET /modules` - 模块列表（用户端只读，按 `sort_order`）。Response：`data: PromptModule[]`
+  - `PromptModule = { id, name, type: 'requirement'|'element'|'forbidden', sort_order, is_system: boolean }`
+- `GET /` - 卡片列表（瀑布流，服务端分页+筛选）。Query：`page, pageSize, sort: 'latest'|'hot'|'most_reused', scope: 'gallery'|'mine'|'favorites', moduleId?, keyword?`（keyword 搜 content/remark）
+  - Response：`data: { records: PromptCard[], total, page, pageSize, totalPages }`
+  - `PromptCard = { id, user_id, module_id, module: { id, name, type } | null, content, images: string[], cover_url, cover_index, remark, status, is_official, like_count, favorite_count, reuse_count, created_at, author: { id, username, nickname } | null, is_liked, is_favorited }`
+  - `cover_url` = `images[cover_index] || images[0]`
+- `GET /:id` - 卡片详情（非作者浏览量不计入；非公开仅作者/管理员可见）
+- `POST /` body `{ module_id, content, images: string[], cover_index?, remark? }` - 上传。校验：module 存在、content 非空、images 1~10 张、cover_index 合法
+- `POST /:id/like` - 点赞（每人每天 1 次，toggle 当日）。Response：`data: { is_liked, like_count }`
+- `POST /:id/favorite` - 收藏/取消（toggle）。Response：`data: { is_favorited, favorite_count }`
+- `POST /:id/reuse` - 复用计数 +1，返回模块+内容供前端拼接。Response：`data: { id, module_id, module_name, module_type, content, reuse_count }`
+- `DELETE /:id` - 删除卡片（仅作者/管理员）。ON DELETE CASCADE 清理点赞/收藏
+
+### 管理员路由 `/api/admin/prompt-modules`（auth + admin）
+
+模块管理。「要求」「禁止出现」为系统内置（`is_system=1`），不可改名/删除；管理员可自由增删「元素」模块。
+
+- `GET /` - 全部模块（按 `sort_order`）。Response：`data: PromptModule[]`
+- `POST /` body `{ name, sort_order? }` - 新增元素模块（type 固定 `element`）。重名 409
+- `PATCH /:id` body `{ name?, sort_order? }` - 改名/排序（系统内置模块 400 拒绝）
+- `DELETE /:id` - 删除元素模块（系统内置 400 拒绝）。引用该模块的卡片 `module_id` 置 NULL，卡片保留
 
 ---
 

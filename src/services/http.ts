@@ -22,7 +22,9 @@ http.interceptors.response.use(
       localStorage.removeItem('auth_token')
       const auth = useAuthStore()
       auth.clear()
-      window.location.href = '/#/login'
+      // 按入口分流：管理后台(admin.html)401 跳管理后台登录页，否则跳用户端登录页
+      const inAdmin = window.location.pathname.endsWith('admin.html')
+      window.location.href = inAdmin ? '/admin.html#/login' : '/#/login'
     }
     return Promise.reject(err)
   }

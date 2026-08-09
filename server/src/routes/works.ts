@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { db } from '../db/index.js'
 import { v4 as uuidv4 } from 'uuid'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
+import { bjToday } from '../utils/datetime.js'
 
 // ────────────────────────────────────────────────────────────
 //  作品库
@@ -20,7 +21,8 @@ function attachExtras(rows: any[], userId: number): any[] {
   // 发布者信息
   const userStmt = db.prepare(`SELECT id, username, nickname FROM users WHERE id = ?`)
   // 当前用户的互动状态
-  const likeStmt = db.prepare(`SELECT 1 FROM work_likes WHERE user_id = ? AND work_id = ?`)
+  const today = bjToday()
+  const likeStmt = db.prepare(`SELECT 1 FROM work_likes WHERE user_id = ? AND work_id = ? AND like_date = ?`)
   const favStmt = db.prepare(`SELECT 1 FROM work_favorites WHERE user_id = ? AND work_id = ?`)
   // 标签
   const tagStmt = db.prepare(`
@@ -38,7 +40,7 @@ function attachExtras(rows: any[], userId: number): any[] {
       reference_image_urls: safeParseJson(r.reference_image_urls, []),
       author: user ? { id: user.id, username: user.username, nickname: user.nickname } : null,
       tags,
-      is_liked: !!likeStmt.get(userId, r.id),
+      is_liked: !!likeStmt.get(userId, r.id, today),
       is_favorited: !!favStmt.get(userId, r.id),
       is_official: !!r.is_official,
     }
@@ -109,8 +111,8 @@ worksRouter.get('/', (req: AuthRequest, res) => {
     }
 
     if (keyword) {
-      conditions.push('(w.title LIKE ? OR w.prompt LIKE ?)')
-      params.push(`%${keyword}%`, `%${keyword}%`)
+      conditions.push('(w.prompt LIKE ?)')
+      params.push(`%${keyword}%`)
     }
 
     const whereSql = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
@@ -119,7 +121,7 @@ worksRouter.get('/', (req: AuthRequest, res) => {
     const { total } = db.prepare(`SELECT COUNT(DISTINCT w.id) as total ${fromSql}`).get(...params) as any
 
     const columns = `
-      SELECT DISTINCT w.id, w.user_id, w.title, w.description, w.image_url, w.thumb_url,
+      SELECT DISTINCT w.id, w.user_id, w.remark, w.image_url, w.thumb_url,
         w.prompt, w.user_prompt, w.prompt_segments, w.negative_prompt,
         w.model, w.resolution, w.aspect_ratio, w.feature_id,
         w.reference_image_urls, w.source_task_id, w.status, w.is_official,
@@ -190,7 +192,8 @@ worksRouter.get('/:id', (req: AuthRequest, res) => {
       WHERE r.work_id = ?
     `).all(req.params.id) as any[]
 
-    const isLiked = !!db.prepare('SELECT 1 FROM work_likes WHERE user_id = ? AND work_id = ?').get(req.user!.userId, req.params.id)
+    const today = bjToday()
+    const isLiked = !!db.prepare(`SELECT 1 FROM work_likes WHERE user_id = ? AND work_id = ? AND like_date = ?`).get(req.user!.userId, req.params.id, today)
     const isFavorited = !!db.prepare('SELECT 1 FROM work_favorites WHERE user_id = ? AND work_id = ?').get(req.user!.userId, req.params.id)
 
     const result = {
@@ -214,7 +217,7 @@ worksRouter.get('/:id', (req: AuthRequest, res) => {
 // POST /api/works  从任务发布作品
 worksRouter.post('/', (req: AuthRequest, res) => {
   try {
-    const { source_task_id, title, description, tagIds } = req.body || {}
+    const { source_task_id, remark, tagIds } = req.body || {}
     if (!source_task_id) {
       res.status(400).json({ success: false, error: '缺少来源任务 ID' })
       return
@@ -222,7 +225,7 @@ worksRouter.post('/', (req: AuthRequest, res) => {
 
     // 查任务，必须属于当前用户且已完成、有结果图
     const task = db.prepare(`
-      SELECT id, user_id, model, prompt, user_prompt, prompt_segments, negative_prompt,
+      SELECT id, user_id, status, model, prompt, user_prompt, prompt_segments, negative_prompt,
         resolution, aspect_ratio, feature_id, input_image_urls, result_image_urls
       FROM generation_tasks WHERE id = ? AND user_id = ?
     `).get(source_task_id, req.user!.userId) as any
@@ -250,23 +253,22 @@ worksRouter.post('/', (req: AuthRequest, res) => {
 
     const id = uuidv4()
     const now = new Date().toISOString()
-    const workTitle = (title && String(title).trim()) || task.prompt.slice(0, 30)
-    const workDesc = description ? String(description).trim() : ''
+    const workRemark = remark ? String(remark).trim().slice(0, 500) : ''
     const refUrls = safeParseJson(task.input_image_urls, [])
     const imageUrl = resultUrls[0]
 
     const insertWork = db.prepare(`
       INSERT INTO works
-        (id, user_id, title, description, image_url, thumb_url, prompt, user_prompt,
+        (id, user_id, title, description, remark, image_url, thumb_url, prompt, user_prompt,
          prompt_segments, negative_prompt, model, resolution, aspect_ratio, feature_id,
          reference_image_urls, source_task_id, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?)
+      VALUES (?, ?, '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?)
     `)
     const insertTagRelation = db.prepare('INSERT OR IGNORE INTO work_tag_relations (work_id, tag_id) VALUES (?, ?)')
 
     const tx = db.transaction(() => {
       insertWork.run(
-        id, req.user!.userId, workTitle, workDesc,
+        id, req.user!.userId, workRemark,
         imageUrl, imageUrl,
         task.prompt, task.user_prompt || '',
         task.prompt_segments || '{}', task.negative_prompt || '',
@@ -287,7 +289,8 @@ worksRouter.post('/', (req: AuthRequest, res) => {
   }
 })
 
-// POST /api/works/:id/like  点赞/取消（toggle）
+// POST /api/works/:id/like  点赞（每人每天可赞一次，可给自己的作品点赞）
+// 已赞今天 -> 取消今天的点赞（like_count -1）；今天未赞 -> 新增今日点赞（like_count +1）
 worksRouter.post('/:id/like', (req: AuthRequest, res) => {
   try {
     const { id } = req.params
@@ -296,13 +299,16 @@ worksRouter.post('/:id/like', (req: AuthRequest, res) => {
       res.status(404).json({ success: false, error: '作品不存在' })
       return
     }
-    const existing = db.prepare('SELECT 1 FROM work_likes WHERE user_id = ? AND work_id = ?').get(req.user!.userId, id)
+    const today = bjToday()
+    const existing = db.prepare(`SELECT 1 FROM work_likes WHERE user_id = ? AND work_id = ? AND like_date = ?`).get(req.user!.userId, id, today)
     const tx = db.transaction(() => {
       if (existing) {
-        db.prepare('DELETE FROM work_likes WHERE user_id = ? AND work_id = ?').run(req.user!.userId, id)
+        // 取消今天的点赞
+        db.prepare(`DELETE FROM work_likes WHERE user_id = ? AND work_id = ? AND like_date = ?`).run(req.user!.userId, id, today)
         db.prepare('UPDATE works SET like_count = MAX(0, like_count - 1) WHERE id = ?').run(id)
       } else {
-        db.prepare('INSERT OR IGNORE INTO work_likes (user_id, work_id) VALUES (?, ?)').run(req.user!.userId, id)
+        // 新增今天的点赞（OR IGNORE 防并发重复）
+        db.prepare(`INSERT OR IGNORE INTO work_likes (user_id, work_id, like_date) VALUES (?, ?, ?)`).run(req.user!.userId, id, today)
         db.prepare('UPDATE works SET like_count = like_count + 1 WHERE id = ?').run(id)
       }
     })
@@ -373,6 +379,28 @@ worksRouter.post('/:id/reuse', (req: AuthRequest, res) => {
   } catch (err: any) {
     console.error('[works] Reuse error:', err.message)
     res.status(500).json({ success: false, error: '操作失败' })
+  }
+})
+
+// PATCH /api/works/:id/remark  更新备注（仅作者或管理员）
+worksRouter.patch('/:id/remark', (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params
+    const work = db.prepare('SELECT id, user_id FROM works WHERE id = ?').get(id) as any
+    if (!work) {
+      res.status(404).json({ success: false, error: '作品不存在' })
+      return
+    }
+    if (work.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+      res.status(403).json({ success: false, error: '无权修改他人作品备注' })
+      return
+    }
+    const remark = (req.body?.remark != null ? String(req.body.remark) : '').slice(0, 500)
+    db.prepare('UPDATE works SET remark = ?, updated_at = ? WHERE id = ?').run(remark, new Date().toISOString(), id)
+    res.json({ success: true, data: { remark } })
+  } catch (err: any) {
+    console.error('[works] Remark error:', err.message)
+    res.status(500).json({ success: false, error: '更新备注失败' })
   }
 })
 

@@ -36,8 +36,8 @@ adminWorksRouter.get('/', (req, res) => {
       params.push(status)
     }
     if (keyword) {
-      conditions.push('(w.title LIKE ? OR w.prompt LIKE ?)')
-      params.push(`%${keyword}%`, `%${keyword}%`)
+      conditions.push('(w.prompt LIKE ?)')
+      params.push(`%${keyword}%`)
     }
     const whereSql = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
 
@@ -95,13 +95,13 @@ adminWorksRouter.delete('/:id', (req, res) => {
 adminWorksRouter.post('/official', (req: AuthRequest, res) => {
   try {
     const {
-      title, description, image_url, prompt, user_prompt,
+      remark, image_url, prompt, user_prompt,
       prompt_segments, negative_prompt, model, resolution, aspect_ratio,
       feature_id, reference_image_urls, tagIds,
     } = req.body || {}
 
-    if (!title || !image_url || !prompt || !model) {
-      res.status(400).json({ success: false, error: '标题、图片、提示词、模型不能为空' })
+    if (!image_url || !prompt || !model) {
+      res.status(400).json({ success: false, error: '图片、提示词、模型不能为空' })
       return
     }
 
@@ -109,16 +109,16 @@ adminWorksRouter.post('/official', (req: AuthRequest, res) => {
     const now = new Date().toISOString()
     const insertWork = db.prepare(`
       INSERT INTO works
-        (id, user_id, title, description, image_url, thumb_url, prompt, user_prompt,
+        (id, user_id, title, description, remark, image_url, thumb_url, prompt, user_prompt,
          prompt_segments, negative_prompt, model, resolution, aspect_ratio, feature_id,
          reference_image_urls, source_task_id, status, is_official, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'published', 1, ?, ?)
+      VALUES (?, ?, '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'published', 1, ?, ?)
     `)
     const insertTagRelation = db.prepare('INSERT OR IGNORE INTO work_tag_relations (work_id, tag_id) VALUES (?, ?)')
 
     const tx = db.transaction(() => {
       insertWork.run(
-        id, req.user!.userId, title.trim(), description || '',
+        id, req.user!.userId, remark ? String(remark).trim().slice(0, 500) : '',
         image_url, image_url,
         prompt, user_prompt || '',
         JSON.stringify(prompt_segments || {}), negative_prompt || '',

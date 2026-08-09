@@ -29,6 +29,8 @@ import { worksRouter } from './routes/works.js'
 import { adminWorksRouter } from './routes/admin/works.js'
 import { promptCasesRouter } from './routes/promptCases.js'
 import { adminPromptCasesRouter } from './routes/admin/promptCases.js'
+import { promptCardsRouter } from './routes/promptCards.js'
+import { adminPromptModulesRouter } from './routes/admin/promptModules.js'
 
 const app = express()
 
@@ -69,6 +71,8 @@ app.use('/api/works', worksRouter)
 app.use('/api/admin/works', adminWorksRouter)
 app.use('/api/prompt-cases', promptCasesRouter)
 app.use('/api/admin/prompt-cases', adminPromptCasesRouter)
+app.use('/api/prompt-cards', promptCardsRouter)
+app.use('/api/admin/prompt-modules', adminPromptModulesRouter)
 
 app.listen(config.port, () => {
   console.log(`[Server] momoAigc server running on http://localhost:${config.port}`)

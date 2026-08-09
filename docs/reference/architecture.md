@@ -216,7 +216,18 @@ PhotographyForm (图片池 + 元素分配)
 
 ### 互动计数
 
-`works` 表冗余存储 `like_count`/`favorite_count`/`reuse_count`/`view_count`，避免每次列表查询都 JOIN 聚合。`work_likes`/`work_favorites` 表用联合主键 `(user_id, work_id)` 防重，点赞/收藏时事务更新计数（`+1`/`MAX(0, -1)`）。
+`works` 表冗余存储 `like_count`/`favorite_count`/`reuse_count`/`view_count`，避免每次列表查询都 JOIN 聚合。
+
+- **收藏**：`work_favorites` 表用联合主键 `(user_id, work_id)` 防重，收藏/取消时事务更新计数（`+1`/`MAX(0, -1)`）。
+- **点赞**（每人每天一次）：`work_likes` 表用联合主键 `(user_id, work_id, like_date)` 防重，`like_date` 为北京日 `YYYY-MM-DD`（`server/src/utils/datetime.ts` 的 `bjToday()`）。同一用户每天可对同一作品点赞一次（含自己的作品），跨天可重复点赞。点赞接口检查**今天**是否已赞：已赞则删除今日记录并 `-1`，未赞则插入今日记录并 `+1`。`is_liked` 字段语义为「今天是否已赞」。
+
+### 备注
+
+`works.remark` 字段（TEXT，默认空串）存储发布人/管理员添加的备注。发布弹窗可填写，详情页可随时编辑（`PATCH /api/works/:id/remark`，仅作者或管理员）。原 `description` 字段已废弃（数据已迁移到 `remark`，列保留兼容）。
+
+### 广场懒加载
+
+作品广场使用 `IntersectionObserver` 实现无限滚动懒加载：滚动容器底部放置哨兵元素，进入视口（rootMargin 300px）时自动请求下一页并追加，无分页器。组件卸载时 `disconnect` observer。
 
 ### 一键同款
 
@@ -270,3 +281,81 @@ admin 可通过 `POST /api/admin/works/official` 发布官方种子作品（`is_
 2. **作品库聚合**：查 `works` 表中 `prompt_segments` 里该字段非空的作品，按 `like_count + reuse_count * 2` 排序取 top N
 
 前端 `CaseSelector.vue` 弹窗：点某字段「选词」-> 按关键词分组展示参考图 -> 看图选词 -> 点击填入对应字段框。
+
+---
+
+## 管理后台独立入口（双入口架构）
+
+管理后台是**独立于用户端的第二个网页入口**，与用户端共用同一份后端、同一套 JWT 账号、同一套设计系统，但前端是独立的 SPA bundle、独立的登录页与主框架。
+
+### 入口与路由
+
+| 入口 | HTML | 前端入口 | 路由模式 | 默认落地 |
+|------|------|---------|---------|---------|
+| 用户端 | `index.html` | `src/main.ts` → `App.vue` | hash（`createWebHashHistory`） | `/workspace` |
+| 管理后台 | `admin.html` | `src/admin/main.ts` → `AdminApp.vue` | hash（`createWebHashHistory`） | `/users` |
+
+两端都用 hash 模式的关键原因：
+
+- 与用户端一致；
+- `admin.html` 在生产环境就是一个被 Nginx 直接返回的静态文件，**深链刷新零 404 风险**（无需为 `/admin.html/*` 配 SPA 回退，回退规则只会命中 `index.html`，会导致管理后台深链刷新错跳到用户端）。
+
+### Vite 多页构建
+
+`vite.config.ts` 通过 `build.rollupOptions.input` 注册两个入口：
+
+```ts
+build: { rollupOptions: { input: {
+  main: resolve(__dirname, 'index.html'),
+  admin: resolve(__dirname, 'admin.html'),
+}}}
+```
+
+`npm run build` 同时产出 `dist/index.html` + `dist/admin.html`（各自独立的入口 chunk）。`/api` proxy 配置两端共用，dev server 单端口（5173）同时服务两个入口。
+
+### 管理后台应用骨架（`src/admin/`）
+
+```
+src/admin/
+├── main.ts                      # 入口：注册 Pinia/ElementPlus/VChart + 复用同一套 styles
+├── AdminApp.vue                 # 根组件：meta.guest → AdminAuthLayout，否则 → AdminLayout
+├── router/index.ts              # 独立 router（hash 模式）+ 管理员身份守卫
+├── layouts/
+│   ├── AdminAuthLayout.vue      # 登录外壳（居中卡片，「墨墨 AI 生图 / 管理后台」）
+│   ├── AdminLayout.vue          # 主框架：AdminSidebar + header + router-view（无 TaskPanel/FAB/多标签）
+│   └── AdminSidebar.vue         # 8 个管理菜单 + 「返回用户端」+ 当前管理员信息 + 退出
+└── views/
+    └── AdminLoginPage.vue       # 独立登录页：仅密码登录，登录后校验 role==='admin'
+```
+
+### 复用 vs 新建（零重复代码）
+
+管理后台通过 `@/...` 别名**直接复用** `src/` 下的共享层，不复制：
+
+| 复用（import 即用） | 新建（仅管理后台专用） |
+|--------------------|----------------------|
+| `@/styles/{tokens,global,ep-overrides}` | `src/admin/*` 全部文件 |
+| `@/stores/auth.ts`（token 存 localStorage `auth_token`，两端互通） | |
+| `@/services/http.ts`（axios，baseURL `/api`，proxy 转发） | |
+| `@/services/adminApi.ts` 及各 `*Api.ts` | |
+| `@/composables/useUiFeedback.ts`、`@/components/PageLayout.vue` | |
+| `@/views/admin/*.vue`（8 个管理页，**不移动、不复制**，由新 router 直接 import） | |
+| `@/plugins/echarts*`、`@/utils/*`、`@/types/*` | |
+
+> 管理后台内路由去掉了 `/admin` 前缀（`/users` 而非 `/admin/users`），但组件本身不变——它们调用的 service 仍打到 `/api/admin/*`，后端无需改动。
+
+### 登录态互通与身份守卫
+
+- **同一 token**：两端共享 `localStorage.auth_token`。在用户端登录的管理员，新开 `/admin.html` 即已登录，管理后台 router 守卫会 `fetchUser()` 拉取 role。
+- **管理后台守卫**（`src/admin/router/index.ts` 的 `beforeEach`）：
+  - guest 页面：已登录管理员直接进 `/users`。
+  - 非 guest：token 存在但 user 未加载时先 `fetchUser()`；未登录 → `/login`；已登录但 `role !== 'admin'` → `clear()` 并回 `/login`。
+- **401 按入口分流**：`src/services/http.ts` 的 401 拦截器判断 `window.location.pathname` 是否 `admin.html`，是则跳 `/admin.html#/login`，否则跳用户端 `/#/login`。这是唯一需要触碰共享文件的改动。
+
+### 后端零改动
+
+`/api/admin/*` 路由、`authMiddleware`（校验 JWT → 401）、`adminMiddleware`（`role !== 'admin'` → 403）、JWT 签发（payload 含 `{userId, username, role}`）全部沿用，管理后台与用户端调用的 API 完全相同。
+
+### 用户端侧边栏清理
+
+`src/components/SidebarMenu.vue` 中 `if (auth.isAdmin)` 追加的「管理员」分组已整体移除——用户端侧边栏对所有角色展示三组：AI生图 / AI学习 / 资产管理。其中「AI学习」组包含作品库（`/works`）和提示词工坊（`/prompt-workshop`）。用户端 `src/router/index.ts` 的 `/admin/*` 路由与 `requiresAdmin` 守卫保留作兜底（无 UI 入口指向，仅防历史链接/误访问白屏）。

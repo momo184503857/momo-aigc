@@ -21,6 +21,14 @@ export function bjWeek(col: string): string {
   return `strftime('%Y-W%W', ${col}, '+8 hours')`
 }
 
+/**
+ * 当前北京日（'YYYY-MM-DD'）。用于「每人每天一次」这类按日去重逻辑。
+ * SQLite 列用裸 UTC 存储，比较时统一取北京日，避免跨时区错位。
+ */
+export function bjToday(): string {
+  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10)
+}
+
 export interface DateRangeClause {
   /** 形如 ` AND col >= ... AND col <= ...`；无边界时为空串，可直接拼到现有 WHERE 后。 */
   clause: string

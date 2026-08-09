@@ -202,8 +202,9 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 |------|------|------|
 | id | TEXT PK | UUID |
 | user_id | INTEGER FK -> users(id) NOT NULL | 发布者 |
-| title | TEXT NOT NULL | 标题（默认取 prompt 前 30 字） |
-| description | TEXT DEFAULT '' | 可选描述 |
+| title | TEXT NOT NULL DEFAULT '' | **已废弃**（保留列兼容 NOT NULL 约束，统一存空串） |
+| description | TEXT DEFAULT '' | **已废弃**（数据已迁移到 remark，列保留兼容） |
+| remark | TEXT DEFAULT '' | 备注（发布人/管理员可编辑，原 description 已合并至此） |
 | image_url | TEXT NOT NULL | 作品图 OSS URL（来自任务结果图） |
 | thumb_url | TEXT DEFAULT '' | 缩略图（初始 = image_url） |
 | prompt | TEXT NOT NULL | 最终发送给 API 的完整 prompt |
@@ -218,7 +219,7 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 | source_task_id | INTEGER | 来源任务 ID（官方种子无来源，为 NULL） |
 | status | TEXT DEFAULT 'published' | `published` / `hidden`（先发后审） |
 | is_official | INTEGER DEFAULT 0 | 1=官方种子内容 |
-| like_count | INTEGER DEFAULT 0 | 点赞数（冗余计数） |
+| like_count | INTEGER DEFAULT 0 | 点赞数（累计冗余计数） |
 | favorite_count | INTEGER DEFAULT 0 | 收藏数（冗余计数） |
 | reuse_count | INTEGER DEFAULT 0 | 被一键同款次数 |
 | view_count | INTEGER DEFAULT 0 | 浏览量（作者自己不计） |
@@ -261,9 +262,9 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 索引：`work_id`、`tag_id`。
 
-### work_likes / work_favorites
+### work_favorites
 
-点赞 / 收藏（联合主键防重，ON DELETE CASCADE 级联清理）。
+收藏（联合主键防重，ON DELETE CASCADE 级联清理）。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -272,7 +273,23 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 | created_at | TIMESTAMP | |
 | PRIMARY KEY (user_id, work_id) | | 联合主键，配合 `INSERT OR IGNORE` 防重 |
 
-索引：`work_likes(work_id)`、`work_favorites(user_id)`。
+索引：`work_favorites(user_id)`。
+
+### work_likes
+
+点赞（每人每天可对同一作品点赞一次，含自己的作品；ON DELETE CASCADE 级联清理）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| user_id | INTEGER FK -> users(id) | |
+| work_id | TEXT FK -> works(id) ON DELETE CASCADE | |
+| like_date | TEXT NOT NULL | 北京日 `YYYY-MM-DD`（`bjToday()`） |
+| created_at | TIMESTAMP | |
+| PRIMARY KEY (user_id, work_id, like_date) | | 三列联合主键：同一用户每天可赞一次 |
+
+索引：`work_likes(work_id)`。
+
+> 从 `(user_id, work_id)` 单次防重迁移而来：旧表数据 `like_date` 取原 `created_at` 的北京日期。`works.like_count` 为累计计数（所有天点赞之和），`is_liked` 语义为「今天是否已赞」。
 
 ---
 
@@ -297,6 +314,78 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 | created_at | TIMESTAMP | |
 
 索引：`idx_prompt_cases_segment(segment_key, keyword)`。
+
+---
+
+## 提示词工坊 · 结构化模块体系（重构版）
+
+提示词工坊从「六层权重表单 + 看图选词」重构为「**模块化提示词卡片社区库 + 拼接预览**」。模块分三类：要求（`requirement`，固定首段）/ 元素（`element`，中间按添加顺序）/ 禁止出现（`forbidden`，固定末段）。「要求」「禁止出现」为系统内置（`is_system=1`，不可改名/删除），管理员可自由增删元素模块。相关路由：`server/src/routes/promptCards.ts`、`server/src/routes/admin/promptModules.ts`。
+
+### prompt_modules
+
+模块定义。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK | |
+| name | VARCHAR(100) NOT NULL | 模块名，如「风格」「要求」「禁止出现」 |
+| type | VARCHAR(20) DEFAULT 'element' | `requirement` / `element` / `forbidden` |
+| sort_order | INTEGER DEFAULT 0 | 排序（要求 0，禁止出现 9999，元素 10/20/30…） |
+| is_system | INTEGER DEFAULT 0 | 1=系统内置，不可改名/删除 |
+| created_at | TIMESTAMP | |
+| updated_at | TIMESTAMP | |
+
+索引：`idx_prompt_modules_type(type, sort_order)`。seed 守卫 `seed_prompt_modules_v1` 预置 2 个系统模块（要求/禁止出现）+ 5 个常用元素模块（风格/场景/光影/构图/画质，`is_system=0` 可改可删）。
+
+### prompt_cards
+
+提示词卡片（公开社区库）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT PK | UUID |
+| user_id | INTEGER NOT NULL | 发布者 |
+| module_id | INTEGER REFERENCES prompt_modules | 所属模块，`ON DELETE SET NULL`（模块删除后卡片保留，前端回退显示「已删除模块」） |
+| content | TEXT NOT NULL | 提示词文本内容 |
+| images | TEXT DEFAULT '[]' | JSON 数组，OSS URL，1~10 张 |
+| cover_index | INTEGER DEFAULT 0 | 置顶图下标；`cover_url` = `images[cover_index]\|\|images[0]` |
+| remark | TEXT DEFAULT '' | 备注（可选） |
+| status | TEXT DEFAULT 'published' | `published` / `hidden` |
+| is_official | INTEGER DEFAULT 0 | 1=官方 |
+| like_count | INTEGER DEFAULT 0 | 点赞数 |
+| favorite_count | INTEGER DEFAULT 0 | 收藏数 |
+| reuse_count | INTEGER DEFAULT 0 | 复用次数 |
+| created_at | TIMESTAMP | |
+| updated_at | TIMESTAMP | |
+
+索引：`idx_prompt_cards_status_created`、`idx_prompt_cards_module`、`idx_prompt_cards_user`、`idx_prompt_cards_likes`、`idx_prompt_cards_reuse`。
+
+### prompt_card_favorites
+
+收藏（联合主键防重）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| user_id | INTEGER NOT NULL | |
+| card_id | TEXT NOT NULL | `ON DELETE CASCADE` |
+| created_at | TIMESTAMP | |
+| | PRIMARY KEY (user_id, card_id) | |
+
+索引：`idx_prompt_card_favorites_user(user_id)`。
+
+### prompt_card_likes
+
+点赞 —— 每人每天可对同一卡片点赞一次（参考 `work_likes`）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| user_id | INTEGER NOT NULL | |
+| card_id | TEXT NOT NULL | `ON DELETE CASCADE` |
+| like_date | TEXT NOT NULL | 北京日（YYYY-MM-DD） |
+| created_at | TIMESTAMP | |
+| | PRIMARY KEY (user_id, card_id, like_date) | |
+
+索引：`idx_prompt_card_likes_card(card_id)`。已赞今天 → 取消（`-1`），未赞 → 新增（`+1`，`INSERT OR IGNORE` 防并发）。
 
 ---
 

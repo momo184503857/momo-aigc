@@ -28,8 +28,7 @@ const keyword = ref('')
 // 官方发布弹窗
 const officialVisible = ref(false)
 const officialForm = ref({
-  title: '',
-  description: '',
+  remark: '',
   image_url: '',
   prompt: '',
   user_prompt: '',
@@ -92,7 +91,7 @@ async function handleStatusChange(work: WorkItem, status: 'published' | 'hidden'
 
 async function handleDelete(work: WorkItem) {
   try {
-    await confirmDanger({ title: '确认删除', message: `确定删除作品「${work.title}」吗？此操作不可恢复。`, confirmText: '删除', cancelText: '取消' })
+    await confirmDanger({ title: '确认删除', message: '确定删除该作品吗？此操作不可恢复。', confirmText: '删除', cancelText: '取消' })
     await adminWorksApi.delete(work.id)
     success('已删除')
     await loadWorks()
@@ -121,14 +120,13 @@ function onFileChange(e: Event) {
 
 async function handlePublishOfficial() {
   const f = officialForm.value
-  if (!f.title.trim() || !f.image_url || !f.prompt.trim() || !f.model) {
-    warning('标题、图片、提示词、模型不能为空')
+  if (!f.image_url || !f.prompt.trim() || !f.model) {
+    warning('图片、提示词、模型不能为空')
     return
   }
   try {
     await adminWorksApi.publishOfficial({
-      title: f.title.trim(),
-      description: f.description.trim(),
+      remark: f.remark.trim(),
       image_url: f.image_url,
       prompt: f.prompt.trim(),
       user_prompt: f.user_prompt.trim(),
@@ -142,7 +140,7 @@ async function handlePublishOfficial() {
     success('官方作品已发布')
     officialVisible.value = false
     officialForm.value = {
-      title: '', description: '', image_url: '', prompt: '', user_prompt: '',
+      remark: '', image_url: '', prompt: '', user_prompt: '',
       negative_prompt: '', model: 'gpt-image-2', resolution: '2K', aspect_ratio: '1:1',
       feature_id: 'free-gen', tagIds: [],
     }
@@ -204,7 +202,7 @@ onMounted(() => {
       <el-input
         v-model="keyword"
         :prefix-icon="Search"
-        placeholder="搜索标题或提示词"
+        placeholder="搜索提示词"
         clearable
         style="width: 240px"
         @keyup.enter="() => { page = 1; loadWorks() }"
@@ -225,7 +223,6 @@ onMounted(() => {
             <img v-if="row.image_url" :src="row.image_url" class="work-thumb" />
             <div class="work-cell-info">
               <div class="work-cell-title">
-                {{ row.title }}
                 <el-tag v-if="row.is_official" type="warning" size="small">官方</el-tag>
               </div>
               <div class="work-cell-prompt">{{ row.prompt?.slice(0, 60) }}{{ row.prompt?.length > 60 ? '...' : '' }}</div>
@@ -314,9 +311,6 @@ onMounted(() => {
     <!-- 官方作品发布弹窗 -->
     <el-dialog v-model="officialVisible" title="发布官方作品" width="640px" :close-on-click-modal="false">
       <el-form label-position="top">
-        <el-form-item label="标题">
-          <el-input v-model="officialForm.title" placeholder="作品标题" maxlength="60" show-word-limit />
-        </el-form-item>
         <el-form-item label="作品图片">
           <div class="upload-area">
             <div v-if="officialForm.image_url" class="upload-preview">

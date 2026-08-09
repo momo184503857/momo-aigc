@@ -16,7 +16,7 @@
 
 | 层 | 技术 |
 |---|---|
-| 前端 | Vue 3 (Composition API) + Element Plus + Vue Router + Pinia |
+| 前端 | Vue 3 (Composition API) + Element Plus + Vue Router + Pinia（双入口：用户端 `index.html` + 管理后台 `admin.html`，共用后端与账号） |
 | 后端 | Node.js + Express |
 | 数据库 | SQLite (`better-sqlite3`) |
 | 构建 | Vite (前端), tsx (后端开发服务器) |
@@ -62,8 +62,9 @@ momoAigc/
 ├── .env                          # 环境变量（JWT_SECRET, OSS配置）
 ├── .env.example                  # 环境变量模板
 ├── package.json                  # 前端+后端共用依赖
-├── vite.config.ts                # Vite 配置，含 /api 代理到 localhost:3000
-├── index.html
+├── vite.config.ts                # Vite 配置，含 /api 代理到 localhost:3000；多页入口（index.html + admin.html）
+├── index.html                    # 用户端入口 → /src/main.ts
+├── admin.html                    # 管理后台入口 → /src/admin/main.ts（独立 SPA）
 ├── tsconfig.json
 │
 ├── server/                       # 后端代码
@@ -162,6 +163,20 @@ momoAigc/
 │           ├── AdminTasks.vue      # 全部任务：筛选 + 删除
 │           ├── AdminTemplates.vue  # 全部模板：预览 + 删除
 │           └── AdminStats.vue      # 统计：汇总卡片 + 每用户详情表
+│
+├── src/admin/                           # 管理后台独立 SPA（入口 admin.html）
+│   ├── main.ts                          # 入口：注册 Pinia/ElementPlus/VChart + 复用同一套 styles
+│   ├── AdminApp.vue                     # 根：meta.guest → AdminAuthLayout，否则 → AdminLayout
+│   ├── router/index.ts                  # 独立 hash 路由（/users /dashboard ...）+ 管理员守卫
+│   ├── layouts/
+│   │   ├── AdminAuthLayout.vue          # 登录外壳
+│   │   ├── AdminLayout.vue              # 主框架（AdminSidebar + header + router-view）
+│   │   └── AdminSidebar.vue             # 8 个管理菜单 + 返回用户端 + 当前管理员
+│   └── views/
+│       └── AdminLoginPage.vue           # 独立登录页（仅密码，登录后校验 role==='admin'）
+│   # 复用层（不复制）：@/stores/auth.ts、@/services/{http,adminApi,...}.ts、
+│   #   @/composables/useUiFeedback.ts、@/components/PageLayout.vue、@/views/admin/*.vue、
+│   #   @/styles/{tokens,global,ep-overrides}、@/plugins/echarts*
 ```
 
 ---
@@ -169,11 +184,14 @@ momoAigc/
 ## 5. 关键实现细节
 
 ### 5.1 鉴权流程
-- 前端登录 → `POST /api/auth/login` → 返回 JWT
-- Token 存 `localStorage('auth_token')`
+- 前端登录 → `POST /api/auth/login` → 返回 JWT（payload 含 `{userId, username, role}`）
+- Token 存 `localStorage('auth_token')`，**用户端与管理后台共享同一个 token**（账号体系完全共用）
 - Axios 拦截器自动附加 `Authorization: Bearer <token>`
 - 路由 `beforeEach` 检查 token，无效则跳 `/login`
+- 401 拦截按入口分流：`src/services/http.ts` 判断当前页是否 `admin.html`，是则跳 `/admin.html#/login`（管理后台登录页），否则跳用户端 `/#/login`
 - 后端 `authMiddleware` 校验 JWT，`adminMiddleware` 校验 `role === 'admin'`
+
+> 管理后台（`/admin.html`，入口 `src/admin/main.ts`）是独立 SPA：独立登录页（仅密码登录，登录后校验 `role==='admin'`，普通用户被拒）、独立主框架、独立 hash 路由，但复用用户端的全部 `@/stores`、`@/services`、`@/composables`、`@/components`、`@/views/admin/*` 与设计系统。详见 `docs/reference/architecture.md`「管理后台独立入口」章节。
 
 ### 5.2 生图完整流程（WorkspacePage.vue 的 handleGenerate）
 1. 检查 localStorage 中有无 ToAPIs Key → 无则提示
@@ -254,12 +272,13 @@ momoAigc/
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |------|------|------|------|
-| GET | /api/works | JWT | 作品列表（分页/排序/筛选） |
+| GET | /api/works | JWT | 作品列表（分页/排序/筛选，懒加载） |
 | GET | /api/works/tags | JWT | 全局作品标签 |
 | GET | /api/works/:id | JWT | 作品详情 |
-| POST | /api/works | JWT | 从任务发布作品 |
-| POST | /api/works/:id/like | JWT | 点赞/取消 |
+| POST | /api/works | JWT | 从任务发布作品（无 title，可选 remark/tagIds） |
+| POST | /api/works/:id/like | JWT | 点赞/取消今日点赞（每人每天一次） |
 | POST | /api/works/:id/favorite | JWT | 收藏/取消 |
+| PATCH | /api/works/:id/remark | JWT | 更新备注（作者或管理员） |
 | POST | /api/works/:id/reuse | JWT | 记录复用+返回参数 |
 | DELETE | /api/works/:id | JWT | 删除作品（作者或管理员） |
 | GET | /api/admin/works | Admin | 全部作品列表 |
@@ -282,11 +301,12 @@ momoAigc/
 
 在 `server/src/db/schema.ts` 中新增，启动时幂等建表/迁移：
 
-- **works** - 作品主表（含 prompt_segments/negative_prompt 结构化快照）
+- **works** - 作品主表（含 remark 备注、prompt_segments/negative_prompt 结构化快照；title/description 已废弃）
 - **work_tags** + **work_tag_relations** - 全局共享标签
-- **work_likes** + **work_favorites** - 点赞/收藏（联合主键防重）
+- **work_likes** - 点赞（联合主键 `(user_id, work_id, like_date)`，每人每天一次）
+- **work_favorites** - 收藏（联合主键 `(user_id, work_id)`）
 - **prompt_cases** - 参考案例图库
-- 迁移列：`prompt_library.segments`、`generation_tasks.prompt_segments` + `negative_prompt`
+- 迁移列：`prompt_library.segments`、`generation_tasks.prompt_segments` + `negative_prompt`、`works.remark`（含 description → remark 数据迁移）
 
 详见 `docs/reference/database-schema.md`。
 

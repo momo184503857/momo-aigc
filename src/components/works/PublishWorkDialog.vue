@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * PublishWorkDialog - 从已完成的生图任务发布作品到作品库。
- * 预填标题（prompt 前 30 字），可选描述和标签。
+ * 可选备注和标签。
  */
 import { ref, watch, computed } from 'vue'
 import { worksApi, adminWorksApi } from '@/services/worksApi'
@@ -22,8 +22,7 @@ const emit = defineEmits<{
 
 const { success, error } = useUiFeedback()
 
-const title = ref('')
-const description = ref('')
+const remark = ref('')
 const selectedTagIds = ref<number[]>([])
 const submitting = ref(false)
 const tags = ref<{ id: number; name: string; usage_count: number }[]>([])
@@ -47,9 +46,7 @@ async function loadTags() {
 
 watch(() => props.visible, (v) => {
   if (v && props.task) {
-    // 预填标题：取 prompt 前 30 字
-    title.value = props.task.prompt.slice(0, 30)
-    description.value = ''
+    remark.value = ''
     selectedTagIds.value = []
     loadTags()
   }
@@ -57,16 +54,11 @@ watch(() => props.visible, (v) => {
 
 async function handleSubmit() {
   if (!props.task) return
-  if (!title.value.trim()) {
-    error(new Error('标题不能为空'), '发布失败')
-    return
-  }
   submitting.value = true
   try {
     await worksApi.publish({
       source_task_id: props.task.id,
-      title: title.value.trim(),
-      description: description.value.trim(),
+      remark: remark.value.trim(),
       tagIds: selectedTagIds.value.length > 0 ? selectedTagIds.value : undefined,
     })
     success('作品已发布到作品库')
@@ -114,17 +106,13 @@ async function handleSubmit() {
 
       <!-- 标题 -->
       <el-form label-position="top" class="publish-form-body">
-        <el-form-item label="标题">
-          <el-input v-model="title" placeholder="给作品起个名字" maxlength="60" show-word-limit />
-        </el-form-item>
-
-        <el-form-item label="描述（可选）">
+        <el-form-item label="备注（可选）">
           <el-input
-            v-model="description"
+            v-model="remark"
             type="textarea"
             :rows="3"
-            placeholder="说说你的创作思路..."
-            maxlength="200"
+            placeholder="添加备注..."
+            maxlength="500"
             show-word-limit
           />
         </el-form-item>

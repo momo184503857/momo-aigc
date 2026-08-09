@@ -24,8 +24,7 @@ export interface WorkTag {
 export interface WorkItem {
   id: string
   user_id: number
-  title: string
-  description: string
+  remark: string
   image_url: string
   thumb_url: string
   prompt: string
@@ -68,7 +67,7 @@ export const worksApi = {
   detail(id: string) {
     return http.get(`/works/${id}`)
   },
-  publish(data: { source_task_id: number; title?: string; description?: string; tagIds?: number[] }) {
+  publish(data: { source_task_id: number; title?: string; remark?: string; tagIds?: number[] }) {
     return http.post('/works', data)
   },
   like(id: string) {
@@ -76,6 +75,9 @@ export const worksApi = {
   },
   favorite(id: string) {
     return http.post(`/works/${id}/favorite`)
+  },
+  updateRemark(id: string, remark: string) {
+    return http.patch(`/works/${id}/remark`, { remark })
   },
   reuse(id: string) {
     return http.post(`/works/${id}/reuse`)
@@ -100,8 +102,7 @@ export const adminWorksApi = {
     return http.delete(`/admin/works/${id}`)
   },
   publishOfficial(data: {
-    title: string
-    description?: string
+    remark?: string
     image_url: string
     prompt: string
     user_prompt?: string
