@@ -527,3 +527,5 @@ pm2 restart momo-aigc --update-env   # 仅后端改动时需要
 6. **SSL 证书**：如果后续有域名，建议配置 Let's Encrypt 免费 SSL（或阿里云免费 SSL），将 HTTP 升级为 HTTPS。
 7. **`server/data/` 目录**：应用启动时会自动创建，不需要手动 `mkdir`。但如果手动删库重来，确保目录存在或重启应用。
 8. **每次 pushes 之前本地跑一下构建**：`npm run build && npm run build:server`，确保类型检查和编译都通过，问题 7 那种情况就不会推到服务器上。
+9. **数据库自动迁移（2026-08-09 作品库 + 提示词工坊上线）**：本次上线涉及数据库迁移--新增 6 张表（`works`/`work_tags`/`work_tag_relations`/`work_likes`/`work_favorites`/`prompt_cases`）+ 3 个迁移列（`prompt_library.segments`、`generation_tasks.prompt_segments`/`negative_prompt`）。迁移在 `server/src/db/schema.ts` 启动时幂等执行（`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN` 用 try/catch 容错），**部署后首次 `pm2 restart` 即自动跑迁移，无需手动 SQL**。观察 PM2 日志确认出现 `[DB] Schema initialized`。
+10. **部署后验证新页面**：访问 `/works`（作品库广场）、`/works/:id`（作品详情）、`/prompt-workshop`（提示词工坊）、`/admin/works`（作品库管理）、`/admin/prompt-cases`（案例管理）确认页面正常加载。

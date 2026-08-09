@@ -220,6 +220,30 @@
 - 卡片内边距 `--momo-card-padding` 24px，圆角 `--momo-card-radius` 14px。
 - 表页垂直节奏：搜索↔操作↔表格区间距 `--momo-table-rhythm` 20px。
 
+### 作品库广场页（`/works`）
+
+- 三 Tab：作品广场 / 我的作品 / 我的收藏（`el-tabs`）。
+- 筛选栏：搜索框（240px）+ 模式下拉（140px）+ 标签下拉（140px）+ 排序单选组 + 刷新按钮，`flex-wrap` 换行。
+- 瀑布流用 CSS `column-count`（4/3/2 列响应式断点 1400px/1000px），`break-inside: avoid` 防割裂。
+- 作品卡：图片 `object-fit: cover` + 底部信息区（标题单行省略 + 模式标签 + 模型名 + 点赞/复用数 + 作者 + 时间）。hover 时 `box-shadow` + `translateY(-2px)`。
+- 官方作品左上角 `el-tag type="warning"` 徽标。
+
+### 作品详情页（`/works/:id`）
+
+- 左右两栏布局（左 480px 固定 / 右 flex:1），≤1000px 改为上下。
+- 左栏：大图（`max-height: 600px` `object-fit: contain`）+ 互动栏（点赞/收藏/一键同款/复制提示词/删除）+ 作者信息卡。
+- 右栏：参数面板分段（描述/生成参数/参考图/提示词结构/完整提示词/负面词/标签），段间 `border-bottom` 分割。
+- 「一键同款」为主操作按钮（`type="primary"` `flex:1`），其余为次要按钮。
+
+### 提示词工坊页（`/prompt-workshop`）
+
+- 左右两栏布局（左 flex:1 编辑区 / 右 360px 预览面板），≤900px 改为上下。
+- 编辑区：六行分字段（label 80px + textarea + 选词按钮 72px），行间 16px。
+- 每行 label 下方显示权重百分比（`--momo-font-size-xs` placeholder 色）。
+- 负面词行 label 用 `--el-color-danger` 区分。
+- 右栏预览面板 `position: sticky; top: 0`，实时显示拼接结果。
+- 案例选择器弹窗（780px）：按关键词分组，每组 header 可点击选用 + 下方 4 张参考图缩略图。
+
 ---
 
 ## 5. 图表（ECharts）

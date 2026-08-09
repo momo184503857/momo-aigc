@@ -190,6 +190,139 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 ---
 
+## 作品库
+
+用户从已完成的生图任务一键「发布到作品库」，展示结果图 + 模式/提示词/参数，其他人可浏览学习并「一键同款」复用参数生成。先发后审（admin 可下架）。相关路由：`server/src/routes/works.ts`、`server/src/routes/admin/works.ts`。
+
+### works
+
+作品主表。一条记录 = 一件作品（来源一个已完成任务，防重：`source_task_id` 唯一）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT PK | UUID |
+| user_id | INTEGER FK -> users(id) NOT NULL | 发布者 |
+| title | TEXT NOT NULL | 标题（默认取 prompt 前 30 字） |
+| description | TEXT DEFAULT '' | 可选描述 |
+| image_url | TEXT NOT NULL | 作品图 OSS URL（来自任务结果图） |
+| thumb_url | TEXT DEFAULT '' | 缩略图（初始 = image_url） |
+| prompt | TEXT NOT NULL | 最终发送给 API 的完整 prompt |
+| user_prompt | TEXT DEFAULT '' | 用户原始补充词（功能模式） |
+| prompt_segments | TEXT DEFAULT '{}' | 结构化字段快照 JSON，见下方说明 |
+| negative_prompt | TEXT DEFAULT '' | 负向规避词（自然语言，展示用） |
+| model | VARCHAR(100) NOT NULL | 模型 ID |
+| resolution | VARCHAR(50) | 分辨率 |
+| aspect_ratio | VARCHAR(50) | 宽高比 |
+| feature_id | TEXT | 来源模式（`free-gen` / `change-clothes` 等） |
+| reference_image_urls | TEXT DEFAULT '[]' | JSON 数组，参考图 OSS URL |
+| source_task_id | INTEGER | 来源任务 ID（官方种子无来源，为 NULL） |
+| status | TEXT DEFAULT 'published' | `published` / `hidden`（先发后审） |
+| is_official | INTEGER DEFAULT 0 | 1=官方种子内容 |
+| like_count | INTEGER DEFAULT 0 | 点赞数（冗余计数） |
+| favorite_count | INTEGER DEFAULT 0 | 收藏数（冗余计数） |
+| reuse_count | INTEGER DEFAULT 0 | 被一键同款次数 |
+| view_count | INTEGER DEFAULT 0 | 浏览量（作者自己不计） |
+| created_at / updated_at | TIMESTAMP | UTC |
+
+索引：`idx_works_status_created(status, created_at DESC)`、`idx_works_feature(feature_id)`、`idx_works_user(user_id)`、`idx_works_likes(like_count DESC)`、`idx_works_reuse(reuse_count DESC)`。
+
+**`prompt_segments` JSON 结构**：
+```json
+{
+  "subject": "穿着白色连衣裙的女孩",
+  "style": "日系清新, 柔焦",
+  "scene": "樱花树下, 春日午后",
+  "lighting": "逆光, 柔光",
+  "composition": "三分构图, 浅景深",
+  "quality": "高画质, 细节丰富"
+}
+```
+空对象 `{}` 表示该作品来自非结构化提示词（如功能模式），仍可展示但不参与结构化检索。
+
+### work_tags
+
+全局共享的作品标签（区别于用户私有的 `gallery_tags`）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK | |
+| name | VARCHAR(100) UNIQUE NOT NULL | 全局唯一标签名 |
+| created_at | TIMESTAMP | |
+
+### work_tag_relations
+
+作品 ↔ 标签 多对多关联。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| work_id | TEXT FK -> works(id) ON DELETE CASCADE | |
+| tag_id | INTEGER FK -> work_tags(id) ON DELETE CASCADE | |
+| PRIMARY KEY (work_id, tag_id) | | 复合主键去重 |
+
+索引：`work_id`、`tag_id`。
+
+### work_likes / work_favorites
+
+点赞 / 收藏（联合主键防重，ON DELETE CASCADE 级联清理）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| user_id | INTEGER FK -> users(id) | |
+| work_id | TEXT FK -> works(id) ON DELETE CASCADE | |
+| created_at | TIMESTAMP | |
+| PRIMARY KEY (user_id, work_id) | | 联合主键，配合 `INSERT OR IGNORE` 防重 |
+
+索引：`work_likes(work_id)`、`work_favorites(user_id)`。
+
+---
+
+## 结构化提示词参考案例库
+
+针对每个结构化字段（尤其光影、风格）的某个关键词，配一组参考图，让用户「看图选词」。来源双轨：官方预生成（`prompt_cases` 表）+ 作品库聚合（`works` 表中 `prompt_segments` 该字段非空的作品）。相关路由：`server/src/routes/promptCases.ts`、`server/src/routes/admin/promptCases.ts`。
+
+### prompt_cases
+
+官方预生成的参考案例图。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK | |
+| segment_key | TEXT NOT NULL | 字段标识：`subject`/`style`/`scene`/`lighting`/`composition`/`quality` |
+| keyword | TEXT NOT NULL | 关键词，如 `柔光`/`侧光`/`逆光` |
+| image_url | TEXT NOT NULL | 参考图 OSS URL |
+| prompt_snapshot | TEXT DEFAULT '' | 生成该图时的完整 prompt（可复现） |
+| model | VARCHAR(100) DEFAULT '' | 生成模型 |
+| sort_order | INTEGER DEFAULT 0 | 排序 |
+| is_official | INTEGER DEFAULT 0 | 1=官方维护 |
+| created_at | TIMESTAMP | |
+
+索引：`idx_prompt_cases_segment(segment_key, keyword)`。
+
+---
+
+## 结构化提示词迁移列
+
+以下列在 `schema.ts` 启动时通过幂等 `ALTER TABLE ... ADD COLUMN` 迁移添加。
+
+### prompt_library.segments
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| segments | TEXT DEFAULT '{}' | 六层结构化字段 JSON（与 `works.prompt_segments` 结构一致） |
+
+`content` 仍存最终拼接好的 prompt 文本（向后兼容），`segments` 存六层结构化字段 JSON。纯文本提示词 `segments='{}'`，结构化提示词有值。
+
+### generation_tasks.prompt_segments / negative_prompt
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| prompt_segments | TEXT DEFAULT '{}' | 任务提交时的结构化字段快照（来自提示词工坊） |
+| negative_prompt | TEXT DEFAULT '' | 负向规避词快照 |
+
+发布作品时直接从任务拷贝，无需用户重填。
+
+---
+
 ## 积分与 Key 计费体系
 
 ### user_toapis_keys

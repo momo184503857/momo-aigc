@@ -192,3 +192,48 @@ await feedback.confirmDanger({
 6. 再评估是否新增 `UiActionMenu`、`UiDangerAction`、`UiBulkToolbar`。
 
 迁移时每次只改一类模式，避免一次性重构影响工作台业务流程。
+
+---
+
+## 6. 作品库 + 提示词工坊新增模块（2026-08-09）
+
+### 作品卡片（WorkCard）
+
+广场页瀑布流使用，非独立标准组件（内联在 `WorksGalleryPage.vue`），但遵循统一模式：
+
+- 结构：图片区 + 信息区（标题单行省略 + 模式标签 + 模型 + 点赞/复用数 + 作者 + 时间）
+- 图片 `object-fit: cover`，官方作品左上角 `el-tag type="warning"` 徽标
+- hover：`box-shadow` + `translateY(-2px)` 过渡
+- 布局：CSS `column-count` 瀑布流，`break-inside: avoid`
+
+### 发布作品弹窗（PublishWorkDialog）
+
+`src/components/works/PublishWorkDialog.vue`，从 TaskList 任务卡「更多」菜单触发：
+
+- 预览区：结果图 120×120 + 模式/模型/参数 meta
+- 表单：标题（预填 prompt 前 30 字，maxlength=60）+ 描述（textarea 200 字）+ 标签（`el-select multiple allow-create`）
+- 底部：提示词预览（只读，标注「将随作品公开」）
+
+### 提示词工坊分段输入器
+
+`src/views/prompt-workshop/PromptWorkshopPage.vue` 内联，六行分字段：
+
+- 每行：label（80px，含权重百分比）+ textarea（主体 3 行，其余 2 行）+ 「选词」按钮
+- 负面词行 label 用 `--el-color-danger` 区分
+- 右栏实时预览面板（`position: sticky`）
+
+### 案例选择器（CaseSelector）
+
+`src/components/prompt-workshop/CaseSelector.vue` 弹窗（780px）：
+
+- 按关键词分组，每组 header 可点击「选用」+ 下方最多 4 张参考图缩略图
+- 官方案例 `el-tag type="warning"` 徽标
+- 点击图片或 header 均触发 `select` 事件，回填到对应字段
+
+### 互动按钮组
+
+作品详情页使用，遵循主次按钮规范：
+
+- 主操作「一键同款」：`type="primary"` `flex:1` `min-width: 140px`
+- 次操作：点赞（`type` 随 `is_liked` 切换）、收藏、复制提示词、删除（仅作者，`type="danger" plain`）
+

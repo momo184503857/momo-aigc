@@ -143,6 +143,81 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 
 ---
 
+## 作品库
+
+用户从已完成任务一键发布作品，展示结果图 + 模式/提示词/参数；其他人可浏览学习并「一键同款」复用参数。先发后审（admin 可下架）。
+
+### 用户路由 `/api/works`（需登录）
+
+#### GET `/api/works`
+作品列表（瀑布流）。默认只看 `status='published'`。
+
+- Query：`page`（默认 1）、`pageSize`（默认 20，上限 60）、`sort`（`latest`/`hot`/`most_reused`，默认 `latest`）、`feature_id?`、`tag_id?`、`keyword?`、`scope`（`gallery`/`mine`/`favorites`，默认 `gallery`）
+- Response：`data: { records: WorkItem[], total, page, pageSize, totalPages }`
+- `WorkItem` 含：`id, title, description, image_url, prompt, user_prompt, prompt_segments, negative_prompt, model, resolution, aspect_ratio, feature_id, reference_image_urls, status, is_official, like_count, favorite_count, reuse_count, view_count, created_at, author: {id,username,nickname}, tags: [{id,name}], is_liked, is_favorited`
+- `scope=mine` 只看自己的作品；`scope=favorites` 只看自己收藏的
+
+#### GET `/api/works/tags`
+全局作品标签列表（带使用数）。Response：`data: [{ id, name, usage_count, created_at }]`
+
+#### GET `/api/works/:id`
+作品详情。非作者访问时 `view_count +1`（作者自己不计）。非公开作品仅作者和管理员可见（否则 404）。
+
+#### POST `/api/works`
+从任务发布作品。防重复：同一 `source_task_id` 只能发布一次（重复返回 409）。
+
+- Body：`{ source_task_id: number, title?: string, description?: string, tagIds?: number[] }`
+- 逻辑：按 `source_task_id` + `user_id` 查 `generation_tasks`，校验 `status='completed'` 且有结果图，拷贝 prompt/user_prompt/prompt_segments/negative_prompt/model/resolution/aspect_ratio/feature_id/input_image_urls/result_image_urls[0] 写入 works
+- title 默认取 prompt 前 30 字
+- Response：`data: WorkItem`
+
+#### POST `/api/works/:id/like`
+点赞/取消（toggle）。Response：`data: { is_liked: boolean, like_count: number }`
+
+#### POST `/api/works/:id/favorite`
+收藏/取消（toggle）。Response：`data: { is_favorited: boolean, favorite_count: number }`
+
+#### POST `/api/works/:id/reuse`
+记录复用（`reuse_count +1`）并返回完整参数供前端跳转生图。Response：`data: { model, prompt, userPrompt, resolution, aspectRatio, feature_id, input_image_urls }`
+
+#### DELETE `/api/works/:id`
+删除作品。仅作者或管理员可删（否则 403）。ON DELETE CASCADE 自动清理标签关联/点赞/收藏。
+
+### 管理员路由 `/api/admin/works`（auth + admin）
+
+- `GET /` - 全部作品列表（含 hidden）。Query：`page, pageSize, status?, keyword?`
+- `PATCH /:id/status` body `{ status: 'published' | 'hidden' }` - 上架/下架
+- `DELETE /:id` - 强制删除任意作品
+- `POST /official` - 发布官方种子作品（手动填参数 + 图片 URL，`is_official=1`，无 `source_task_id`）。Body：`{ title, description?, image_url, prompt, user_prompt?, prompt_segments?, negative_prompt?, model, resolution?, aspect_ratio?, feature_id?, reference_image_urls?, tagIds? }`
+- `GET /tags` - 标签列表（含使用数为 0 的）
+- `POST /tags` body `{ name }` - 新建标签（幂等：同名返回已存在 id）
+- `DELETE /tags/:id` - 删除标签（级联清理关联行）
+
+---
+
+## 提示词工坊 · 参考案例
+
+结构化提示词参考案例库。来源双轨：官方预生成（`prompt_cases` 表）+ 作品库聚合（`works` 表中 `prompt_segments` 该字段非空的作品）。
+
+### 用户路由 `/api/prompt-cases`（需登录）
+
+#### GET `/api/prompt-cases?segment=<key>&keyword=<keyword?>`
+按字段列出案例图。`segment` 必填（`subject`/`style`/`scene`/`lighting`/`composition`/`quality`）。
+
+- 无 `keyword` 时：聚合该字段所有出现过的关键词，官方 + 作品聚合混合返回
+- 有 `keyword` 时：精确匹配该关键词
+- Response：`data: PromptCase[]`
+- `PromptCase = { id, keyword, image_url, prompt_snapshot, model, source: 'official'|'community', work_id?, like_count?, reuse_count? }`
+
+### 管理员路由 `/api/admin/prompt-cases`（auth + admin）
+
+- `GET /?segment?` - 全部官方案例（可选按字段筛选）
+- `POST /` body `{ segment_key, keyword, image_url, prompt_snapshot?, model?, sort_order? }` - 新增案例（`is_official=1`）
+- `PATCH /:id` body `{ segment_key?, keyword?, image_url?, prompt_snapshot?, model?, sort_order? }` - 编辑
+- `DELETE /:id` - 删除
+
+---
+
 ## 积分与 Key 计费体系
 
 > 计费主单位为「新积分」，`1 新积分 = ¥0.035`。详见 `docs/requirements/billing.md`。

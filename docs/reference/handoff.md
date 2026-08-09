@@ -26,6 +26,8 @@
 
 ## 3. 当前完成状态
 
+> ⚠️ **本文档目录树和 Schema 停留在早期版本**（仅 3 表/8 页面/12 接口），后续新增的邮箱注册、AI摄影、AI画布、AI工具箱、AI买家秀、提示词库、**作品库**、**提示词工坊**等大量功能未反映在 §4 目录树和 §6/§7 中。完整 Schema 见 `docs/reference/database-schema.md`，完整接口见 `docs/reference/api-spec.md`，完整架构见 `docs/reference/architecture.md`，完整功能需求见 `docs/requirements/prd.md`。
+
 ### ✅ 已完成
 - 完整项目脚手架（Vite + Express）
 - 后端全部 12 个 API 端点，JWT 鉴权、角色校验
@@ -245,6 +247,48 @@ momoAigc/
 | GET | /api/admin/templates | Admin | 全部模板 |
 | DELETE | /api/admin/templates/:id | Admin | 删除模板 |
 | GET | /api/admin/stats/users | Admin | 每用户生成统计 |
+
+> 上表为早期接口。后续新增大量端点（邮箱注册/验证码、模板收藏、提示词库、AI摄影、AI画布、AI工具箱、AI买家秀、积分计费、个人Key、**作品库**、**提示词工坊·参考案例**），完整列表见 `docs/reference/api-spec.md`。
+
+### 作品库接口（新增 2026-08-09）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|------|------|------|------|
+| GET | /api/works | JWT | 作品列表（分页/排序/筛选） |
+| GET | /api/works/tags | JWT | 全局作品标签 |
+| GET | /api/works/:id | JWT | 作品详情 |
+| POST | /api/works | JWT | 从任务发布作品 |
+| POST | /api/works/:id/like | JWT | 点赞/取消 |
+| POST | /api/works/:id/favorite | JWT | 收藏/取消 |
+| POST | /api/works/:id/reuse | JWT | 记录复用+返回参数 |
+| DELETE | /api/works/:id | JWT | 删除作品（作者或管理员） |
+| GET | /api/admin/works | Admin | 全部作品列表 |
+| PATCH | /api/admin/works/:id/status | Admin | 上架/下架 |
+| DELETE | /api/admin/works/:id | Admin | 强制删除 |
+| POST | /api/admin/works/official | Admin | 发布官方种子 |
+| GET/POST/DELETE | /api/admin/works/tags | Admin | 标签管理 |
+
+### 提示词工坊·参考案例接口（新增 2026-08-09）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|------|------|------|------|
+| GET | /api/prompt-cases | JWT | 按字段列出案例（官方+作品聚合） |
+| GET | /api/admin/prompt-cases | Admin | 全部官方案例 |
+| POST | /api/admin/prompt-cases | Admin | 新增案例 |
+| PATCH | /api/admin/prompt-cases/:id | Admin | 编辑案例 |
+| DELETE | /api/admin/prompt-cases/:id | Admin | 删除案例 |
+
+### 新增数据库表（新增 2026-08-09）
+
+在 `server/src/db/schema.ts` 中新增，启动时幂等建表/迁移：
+
+- **works** - 作品主表（含 prompt_segments/negative_prompt 结构化快照）
+- **work_tags** + **work_tag_relations** - 全局共享标签
+- **work_likes** + **work_favorites** - 点赞/收藏（联合主键防重）
+- **prompt_cases** - 参考案例图库
+- 迁移列：`prompt_library.segments`、`generation_tasks.prompt_segments` + `negative_prompt`
+
+详见 `docs/reference/database-schema.md`。
 
 ---
 

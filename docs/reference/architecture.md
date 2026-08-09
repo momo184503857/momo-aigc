@@ -186,3 +186,87 @@ PhotographyForm (图片池 + 元素分配)
 ### 管理员配置
 
 `/admin/photography` — 元素 CRUD + 每元素×每模型的 system_prompt 编辑。数据存储在 `photography_elements` + `photography_element_prompts` 表。
+
+---
+
+## 作品库架构
+
+作品库让用户从已完成的生图任务一键发布作品，其他人可浏览学习并「一键同款」复用参数。先发后审。
+
+### 发布流程
+
+```
+任务完成（generation_tasks.status='completed'）
+  -> 用户在 TaskList 点「发布到作品库」
+  -> POST /api/works { source_task_id }
+  -> 后端查 generation_tasks（校验 user_id + status + result_image_urls）
+  -> 拷贝 prompt/user_prompt/prompt_segments/negative_prompt/model/resolution/aspect_ratio/feature_id/input_image_urls/result_image_urls[0]
+  -> 写入 works 表（防重：source_task_id 唯一，重复返回 409）
+  -> 可选写 work_tag_relations
+```
+
+**关键设计**：参数从任务直接拷贝，用户无需手填。`prompt_segments` 和 `negative_prompt` 是结构化提示词的快照--如果用户在工坊拼装提示词并通过提示词库使用，任务提交时会自动写入这两个字段，发布作品时一并拷贝。
+
+### 状态机
+
+- `published` - 已发布（默认，公共可见）
+- `hidden` - 已下架（admin 操作，仅作者和管理员可见）
+
+作品列表查询默认 `WHERE status='published'`。非公开作品在详情接口中仅作者和管理员可访问（否则 404）。
+
+### 互动计数
+
+`works` 表冗余存储 `like_count`/`favorite_count`/`reuse_count`/`view_count`，避免每次列表查询都 JOIN 聚合。`work_likes`/`work_favorites` 表用联合主键 `(user_id, work_id)` 防重，点赞/收藏时事务更新计数（`+1`/`MAX(0, -1)`）。
+
+### 一键同款
+
+```
+用户点「一键同款」
+  -> POST /api/works/:id/reuse（reuse_count +1，返回完整参数）
+  -> 前端写 sessionStorage('regenerate_task', JSON({...参数}))
+  -> router.push 到对应生图页（free-gen / workspace / photography）
+  -> 页面 onMounted 读 sessionStorage -> formRef.setParams() 填入表单
+```
+
+复用现有 `useTaskManager.handleCopyParams` 的 `sessionStorage` + `setParams()` 机制，零额外基础设施。
+
+### 冷启动
+
+admin 可通过 `POST /api/admin/works/official` 发布官方种子作品（`is_official=1`，无 `source_task_id`），手动填参数 + 图片 URL。官方种子 + 用户 UGC 混合展示。
+
+---
+
+## 提示词工坊架构
+
+提示词工坊是独立页面（`/prompt-workshop`），不改动生图表单，完全解耦。
+
+### 六层结构化提示词模型
+
+课程给出关键词六层权重公式（主体40% + 风格20% + 场景15% + 光影10% + 构图10% + 画质5%）。ToAPIs（gpt-image-2/gemini）是自然语言模型，不解析 SD 的 `(word:1.4)` 权重语法，因此：
+
+- **权重仅通过拼接顺序生效**：字段按权重从大到小排列，词越靠前影响越大（`src/utils/promptAssembler.ts` 的 `assemblePrompt`）
+- **负面词以自然语言追加**：`prompt += '\n请避免出现：' + negative`
+- **最终输出单一 prompt 字符串**：结构化是编辑态/检索态的价值，发送给 API 时仍是普通文本
+
+### 数据流
+
+```
+工坊拼装（六个分字段 + 负面词）
+  -> assemblePrompt() 拼接成完整 prompt
+  -> 保存到 prompt_library（content=拼接文本, segments=结构化JSON）
+  -> 生图表单「从提示词库选择」时，content 填入 prompt 输入框
+  -> 若该提示词有 segments，GenerationForm 捕获并随任务提交
+  -> generation_tasks.prompt_segments / negative_prompt 快照
+  -> 发布作品时拷贝到 works.prompt_segments / negative_prompt
+  -> 作品库可按结构化字段检索/展示
+  -> 案例库聚合 works 中带该字段值的作品作为参考图
+```
+
+### 参考案例库（看图选词）
+
+案例来源双轨（`server/src/routes/promptCases.ts`）：
+
+1. **官方预生成**：`prompt_cases` 表，admin 在 `/admin/prompt-cases` 维护（选字段 + 关键词 + 上传图 + 填 prompt 快照）
+2. **作品库聚合**：查 `works` 表中 `prompt_segments` 里该字段非空的作品，按 `like_count + reuse_count * 2` 排序取 top N
+
+前端 `CaseSelector.vue` 弹窗：点某字段「选词」-> 按关键词分组展示参考图 -> 看图选词 -> 点击填入对应字段框。

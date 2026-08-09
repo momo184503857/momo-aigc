@@ -105,6 +105,7 @@ ssh root@REDACTED-SERVER-IP 'cd ~/momo-aigc && git pull origin master && npm run
 - 改了 `server/` → `npm run build:server` + `pm2 restart momo-aigc --update-env`。
 - 改了 `package.json` → 先 `npm install`。
 - 改了 `.env` → 改服务器 `.env` 后 `pm2 restart momo-aigc --update-env`。
+- **涉及数据库迁移时**（如 2026-08-09 作品库 + 提示词工坊上线）：`pm2 restart` 后 schema.ts 会自动幂等执行迁移，观察日志确认 `[DB] Schema initialized`。无需手动 SQL。
 
 每次部署前会自动把上一个 HEAD 存到 `~/.momo-aigc-last-deploy-head`，回滚见 `deployment.md`。
 
@@ -151,7 +152,29 @@ git remote set-url origin git@gitee.com:hellolihaoran/momo-aigc.git
 
 **原因**：运行中的应用持续写数据库，与 git 跟踪的旧版本冲突。这些文件不应进 git。
 
-**修复**：见 `deployment.md`「问题 6」——`git rm --cached` 后确认 `.gitignore` 含 `server/data/momo.db*`。
+**修复**：见 `deployment.md`「问题 6」--`git rm --cached` 后确认 `.gitignore` 含 `server/data/momo.db*`。
+
+### 现象：用户反馈「发布作品失败」/「一键同款参数丢失」/「工坊案例图不显示」
+
+**排查**：
+```bash
+# 1. 确认新表已建（2026-08-09 迁移后应有这些表）
+sqlite3 ~/momo-aigc/server/data/momo.db ".tables" | tr ' ' '\n' | grep -E "works|prompt_cases"
+
+# 2. 发布作品失败 -> 检查 generation_tasks 是否有 prompt_segments 列
+sqlite3 ~/momo-aigc/server/data/momo.db "PRAGMA table_info(generation_tasks);" | grep segments
+
+# 3. 一键同款参数丢失 -> 查看该作品的参数是否完整
+sqlite3 ~/momo-aigc/server/data/momo.db "SELECT model, prompt, feature_id, reference_image_urls FROM works WHERE id='<work_id>';"
+
+# 4. 案例图不显示 -> 检查 prompt_cases 是否有数据
+sqlite3 ~/momo-aigc/server/data/momo.db "SELECT segment_key, keyword, image_url FROM prompt_cases LIMIT 10;"
+```
+
+**常见原因**：
+- 部署后未 `pm2 restart`，旧进程没有新路由 -> `pm2 restart momo-aigc --update-env`
+- 数据库迁移未执行 -> 检查 PM2 日志确认 `[DB] Schema initialized` 出现
+- 案例库为空 -> admin 需在 `/admin/prompt-cases` 添加官方案例，或等用户发布带结构化字段的作品
 
 ---
 
