@@ -16,6 +16,8 @@ export interface CreateTaskParams {
   feature_id?: string
   user_prompt?: string
   supplementary_images?: { name: string; url: string }[]
+  prompt_segments?: Record<string, string>
+  negative_prompt?: string
 }
 
 export interface UpdateTaskParams {

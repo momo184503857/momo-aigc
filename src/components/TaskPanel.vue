@@ -6,6 +6,7 @@ import TaskList from '@/components/TaskList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ImageEditorDialog from '@/components/ImageEditorDialog.vue'
+import PublishWorkDialog from '@/components/works/PublishWorkDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { Close, List, Grid, FullScreen } from '@element-plus/icons-vue'
 import { formatCredits } from '@/types/adapter'
@@ -37,6 +38,15 @@ function handleEdit(task: TaskItem) {
 
 function handleEditDone(result: { dataUrl: string; file: File; sourceUrl?: string }) {
   tm.handleEditDone(result, editorTask.value)
+}
+
+// ─── Publish work dialog ───
+const publishVisible = ref(false)
+const publishTask = ref<TaskItem | null>(null)
+
+function handlePublish(task: TaskItem) {
+  publishTask.value = task
+  publishVisible.value = true
 }
 
 // ─── Drag splitter ───
@@ -226,6 +236,7 @@ const panelStyle = computed(() => ({
           @toggle-select="tm.handleToggleSelect"
           @retry-import="tm.retryImportTask"
           @edit="handleEdit"
+          @publish="handlePublish"
         />
       </div>
 
@@ -272,6 +283,12 @@ const panelStyle = computed(() => ({
     :image-url="editorImageUrl"
     :task="editorTask"
     @done="handleEditDone"
+  />
+
+  <!-- Publish Work Dialog -->
+  <PublishWorkDialog
+    v-model:visible="publishVisible"
+    :task="publishTask"
   />
 </template>
 

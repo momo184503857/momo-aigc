@@ -39,6 +39,10 @@ export interface SubmitTaskParams {
   n?: number
   /** 补充图片列表（带名称） */
   supplementaryImages?: { name: string; url: string }[]
+  /** 结构化提示词字段快照（来自提示词工坊） */
+  promptSegments?: Record<string, string>
+  /** 负向规避词（自然语言追加） */
+  negativePrompt?: string
 }
 
 export interface SubmitTaskResult {
@@ -160,6 +164,8 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
     featureId,
     n = 1,
     supplementaryImages,
+    promptSegments,
+    negativePrompt,
   } = params
 
   // ─── 验证：有图片但没有提示词 ───
@@ -211,6 +217,8 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
     feature_id: featureId,
     user_prompt: userPrompt || '',
     supplementary_images: supplementaryImages || [],
+    prompt_segments: promptSegments || {},
+    negative_prompt: negativePrompt || '',
   })
   const dbTaskId = dbRes.data.data.id
 

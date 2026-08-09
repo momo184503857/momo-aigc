@@ -17,7 +17,7 @@ function isOssResultUrl(url: unknown): url is string {
 function parseRow(row: any): any {
   if (!row) return row
   const parsed = { ...row }
-  for (const key of ['template_image_ids', 'input_image_urls', 'result_image_urls', 'raw_error', 'supplementary_images']) {
+  for (const key of ['template_image_ids', 'input_image_urls', 'result_image_urls', 'raw_error', 'supplementary_images', 'prompt_segments']) {
     if (typeof parsed[key] === 'string') {
       try { parsed[key] = JSON.parse(parsed[key]) } catch { /* keep as-is */ }
     }
@@ -107,7 +107,7 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
   const {
     toapis_task_id, client_business_id, model, prompt, size, resolution,
     aspect_ratio, n, template_image_ids, input_image_urls, status, progress,
-    feature_id, user_prompt, supplementary_images,
+    feature_id, user_prompt, supplementary_images, prompt_segments, negative_prompt,
   } = req.body
 
   if (!toapis_task_id || !model || !prompt) {
@@ -142,8 +142,8 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
 
       // Insert task（个人模式 points_cost 记 0，仍写记录保证任务列表可见）
       const result = db.prepare(`
-        INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt, points_cost, points_balance_after, supplementary_images)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt, points_cost, points_balance_after, supplementary_images, prompt_segments, negative_prompt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         userId, toapis_task_id, client_business_id || null, model, prompt,
         size || null, resolution || null, aspect_ratio || null, count,
@@ -154,7 +154,9 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
         user_prompt || '',
         cost,
         newBalance,
-        supplementary_images ? JSON.stringify(supplementary_images) : '[]'
+        supplementary_images ? JSON.stringify(supplementary_images) : '[]',
+        prompt_segments ? JSON.stringify(prompt_segments) : '{}',
+        negative_prompt || ''
       )
 
       const taskId = result.lastInsertRowid

@@ -1,13 +1,17 @@
 <script setup lang="ts">
 defineOptions({ name: 'PromptLibraryPage' })
 import { ref, onMounted, nextTick } from 'vue'
-import { Plus, Edit, Delete, Search, Star, StarFilled } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { Plus, Edit, Delete, Search, Star, StarFilled, MagicStick } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import { usePromptLibrary } from '@/composables/usePromptLibrary'
+import { hasSegments } from '@/utils/promptAssembler'
 import PageLayout from '@/components/PageLayout.vue'
+
+const router = useRouter()
 
 // 列表/筛选/分页/收藏 共享逻辑
 const {
@@ -84,6 +88,16 @@ const rules = {
   content: [{ required: true, message: '请输入内容', trigger: 'blur' }],
 }
 
+// 在提示词工坊中编辑结构化提示词
+function editInWorkshop(item: PromptLibraryItem) {
+  router.push({ path: '/prompt-workshop', query: { edit: item.id } })
+}
+
+// 新建结构化提示词（跳转工坊）
+function createStructured() {
+  router.push('/prompt-workshop')
+}
+
 onMounted(loadList)
 </script>
 
@@ -91,6 +105,7 @@ onMounted(loadList)
   <PageLayout>
     <template #header><h2>提示词库</h2></template>
     <template #extra>
+      <el-button :icon="MagicStick" @click="createStructured">提示词工坊</el-button>
       <el-button type="primary" :icon="Plus" @click="openCreate">新建提示词</el-button>
     </template>
 
@@ -140,13 +155,17 @@ onMounted(loadList)
           <Star v-else />
         </el-icon>
         <div class="item-main">
-          <div class="item-name">{{ item.name }}</div>
+          <div class="item-name">
+            {{ item.name }}
+            <el-tag v-if="hasSegments(item.segments)" type="success" size="small" effect="plain" class="struct-badge">结构化</el-tag>
+          </div>
           <div class="item-content">{{ item.content }}</div>
           <div v-if="item.tags.length" class="item-tags">
             <el-tag v-for="tag in item.tags" :key="tag" size="small">{{ tag }}</el-tag>
           </div>
         </div>
         <div class="item-actions">
+          <el-button v-if="hasSegments(item.segments)" size="small" :icon="MagicStick" @click="editInWorkshop(item)">工坊编辑</el-button>
           <el-button size="small" :icon="Edit" @click="openEdit(item)">编辑</el-button>
           <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(item)">删除</el-button>
         </div>
@@ -218,7 +237,8 @@ onMounted(loadList)
 .fav-btn:hover { color: var(--el-color-warning); }
 .fav-btn.active { color: var(--el-color-warning); }
 .item-main { flex: 1; min-width: 0; }
-.item-name { font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary); margin-bottom: 4px; }
+.item-name { font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.struct-badge { flex-shrink: 0; }
 .item-content {
   font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); white-space: pre-wrap; word-break: break-all;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;

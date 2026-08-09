@@ -561,5 +561,108 @@ export function initSchema(): void {
     console.log('[DB] Dropped legacy user_tags / user_tag_mappings tables')
   }
 
+  // ── 作品库 ──
+  // 用户从已完成的生图任务一键「发布到作品库」，展示结果图 + 模式/模板/提示词/参数，
+  // 其他人可浏览学习并「一键同款」复用参数生成。先发后审（admin 可下架）。
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS works (
+      id                   TEXT PRIMARY KEY,
+      user_id              INTEGER NOT NULL REFERENCES users(id),
+      title                TEXT NOT NULL,
+      description          TEXT DEFAULT '',
+      image_url            TEXT NOT NULL,
+      thumb_url            TEXT DEFAULT '',
+      prompt               TEXT NOT NULL,
+      user_prompt          TEXT DEFAULT '',
+      prompt_segments      TEXT DEFAULT '{}',
+      negative_prompt      TEXT DEFAULT '',
+      model                VARCHAR(100) NOT NULL,
+      resolution           VARCHAR(50),
+      aspect_ratio         VARCHAR(50),
+      feature_id           TEXT,
+      reference_image_urls TEXT DEFAULT '[]',
+      source_task_id       INTEGER,
+      status               TEXT NOT NULL DEFAULT 'published',
+      is_official          INTEGER NOT NULL DEFAULT 0,
+      like_count           INTEGER NOT NULL DEFAULT 0,
+      favorite_count       INTEGER NOT NULL DEFAULT 0,
+      reuse_count          INTEGER NOT NULL DEFAULT 0,
+      view_count           INTEGER NOT NULL DEFAULT 0,
+      created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_works_status_created ON works(status, created_at DESC);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_works_feature ON works(feature_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_works_user ON works(user_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_works_likes ON works(like_count DESC);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_works_reuse ON works(reuse_count DESC);`)
+
+  // 全局作品标签（全局共享，区别于用户私有的 gallery_tags）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_tags (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        VARCHAR(100) NOT NULL UNIQUE,
+      created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_tag_relations (
+      work_id TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+      tag_id  INTEGER NOT NULL REFERENCES work_tags(id) ON DELETE CASCADE,
+      PRIMARY KEY (work_id, tag_id)
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_work_tag_relations_work ON work_tag_relations(work_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_work_tag_relations_tag ON work_tag_relations(tag_id);`)
+
+  // 互动：点赞 / 收藏（联合主键防重）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_likes (
+      user_id    INTEGER NOT NULL REFERENCES users(id),
+      work_id    TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, work_id)
+    );
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_favorites (
+      user_id    INTEGER NOT NULL REFERENCES users(id),
+      work_id    TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, work_id)
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_work_likes_work ON work_likes(work_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_work_favorites_user ON work_favorites(user_id);`)
+
+  // ── 结构化提示词参考案例库 ──
+  // 官方预生成：针对某个结构化字段（如光影）的某个关键词（如「柔光」）配一组参考图，
+  // 让用户「看图选词」。prompt_snapshot 为生成该图时的完整 prompt（可复现）。
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_cases (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      segment_key     TEXT NOT NULL,
+      keyword         TEXT NOT NULL,
+      image_url       TEXT NOT NULL,
+      prompt_snapshot TEXT DEFAULT '',
+      model           VARCHAR(100) DEFAULT '',
+      sort_order      INTEGER NOT NULL DEFAULT 0,
+      is_official     INTEGER NOT NULL DEFAULT 0,
+      created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_cases_segment ON prompt_cases(segment_key, keyword);`)
+
+  // ── 迁移：prompt_library 增加 segments 列（结构化提示词字段 JSON）──
+  // content 仍存最终拼接好的 prompt 文本，segments 存六层结构化字段 JSON。
+  // 纯文本提示词 segments='{}'，结构化提示词有值；向后兼容。
+  try { db.exec(`ALTER TABLE prompt_library ADD COLUMN segments TEXT DEFAULT '{}'`) } catch { /* column already exists */ }
+
+  // ── 迁移：generation_tasks 增加 prompt_segments / negative_prompt 列 ──
+  // 任务提交时若有结构化数据则写入；发布作品时直接拷贝，无需用户手填。
+  try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN prompt_segments TEXT DEFAULT '{}'`) } catch { /* column already exists */ }
+  try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN negative_prompt TEXT DEFAULT ''`) } catch { /* column already exists */ }
+
   console.log('[DB] Schema initialized')
 }

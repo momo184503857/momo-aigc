@@ -13,6 +13,7 @@ interface PromptRow {
   user_id: number
   name: string
   content: string
+  segments: string
   tags: string
   sort_order: number
   is_starred: number
@@ -23,7 +24,9 @@ interface PromptRow {
 function rowToItem(row: PromptRow) {
   let tags: string[] = []
   try { tags = JSON.parse(row.tags || '[]') } catch { /* */ }
-  return { ...row, tags, is_starred: !!row.is_starred }
+  let segments: Record<string, string> = {}
+  try { segments = JSON.parse(row.segments || '{}') } catch { /* */ }
+  return { ...row, tags, segments, is_starred: !!row.is_starred }
 }
 
 // List all prompts of the current user（收藏置顶）
@@ -36,7 +39,7 @@ promptsRouter.get('/', (req: AuthRequest, res) => {
 
 // Create
 promptsRouter.post('/', (req: AuthRequest, res) => {
-  const { name, content, tags } = req.body
+  const { name, content, tags, segments } = req.body
   if (!name || !content) {
     res.status(400).json({ success: false, error: '名称和内容不能为空' })
     return
@@ -46,8 +49,8 @@ promptsRouter.post('/', (req: AuthRequest, res) => {
   const maxOrder = (db.prepare('SELECT MAX(sort_order) as m FROM prompt_library WHERE user_id = ?').get(req.user!.userId) as any)?.m ?? -1
 
   db.prepare(
-    'INSERT INTO prompt_library (id, user_id, name, content, tags, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, req.user!.userId, name.trim(), content.trim(), JSON.stringify((tags || []).slice(0, 10)), maxOrder + 1, now, now)
+    'INSERT INTO prompt_library (id, user_id, name, content, segments, tags, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, req.user!.userId, name.trim(), content.trim(), JSON.stringify(segments || {}), JSON.stringify((tags || []).slice(0, 10)), maxOrder + 1, now, now)
 
   const row = db.prepare('SELECT * FROM prompt_library WHERE id = ?').get(id) as PromptRow
   res.json({ success: true, data: rowToItem(row) })
@@ -61,18 +64,22 @@ promptsRouter.patch('/:id', (req: AuthRequest, res) => {
     res.status(404).json({ success: false, error: '提示词不存在' })
     return
   }
-  const { name, content, tags } = req.body
+  const { name, content, tags, segments } = req.body
   const now = new Date().toISOString()
-  db.prepare(
-    'UPDATE prompt_library SET name = ?, content = ?, tags = ?, updated_at = ? WHERE id = ? AND user_id = ?'
-  ).run(
-    (name ?? existing.name).trim(),
-    (content ?? existing.content).trim(),
-    JSON.stringify((tags ?? JSON.parse(existing.tags || '[]')).slice(0, 10)),
-    now,
-    id,
-    req.user!.userId
-  )
+
+  const fields: string[] = []
+  const params: any[] = []
+
+  if (name !== undefined) { fields.push('name = ?'); params.push(name.trim()) }
+  if (content !== undefined) { fields.push('content = ?'); params.push(content.trim()) }
+  if (tags !== undefined) { fields.push('tags = ?'); params.push(JSON.stringify(tags.slice(0, 10))) }
+  if (segments !== undefined) { fields.push('segments = ?'); params.push(JSON.stringify(segments)) }
+  fields.push('updated_at = ?')
+  params.push(now)
+  params.push(id)
+
+  db.prepare(`UPDATE prompt_library SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).run(...params, req.user!.userId)
+
   const row = db.prepare('SELECT * FROM prompt_library WHERE id = ?').get(id) as PromptRow
   res.json({ success: true, data: rowToItem(row) })
 })

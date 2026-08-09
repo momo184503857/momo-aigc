@@ -58,6 +58,12 @@ const router = createRouter({
       meta: { title: '提示词库', requiresAuth: true },
     },
     {
+      path: '/prompt-workshop',
+      name: 'PromptWorkshop',
+      component: () => import('@/views/prompt-workshop/PromptWorkshopPage.vue'),
+      meta: { title: '提示词工坊', requiresAuth: true },
+    },
+    {
       path: '/canvas-projects',
       name: 'CanvasProjects',
       component: () => import('@/views/canvas/ProjectsPage.vue'),
@@ -80,6 +86,18 @@ const router = createRouter({
       name: 'BuyerShow',
       component: () => import('@/views/buyer-show/BuyerShowPage.vue'),
       meta: { title: 'AI买家秀', requiresAuth: true },
+    },
+    {
+      path: '/works',
+      name: 'WorksGallery',
+      component: () => import('@/views/works/WorksGalleryPage.vue'),
+      meta: { title: '作品库', requiresAuth: true },
+    },
+    {
+      path: '/works/:id',
+      name: 'WorkDetail',
+      component: () => import('@/views/works/WorkDetailPage.vue'),
+      meta: { title: '作品详情', requiresAuth: true, hideInMenu: true },
     },
     {
       path: '/settings',
@@ -184,6 +202,18 @@ const router = createRouter({
       name: 'AdminPhotography',
       component: () => import('@/views/admin/AdminPhotography.vue'),
       meta: { title: 'AI摄影配置', requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/works',
+      name: 'AdminWorks',
+      component: () => import('@/views/admin/AdminWorks.vue'),
+      meta: { title: '作品库管理', requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/prompt-cases',
+      name: 'AdminPromptCases',
+      component: () => import('@/views/admin/AdminPromptCases.vue'),
+      meta: { title: '提示词案例管理', requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/admin/toapis-key',

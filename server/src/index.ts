@@ -25,6 +25,10 @@ import { photographyRouter } from './routes/photography.js'
 import { adminPhotographyRouter } from './routes/admin/photography.js'
 import { buyerShowRouter, adminBuyerShowRouter } from './routes/buyerShow.js'
 import { buyerShowBatchRouter } from './routes/buyerShowBatch.js'
+import { worksRouter } from './routes/works.js'
+import { adminWorksRouter } from './routes/admin/works.js'
+import { promptCasesRouter } from './routes/promptCases.js'
+import { adminPromptCasesRouter } from './routes/admin/promptCases.js'
 
 const app = express()
 
@@ -61,6 +65,10 @@ app.use('/api/admin/photography', adminPhotographyRouter)
 app.use('/api/buyer-show', buyerShowRouter)
 app.use('/api/admin/buyer-show', adminBuyerShowRouter)
 app.use('/api/buyer-show-batch', buyerShowBatchRouter)
+app.use('/api/works', worksRouter)
+app.use('/api/admin/works', adminWorksRouter)
+app.use('/api/prompt-cases', promptCasesRouter)
+app.use('/api/admin/prompt-cases', adminPromptCasesRouter)
 
 app.listen(config.port, () => {
   console.log(`[Server] momoAigc server running on http://localhost:${config.port}`)

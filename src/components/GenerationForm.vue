@@ -20,6 +20,8 @@ const emit = defineEmits<{
     aspectRatio: string
     count: number
     refImages?: Array<{ url?: string; file?: File }>
+    promptSegments?: Record<string, string>
+    negativePrompt?: string
   }): void
 }>()
 
@@ -33,6 +35,10 @@ const count = ref(1)
 const showTemplateSelector = ref(false)
 const previewVisible = ref(false)
 const previewImageUrl = ref('')
+
+// 结构化提示词字段（从提示词库选择结构化提示词时捕获，随任务提交）
+const promptSegments = ref<Record<string, string>>({})
+const negativePrompt = ref('')
 
 function openPreview(url: string) {
   previewImageUrl.value = url
@@ -63,6 +69,9 @@ async function openPromptLibrary() {
 
 function selectPromptFromLibrary(item: PromptLibraryItem) {
   prompt.value = item.content
+  // 捕获结构化字段（如有），随任务提交以便发布作品时快照
+  promptSegments.value = item.segments || {}
+  negativePrompt.value = ''
   showPromptLibrary.value = false
 }
 
@@ -256,6 +265,8 @@ function handleGenerate() {
     aspectRatio: aspectRatio.value,
     count: count.value,
     refImages,
+    promptSegments: promptSegments.value,
+    negativePrompt: negativePrompt.value,
   })
 }
 

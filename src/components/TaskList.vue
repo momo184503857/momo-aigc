@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
-import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check, Edit } from '@element-plus/icons-vue'
+import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check, Edit, Share } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { parseUTC, toBJMinute } from '@/utils/datetime'
@@ -28,6 +28,8 @@ export interface TaskItem {
   feature_id?: string
   user_prompt?: string
   supplementaryImages?: { name: string; url: string }[]
+  prompt_segments?: Record<string, string>
+  negative_prompt?: string
 }
 
 const props = defineProps<{
@@ -48,6 +50,7 @@ const emit = defineEmits<{
   'toggleSelect': [id: number]
   'retryImport': [task: TaskItem]
   'edit': [task: TaskItem]
+  'publish': [task: TaskItem]
 }>()
 
 const statusText = computed(() => (status: string) => {
@@ -262,6 +265,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)"><el-icon><View /></el-icon>详情</el-dropdown-item>
+                <el-dropdown-item v-if="task.status === 'completed' && task.result_image_urls?.[0]" @click="emit('publish', task)"><el-icon><Share /></el-icon>发布到作品库</el-dropdown-item>
                 <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)"><el-icon><CopyDocument /></el-icon>复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)"><el-icon><Delete /></el-icon>删除</el-dropdown-item>
               </el-dropdown-menu>
@@ -348,6 +352,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)">详情</el-dropdown-item>
+                <el-dropdown-item v-if="task.status === 'completed' && task.result_image_urls?.[0]" @click="emit('publish', task)">发布到作品库</el-dropdown-item>
                 <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)">复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)">删除</el-dropdown-item>
               </el-dropdown-menu>

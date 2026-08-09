@@ -23,6 +23,7 @@ import {
   Setting,
   Money,
   TrendCharts,
+  Trophy,
 } from '@element-plus/icons-vue'
 
 defineProps<{ collapsed?: boolean }>()
@@ -67,6 +68,7 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/canvas-projects', title: 'AI画布', icon: Share },
         { path: '/toolbox', title: 'AI工具箱', icon: Box },
         { path: '/buyer-show', title: 'AI买家秀', icon: Goods },
+        { path: '/works', title: '作品库', icon: Trophy },
       ],
     },
     {
@@ -74,6 +76,7 @@ const menuSections = computed<MenuSection[]>(() => {
       items: [
         { path: '/templates', title: '模板图库', icon: PictureFilled },
         { path: '/prompts', title: '提示词库', icon: Collection },
+        { path: '/prompt-workshop', title: '提示词工坊', icon: EditPen },
         { path: '/results', title: '生图结果', icon: Picture },
       ],
     },
@@ -89,6 +92,8 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
         { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
         { path: '/admin/photography', title: 'AI摄影配置', icon: Camera },
+        { path: '/admin/works', title: '作品库管理', icon: Trophy },
+        { path: '/admin/prompt-cases', title: '提示词案例', icon: Picture },
         { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
       ],
     })

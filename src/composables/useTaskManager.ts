@@ -214,6 +214,8 @@ export function useTaskManager() {
     userPrompt?: string
     systemPrompt?: string
     supplementaryImages?: { name: string; url: string }[]
+    promptSegments?: Record<string, string>
+    negativePrompt?: string
   }) {
     if (!serverStatus.canGenerate) {
       warning('未配置可用的 API Key（共享/个人均未配置）')
@@ -257,6 +259,8 @@ export function useTaskManager() {
           refImages: params.refImages,
           featureId: params.featureId,
           supplementaryImages: params.supplementaryImages,
+          promptSegments: params.promptSegments,
+          negativePrompt: params.negativePrompt,
         })
 
         newTask.toapis_task_id = result.toapisTaskId
