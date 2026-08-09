@@ -86,9 +86,13 @@ export const useServerStatusStore = defineStore('serverStatus', () => {
       balanceCheckIntervalSec.value =
         typeof d.balanceCheckIntervalSec === 'number' ? d.balanceCheckIntervalSec : 60
     } catch {
-      sharedKeyConfigured.value = false
-      personalKeyConfigured.value = false
-      personalKeyActive.value = false
+      // health 请求偶发失败时，保留上一次已知状态（避免已切换的模式被误清零弹回）。
+      // 首次加载（loaded=false）且拉取失败时，才退守到“无可用 key”，保证生图按钮有合理初始态。
+      if (!loaded.value) {
+        sharedKeyConfigured.value = false
+        personalKeyConfigured.value = false
+        personalKeyActive.value = false
+      }
     } finally {
       loaded.value = true
     }

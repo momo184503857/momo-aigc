@@ -47,6 +47,8 @@ const intervalSec = ref<number>(60)
 const saving = ref(false)
 const testing = ref(false)
 const savingInterval = ref(false)
+// 模式切换防重入标志（写库 + 拉取状态期间为 true）
+const modeSwitching = ref(false)
 
 const intervalQuickOptions = [
   { label: '1 分钟', value: 60 },
@@ -82,7 +84,10 @@ async function loadConfig() {
     hasPersonalKey.value = d.hasPersonalKey
     keyHint.value = d.keyHint
     intervalSec.value = d.balanceCheckIntervalSec
-  } catch { /* ignore */ }
+  } catch {
+    // 拉取失败时回退到 store 状态，避免 hasPersonalKey 卡在 false 导致模式切换走错分支
+    hasPersonalKey.value = serverStatus.personalKeyConfigured
+  }
 }
 
 async function handleSave() {
@@ -150,29 +155,49 @@ async function handleDeleteKey() {
 }
 
 async function onModeChange(val: string | number | boolean) {
+  // 防重入：上一次切换尚未结束（写库/拉取状态中）时，忽略新的点击
+  if (modeSwitching.value) {
+    // 单向 model-value 下，忽略点击会导致 radio 不跟随，这里把选中态拨回当前真实模式
+    selectedMode.value = serverStatus.usingPersonalKey ? 'personal' : 'platform'
+    return
+  }
+
   if (val === 'personal') {
-    if (hasPersonalKey.value) {
-      try {
-        await userKeyApi.setMode(true)
-        await serverStatus.refreshKeyConfig()
-        success('已切换到个人 Key')
-      } catch (e: any) {
-        error('切换失败: ' + (e.response?.data?.error || e.message))
-        selectedMode.value = 'platform'
-      }
-    } else {
-      // 无 Key：本地切到 personal 仅展示输入区，不调用 setMode（保存前禁止生图）
+    // 未配置个人 Key：本地切到 personal 仅展示输入区，不调用 setMode（保存前禁止生图）
+    if (!hasPersonalKey.value) {
       selectedMode.value = 'personal'
       warning('请先点击「配置个人 Key」输入并保存')
+      return
+    }
+    // 乐观更新：立即让 radio 选中个人 Key，避免网络往返期间看起来“点了没反应”
+    selectedMode.value = 'personal'
+    modeSwitching.value = true
+    try {
+      await userKeyApi.setMode(true)
+      await serverStatus.refreshKeyConfig()
+      success('已切换到个人 Key')
+    } catch (e: any) {
+      // 写库失败：回滚到平台模式
+      selectedMode.value = 'platform'
+      error('切换失败: ' + (e.response?.data?.error || e.message))
+    } finally {
+      modeSwitching.value = false
     }
   } else {
+    // 切回平台积分
     showKeyDialog.value = false
+    selectedMode.value = 'platform'
+    modeSwitching.value = true
     try {
       await userKeyApi.setMode(false)
       await serverStatus.refreshKeyConfig()
       success('已切换到平台积分')
     } catch (e: any) {
+      // 写库失败：回滚到切换前状态
+      selectedMode.value = serverStatus.usingPersonalKey ? 'personal' : 'platform'
       error('切换失败: ' + (e.response?.data?.error || e.message))
+    } finally {
+      modeSwitching.value = false
     }
   }
 }
@@ -207,6 +232,8 @@ function formatTime(ts: number | null): string {
 
 onMounted(() => {
   serverStatus.fetchStatus()
+  // 先用 store 已加载的 personalKeyConfigured 兜底，避免 loadConfig 未返回时点击个人 Key 走错分支
+  hasPersonalKey.value = serverStatus.personalKeyConfigured
   load()
   loadConfig()
 })
