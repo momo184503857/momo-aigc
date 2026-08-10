@@ -10,7 +10,7 @@
  * 卡片结构：模块 + 内容 + 多图（1~10，可置顶）+ 备注。
  */
 defineOptions({ name: 'PromptWorkshopPage' })
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import PageLayout from '@/components/PageLayout.vue'
 import PromptCardUpload from '@/components/prompt-workshop/PromptCardUpload.vue'
@@ -225,6 +225,65 @@ function handlePreviewReuse(card: PromptCardItem) {
 // ── 拼接预览面板 ──
 const previewText = ref('')
 
+// contenteditable 富文本编辑器：行首模块名加粗标红，同时保留可手动编辑。
+const previewEditorRef = ref<HTMLElement | null>(null)
+const placeholderText = '（点击卡片上的「复用」按钮，提示词会按规则拼接在这里，你也可以继续编辑）'
+
+// 模块名集合，用于判断行首是否为模块名
+const moduleNameSet = computed(() => new Set(modules.value.map((m) => m.name)))
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * 把纯文本渲染成带标红的 HTML：行首「模块名：」若命中模块名集合，
+ * 则将该模块名包裹为 <span class="module-name">（加粗标红）。
+ * 其余内容原样转义输出，靠 white-space: pre-wrap 保留换行。
+ */
+function renderPreviewHtml(text: string): string {
+  if (!text) return ''
+  const lines = text.split('\n')
+  return lines
+    .map((line) => {
+      // 匹配行首「名称：」或「名称:」（名称不含全/半角冒号）
+      const m = line.match(/^([^：:]+)([：:].*)$/)
+      if (m && moduleNameSet.value.has(m[1])) {
+        return `<span class="module-name">${escapeHtml(m[1])}</span>${escapeHtml(m[2])}`
+      }
+      return escapeHtml(line)
+    })
+    .join('\n')
+}
+
+/** 从 DOM 读取纯文本回写 previewText（编辑态）。 */
+function onPreviewInput() {
+  const el = previewEditorRef.value
+  if (!el) return
+  const text = el.innerText
+  if (text !== previewText.value) {
+    previewText.value = text
+  }
+}
+
+// previewText 变化（复用卡片/重置）时同步到 DOM 并标红；
+// 仅当 DOM 纯文本与 previewText 不一致才写，避免编辑态光标跳动。
+watch(previewText, (val) => {
+  const el = previewEditorRef.value
+  if (!el) return
+  if (el.innerText !== val) {
+    el.innerHTML = renderPreviewHtml(val)
+  }
+})
+
+// 模块列表加载完成后，若已有内容则重新标红渲染
+watch(moduleNameSet, () => {
+  const el = previewEditorRef.value
+  if (el && previewText.value) {
+    el.innerHTML = renderPreviewHtml(previewText.value)
+  }
+})
+
 function resetPreview() {
   previewText.value = ''
 }
@@ -385,7 +444,7 @@ onBeforeUnmount(() => {
                     :title="card.is_liked ? '取消今日点赞' : '点赞（每天可赞一次）'"
                     @click="toggleLike(card, $event)"
                   >
-                    <span class="action-top"><el-icon size="15"><StarFilled v-if="card.is_liked" /><Pointer v-else /></el-icon><span>赞</span></span>
+                    <span class="action-top"><el-icon size="12"><StarFilled v-if="card.is_liked" /><Pointer v-else /></el-icon><span>赞</span></span>
                   </button>
                   <span class="action-num">{{ card.like_count }}</span>
                 </div>
@@ -396,7 +455,7 @@ onBeforeUnmount(() => {
                     :title="card.is_favorited ? '取消收藏' : '收藏'"
                     @click="toggleFavorite(card, $event)"
                   >
-                    <span class="action-top"><el-icon size="15"><CollectionTag v-if="card.is_favorited" /><Collection v-else /></el-icon><span>收藏</span></span>
+                    <span class="action-top"><el-icon size="12"><CollectionTag v-if="card.is_favorited" /><Collection v-else /></el-icon><span>收藏</span></span>
                   </button>
                 </div>
                 <div class="action-cell">
@@ -405,7 +464,7 @@ onBeforeUnmount(() => {
                     title="复用到拼接预览"
                     @click="reuseCard(card, $event)"
                   >
-                    <span class="action-top"><el-icon size="15"><CopyDocument /></el-icon><span>复用</span></span>
+                    <span class="action-top"><el-icon size="12"><CopyDocument /></el-icon><span>复用</span></span>
                   </button>
                   <span class="action-num">{{ card.reuse_count }}</span>
                 </div>
@@ -431,14 +490,15 @@ onBeforeUnmount(() => {
         <div class="preview-hint">
           点击卡片「复用」把内容追加进来。要求固定第一行、禁止出现固定最后一行、元素按添加顺序排列，可手动编辑。
         </div>
-        <el-input
-          v-model="previewText"
-          type="textarea"
-          :rows="14"
-          placeholder="（点击卡片上的「复用」按钮，提示词会按规则拼接在这里，你也可以继续编辑）"
-          resize="none"
-          class="preview-textarea"
-        />
+        <div
+          ref="previewEditorRef"
+          class="preview-editor"
+          :class="{ 'is-empty': !previewText }"
+          contenteditable="true"
+          spellcheck="false"
+          :data-placeholder="placeholderText"
+          @input="onPreviewInput"
+        ></div>
         <div class="preview-actions">
           <el-button :icon="Refresh" @click="resetPreview">重置</el-button>
           <el-button :icon="DocumentCopy" :disabled="!previewText" @click="copyPrompt">复制</el-button>
@@ -493,6 +553,7 @@ onBeforeUnmount(() => {
   padding-bottom: 12px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+  flex-shrink: 0;
 }
 .filter-search {
   max-width: 240px;
@@ -511,6 +572,7 @@ onBeforeUnmount(() => {
   align-items: center;
   padding-bottom: 16px;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 .sort-label {
   font-size: var(--momo-font-size-sm);
@@ -518,11 +580,20 @@ onBeforeUnmount(() => {
   margin-right: 8px;
 }
 
+/* 覆盖 PageLayout 的滚动容器：本页改为 flex 列布局，让主体撑满、左右各自滚动 */
+:deep(.page-content) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* 主体 */
 .workshop-body {
   display: flex;
   gap: 20px;
-  align-items: flex-start;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
 .cards-wrap {
@@ -530,6 +601,8 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
 }
 .cards-empty {
   display: flex;
@@ -629,24 +702,28 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .action-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 .action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 4px 8px;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 4px;
   border: 1px solid var(--el-border-color);
   border-radius: var(--momo-radius-sm);
   background: var(--el-bg-color);
   color: var(--el-text-color-regular);
   cursor: pointer;
+  max-width: 100%;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .action-btn:hover {
@@ -661,11 +738,18 @@ onBeforeUnmount(() => {
 .action-top {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: var(--momo-font-size-base);
+  gap: 2px;
+  font-size: var(--momo-font-size-xs);
+  max-width: 100%;
+  overflow: hidden;
+}
+.action-top > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .action-num {
-  font-size: var(--momo-font-size-xs);
+  font-size: 10px;
   color: var(--el-text-color-placeholder);
   line-height: 1;
 }
@@ -703,20 +787,17 @@ onBeforeUnmount(() => {
   padding: 8px 0;
 }
 
-/* 提示词结构化面板（固定在右侧，flex 子元素；三按钮贴底） */
+/* 提示词结构化面板（右侧，随父容器拉伸撑满；三按钮贴底） */
 .preview-panel {
   flex: 0 0 360px;
   background: var(--el-fill-color-lighter);
   border-radius: var(--momo-radius-md);
   padding: 16px;
   border: 1px solid var(--el-border-color-lighter);
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  max-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
 }
 .preview-title {
   font-size: var(--momo-font-size-base);
@@ -728,14 +809,33 @@ onBeforeUnmount(() => {
   color: var(--el-text-color-placeholder);
   line-height: 1.5;
 }
-.preview-textarea {
+.preview-editor {
   flex: 1;
   min-height: 200px;
-}
-.preview-textarea :deep(.el-textarea__inner) {
+  padding: 9px 11px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--momo-radius-sm);
   font-family: var(--momo-font-family-base);
+  font-size: var(--momo-font-size-sm);
   line-height: 1.6;
-  height: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  outline: none;
+  transition: border-color var(--momo-transition-fast);
+}
+.preview-editor:focus {
+  border-color: var(--el-color-primary);
+}
+.preview-editor.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--el-text-color-placeholder);
+  pointer-events: none;
+}
+.preview-editor :deep(.module-name) {
+  color: var(--momo-color-danger);
+  font-weight: 700;
 }
 .preview-actions {
   display: flex;
@@ -749,14 +849,21 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
+  :deep(.page-content) {
+    display: block;
+    overflow: auto;
+  }
   .workshop-body {
     flex-direction: column;
+    flex: none;
+  }
+  .cards-wrap {
+    overflow-y: visible;
   }
   .preview-panel {
     flex: none;
     width: 100%;
-    position: static;
-    max-height: none;
+    height: auto;
   }
 }
 </style>

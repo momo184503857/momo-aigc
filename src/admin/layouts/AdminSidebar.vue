@@ -32,15 +32,15 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { path: '/users', title: '用户管理', icon: UserFilled },
-  { path: '/dashboard', title: '生图日志', icon: DataBoard },
-  { path: '/templates', title: '模板管理', icon: PictureFilled },
-  { path: '/feature-prompts', title: '功能提示词', icon: EditPen },
-  { path: '/photography', title: 'AI摄影配置', icon: Camera },
-  { path: '/works', title: '作品库管理', icon: Trophy },
-  { path: '/prompt-cases', title: '提示词案例', icon: Picture },
-  { path: '/prompt-modules', title: '提示词模块', icon: Grid },
-  { path: '/toapis-key', title: 'API Key 管理', icon: Key },
+  { path: '/admin/users', title: '用户管理', icon: UserFilled },
+  { path: '/admin/dashboard', title: '生图日志', icon: DataBoard },
+  { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
+  { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
+  { path: '/admin/photography', title: 'AI摄影配置', icon: Camera },
+  { path: '/admin/works', title: '作品库管理', icon: Trophy },
+  { path: '/admin/prompt-cases', title: '提示词案例', icon: Picture },
+  { path: '/admin/prompt-modules', title: '提示词模块', icon: Grid },
+  { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
 ]
 
 const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0, { creditDigits: 0, yuanDigits: 2 }))

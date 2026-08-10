@@ -19,7 +19,7 @@ function handleLogout() {
 
 function backToUserApp() {
   // 跳回用户端入口（与用户端共享 token，无需重新登录）
-  window.location.href = '/'
+  router.push('/workspace')
 }
 </script>
 
