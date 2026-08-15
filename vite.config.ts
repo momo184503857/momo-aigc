@@ -16,6 +16,11 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // 用户帮助文档静态资源（开发链路与生产 Nginx /docs/ 一致）
+      '/docs': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
   },
   build: {

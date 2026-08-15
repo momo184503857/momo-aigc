@@ -9,6 +9,8 @@ import { Fold, Expand, Loading, List } from '@element-plus/icons-vue'
 import SidebarMenu from '@/components/SidebarMenu.vue'
 import TaskPanel from '@/components/TaskPanel.vue'
 import TabBar from '@/components/TabBar.vue'
+import HelpButton from '@/components/help/HelpButton.vue'
+import HelpDrawer from '@/components/help/HelpDrawer.vue'
 
 const serverStatus = useServerStatusStore()
 const taskPanel = useTaskPanelStore()
@@ -168,6 +170,9 @@ onUnmounted(() => {
           />
           <span class="page-title">{{ pageTitle }}</span>
         </div>
+        <div class="header-right">
+          <HelpButton />
+        </div>
       </div>
       <TabBar />
       <div class="main-body">
@@ -181,6 +186,9 @@ onUnmounted(() => {
 
     <!-- Task Panel (global) -->
     <TaskPanel />
+
+    <!-- Help Drawer (global, user-facing pages only) -->
+    <HelpDrawer />
 
     <!-- FAB button (collapsed state) -->
     <div
@@ -232,6 +240,11 @@ onUnmounted(() => {
 
 .header-left {
   display: flex; align-items: center; gap: 10px;
+}
+
+.header-right {
+  display: flex; align-items: center; gap: var(--momo-space-2);
+  margin-left: auto;
 }
 
 .page-title {

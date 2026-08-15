@@ -61,7 +61,7 @@ const router = createRouter({
       path: '/prompt-workshop',
       name: 'PromptWorkshop',
       component: () => import('@/views/prompt-workshop/PromptWorkshopPage.vue'),
-      meta: { title: '提示词工坊', requiresAuth: true },
+      meta: { title: '提示词工坊', requiresAuth: true, helpKey: 'prompt-workshop' },
     },
     {
       path: '/canvas-projects',
@@ -91,7 +91,7 @@ const router = createRouter({
       path: '/works',
       name: 'WorksGallery',
       component: () => import('@/views/works/WorksGalleryPage.vue'),
-      meta: { title: '作品库', requiresAuth: true },
+      meta: { title: '作品库', requiresAuth: true, helpKey: 'works.gallery' },
     },
     {
       path: '/works/:id',

@@ -1,5 +1,7 @@
 import express from 'express'
 import cors from 'cors'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { config } from './config.js'
 import { seed } from './db/seed.js'
 import { authRouter } from './routes/auth.js'
@@ -37,6 +39,12 @@ const app = express()
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
+
+// 用户帮助文档静态服务（开发链路：Vite proxy /docs → 此处）
+// 生产环境由 Nginx location /docs/ 直接服务，此挂载不可达，仅作兜底；
+// 只暴露 docs/help/，docs/ 下其余目录为内部文档
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+app.use('/docs', express.static(path.resolve(__dirname, '../../docs/help')))
 
 // Initialize database
 seed()

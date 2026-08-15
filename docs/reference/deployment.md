@@ -144,6 +144,13 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # 用户帮助文档静态目录（与 dist 构建产物解耦：改文档只需 git pull，无需 build）
+    # alias 只指向 docs/help/，docs/ 下其余目录为内部文档，不对外暴露
+    location /docs/ {
+        alias /root/momo-aigc/docs/help/;
+        add_header Cache-Control "no-cache";
+    }
+
     # 后端 API 代理
     location /api/ {
         proxy_pass http://127.0.0.1:3000;
@@ -172,6 +179,7 @@ ln -sf /etc/nginx/sites-available/momo-aigc /etc/nginx/sites-enabled/momo-aigc
 rm -f /etc/nginx/sites-enabled/default
 chmod o+x /root
 chmod -R o+rX /root/momo-aigc/dist
+chmod -R o+rX /root/momo-aigc/docs   # 帮助文档静态目录（Nginx /docs/ 需要读取权限）
 nginx -t && systemctl reload nginx
 ```
 
@@ -450,8 +458,14 @@ git diff --stat <服务器当前 HEAD>..origin/master
 |------------|---------|---------------|
 | 仅 `src/`（前端） | `npm run build` | ❌ 不需要（静态产物即时生效） |
 | `server/`（后端） | `npm run build:server` | ✅ `pm2 restart momo-aigc --update-env` |
+| 仅 `docs/help/`（用户帮助文档） | ❌ 什么都不用执行 | ❌ 不需要（Nginx 直接读仓库目录，`git pull` 后刷新即生效） |
 | `package.json` / `package-lock.json` | `npm install` 后再构建对应部分 | 视情况 |
 | `.env` | 改服务器 `.env` 后 | ✅ `--update-env` 必须加 |
+
+> 帮助文档与前端构建解耦（见 `docs/requirements/Vue3 后台内嵌帮助文档系统方案.md`）：
+> `docs/help/**` 是运行时经 `GET /docs/**` 动态加载的静态 Markdown，修改后只需要
+> 服务器 `git pull`，不执行 `npm run build`，不重启任何服务。新增文档目录时记得
+> `chmod -R o+rX /root/momo-aigc/docs`（Nginx 以 www-data 运行，`/root` 下默认不可读）。
 
 ### 步骤 3：远程部署（推荐方式 —— 一条命令，无需 ssh 进去）
 

@@ -37,6 +37,9 @@
   --momo-dialog-lg: 1000px;
   --momo-dialog-xl: 80%;
 
+  /* 帮助文档抽屉（方案第七节：420~520px 取中） */
+  --momo-help-drawer-width: 480px;
+
   /* 叠加层 */
   --momo-overlay-bg: rgba(0, 0, 0, 0.7);
   --momo-overlay-text: #ffffff;
