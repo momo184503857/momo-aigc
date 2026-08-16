@@ -1,4 +1,6 @@
 import { db } from './index.js'
+import { initSuiteGen } from './seedSuiteGen.js'
+import { initApiProviders } from './seedApiProviders.js'
 
 export function initSchema(): void {
   db.exec(`
@@ -807,6 +809,73 @@ export function initSchema(): void {
     );
   `)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_card_likes_card ON prompt_card_likes(card_id);`)
+
+  // ────────────────────────────────────────────────────────────
+  //  AI 服务商配置
+  //
+  //  api_providers       服务商（火山引擎 / ToAPIs / DeepSeek ...）
+  //  ai_models           模型（provider 1:N model）
+  //  api_provider_keys   密钥（provider 1:N key，每服务商唯一一把主 Key，连接用主 Key）
+  //  adapter 列指向 providers/ 目录下的适配器实现（协议与调用方式的解耦点）
+  // ────────────────────────────────────────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS api_providers (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      code        VARCHAR(50)  NOT NULL UNIQUE,
+      name        VARCHAR(100) NOT NULL,
+      base_url    TEXT         NOT NULL,
+      adapter     VARCHAR(50)  NOT NULL DEFAULT 'openai_compat',
+      remark      TEXT         NOT NULL DEFAULT '',
+      status      VARCHAR(20)  NOT NULL DEFAULT 'active',
+      created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_models (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider_id        INTEGER NOT NULL REFERENCES api_providers(id) ON DELETE CASCADE,
+      model_id           VARCHAR(100) NOT NULL,
+      display_name       VARCHAR(100) NOT NULL DEFAULT '',
+      supports_vision    INTEGER NOT NULL DEFAULT 0,
+      supports_image_gen INTEGER NOT NULL DEFAULT 0,
+      remark             TEXT    NOT NULL DEFAULT '',
+      status             VARCHAR(20) NOT NULL DEFAULT 'active',
+      created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(provider_id, model_id)
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_ai_models_provider ON ai_models(provider_id);`)
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS api_provider_keys (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider_id     INTEGER NOT NULL REFERENCES api_providers(id) ON DELETE CASCADE,
+      name            VARCHAR(100) NOT NULL DEFAULT '',
+      encrypted_key   TEXT NOT NULL,
+      key_iv          TEXT NOT NULL,
+      key_tag         TEXT NOT NULL,
+      key_hint        TEXT NOT NULL DEFAULT '',
+      is_primary      INTEGER NOT NULL DEFAULT 0,
+      status          VARCHAR(20) NOT NULL DEFAULT 'active',
+      last_checked_at TIMESTAMP NULL,
+      last_check_ok   INTEGER NULL,
+      created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_api_provider_keys_provider ON api_provider_keys(provider_id);`)
+  // 每个服务商至多一把主 Key（部分唯一索引：仅 is_primary=1 的行参与）
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_api_provider_keys_primary
+           ON api_provider_keys(provider_id) WHERE is_primary = 1;`)
+
+  // 种子数据：火山引擎 + 主 Key + doubao-seed-2.1-turbo
+  initApiProviders()
+
+  // suite-gen（成套生图与提示词专家）：资产表 + 套系表 + 种子数据
+  initSuiteGen()
 
   console.log('[DB] Schema initialized')
 }

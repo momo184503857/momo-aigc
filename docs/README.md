@@ -10,6 +10,7 @@ docs/
 ├── todo.md              待办事项与风险点
 ├── requirements/        业务域需求文档（每个稳定业务域一个文件）
 │   └── README.md        业务域索引
+├── design/              功能设计方案（新功能的技术/实施方案，落地后沉淀到 reference）
 ├── records/             历史记录（变更/决策/Bug）
 │   ├── changelog.md
 │   ├── decision-log.md
@@ -28,6 +29,8 @@ docs/
 | 积分与 Key 计费体系 | `requirements/billing.md` |
 | AI 买家秀 | `requirements/buyer-show.md` |
 | AI 画布 | `requirements/canvas.md` |
+| 成套生图与提示词专家（规划） | `requirements/suite-gen.md` |
+| 成套生图与提示词专家 · 验收（规划） | `requirements/suite-gen-acceptance.md` |
 
 ### 历史记录（`records/`）
 | 类别 | 文件 |
@@ -51,6 +54,13 @@ docs/
 | UI 交接（历史） | `reference/ui-handoff.md` |
 | OSS 结果导入 Worker | `reference/oss-result-import-worker.md` |
 | OSS ↔ ToAPIs 交接 | `reference/oss-toapis-handoff.md` |
+
+### 功能设计（`design/`）
+新功能的实施方案（数据库/API/前端设计、排期、风险），落地后将事实沉淀进 `reference/`。
+
+| 功能 | 文件 |
+|------|------|
+| 成套生图与提示词专家（规划） | `design/suite-gen-tech.md` |
 
 ### 待办
 | 文件 | 说明 |

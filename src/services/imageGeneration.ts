@@ -43,6 +43,10 @@ export interface SubmitTaskParams {
   promptSegments?: Record<string, string>
   /** 负向规避词（自然语言追加） */
   negativePrompt?: string
+  /** 所属套系（suite-gen 成套生图） */
+  suiteId?: number
+  /** 套系内点位序号 0-4 */
+  pointIndex?: number
 }
 
 export interface SubmitTaskResult {
@@ -166,6 +170,8 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
     supplementaryImages,
     promptSegments,
     negativePrompt,
+    suiteId,
+    pointIndex,
   } = params
 
   // ─── 验证：有图片但没有提示词 ───
@@ -219,6 +225,8 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
     supplementary_images: supplementaryImages || [],
     prompt_segments: promptSegments || {},
     negative_prompt: negativePrompt || '',
+    suite_id: suiteId,
+    point_index: pointIndex,
   })
   const dbTaskId = dbRes.data.data.id
 

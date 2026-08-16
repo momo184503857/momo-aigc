@@ -113,6 +113,30 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     hasUserPrompt: true,
     hasSupplementaryImages: false,
   },
+  // ── 提示词专家（suite-gen）玩法：向导式表单在 /expert 页，槽位定义供 feature_prompts 后台编辑使用 ──
+  'expert-fusion': {
+    id: 'expert-fusion',
+    label: '拆解融合',
+    imageSlots: [
+      { key: 'base', label: '电商主图(场景基准)', maxCount: 1, required: true, section: 'reference' },
+      { key: 'face', label: '模特头像', maxCount: 1, required: false, section: 'reference' },
+      { key: 'garment', label: '服装参考图', maxCount: 2, required: true, section: 'reference' },
+    ],
+    hasUserPrompt: true,
+    hasSupplementaryImages: false,
+  },
+  'expert-swap': {
+    id: 'expert-swap',
+    label: '保真换装',
+    imageSlots: [
+      { key: 'base', label: '优质主图(绝对基底)', maxCount: 1, required: true, section: 'reference' },
+      { key: 'face', label: '模特头像', maxCount: 1, required: false, section: 'reference' },
+      { key: 'hair', label: '发型参考图', maxCount: 1, required: false, section: 'reference' },
+      { key: 'garment', label: '服装参考图', maxCount: 2, required: false, section: 'reference' },
+    ],
+    hasUserPrompt: true,
+    hasSupplementaryImages: false,
+  },
 }
 
 export function getFeatureLabel(featureId: string): string {

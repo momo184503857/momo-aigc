@@ -22,6 +22,15 @@ function parseRow(row: any): any {
       try { parsed[key] = JSON.parse(parsed[key]) } catch { /* keep as-is */ }
     }
   }
+  // suite-gen 透传字段
+  if ('suite_id' in parsed) {
+    parsed.suiteId = parsed.suite_id
+    delete parsed.suite_id
+  }
+  if ('point_index' in parsed) {
+    parsed.pointIndex = parsed.point_index
+    delete parsed.point_index
+  }
   // Map snake_case DB column to camelCase frontend field
   if ('aspect_ratio' in parsed) {
     parsed.aspectRatio = parsed.aspect_ratio
@@ -48,6 +57,7 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
   const status = req.query.status as string | undefined
   const model = req.query.model as string | undefined
   const featureId = req.query.feature_id as string | undefined
+  const suiteId = req.query.suiteId as string | undefined
   const startDate = req.query.start_date as string | undefined
   const endDate = req.query.end_date as string | undefined
 
@@ -65,6 +75,10 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
   if (featureId) {
     where += ' AND feature_id = ?'
     params.push(featureId)
+  }
+  if (suiteId) {
+    where += ' AND suite_id = ?'
+    params.push(suiteId)
   }
   const range = bjDateRangeClause('created_at', startDate, endDate)
   if (range.clause) {
@@ -108,6 +122,7 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
     toapis_task_id, client_business_id, model, prompt, size, resolution,
     aspect_ratio, n, template_image_ids, input_image_urls, status, progress,
     feature_id, user_prompt, supplementary_images, prompt_segments, negative_prompt,
+    suite_id, point_index,
   } = req.body
 
   if (!toapis_task_id || !model || !prompt) {
@@ -142,8 +157,8 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
 
       // Insert task（个人模式 points_cost 记 0，仍写记录保证任务列表可见）
       const result = db.prepare(`
-        INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt, points_cost, points_balance_after, supplementary_images, prompt_segments, negative_prompt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO generation_tasks (user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n, template_image_ids, input_image_urls, status, progress, feature_id, user_prompt, points_cost, points_balance_after, supplementary_images, prompt_segments, negative_prompt, suite_id, point_index)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         userId, toapis_task_id, client_business_id || null, model, prompt,
         size || null, resolution || null, aspect_ratio || null, count,
@@ -156,7 +171,9 @@ tasksRouter.post('/', (req: AuthRequest, res) => {
         newBalance,
         supplementary_images ? JSON.stringify(supplementary_images) : '[]',
         prompt_segments ? JSON.stringify(prompt_segments) : '{}',
-        negative_prompt || ''
+        negative_prompt || '',
+        suite_id ? Number(suite_id) : null,
+        point_index !== undefined && point_index !== null ? Number(point_index) : null
       )
 
       const taskId = result.lastInsertRowid

@@ -18,6 +18,10 @@ export interface CreateTaskParams {
   supplementary_images?: { name: string; url: string }[]
   prompt_segments?: Record<string, string>
   negative_prompt?: string
+  /** 所属套系（suite-gen） */
+  suite_id?: number
+  /** 套系内点位序号 0-4 */
+  point_index?: number
 }
 
 export interface UpdateTaskParams {
@@ -32,7 +36,7 @@ export interface UpdateTaskParams {
 }
 
 export const taskApi = {
-  list(params?: { page?: number; pageSize?: number; status?: string; model?: string; feature_id?: string; start_date?: string; end_date?: string }) {
+  list(params?: { page?: number; pageSize?: number; status?: string; model?: string; feature_id?: string; start_date?: string; end_date?: string; suiteId?: number }) {
     return http.get('/tasks', { params })
   },
   get(id: number) {

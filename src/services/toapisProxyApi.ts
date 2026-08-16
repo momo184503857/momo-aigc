@@ -17,7 +17,9 @@ export const toapisProxyApi = {
   },
 
   createTask(body: Record<string, unknown>): Promise<{ data: { data: { id: string } } }> {
-    return http.post('/toapis/create-task', body)
+    // 上游创建含参考图的任务时可能同步预处理较久，超时放宽到 60s；
+    // 若沿用全局 15s 超时，会在上游已建任务后误判失败，重试导致重复扣费任务
+    return http.post('/toapis/create-task', body, { timeout: 60000 })
   },
 
   getTaskStatus(taskId: string): Promise<{ data: { data: {

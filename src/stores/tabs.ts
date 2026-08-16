@@ -34,6 +34,8 @@ const ROUTE_META_MAP: Record<string, { title: string; icon: Component; component
   '/results': { title: '生图结果', icon: Picture, componentName: 'ResultsPage' },
   '/prompts': { title: '提示词库', icon: Collection, componentName: 'PromptLibraryPage' },
   '/prompt-workshop': { title: '提示词工坊', icon: EditPen, componentName: 'PromptWorkshopPage' },
+  '/suite-gen': { title: '成套生图', icon: MagicStick, componentName: 'SuiteGenPage' },
+  '/expert': { title: '提示词专家', icon: EditPen, componentName: 'ExpertPage' },
   '/admin/users': { title: '用户管理', icon: UserFilled, componentName: 'AdminUsers' },
   '/admin/dashboard': { title: '生图日志', icon: DataBoard, componentName: 'AdminDashboard' },
   '/admin/templates': { title: '模板管理', icon: PictureFilled, componentName: 'AdminTemplates' },

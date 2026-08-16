@@ -76,6 +76,19 @@ const router = createRouter({
       meta: { title: 'AI摄影', requiresAuth: true },
     },
     {
+      path: '/suite-gen',
+      name: 'SuiteGen',
+      component: () => import('@/views/suite-gen/SuiteGenPage.vue'),
+      meta: { title: '成套生图', requiresAuth: true, helpKey: 'suite-gen' },
+    },
+    {
+      path: '/expert',
+      name: 'Expert',
+      component: () => import('@/views/expert/ExpertPage.vue'),
+      meta: { title: '提示词专家', requiresAuth: true, helpKey: 'expert' },
+    },
+
+    {
       path: '/toolbox',
       name: 'Toolbox',
       component: () => import('@/views/tools/ToolboxPage.vue'),
@@ -220,6 +233,18 @@ const router = createRouter({
       name: 'AdminPromptModules',
       component: () => import('@/views/admin/AdminPromptModules.vue'),
       meta: { title: '提示词模块管理', requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/sg-assets',
+      name: 'AdminSgAssets',
+      component: () => import('@/views/admin/AdminSuiteAssets.vue'),
+      meta: { title: '成套生图资产', requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/ai-config',
+      name: 'AdminAiConfig',
+      component: () => import('@/views/admin/AdminAiConfig.vue'),
+      meta: { title: '配置', requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/admin/toapis-key',

@@ -12,6 +12,7 @@ import {
   Grid,
   Key,
   Coin,
+  Setting,
   ArrowDown,
   Back,
 } from '@element-plus/icons-vue'
@@ -40,6 +41,8 @@ const menuItems: MenuItem[] = [
   { path: '/admin/works', title: '作品库管理', icon: Trophy },
   { path: '/admin/prompt-cases', title: '提示词案例', icon: Picture },
   { path: '/admin/prompt-modules', title: '提示词模块', icon: Grid },
+  { path: '/admin/sg-assets', title: '成套生图资产', icon: Grid },
+  { path: '/admin/ai-config', title: '配置', icon: Setting },
   { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
 ]
 
