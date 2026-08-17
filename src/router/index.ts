@@ -87,6 +87,12 @@ const router = createRouter({
       component: () => import('@/views/expert/ExpertPage.vue'),
       meta: { title: '提示词专家', requiresAuth: true, helpKey: 'expert' },
     },
+    {
+      path: '/themes',
+      name: 'ThemeLibrary',
+      component: () => import('@/views/themes/ThemeLibraryPage.vue'),
+      meta: { title: '主题库', requiresAuth: true },
+    },
 
     {
       path: '/toolbox',

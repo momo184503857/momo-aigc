@@ -250,6 +250,23 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 
 ---
 
+## AI学习 · 主题库
+
+用户端主题浏览页（`/themes`）。数据复用 `sg_themes`：管理员在「成套生图资产管理」维护的全局主题（`owner_user_id NULL`）全员可见；用户上传的主题默认私有，`is_public=1` 时公开。收藏存 `sg_theme_favorites`。
+
+### 用户路由 `/api/themes`（需登录）
+
+- `GET /` - 主题列表（服务端分页+筛选+排序）。Query：`page, pageSize, scope: 'all'|'official'|'mine'|'favorites', sort: 'default'|'latest'|'hot'|'favorite', keyword?(搜 name/path), track_key?, season?(春/夏/秋/冬；'none'=仅全季；全季主题满足任意季节), style?(JSON 数组包含), level?`
+  - Response：`data: { records: ThemeItem[], total, page, pageSize, totalPages }`
+  - `ThemeItem = { id, name, track_key, track_name, season: string[], styles: string[], images: string[], cover_url, level, path, points: string[], use_count, favorite_count, sort_order, is_public, is_global, is_mine, is_favorited, author: { id, username, nickname } | null, created_at }`
+  - `scope=all` 可见范围：全局主题 + 我的主题 + 其他用户公开主题；默认排序 = 官方在前（`sort_order`）+ 用户主题随后
+- `POST /` body `{ name, track_key?, season?: string[], styles?: string[], images: string[], level?('L'|'M'|'H'), path?, points?: string[], is_public? }` - 上传自己的主题。校验：name 非空、images 1~5 张（http URL）
+- `PATCH /:id` body 同上（均可选）- 更新自己的主题（含公开/私有切换）；管理员可改任意
+- `DELETE /:id` - 删除自己的主题（管理员可删任意）。级联清理收藏记录
+- `POST /:id/favorite` - 收藏/取消（toggle）。Response：`data: { is_favorited, favorite_count }`
+
+---
+
 ## 积分与 Key 计费体系
 
 > 计费主单位为「新积分」，`1 新积分 = ¥0.035`。详见 `docs/requirements/billing.md`。

@@ -37,6 +37,7 @@ import { sgAssetsRouter, adminSgAssetsRouter, sgAdminExtraRouter } from './route
 import { sgSuitesRouter } from './routes/sgSuites.js'
 import { sgAnalyzeRouter } from './routes/sgAnalyze.js'
 import { adminAiConfigRouter } from './routes/admin/aiConfig.js'
+import { themeLibraryRouter } from './routes/themeLibrary.js'
 
 const app = express()
 
@@ -88,6 +89,7 @@ app.use('/api/admin/prompt-modules', adminPromptModulesRouter)
 app.use('/api/sg/assets', sgAssetsRouter)
 app.use('/api/sg/suites', sgSuitesRouter)
 app.use('/api/sg/analyze', sgAnalyzeRouter)
+app.use('/api/themes', themeLibraryRouter)
 app.use('/api/admin/sg', adminSgAssetsRouter)
 app.use('/api/admin/sg-extra', sgAdminExtraRouter)
 app.use('/api/admin/ai-config', adminAiConfigRouter)

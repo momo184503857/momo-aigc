@@ -27,6 +27,8 @@ export function initSuiteGen(): void {
       use_count     INTEGER NOT NULL DEFAULT 0,
       sort_order    INTEGER NOT NULL DEFAULT 0,
       source        VARCHAR(20) NOT NULL DEFAULT 'user',
+      is_public     INTEGER NOT NULL DEFAULT 0,     -- 用户主题是否公开到主题库（全局主题全员可见，不依赖此列）
+      favorite_count INTEGER NOT NULL DEFAULT 0,    -- 收藏数（sg_theme_favorites 计数冗余）
       created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -147,6 +149,22 @@ export function initSuiteGen(): void {
   db.exec(`UPDATE sg_themes SET season = '["春","夏"]' WHERE season = 'ss'`)
   db.exec(`UPDATE sg_themes SET season = '["秋","冬"]' WHERE season = 'aw'`)
   db.exec(`UPDATE sg_themes SET season = '[]' WHERE season IN ('all', '')`)
+
+  // ───────────────────────── 主题库（用户端 /themes）：公开标记 + 收藏 ─────────────────────────
+  // 旧库补 is_public / favorite_count 列（新库建表已含）
+  try { db.exec(`ALTER TABLE sg_themes ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0`) } catch { /* column already exists */ }
+  try { db.exec(`ALTER TABLE sg_themes ADD COLUMN favorite_count INTEGER NOT NULL DEFAULT 0`) } catch { /* column already exists */ }
+  // 收藏（联合主键防重）；theme_id 级联删除（主题删除时收藏随之清理）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sg_theme_favorites (
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      theme_id   INTEGER NOT NULL REFERENCES sg_themes(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, theme_id)
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sg_theme_favorites_user ON sg_theme_favorites(user_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sg_theme_favorites_theme ON sg_theme_favorites(theme_id);`)
 
   // ── 主题元数据回填：适合风格 + 差异化季节（一次性；新库种子已带元数据，此处为 0 行） ──
   // 仅补全局行：styles 为空的补推导风格；season 仍是整半年（["春","夏"]/["秋","冬"]）的按名称打散。

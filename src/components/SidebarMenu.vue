@@ -21,6 +21,7 @@ import {
   Money,
   TrendCharts,
   Trophy,
+  Files,
 } from '@element-plus/icons-vue'
 
 defineProps<{ collapsed?: boolean }>()
@@ -74,6 +75,7 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/works', title: '作品库', icon: Trophy },
         { path: '/prompt-workshop', title: '提示词工坊', icon: EditPen },
         { path: '/expert', title: '提示词专家', icon: EditPen },
+        { path: '/themes', title: '主题库', icon: Files },
       ],
     },
     {

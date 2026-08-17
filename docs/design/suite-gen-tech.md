@@ -73,10 +73,20 @@ CREATE TABLE IF NOT EXISTS sg_themes (
   use_count     INTEGER NOT NULL DEFAULT 0,
   sort_order    INTEGER NOT NULL DEFAULT 0,
   source        VARCHAR(20) NOT NULL DEFAULT 'seed',            -- seed | admin | user | derive
+  is_public     INTEGER NOT NULL DEFAULT 0,                     -- 用户主题是否公开到「AI学习 · 主题库」；全局主题恒全员可见
+  favorite_count INTEGER NOT NULL DEFAULT 0,                    -- 收藏数（sg_theme_favorites 计数冗余）
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_sg_themes_scope ON sg_themes(owner_user_id, season, status);
+
+-- 主题收藏（AI学习 · 主题库页；联合主键防重，theme_id 级联删除）
+CREATE TABLE IF NOT EXISTS sg_theme_favorites (
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  theme_id   INTEGER NOT NULL REFERENCES sg_themes(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, theme_id)
+);
 
 -- 赛道库（种子：工作台 TRACKS 7 条）
 CREATE TABLE IF NOT EXISTS sg_tracks (
