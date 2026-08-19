@@ -478,6 +478,12 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 - `balance_check_interval_sec INTEGER DEFAULT 60`（toapis 协议余额轮询间隔，随 T4 迁移保留）
 - 用户渠道 code 自动生成 `u{userId}-{6位随机}`；Key 仍存 `api_provider_keys`（一渠道一主 Key）。
 
+### `api_provider_keys` Key 存储格式（2026-08 起双格式）
+
+- **平台渠道（后台配置）**：明文存储——`encrypted_key` 存明文、`key_iv`/`key_tag` 置空串；管理端接口回传完整 Key（后台可查看/复制）。存量密文由启动迁移 T6 自动解密转明文（幂等：`key_iv=''` 即已转换；转换前自动备份；解密失败的行保留密文并告警）。
+- **用户渠道（我的渠道）**：仍 AES-256-GCM 加密（`encrypted_key`=base64 密文 + `key_iv`/`key_tag`），仅脱敏 hint 回显。
+- 服务端统一读取入口：`resolveKeyPlain()`（`server/src/utils/crypto.ts`，按 `key_iv` 是否为空自动分流）。
+
 ### 扩列 `ai_models`（渠道模型）
 
 - `logical_model_id` → ai_logical_models（平台生图模型必填；用户侧可 NULL=完全自定义能力）
@@ -497,5 +503,6 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 `seed_ai_provider_v1`（T1-T3 逻辑模型+toapis 平台渠道+渠道模型×7）、
 `migrate_user_keys_v1`（T4 个人 Key→用户渠道）、`migrate_tasks_v1`（T5 历史任务回填）。
+T6（平台渠道 Key 密文→明文）无标记，按 `key_iv=''` 天然幂等，每次启动扫描待转行。
 迁移前自动备份（VACUUM INTO `server/data/backup-pre-ai-provider-*.db`）；校验脚本
 `scripts/verify-ai-provider-migration.mjs`。`user_toapis_keys` 旧表保留只读待退役。

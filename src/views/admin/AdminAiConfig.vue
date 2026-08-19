@@ -9,6 +9,7 @@
 defineOptions({ name: 'AdminAiConfig' })
 import { ref, computed, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { useClipboard } from '@/composables/useClipboard'
 import PageLayout from '@/components/PageLayout.vue'
 import {
   aiConfigApi,
@@ -19,9 +20,10 @@ import {
   type LogicalModelRow,
   type UserProviderRow,
 } from '@/services/aiConfigApi'
-import { Plus, Refresh, Edit, Delete, Key, Connection, Picture, UploadFilled, ChatDotRound } from '@element-plus/icons-vue'
+import { Plus, Refresh, Edit, Delete, Key, Connection, Picture, UploadFilled, ChatDotRound, CopyDocument } from '@element-plus/icons-vue'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
+const { copy } = useClipboard()
 
 // ── 服务商列表 ──
 const providers = ref<ProviderRow[]>([])
@@ -724,14 +726,26 @@ onMounted(() => {
               <!-- Tab 2：Key 管理 -->
               <el-tab-pane :label="`Key 管理`" name="keys">
                 <div class="tab-toolbar">
-                  <span class="tab-hint">Key 加密存储、仅脱敏展示；主 Key 唯一，连接调用一律使用主 Key。</span>
+                  <span class="tab-hint">Key 明文存储、可查看复制；主 Key 唯一，连接调用一律使用主 Key。</span>
                   <el-button type="primary" size="small" :icon="Key" @click="openKeyCreate">新增 Key</el-button>
                 </div>
                 <el-table :data="selected.keys" size="default" empty-text="暂无 Key">
                   <el-table-column prop="name" label="名称" min-width="130" show-overflow-tooltip />
-                  <el-table-column label="Key" min-width="160">
+                  <el-table-column label="Key" min-width="240">
                     <template #default="{ row }">
-                      <code class="key-hint">{{ row.key_hint || '—' }}</code>
+                      <div v-if="row.key" class="key-cell">
+                        <code class="key-plain" :title="row.key">{{ row.key }}</code>
+                        <el-button
+                          link type="primary" :icon="CopyDocument"
+                          @click="copy(row.key, { successMsg: 'Key 已复制' })"
+                        >复制</el-button>
+                      </div>
+                      <el-tooltip
+                        v-else
+                        content="历史加密数据无法读取：编辑该 Key 重新保存一次即可查看与复制"
+                      >
+                        <code class="key-hint">{{ row.key_hint || '—' }}（不可读）</code>
+                      </el-tooltip>
                     </template>
                   </el-table-column>
                   <el-table-column label="主 Key" width="110" align="center">
@@ -1335,6 +1349,11 @@ onMounted(() => {
 .cap-no { color: var(--el-text-color-placeholder); }
 .cap-hint { font-size: var(--momo-font-size-xs); color: var(--el-text-color-secondary); }
 .key-hint { font-family: monospace; font-size: var(--momo-font-size-sm); }
+.key-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.key-plain {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: monospace; font-size: var(--momo-font-size-sm);
+}
 
 .check-result.ok { color: var(--el-color-success); }
 .check-result.fail { color: var(--el-color-danger); }

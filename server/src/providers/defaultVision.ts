@@ -6,7 +6,7 @@
  * 「适配器 + 运行时配置 + 模型名」三件套后直接调用，不感知服务商协议。
  */
 import { db } from '../db/index.js'
-import { decryptKey } from '../utils/crypto.js'
+import { resolveKeyPlain } from '../utils/crypto.js'
 import { getAdapter } from './index.js'
 import type { ProviderAdapter, ProviderRuntimeConfig } from './types.js'
 
@@ -77,9 +77,9 @@ export function resolveDefaultVision(): DefaultVisionRuntime {
 
   let plain: string
   try {
-    plain = decryptKey({ ciphertext: keyRow.encrypted_key, iv: keyRow.key_iv, tag: keyRow.key_tag })
+    plain = resolveKeyPlain(keyRow)
   } catch {
-    throw new Error('主 Key 解密失败（可能加密密钥已轮换），请联系管理员重新录入')
+    throw new Error('主 Key 读取失败（可能加密密钥已轮换），请联系管理员重新录入')
   }
 
   return {

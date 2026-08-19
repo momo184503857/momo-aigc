@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
-import { encryptKey, decryptKey, maskKey } from '../utils/crypto.js'
+import { encryptKey, resolveKeyPlain, maskKey } from '../utils/crypto.js'
 import { getAdapter, getImageAdapter, listAdapters, CHANNEL_ADAPTER_WHITELIST } from '../providers/index.js'
 import { validateProviderBaseUrl } from '../utils/ssrf.js'
 import {
@@ -225,7 +225,7 @@ function buildRuntime(row: any): { apiKey: string } | { error: string } {
   `).get(row.id) as any
   if (!keyRow) return { error: '该渠道尚未配置主 Key' }
   try {
-    return { apiKey: decryptKey({ ciphertext: keyRow.encrypted_key, iv: keyRow.key_iv, tag: keyRow.key_tag }) }
+    return { apiKey: resolveKeyPlain(keyRow) }
   } catch {
     return { error: 'Key 解密失败（可能加密密钥已轮换），请重新录入' }
   }

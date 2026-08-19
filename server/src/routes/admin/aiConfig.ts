@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { db } from '../../db/index.js'
 import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
-import { encryptKey, decryptKey, maskKey } from '../../utils/crypto.js'
+import { encryptKey, resolveKeyPlain, maskKey } from '../../utils/crypto.js'
 import { getAdapter, listAdapters } from '../../providers/index.js'
 import type { ProviderRuntimeConfig, ChatImage } from '../../providers/types.js'
 import { DEFAULT_VISION_CONFIG_KEY, getDefaultVisionSetting } from '../../providers/defaultVision.js'
@@ -27,7 +27,8 @@ function validateOverridesAgainstLogical(logicalModelId: number | null | undefin
 //
 //  关系：api_providers 1─N ai_models、api_providers 1─N api_provider_keys。
 //  每个服务商唯一一把主 Key（is_primary，部分唯一索引保证），连接调用一律用主 Key。
-//  Key 密文 AES-256-GCM 存储，接口永不回传明文（仅脱敏 hint）。
+//  平台渠道 Key 明文存储（key_iv 置空），接口回传完整 Key 供后台查看/复制；
+//  用户渠道 Key 仍 AES-256-GCM 加密（仅脱敏 hint）。
 //  实际调用走 providers/ 适配器层，与协议细节解耦。
 // ────────────────────────────────────────────────────────────
 
@@ -40,11 +41,32 @@ function loadProvider(id: string | number | bigint | string[]): any | undefined 
   return db.prepare(`SELECT * FROM api_providers WHERE id = ?`).get(String(id))
 }
 
+/** 序列化 Key 行：回传完整明文（平台渠道明文存储，后台可复制）；历史密文解密失败时 key 为 null */
+function serializeKey(row: any) {
+  let plain: string | null = null
+  try {
+    plain = resolveKeyPlain(row)
+  } catch {
+    plain = null
+  }
+  return {
+    id: row.id,
+    provider_id: row.provider_id,
+    name: row.name,
+    key: plain,
+    key_hint: row.key_hint,
+    is_primary: !!row.is_primary,
+    status: row.status,
+    last_checked_at: row.last_checked_at,
+    last_check_ok: row.last_check_ok === null ? null : !!row.last_check_ok,
+    created_at: row.created_at,
+  }
+}
+
 function serializeProvider(row: any) {
   const keys = (db.prepare(`
-    SELECT id, provider_id, name, key_hint, is_primary, status, last_checked_at, last_check_ok, created_at
-    FROM api_provider_keys WHERE provider_id = ? ORDER BY is_primary DESC, id ASC
-  `).all(row.id) as any[]).map((k) => ({ ...k, is_primary: !!k.is_primary, last_check_ok: k.last_check_ok === null ? null : !!k.last_check_ok }))
+    SELECT * FROM api_provider_keys WHERE provider_id = ? ORDER BY is_primary DESC, id ASC
+  `).all(row.id) as any[]).map(serializeKey)
   const models = (db.prepare(`
     SELECT m.*, lm.code AS logical_code, lm.name AS logical_name
     FROM ai_models m LEFT JOIN ai_logical_models lm ON lm.id = m.logical_model_id
@@ -67,14 +89,14 @@ function serializeProvider(row: any) {
   }
 }
 
-/** 取服务商主 Key（解密明文仅供服务端出站调用，不落响应） */
+/** 取服务商主 Key（明文仅供服务端出站调用/后台回显） */
 function getPrimaryApiKey(providerId: number): { row: any; plain: string } | null {
   const row = db.prepare(`
     SELECT * FROM api_provider_keys WHERE provider_id = ? AND is_primary = 1 AND status = 'active'
   `).get(providerId) as any
   if (!row) return null
   try {
-    const plain = decryptKey({ ciphertext: row.encrypted_key, iv: row.key_iv, tag: row.key_tag })
+    const plain = resolveKeyPlain(row)
     return { row, plain }
   } catch {
     return null
@@ -487,7 +509,10 @@ adminAiConfigRouter.post('/keys', (req: AuthRequest, res) => {
     const plain = String(key || '').trim()
     if (!plain) { res.status(400).json({ success: false, error: 'API Key 不能为空' }); return }
 
-    const enc = encryptKey(plain)
+    // 平台渠道明文存储（后台可查看/复制）；用户渠道仍加密
+    const stored = provider.owner_user_id === null
+      ? { ciphertext: plain, iv: '', tag: '' }
+      : encryptKey(plain)
     const tx = db.transaction(() => {
       const makePrimary = is_primary !== false // 新增默认设为主（尤其服务商还没有主 Key 时）
       const hasPrimary = !!db.prepare(`SELECT id FROM api_provider_keys WHERE provider_id = ? AND is_primary = 1`).get(provider_id)
@@ -496,15 +521,12 @@ adminAiConfigRouter.post('/keys', (req: AuthRequest, res) => {
       const result = db.prepare(`
         INSERT INTO api_provider_keys (provider_id, name, encrypted_key, key_iv, key_tag, key_hint, is_primary)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(provider_id, String(name || '').trim() || '未命名 Key', enc.ciphertext, enc.iv, enc.tag, maskKey(plain), finalPrimary ? 1 : 0)
+      `).run(provider_id, String(name || '').trim() || '未命名 Key', stored.ciphertext, stored.iv, stored.tag, maskKey(plain), finalPrimary ? 1 : 0)
       return result.lastInsertRowid
     })
     const keyId = tx() as number
-    const row = db.prepare(`
-      SELECT id, provider_id, name, key_hint, is_primary, status, last_checked_at, last_check_ok, created_at
-      FROM api_provider_keys WHERE id = ?
-    `).get(keyId) as any
-    res.json({ success: true, data: { ...row, is_primary: !!row.is_primary } })
+    const row = db.prepare(`SELECT * FROM api_provider_keys WHERE id = ?`).get(keyId) as any
+    res.json({ success: true, data: serializeKey(row) })
   } catch (err: any) {
     console.error('[admin/ai-config] Create key error:', err.message)
     res.status(500).json({ success: false, error: '创建 Key 失败' })
@@ -525,9 +547,13 @@ adminAiConfigRouter.patch('/keys/:id', (req: AuthRequest, res) => {
     if (key !== undefined) {
       const plain = String(key).trim()
       if (!plain) { res.status(400).json({ success: false, error: 'API Key 不能为空（留空表示不修改）' }); return }
-      const enc = encryptKey(plain)
+      // 平台渠道明文存储；用户渠道仍加密
+      const provider = loadProvider(row.provider_id)
+      const stored = provider && provider.owner_user_id === null
+        ? { ciphertext: plain, iv: '', tag: '' }
+        : encryptKey(plain)
       fields.push('encrypted_key = ?', 'key_iv = ?', 'key_tag = ?', 'key_hint = ?', 'last_check_ok = NULL')
-      params.push(enc.ciphertext, enc.iv, enc.tag, maskKey(plain))
+      params.push(stored.ciphertext, stored.iv, stored.tag, maskKey(plain))
     }
     if (status !== undefined) {
       if (!['active', 'disabled'].includes(status)) { res.status(400).json({ success: false, error: 'status 仅支持 active/disabled' }); return }
@@ -550,11 +576,8 @@ adminAiConfigRouter.patch('/keys/:id', (req: AuthRequest, res) => {
     if (fields.length === 0) { res.status(400).json({ success: false, error: '无更新字段' }); return }
     params.push(new Date().toISOString(), id)
     db.prepare(`UPDATE api_provider_keys SET ${fields.join(', ')}, updated_at = ? WHERE id = ?`).run(...params)
-    const updated = db.prepare(`
-      SELECT id, provider_id, name, key_hint, is_primary, status, last_checked_at, last_check_ok, created_at
-      FROM api_provider_keys WHERE id = ?
-    `).get(id) as any
-    res.json({ success: true, data: { ...updated, is_primary: !!updated.is_primary, last_check_ok: updated.last_check_ok === null ? null : !!updated.last_check_ok } })
+    const updated = db.prepare(`SELECT * FROM api_provider_keys WHERE id = ?`).get(id) as any
+    res.json({ success: true, data: serializeKey(updated) })
   } catch (err: any) {
     console.error('[admin/ai-config] Update key error:', err.message)
     res.status(500).json({ success: false, error: '更新 Key 失败' })
@@ -588,9 +611,9 @@ adminAiConfigRouter.post('/keys/:id/test', async (req: AuthRequest, res) => {
   if (!provider) { res.status(404).json({ success: false, error: '所属服务商不存在' }); return }
   let plain: string
   try {
-    plain = decryptKey({ ciphertext: keyRow.encrypted_key, iv: keyRow.key_iv, tag: keyRow.key_tag })
+    plain = resolveKeyPlain(keyRow)
   } catch {
-    res.json({ success: true, data: { ok: false, message: 'Key 解密失败（可能加密密钥已轮换），请重新录入该 Key' } })
+    res.json({ success: true, data: { ok: false, message: 'Key 读取失败（可能加密密钥已轮换），请重新录入该 Key' } })
     return
   }
   try {

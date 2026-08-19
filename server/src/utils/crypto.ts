@@ -2,7 +2,11 @@ import crypto from 'crypto'
 import { config } from '../config.js'
 
 /**
- * 用户个人 ToAPIs Key 的服务端加密存储（AES-256-GCM）。
+ * Key 的服务端加密存储（AES-256-GCM）。
+ *
+ * 适用范围：用户渠道（我的渠道）的 Key 与旧表 user_toapis_keys。
+ * 平台渠道（管理后台配置）的 Key 自 2026-08 起明文存储（key_iv 置空），
+ * 后台可查看/复制；读取统一走 resolveKeyPlain，兼容两种格式。
  *
  * 密钥来源（按优先级）：
  *   1. 显式配置的 ENCRYPTION_KEY（接受 64 位 hex，或任意字符串经 SHA-256 取 32 字节）；
@@ -78,6 +82,16 @@ export function decryptKey(rec: { ciphertext: string; iv: string; tag: string })
     decipher.final(),
   ])
   return dec.toString('utf8')
+}
+
+/**
+ * 解析 api_provider_keys 行中的 Key 明文。
+ * key_iv 为空 = 明文存储（平台渠道），直接返回 encrypted_key；
+ * 否则按 AES-256-GCM 密文解密（用户渠道/历史数据）。解密失败抛错，由调用方处理。
+ */
+export function resolveKeyPlain(rec: { encrypted_key: string; key_iv: string; key_tag: string }): string {
+  if (!rec.key_iv) return rec.encrypted_key
+  return decryptKey({ ciphertext: rec.encrypted_key, iv: rec.key_iv, tag: rec.key_tag })
 }
 
 /** 生成用于展示的脱敏提示，如 sk-abcd****wxyz */

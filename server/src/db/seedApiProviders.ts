@@ -1,5 +1,5 @@
 import { db } from './index.js'
-import { encryptKey, maskKey } from '../utils/crypto.js'
+import { maskKey } from '../utils/crypto.js'
 
 /**
  * 种子数据：AI 服务商配置（api_providers / ai_provider_keys / ai_models）。
@@ -61,8 +61,8 @@ export function initApiProviders(): void {
     )
     const providerId = Number(result.lastInsertRowid)
 
-    const enc = encryptKey(VOLCENGINE_KEY)
-    insertKey.run(providerId, '默认 Key', enc.ciphertext, enc.iv, enc.tag, maskKey(VOLCENGINE_KEY))
+    // 平台渠道 Key 明文存储（key_iv 置空），后台可查看/复制
+    insertKey.run(providerId, '默认 Key', VOLCENGINE_KEY, '', '', maskKey(VOLCENGINE_KEY))
 
     // 实测该模型支持图片输入（识图），不支持图片输出
     insertModel.run(providerId, 'doubao-seed-2.1-turbo', 'Doubao Seed 2.1 Turbo', 1, 0, '推理型：回答在 content，思维链在 reasoning_content')

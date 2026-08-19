@@ -53,6 +53,8 @@ export interface ProviderKeyRow {
   id: number
   provider_id: number
   name: string
+  /** 完整 Key 明文（平台渠道明文存储，可复制展示）；历史密文解密失败时为 null */
+  key: string | null
   key_hint: string
   is_primary: boolean
   status: 'active' | 'disabled'

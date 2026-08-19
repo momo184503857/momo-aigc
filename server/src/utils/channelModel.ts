@@ -1,5 +1,5 @@
 import { db } from '../db/index.js'
-import { decryptKey } from './crypto.js'
+import { resolveKeyPlain } from './crypto.js'
 import type { ProviderRuntimeConfig } from '../providers/types.js'
 
 /**
@@ -237,7 +237,7 @@ export class ProviderContextError extends Error {
 
 /**
  * 解析渠道运行时配置：校验渠道归属（平台渠道任何人可用；用户渠道仅 owner），
- * 取主 Key 解密。明文 Key 只在服务端出站调用中使用，绝不落响应/日志。
+ * 取主 Key（平台渠道明文存储、用户渠道密文解密，见 resolveKeyPlain）。
  */
 export function resolveProviderContext(userId: number, providerId: number, kind: 'image' | 'chat' = 'image'): ResolvedProviderContext {
   const provider = db.prepare(`
@@ -257,9 +257,9 @@ export function resolveProviderContext(userId: number, providerId: number, kind:
 
   let apiKey: string
   try {
-    apiKey = decryptKey({ ciphertext: keyRow.encrypted_key, iv: keyRow.key_iv, tag: keyRow.key_tag })
+    apiKey = resolveKeyPlain(keyRow)
   } catch {
-    throw new ProviderContextError('Key 解密失败（可能加密密钥已轮换），请重新录入', 400)
+    throw new ProviderContextError('Key 读取失败（可能加密密钥已轮换），请重新录入', 400)
   }
 
   return {

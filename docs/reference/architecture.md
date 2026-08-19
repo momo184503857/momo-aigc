@@ -28,7 +28,7 @@ Vue 表单（模型下拉按渠道分组，能力/价格来自 GET /api/models/c
     api_providers（owner_user_id NULL=平台渠道，非空=用户自建「我的渠道」）
     ai_models（渠道模型：logical_model_id 关联 + param_overrides 只收窄覆盖 + pricing 定价 JSON）
     ai_logical_models（逻辑模型：共享能力定义——分辨率/宽高比矩阵/参考图上限/提示词上限）
-    api_provider_keys（每渠道一把主 Key，AES-256-GCM 加密，明文永不回传）
+    api_provider_keys（每渠道一把主 Key；平台渠道明文存储·后台可查看/复制，用户渠道 AES-256-GCM 加密）
 ```
 
 ### 任务状态机

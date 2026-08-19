@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { db } from './index.js'
 import { config } from '../config.js'
-import { encryptKey, maskKey } from '../utils/crypto.js'
+import { encryptKey, resolveKeyPlain, maskKey } from '../utils/crypto.js'
 import { CANONICAL_LOGICAL_MODELS } from './logicalModels.js'
 
 /**
@@ -12,6 +12,7 @@ import { CANONICAL_LOGICAL_MODELS } from './logicalModels.js'
  * T3 toapis 渠道模型 ×7（定价取自原 utils/pricing.ts）
  * T4 个人 ToAPIs Key → 用户渠道（每用户一条渠道 + Key + 4 生图模型）
  * T5 历史任务回填（provider_code / provider_task_id / channel_* / task_no）
+ * T6 平台渠道 Key 密文 → 明文（后台可查看/复制；无标记，按 key_iv 为空幂等）
  *
  * 幂等标记（system_config）：seed_ai_provider_v1（T1-T3）、migrate_user_keys_v1（T4）、
  * migrate_tasks_v1（T5）。T5 支持断点续跑（按 task_no IS NULL）。
@@ -298,6 +299,41 @@ function migrateTasks(): void {
   console.log(`[DB] migrate_tasks_v1 done（${total} 条历史任务回填）`)
 }
 
+// ── T6：平台渠道 Key 密文 → 明文（后台配置的 Key 不加密、可复制）──
+
+function migratePlatformKeysToPlain(): void {
+  // 仅平台渠道（owner_user_id IS NULL）且仍为密文（key_iv 非空）的行；转换后 key_iv 置空，天然幂等
+  const rows = db.prepare(`
+    SELECT k.id, k.encrypted_key, k.key_iv, k.key_tag
+    FROM api_provider_keys k JOIN api_providers p ON p.id = k.provider_id
+    WHERE p.owner_user_id IS NULL AND k.key_iv != ''
+  `).all() as Array<{ id: number; encrypted_key: string; key_iv: string; key_tag: string }>
+  if (rows.length === 0) return
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] T6 平台渠道 Key → 明文：${rows.length} 行`)
+    return
+  }
+
+  // 密文改明文不可逆，首次转换前备份
+  backupBeforeMigration()
+
+  const update = db.prepare(`
+    UPDATE api_provider_keys SET encrypted_key = ?, key_iv = '', key_tag = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `)
+  let ok = 0
+  for (const r of rows) {
+    try {
+      update.run(resolveKeyPlain(r), r.id)
+      ok++
+    } catch (e) {
+      // 解密失败（如 ENCRYPTION_KEY 已轮换）：保留密文行，不影响启动；下次启动重试
+      console.warn(`[DB] T6 api_provider_keys#${r.id} 解密失败，保留密文：`, (e as Error).message)
+    }
+  }
+  console.log(`[DB] T6 平台渠道 Key 明文化 done（${ok}/${rows.length}）`)
+}
+
 // ── 入口 ──
 
 export function initAiProviderMigration(): void {
@@ -316,6 +352,7 @@ export function initAiProviderMigration(): void {
   seedAiProvider()
   migrateUserKeys()
   migrateTasks()
+  migratePlatformKeysToPlain()
 
   if (!DRY_RUN) {
     // 兜底：即使所有标记已完成，也确保唯一索引存在（如历史中断）
