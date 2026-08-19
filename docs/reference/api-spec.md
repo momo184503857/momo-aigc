@@ -351,7 +351,7 @@ body `{ amount, note }`，`amount` 为**新积分**（正充值、负扣减）�
 
 ### 管理端扩展 `/api/admin/ai-config`
 
-- `GET/POST/PATCH/DELETE /logical-models[/:id]`：逻辑模型 CRUD（default_params 校验；有关联渠道模型时删除拒绝）
+- `GET /logical-models`：逻辑模型列表；`PATCH /logical-models/:id`：仅接受 `name`（显示名；其余字段 400）；`POST` / `DELETE` 已下线（410）——逻辑模型由平台代码定义（`server/src/db/logicalModels.ts`，启动时幂等同步进库）
 - 模型创建/编辑新增入参：`logical_model_id`（平台生图必填）、`param_overrides`（只收窄校验）、`pricing`（平台生图必填且覆盖全部生效分辨率，S6）、`supports_chat`
 - `GET /user-providers`：用户自建渠道只读列表（S1，无 Key 明文）
 - 服务商 base_url 建/改均过 SSRF 校验；用户渠道模型不可在管理端编辑（403）

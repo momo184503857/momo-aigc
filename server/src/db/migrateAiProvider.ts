@@ -2,6 +2,7 @@ import path from 'node:path'
 import { db } from './index.js'
 import { config } from '../config.js'
 import { encryptKey, maskKey } from '../utils/crypto.js'
+import { CANONICAL_LOGICAL_MODELS } from './logicalModels.js'
 
 /**
  * AI 接入体系重构（ai-provider）· 数据库迁移与种子。
@@ -31,71 +32,7 @@ function setFlag(name: string): void {
 }
 
 // ── 种子常量（原 src/types/adapter.ts MODELS/TEXT_MODELS + server/src/utils/pricing.ts）──
-
-const ASPECTS_10 = ['1:1', '16:9', '9:16', '4:3', '3:4', '4:5', '5:4', '2:3', '3:2', '21:9']
-const ASPECTS_14 = ['1:1', '16:9', '9:16', '4:3', '3:4', '4:5', '5:4', '2:3', '3:2', '1:4', '4:1', '1:8', '8:1', '21:9']
-
-interface LogicalSeed {
-  code: string
-  name: string
-  kind: 'image' | 'text'
-  default_params: Record<string, unknown>
-}
-
-const LOGICAL_MODELS: LogicalSeed[] = [
-  {
-    code: 'gpt-image-2',
-    name: 'GPT-Image-2',
-    kind: 'image',
-    default_params: {
-      resolutions: ['1K', '2K', '4K'],
-      aspectRatiosByResolution: {
-        '1K': ['1:1', '4:3', '3:4'],
-        '2K': ['1:1', '16:9', '9:16', '4:3', '3:4', '4:5', '5:4', '2:3', '3:2', '21:9'],
-        '4K': ['16:9', '9:16', '21:9', '4:3', '3:4', '2:3', '3:2'],
-      },
-      aspectRatios: ASPECTS_10,
-      maxReferenceImages: 14,
-      maxPromptChars: 32000,
-    },
-  },
-  {
-    code: 'gemini-3-pro-image-preview',
-    name: 'Gemini 3 Pro Image',
-    kind: 'image',
-    default_params: {
-      resolutions: ['1K', '2K', '4K'],
-      aspectRatios: ASPECTS_10,
-      maxReferenceImages: 14,
-      maxPromptChars: 32000,
-    },
-  },
-  {
-    code: 'gemini-3.1-flash-image-preview',
-    name: 'Gemini 3.1 Flash Image',
-    kind: 'image',
-    default_params: {
-      resolutions: ['512', '1K', '2K', '4K'],
-      aspectRatios: ASPECTS_14,
-      maxReferenceImages: 14,
-      maxPromptChars: 32000,
-    },
-  },
-  {
-    code: 'gemini-2.5-flash-image-preview',
-    name: 'Gemini 2.5 Flash Image',
-    kind: 'image',
-    default_params: {
-      resolutions: ['1K'],
-      aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'],
-      maxReferenceImages: 14,
-      maxPromptChars: 1000,
-    },
-  },
-  { code: 'gpt-5.5', name: 'GPT-5.5', kind: 'text', default_params: {} },
-  { code: 'gemini-3-flash', name: 'Gemini 3 Flash', kind: 'text', default_params: {} },
-  { code: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', kind: 'text', default_params: {} },
-]
+// 逻辑模型清单已收敛至 logicalModels.ts（代码内置，唯一事实源）
 
 /** toapis 渠道模型种子：model_id / 逻辑模型 / 定价（原 pricing.ts） */
 const TOAPIS_CHANNEL_MODELS: Array<{ modelId: string; displayName: string; kind: 'image' | 'text'; pricing: Record<string, number> | null }> = [
@@ -176,7 +113,7 @@ function seedAiProvider(): void {
       INSERT OR IGNORE INTO ai_logical_models (code, name, kind, default_params, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `)
-    for (const m of LOGICAL_MODELS) {
+    for (const m of CANONICAL_LOGICAL_MODELS) {
       insertLogical.run(m.code, m.name, m.kind, JSON.stringify(m.default_params))
     }
 

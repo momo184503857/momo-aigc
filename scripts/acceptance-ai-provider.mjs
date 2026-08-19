@@ -114,41 +114,30 @@ async function main() {
     }
   }
 
-  // M1-12: 新建逻辑模型 + 重复 code 拒绝
+  // M1-12: 逻辑模型已收敛为代码内置（server/src/db/logicalModels.ts）—— 新增一律 410
   {
     const r = await api('POST', '/api/admin/ai-config/logical-models', { token: adminToken, body: { code: 'test-img-ap', name: '验收测试模型', kind: 'image', default_params: { resolutions: ['1K', '2K'], aspectRatios: ['1:1', '3:4'], maxReferenceImages: 4, maxPromptChars: 2000 } } })
-    record('M1-12a', r.status === 200 || r.status === 409, `id=${r.json?.data?.id ?? '(已存在，重复执行)'}`)
+    record('M1-12a', r.status === 410, r.json?.error)
     const dup = await api('POST', '/api/admin/ai-config/logical-models', { token: adminToken, body: { code: 'test-img-ap', name: '重复', kind: 'image', default_params: { resolutions: ['1K'], aspectRatios: ['1:1'] } } })
-    record('M1-12b', dup.status === 409, dup.json?.error)
+    record('M1-12b', dup.status === 410, dup.json?.error)
   }
 
-  // M1-13: 编辑 gpt-image-2 去掉 4K → 目录 4K 消失 → 恢复
+  // M1-13: 逻辑模型仅可改显示名 —— 能力编辑被拒（400），改名成功（200）
   {
     const list = await api('GET', '/api/admin/ai-config/logical-models', { token: adminToken })
     const gpt = (list.json.data || []).find((l) => l.code === 'gpt-image-2')
-    const catBefore = await api('GET', '/api/models/catalog?kind=image', { token: userAToken || adminToken })
-    const gptModelBefore = catBefore.json.data.platform.flatMap((g) => g.models).find((m) => m.logicalCode === 'gpt-image-2')
-    const had4k = gptModelBefore?.capabilities?.resolutions?.includes('4K')
-    const newParams = { ...gpt.defaultParams, resolutions: (gpt.defaultParams.resolutions || []).filter((r) => r !== '4K') }
-    if (newParams.aspectRatiosByResolution) {
-      const { '4K': _drop, ...rest } = newParams.aspectRatiosByResolution
-      newParams.aspectRatiosByResolution = rest
-    }
-    const upd = await api('PATCH', `/api/admin/ai-config/logical-models/${gpt.id}`, { token: adminToken, body: { default_params: newParams } })
-    const catAfter = await api('GET', '/api/models/catalog?kind=image', { token: userAToken || adminToken })
-    const gptModelAfter = catAfter.json.data.platform.flatMap((g) => g.models).find((m) => m.logicalCode === 'gpt-image-2')
-    const lost4k = had4k && !gptModelAfter?.capabilities?.resolutions?.includes('4K')
-    record('M1-13', upd.status === 200 && lost4k, had4k ? '4K 已从目录消失' : '（原能力无 4K？）')
-    // 恢复
-    await api('PATCH', `/api/admin/ai-config/logical-models/${gpt.id}`, { token: adminToken, body: { default_params: gpt.defaultParams } })
+    const tryParams = await api('PATCH', `/api/admin/ai-config/logical-models/${gpt.id}`, { token: adminToken, body: { default_params: { ...gpt.defaultParams, resolutions: ['1K'] } } })
+    record('M1-13a', tryParams.status === 400 && /仅支持修改显示名/.test(tryParams.json?.error || ''), tryParams.json?.error)
+    const renamed = await api('PATCH', `/api/admin/ai-config/logical-models/${gpt.id}`, { token: adminToken, body: { name: 'GPT-Image-2' } })
+    record('M1-13b', renamed.status === 200 && renamed.json?.data?.name === 'GPT-Image-2', renamed.json?.data?.name)
   }
 
-  // M1-14: 删除有关联的逻辑模型 → 拒绝
+  // M1-14: 逻辑模型删除已下线（代码内置）—— 410
   {
     const list = await api('GET', '/api/admin/ai-config/logical-models', { token: adminToken })
     const gpt = (list.json.data || []).find((l) => l.code === 'gpt-image-2')
     const r = await api('DELETE', `/api/admin/ai-config/logical-models/${gpt.id}`, { token: adminToken })
-    record('M1-14', r.status === 400 && /解除关联|关联/.test(r.json?.error || ''), r.json?.error)
+    record('M1-14', r.status === 410, r.json?.error)
   }
 
   // M1-20/21/22/23/25: 渠道模型与定价（在 relay-b 下）

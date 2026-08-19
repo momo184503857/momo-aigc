@@ -2,6 +2,7 @@ import { db } from './index.js'
 import { initSuiteGen } from './seedSuiteGen.js'
 import { initApiProviders } from './seedApiProviders.js'
 import { initAiProviderMigration } from './migrateAiProvider.js'
+import { syncCanonicalLogicalModels } from './logicalModels.js'
 
 export function initSchema(): void {
   db.exec(`
@@ -880,6 +881,9 @@ export function initSchema(): void {
 
   // ai-provider（AI 接入体系重构）：逻辑模型/渠道/渠道模型 + 存量数据迁移（幂等）
   initAiProviderMigration()
+
+  // 逻辑模型以代码清单为准（能力/类型/状态随代码同步；管理员仅可改显示名）
+  syncCanonicalLogicalModels()
 
   console.log('[DB] Schema initialized')
 }

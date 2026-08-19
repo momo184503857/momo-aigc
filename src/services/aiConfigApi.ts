@@ -174,9 +174,7 @@ export const aiConfigApi = {
 
   /** 逻辑模型管理（FR2） */
   listLogicalModels: () => http.get<{ data: LogicalModelRow[] }>('/admin/ai-config/logical-models'),
-  createLogicalModel: (payload: Partial<LogicalModelRow>) => http.post<{ data: LogicalModelRow }>('/admin/ai-config/logical-models', payload),
-  updateLogicalModel: (id: number, payload: Partial<LogicalModelRow>) => http.patch<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}`, payload),
-  deleteLogicalModel: (id: number) => http.delete(`/admin/ai-config/logical-models/${id}`),
+  updateLogicalModel: (id: number, payload: { name: string }) => http.patch<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}`, payload),
 
   /** 用户自建渠道只读列表（S1） */
   listUserProviders: () => http.get<{ data: UserProviderRow[] }>('/admin/ai-config/user-providers'),

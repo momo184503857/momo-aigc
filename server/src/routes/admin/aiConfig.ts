@@ -672,59 +672,25 @@ adminAiConfigRouter.get('/logical-models', (_req, res) => {
   }
 })
 
-// POST /api/admin/ai-config/logical-models
-adminAiConfigRouter.post('/logical-models', (req: AuthRequest, res) => {
-  try {
-    const { code, name, kind, default_params, remark } = req.body || {}
-    const trimmedCode = String(code || '').trim()
-    if (!/^[a-zA-Z0-9._-]{2,100}$/.test(trimmedCode)) {
-      res.status(400).json({ success: false, error: 'code 仅限字母/数字/点/中划线/下划线（2~100 位）' }); return
-    }
-    const kindVal = kind === 'text' ? 'text' : 'image'
-    const err = validateCapabilityParams(default_params, { requireFull: kindVal === 'image' })
-    if (err) { res.status(400).json({ success: false, error: `能力定义非法：${err}` }); return }
-    if (db.prepare(`SELECT id FROM ai_logical_models WHERE code = ?`).get(trimmedCode)) {
-      res.status(409).json({ success: false, error: `逻辑模型 code「${trimmedCode}」已存在` }); return
-    }
-    const result = db.prepare(`
-      INSERT INTO ai_logical_models (code, name, kind, default_params, remark, status)
-      VALUES (?, ?, ?, ?, ?, 'active')
-    `).run(trimmedCode, String(name || '').trim() || trimmedCode, kindVal,
-      JSON.stringify(default_params || {}), String(remark || ''))
-    const row = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(result.lastInsertRowid) as any
-    res.json({ success: true, data: serializeLogicalModel(row) })
-  } catch (err: any) {
-    console.error('[admin/ai-config] Create logical model error:', err.message)
-    res.status(500).json({ success: false, error: '创建逻辑模型失败' })
-  }
+// POST /api/admin/ai-config/logical-models —— 已下线：逻辑模型由平台代码定义（server/src/db/logicalModels.ts）
+adminAiConfigRouter.post('/logical-models', (_req, res) => {
+  res.status(410).json({ success: false, error: '逻辑模型由平台代码定义，不支持新增；请修改 server/src/db/logicalModels.ts 后重启' })
 })
 
-// PATCH /api/admin/ai-config/logical-models/:id
+// PATCH /api/admin/ai-config/logical-models/:id —— 管理员仅可修改显示名
 adminAiConfigRouter.patch('/logical-models/:id', (req: AuthRequest, res) => {
   try {
     const { id } = req.params
     const row = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
     if (!row) { res.status(404).json({ success: false, error: '逻辑模型不存在' }); return }
     const { name, default_params, remark, status } = req.body || {}
-    const fields: string[] = []
-    const params: any[] = []
-    if (name !== undefined) { fields.push('name = ?'); params.push(String(name).trim() || row.code) }
-    if (default_params !== undefined) {
-      const err = validateCapabilityParams(default_params, { requireFull: row.kind === 'image' })
-      if (err) { res.status(400).json({ success: false, error: `能力定义非法：${err}` }); return }
-      // 收窄校验：编辑后的能力必须覆盖现有渠道模型的能力覆盖（否则现有覆盖越界）
-      const err2 = validateCapabilityParams(default_params)
-      if (err2) { res.status(400).json({ success: false, error: err2 }); return }
-      fields.push('default_params = ?'); params.push(JSON.stringify(default_params))
+    if (default_params !== undefined || remark !== undefined || status !== undefined) {
+      res.status(400).json({ success: false, error: '逻辑模型的类型/能力/状态由代码定义，仅支持修改显示名' }); return
     }
-    if (remark !== undefined) { fields.push('remark = ?'); params.push(String(remark)) }
-    if (status !== undefined) {
-      if (!['active', 'disabled'].includes(status)) { res.status(400).json({ success: false, error: 'status 仅支持 active/disabled' }); return }
-      fields.push('status = ?'); params.push(status)
+    if (name === undefined || !String(name).trim()) {
+      res.status(400).json({ success: false, error: '显示名不能为空' }); return
     }
-    if (fields.length === 0) { res.status(400).json({ success: false, error: '无更新字段' }); return }
-    params.push(new Date().toISOString(), id)
-    db.prepare(`UPDATE ai_logical_models SET ${fields.join(', ')}, updated_at = ? WHERE id = ?`).run(...params)
+    db.prepare(`UPDATE ai_logical_models SET name = ?, updated_at = ? WHERE id = ?`).run(String(name).trim(), new Date().toISOString(), id)
     const updated = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
     res.json({ success: true, data: serializeLogicalModel(updated) })
   } catch (err: any) {
@@ -733,22 +699,9 @@ adminAiConfigRouter.patch('/logical-models/:id', (req: AuthRequest, res) => {
   }
 })
 
-// DELETE /api/admin/ai-config/logical-models/:id（有关联渠道模型时拒绝，M1-14）
-adminAiConfigRouter.delete('/logical-models/:id', (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params
-    const row = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
-    if (!row) { res.status(404).json({ success: false, error: '逻辑模型不存在' }); return }
-    const refs = (db.prepare(`SELECT COUNT(*) AS c FROM ai_models WHERE logical_model_id = ?`).get(id) as any).c
-    if (refs > 0) {
-      res.status(400).json({ success: false, error: `仍有 ${refs} 个渠道模型关联该逻辑模型，请先解除关联` }); return
-    }
-    db.prepare(`DELETE FROM ai_logical_models WHERE id = ?`).run(id)
-    res.json({ success: true })
-  } catch (err: any) {
-    console.error('[admin/ai-config] Delete logical model error:', err.message)
-    res.status(500).json({ success: false, error: '删除失败' })
-  }
+// DELETE /api/admin/ai-config/logical-models/:id —— 已下线：逻辑模型由平台代码定义
+adminAiConfigRouter.delete('/logical-models/:id', (_req, res) => {
+  res.status(410).json({ success: false, error: '逻辑模型由平台代码定义，不支持删除' })
 })
 
 // ── 用户渠道只读列表（S1：运营排障，Key 不回显明文，无编辑入口）──
