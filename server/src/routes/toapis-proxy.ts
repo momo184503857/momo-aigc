@@ -1,97 +1,35 @@
 import { Router } from 'express'
-import multer from 'multer'
-import fs from 'fs'
-import { db } from '../db/index.js'
-import { authMiddleware, AuthRequest } from '../middleware/auth.js'
-import { getKey, uploadImage, createTask, getTaskStatus, resolveUserApiKey } from '../utils/toapis.js'
+import { authMiddleware } from '../middleware/auth.js'
+
+/**
+ * 旧生图代理端点（ai-provider 重构后退役，迁移手册 §5「本次上线」阶段）。
+ *
+ * /upload、/create-task、/task-status 已由编排层（POST /api/generations、
+ * GET /api/generations/:id/status）取代，返回 410 提示新端点；保留一个版本后删除。
+ * /health 精简为目录状态摘要（旧缓存页防报错）。
+ */
 
 export const toapisProxyRouter = Router()
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-})
-
 toapisProxyRouter.use(authMiddleware)
 
-// Health: 返回当前用户可用的 key 状态（共享 + 个人）
-toapisProxyRouter.get('/health', (req: AuthRequest, res) => {
-  const row = db.prepare(`SELECT balance_check_interval_sec AS s FROM user_toapis_keys WHERE user_id = ?`)
-    .get(req.user!.userId) as { s: number } | undefined
-  const personalKeyConfigured = !!row
-  const { mode } = resolveUserApiKey(req.user!.userId)
+function gone(res: any, hint: string): void {
+  res.status(410).json({
+    success: false,
+    error: `该接口已升级退役（AI 接入体系重构），${hint}。请刷新页面使用新版本。`,
+  })
+}
+
+toapisProxyRouter.get('/health', (_req, res) => {
   res.json({
     success: true,
     data: {
-      sharedKeyConfigured: !!getKey(),
-      personalKeyConfigured,
-      personalKeyActive: mode === 'personal',
-      // 个人 Key 余额轮询间隔（秒；0 = 不查询）。无行时默认 60。
-      balanceCheckIntervalSec: row?.s ?? 60,
+      deprecated: true,
+      message: '生图已迁移到多渠道体系，请使用 GET /api/models/catalog',
     },
   })
 })
 
-// Upload image (shared mode proxy)
-toapisProxyRouter.post('/upload', (req: AuthRequest, res, next) => {
-  upload.single('file')(req as any, res as any, (err: any) => {
-    if (err) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        res.status(413).json({ success: false, error: '文件大小不能超过 10MB' })
-      } else {
-        res.status(400).json({ success: false, error: '文件上传失败: ' + err.message })
-      }
-      return
-    }
-    next()
-  })
-}, async (req: AuthRequest, res) => {
-  try {
-    const file = (req as any).file as Express.Multer.File | undefined
-    if (!file) {
-      res.status(400).json({ success: false, error: '未提供文件' })
-      return
-    }
-    const { key } = resolveUserApiKey(req.user!.userId)
-    const url = await uploadImage(file.buffer, file.originalname, file.mimetype, key)
-    res.json({ success: true, data: { url } })
-  } catch (e: any) {
-    console.error('[ToAPIs Proxy] Upload error:', e.message)
-    res.status(502).json({ success: false, error: e.message })
-  }
-})
-
-// Create task (按用户当前 key 模式代理：个人 key 或共享 key)
-toapisProxyRouter.post('/create-task', async (req: AuthRequest, res) => {
-  try {
-    const { key, mode } = resolveUserApiKey(req.user!.userId)
-    if (!key) {
-      res.status(400).json({ success: false, error: '未配置可用的 API Key（共享/个人均未配置）' })
-      return
-    }
-    const taskId = await createTask(req.body, key)
-    res.json({ success: true, data: { id: taskId, keyMode: mode } })
-  } catch (e: any) {
-    const bodySummary = {
-      model: req.body?.model,
-      promptLen: req.body?.prompt?.length || 0,
-      imageCount: req.body?.reference_images?.length || req.body?.image_urls?.length || 0,
-    }
-    const errMsg = `[ToAPIs Proxy] Create task error: ${e.message} | body: ${JSON.stringify(bodySummary)}`
-    console.error(errMsg)
-    fs.appendFileSync('/tmp/momoaigc-debug.log', `${new Date().toISOString()} ${errMsg}\n`)
-    res.status(502).json({ success: false, error: e.message })
-  }
-})
-
-// Get task status (按用户当前 key 模式代理)
-toapisProxyRouter.get('/task-status/:id', async (req: AuthRequest, res) => {
-  try {
-    const { key } = resolveUserApiKey(req.user!.userId)
-    const result = await getTaskStatus(String(req.params.id), key)
-    res.json({ success: true, data: result })
-  } catch (e: any) {
-    console.error('[ToAPIs Proxy] Status error:', e.message)
-    res.status(502).json({ success: false, error: e.message })
-  }
-})
+toapisProxyRouter.post('/upload', (_req, res) => gone(res, '参考图请直传 OSS（/api/oss/upload-token）'))
+toapisProxyRouter.post('/create-task', (_req, res) => gone(res, '请使用 POST /api/generations'))
+toapisProxyRouter.get('/task-status/:id', (_req, res) => gone(res, '请使用 GET /api/generations/:id/status'))

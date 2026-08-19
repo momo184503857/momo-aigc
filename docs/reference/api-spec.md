@@ -306,3 +306,57 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 
 body `{ amount, note }`，`amount` 为**新积分**（正充值、负扣减）。写 `points_transactions`（reason=`admin_recharge`/`admin_deduct`）。
 
+---
+
+## AI 接入体系（ai-provider 重构 · 2026-08）
+
+### 生图编排 `/api/generations`
+
+#### POST `/api/generations`
+提交生图任务（服务端编排：校验→计价预扣→落库→派发）。需登录。
+- Body：`{ channelModelId, prompt, userPrompt?, systemPrompt?, aspectRatio, resolution, n?, refImageUrls?, templateImageIds?, featureId?, supplementaryImages?, promptSegments?, negativePrompt?, suiteId?, pointIndex?, clientBusinessId? }`
+- 平台渠道按 `pricing[resolution] × n` 预扣积分（不足 402，任务不创建）；用户渠道（我的渠道）cost=0。
+- Response：`data: { tasks: [{ id, taskNo, status }], inputImageUrls }`（n>1 多条）
+- 错误：400 参数/能力/定价缺失；402 积分不足；403 越权渠道
+
+#### GET `/api/generations/:id/status`
+单次任务状态查询（服务端查上游 + 转存 OSS + 失败退款）。仅任务 owner。
+- Response：`data: { status, progress, resultUrls, errorMessage?, errorCode?, expiresAt?, taskNo, completedAt? }`
+
+#### POST `/api/generations/:id/reimport`
+已完成但转存失败的任务重跑转存（S5）。Response：`data: { resultUrls }`
+
+#### GET `/api/generations`
+任务列表（过滤参数兼容旧 `/api/tasks`：page/pageSize/status/model/feature_id/suiteId/start_date/end_date）。
+- 响应增加 `taskNo / channelProviderName / channelModelName / logicalCode`。
+
+### 模型目录 `/api/models`
+
+#### GET `/api/models/catalog?kind=image|text`
+前端唯一模型真源。Response：`data: { platform: [渠道组], mine: [渠道组] }`，
+每组 `{ providerId, providerName, adapter, models: [{ id(=channelModelId), modelId, displayName, logicalCode, capabilities, pricing, kind }] }`。
+仅返回 active 渠道/模型；我的渠道模型 `pricing` 恒 null（不扣积分）。
+
+### 我的渠道 `/api/my`
+
+| 端点 | 说明 |
+|------|------|
+| GET/POST `/api/my/channels` | 用户渠道列表 / 新建（协议白名单 + base_url SSRF 校验：仅 http/https、拒绝私网/环回） |
+| PATCH/DELETE `/api/my/channels/:id` | 改名/baseUrl/启停 / 删除（历史任务保留快照） |
+| PUT `/api/my/channels/:id/key` | 录入/轮换主 Key（AES-256-GCM，仅脱敏 hint 回显） |
+| POST `/api/my/channels/:id/test` | 测试连通（服务端出站） |
+| GET `/api/my/channels/:id/balance` | 余额查询（仅 supportsBalance 协议 toapis；其余 400） |
+| GET/POST/PATCH/DELETE `/api/my/channels/:id/models[/:modelId]` | 渠道模型 CRUD（引用逻辑模型或完全自定义能力；pricing 恒空） |
+| GET `/api/my/meta` | 协议清单 + 逻辑模型清单（引用模板用） |
+
+### 管理端扩展 `/api/admin/ai-config`
+
+- `GET/POST/PATCH/DELETE /logical-models[/:id]`：逻辑模型 CRUD（default_params 校验；有关联渠道模型时删除拒绝）
+- 模型创建/编辑新增入参：`logical_model_id`（平台生图必填）、`param_overrides`（只收窄校验）、`pricing`（平台生图必填且覆盖全部生效分辨率，S6）、`supports_chat`
+- `GET /user-providers`：用户自建渠道只读列表（S1，无 Key 明文）
+- 服务商 base_url 建/改均过 SSRF 校验；用户渠道模型不可在管理端编辑（403）
+
+### 退役端点（410）
+
+`POST /api/toapis/create-task`、`GET /api/toapis/task-status/:id`、`POST /api/toapis/upload`、
+`POST|PATCH /api/tasks` —— 一个过渡版本后删除；`GET /api/toapis/health` 精简为目录状态摘要。

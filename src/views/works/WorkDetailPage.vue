@@ -14,7 +14,7 @@ import { useImageRetry } from '@/composables/useImageRetry'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { useAuthStore } from '@/stores/auth'
 import { FEATURE_CONFIGS, getFeatureLabel } from '@/configs/featureConfig'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { toBJMinute } from '@/utils/datetime'
 import UiImagePreview from '@/components/ui/UiImagePreview.vue'
 import {
@@ -50,8 +50,10 @@ const hasSegments = computed(() => {
   return segmentLabels.some(({ key }) => s[key]?.trim())
 })
 
+const modelCatalog = useModelCatalogStore()
+
 function modelDisplayName(modelId: string): string {
-  return MODELS.find((m) => m.id === modelId)?.name || modelId
+  return modelCatalog.displayNameFor(modelId)
 }
 
 function authorName(): string {

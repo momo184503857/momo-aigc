@@ -7,11 +7,13 @@ import { parseUTC, toBJMinute } from '@/utils/datetime'
 const { success, info, warning, error } = useUiFeedback()
 const { retryOnError } = useImageRetry()
 import type { ModelId } from '@/types/adapter'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 export interface TaskItem {
   id: number
-  toapis_task_id: string
+  /** 业务任务号（gen-xxxxxxxx，展示/复制/下载命名） */
+  task_no?: string
+  toapis_task_id?: string
   model: ModelId
   prompt: string
   resolution: string
@@ -31,6 +33,8 @@ export interface TaskItem {
   prompt_segments?: Record<string, string>
   negative_prompt?: string
 }
+
+const modelCatalog = useModelCatalogStore()
 
 const props = defineProps<{
   tasks: TaskItem[]
@@ -88,8 +92,7 @@ onActivated(() => { startTick() })
 onUnmounted(() => { stopTick() })
 
 function modelDisplayName(modelId: string): string {
-  const m = MODELS.find((m) => m.id === modelId)
-  return m?.name || modelId
+  return modelCatalog.displayNameFor(modelId)
 }
 
 function copyToClipboard(text: string) {
@@ -217,7 +220,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <div v-else class="thumb-status">
             <el-icon size="28"><Picture /></el-icon>
             <el-button
-              v-if="task.toapis_task_id"
+              v-if="task.task_no || task.toapis_task_id"
               class="thumb-retry-btn"
               :icon="Refresh"
               size="small"
@@ -229,10 +232,10 @@ function handleImageDragStart(e: DragEvent, url: string) {
         </div>
         <div class="task-body">
           <!-- Task ID at top -->
-          <div v-if="task.toapis_task_id" class="task-id">
+          <div v-if="task.task_no || task.toapis_task_id" class="task-id">
             <span class="task-id-label">任务ID：</span>
-            <span class="task-id-text">{{ task.toapis_task_id }}</span>
-            <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.toapis_task_id)" title="复制任务ID" />
+            <span class="task-id-text">{{ task.task_no || task.toapis_task_id }}</span>
+            <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.task_no || task.toapis_task_id || '')" title="复制任务ID" />
           </div>
           <!-- Status + duration + model + params + time -->
           <div class="task-header">
@@ -266,7 +269,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)"><el-icon><View /></el-icon>详情</el-dropdown-item>
                 <el-dropdown-item v-if="task.status === 'completed' && task.result_image_urls?.[0]" @click="emit('publish', task)"><el-icon><Share /></el-icon>发布到作品库</el-dropdown-item>
-                <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)"><el-icon><CopyDocument /></el-icon>复制ID</el-dropdown-item>
+                <el-dropdown-item @click="copyToClipboard(task.task_no || task.toapis_task_id || '')"><el-icon><CopyDocument /></el-icon>复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)"><el-icon><Delete /></el-icon>删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -303,7 +306,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <div v-else class="thumb-status grid-thumb-status">
             <el-icon size="36"><Picture /></el-icon>
             <el-button
-              v-if="task.toapis_task_id"
+              v-if="task.task_no || task.toapis_task_id"
               class="thumb-retry-btn"
               :icon="Refresh"
               size="small"
@@ -353,7 +356,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)">详情</el-dropdown-item>
                 <el-dropdown-item v-if="task.status === 'completed' && task.result_image_urls?.[0]" @click="emit('publish', task)">发布到作品库</el-dropdown-item>
-                <el-dropdown-item @click="copyToClipboard(task.toapis_task_id)">复制ID</el-dropdown-item>
+                <el-dropdown-item @click="copyToClipboard(task.task_no || task.toapis_task_id || '')">复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)">删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>

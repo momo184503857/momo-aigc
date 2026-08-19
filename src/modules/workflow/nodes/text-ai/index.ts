@@ -2,7 +2,7 @@ import type { NodeModule, NodeRunResult } from '@/modules/workflow/nodes/types'
 import type { LocalImageAsset } from '@/modules/workflow/types/workflow'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
 import { canvasApi } from '@/services/canvasApi'
-import { DEFAULT_TEXT_MODEL } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 function isLocalImageAsset(value: unknown): value is LocalImageAsset {
   if (!value || typeof value !== 'object') return false
@@ -45,7 +45,7 @@ const textAi: NodeModule = {
     { id: 'image', name: 'Image', dataType: 'Image', direction: 'input' },
   ],
   outputs: [{ id: 'text', name: 'Text', dataType: 'Text', direction: 'output' }],
-  defaultConfig: { modelName: DEFAULT_TEXT_MODEL, taskPrompt: '', detailPrompt: '', pauseAfterRun: false, temperature: undefined, maxTokens: undefined },
+  defaultConfig: { modelName: '', taskPrompt: '', detailPrompt: '', pauseAfterRun: false, temperature: undefined, maxTokens: undefined },
 
   getSummary(config) {
     const model = typeof config.modelName === 'string' && config.modelName ? config.modelName : '未选模型'
@@ -82,8 +82,13 @@ const textAi: NodeModule = {
 
     try {
       const startedAt = Date.now()
+      // 按模型名在目录解析渠道模型（旧画布存量节点的模型名兼容映射，§8）
+      const catalog = useModelCatalogStore()
+      await catalog.ensureLoaded()
+      const channelModel = (modelName ? catalog.getModelByName(modelName) : undefined) ?? catalog.defaultTextModel
       const result = await canvasApi.chat({
-        model: modelName || DEFAULT_TEXT_MODEL,
+        model: channelModel?.modelId ?? modelName,
+        channelModelId: channelModel?.id,
         messages: [{ role: 'user', content }],
         temperature: config.temperature as number | undefined,
         maxTokens: config.maxTokens as number | undefined,

@@ -102,7 +102,10 @@ export const canvasApi = {
   // ─── AI Chat (text model proxy) ───
 
   chat(request: {
+    /** 模型名（旧画布存量节点兜底：服务端按名全局查一次） */
     model: string
+    /** 渠道模型 id（按目录解析；优先于 model 名） */
+    channelModelId?: number
     messages: Array<{ role: string; content: unknown }>
     temperature?: number
     maxTokens?: number

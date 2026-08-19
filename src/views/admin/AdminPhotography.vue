@@ -6,7 +6,7 @@ const { success, error } = useUiFeedback()
 import { Plus, Delete, Top, Bottom, ArrowDown } from '@element-plus/icons-vue'
 import { photographyApi } from '@/services/photographyApi'
 import type { PhotographyElement, PhotographyElementPrompt } from '@/services/photographyApi'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import PageLayout from '@/components/PageLayout.vue'
 
 // ─── State ───
@@ -45,9 +45,10 @@ const allExpanded = computed(() =>
   expandedElements.value.size === elements.value.length && elements.value.length > 0
 )
 
+const modelCatalog = useModelCatalogStore()
+
 function modelDisplayName(modelId: string): string {
-  const m = MODELS.find(m => m.id === modelId)
-  return m?.name || modelId
+  return modelCatalog.displayNameFor(modelId)
 }
 
 function toggleElement(id: number) {

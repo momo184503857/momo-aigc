@@ -5,7 +5,10 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import PageLayout from '@/components/PageLayout.vue'
-import { MODELS, formatCredits, creditsToYuan } from '@/types/adapter'
+import { formatCredits, creditsToYuan } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+
+const modelCatalog = useModelCatalogStore()
 import { CHART_COLORS, CHART_NEUTRALS, tooltipBase, withAlpha } from '@/plugins/echartsPalette'
 
 defineOptions({ name: 'AdminDashboard' })
@@ -51,7 +54,9 @@ const reasonLabel: Record<string, string> = {
 interface ActivityRow {
   type: 'task' | 'txn'
   id: number
-  toapis_task_id: string | null
+  task_no: string | null
+  toapis_task_id?: string | null
+  provider_code?: string | null
   user_id: number
   username: string
   model: string | null
@@ -396,7 +401,7 @@ onMounted(async () => {
       <el-tab-pane label="任务与积分" name="activity">
         <div class="tab-filters">
           <el-input v-model="actFilterUser" placeholder="用户名/昵称/邮箱" clearable size="default" style="width:180px" />
-          <el-input v-model="actFilterTaskId" placeholder="任务ID" clearable size="default" style="width:200px" />
+          <el-input v-model="actFilterTaskId" placeholder="任务号（gen-xxx，兼容旧渠道号）" clearable size="default" style="width:200px" />
           <el-date-picker
             v-model="actDateRange"
             type="daterange"
@@ -425,7 +430,7 @@ onMounted(async () => {
         >
           <el-table-column label="任务ID" width="200" show-overflow-tooltip>
             <template #default="{ row }">
-              {{ row.type === 'task' ? (row.toapis_task_id || '-') : '-' }}
+              {{ row.type === 'task' ? (row.task_no || row.toapis_task_id || '-') : '-' }}
             </template>
           </el-table-column>
           <el-table-column label="类型" width="96">
@@ -442,7 +447,7 @@ onMounted(async () => {
           <el-table-column prop="username" label="用户" width="100" />
           <el-table-column label="模型" width="140">
             <template #default="{ row }">
-              {{ row.model ? (MODELS.find(m => m.id === row.model)?.name || row.model) : '—' }}
+              {{ row.model ? modelCatalog.displayNameFor(row.model) : '—' }}
             </template>
           </el-table-column>
           <el-table-column label="详情" min-width="180" show-overflow-tooltip>

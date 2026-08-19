@@ -1,30 +1,30 @@
 /**
- * 统一 AI 生图服务 — 高内聚低耦合设计
+ * 统一 AI 生图服务 — ai-provider 重构版（服务端编排）
  *
  * 提供三层 API：
- * 1. 分步函数：submitTask / pollTask / importResultUrls（灵活组合）
- * 2. 高层封装：generateImage({ poll, import })（一键调用）
+ * 1. 分步函数：submitTask / pollTask（灵活组合）
+ * 2. 高层封装：generateImage({ poll })（一键调用）
  * 3. 零 UI 依赖，纯数据和流程
+ *
+ * 变化（相对旧版）：提交/轮询/转存全部收敛到服务端编排层
+ * （POST /api/generations、GET /api/generations/:id/status）；
+ * 前端只负责参考图上传 OSS 与任务参数组装。importResultUrls 已退役。
  */
-import type { ModelId } from '@/types/adapter'
-import { buildGptImage2Request } from '@/adapter/buildGptImage2Request'
-import { buildGeminiRequest } from '@/adapter/buildGeminiRequest'
-import { toapisProxyApi } from '@/services/toapisProxyApi'
-import { taskApi } from '@/services/taskApi'
+import { generationApi } from '@/services/generationApi'
 import { ossApi } from '@/services/ossApi'
 
 // ─── Types ───
 
 export interface SubmitTaskParams {
-  /** 模型 ID */
-  model: ModelId
+  /** 渠道模型 id（决定渠道、适配器、能力、定价） */
+  channelModelId: number
   /** 最终发送给 API 的完整 prompt */
   prompt: string
   /** 用户输入的补充提示词（可为空） */
   userPrompt?: string
   /** 系统提示词（功能模式下有值） */
   systemPrompt?: string
-  /** 宽高比，用作 ToAPIs 的 size 参数 */
+  /** 宽高比，如 '3:4' */
   size: string
   /** 分辨率 */
   resolution: string
@@ -35,7 +35,7 @@ export interface SubmitTaskParams {
   refImages?: Array<{ url?: string; file?: File }>
   /** 功能 ID（如 'free-gen', 'change-clothes' 等） */
   featureId?: string
-  /** 生成数量，默认 1 */
+  /** 生成数量，默认 1（服务端拆成多条任务） */
   n?: number
   /** 补充图片列表（带名称） */
   supplementaryImages?: { name: string; url: string }[]
@@ -47,13 +47,16 @@ export interface SubmitTaskParams {
   suiteId?: number
   /** 套系内点位序号 0-4 */
   pointIndex?: number
+  clientBusinessId?: string
 }
 
 export interface SubmitTaskResult {
-  /** ToAPIs 返回的任务 ID */
-  toapisTaskId: string
-  /** 本地数据库任务记录 ID */
+  /** 首条任务的业务任务号（gen-xxxxxxxx，下载命名/搜索用） */
+  taskNo: string
+  /** 首条任务的数据库记录 ID（轮询/行级恢复用） */
   dbTaskId: number
+  /** n>1 时的全部任务 */
+  tasks: Array<{ id: number; taskNo: string; status: string }>
   /** 实际发送给 API 的完整图片 URL 列表（包含上传后的临时图片） */
   inputImageUrls: string[]
 }
@@ -79,31 +82,18 @@ export interface PollTaskResult {
 export interface GenerateImageOptions {
   /** 是否自动轮询，可配置轮询参数，默认 false */
   poll?: boolean | PollTaskOptions
-  /** 是否自动转存结果到 OSS，默认 false */
+  /** 兼容旧签名：转存已由服务端完成，忽略 */
   import?: boolean
 }
 
 export interface GenerateImageResult extends SubmitTaskResult {
   /** 轮询结果（仅当 poll=true 时有值） */
   pollResult?: PollTaskResult
-  /** 结果图 OSS URL（仅当 import=true 时有值） */
+  /** 结果图 OSS URL（仅当 poll=true 且完成后有值；转存由服务端完成） */
   resultUrls?: string[]
 }
 
 // ─── Helper Functions ───
-
-/**
- * 根据模型选择请求体构建器
- */
-function buildRequestBody(
-  model: ModelId,
-  params: { prompt: string; size: string; resolution: string; imageUrls: string[] },
-): Record<string, unknown> {
-  if (model === 'gpt-image-2') {
-    return buildGptImage2Request(params)
-  }
-  return buildGeminiRequest({ model, ...params })
-}
 
 /**
  * 处理单个 URL：OSS URL 直接加入，非 OSS URL 下载后上传，data URL 转 File 上传
@@ -151,14 +141,15 @@ async function processFile(file: File, allImageUrls: string[]): Promise<void> {
 // ─── Step Functions ───
 
 /**
- * 提交任务（上传图片 + 创建 ToAPIs 任务 + 写入 DB）
+ * 提交任务（上传参考图到 OSS → POST /api/generations，服务端编排完成
+ * 校验/计价预扣/落库/派发）。同步/异步渠道对前端无差异。
  *
  * @param params 任务参数
- * @returns 任务 ID 和输入图片 URL 列表
+ * @returns 任务号、数据库任务 ID 与输入图片 URL 列表
  */
 export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskResult> {
   const {
-    model,
+    channelModelId,
     prompt,
     userPrompt,
     systemPrompt,
@@ -172,7 +163,12 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
     negativePrompt,
     suiteId,
     pointIndex,
+    clientBusinessId,
   } = params
+
+  if (!channelModelId) {
+    throw new Error('请先选择模型')
+  }
 
   // ─── 验证：有图片但没有提示词 ───
   const hasImages = (refImages?.length ?? 0) > 0
@@ -183,9 +179,8 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
     throw new Error('请输入提示词，描述你想要生成的效果')
   }
 
-  // ─── 上传图片 ───
+  // ─── 上传参考图 ───
   const allImageUrls: string[] = []
-
   if (refImages && refImages.length > 0) {
     for (const ref of refImages) {
       if (ref.url) {
@@ -196,52 +191,44 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
     }
   }
 
-  // ─── 构建请求体 ───
-  const body = buildRequestBody(model, {
+  // ─── 服务端编排提交（校验/计价/落库/派发）───
+  const res = await generationApi.submit({
+    channelModelId,
     prompt: finalPrompt,
-    size,
+    userPrompt,
+    systemPrompt,
+    aspectRatio: size,
     resolution,
-    imageUrls: allImageUrls,
-  })
-
-  // ─── 创建 ToAPIs 任务 ───
-  const taskRes = await toapisProxyApi.createTask(body)
-  const toapisTaskId = taskRes.data.data.id
-
-  // ─── 创建 DB 任务记录 ───
-  const dbRes = await taskApi.create({
-    toapis_task_id: toapisTaskId,
-    model,
-    prompt: finalPrompt,
-    size,
-    resolution,
-    aspect_ratio: size,
     n,
-    input_image_urls: allImageUrls,
-    status: 'submitted',
-    progress: 0,
-    feature_id: featureId,
-    user_prompt: userPrompt || '',
-    supplementary_images: supplementaryImages || [],
-    prompt_segments: promptSegments || {},
-    negative_prompt: negativePrompt || '',
-    suite_id: suiteId,
-    point_index: pointIndex,
+    refImageUrls: allImageUrls,
+    featureId,
+    supplementaryImages,
+    promptSegments,
+    negativePrompt,
+    suiteId,
+    pointIndex,
+    clientBusinessId,
   })
-  const dbTaskId = dbRes.data.data.id
+  const data = res.data.data
+  const first = data.tasks[0]
 
-  return { toapisTaskId, dbTaskId, inputImageUrls: allImageUrls }
+  return {
+    taskNo: first?.taskNo ?? '',
+    dbTaskId: first?.id ?? 0,
+    tasks: data.tasks,
+    inputImageUrls: allImageUrls,
+  }
 }
 
 /**
- * 轮询任务状态（阻塞式，返回纯数据）
+ * 阻塞式轮询任务状态（服务端单次查询 + 服务端转存）
  *
- * @param taskId ToAPIs 任务 ID
+ * @param dbTaskId 数据库任务记录 ID
  * @param options 轮询配置
  * @returns 任务状态和结果
  */
 export async function pollTask(
-  taskId: string,
+  dbTaskId: number,
   options?: PollTaskOptions,
 ): Promise<PollTaskResult> {
   const interval = options?.interval ?? 4000
@@ -255,11 +242,13 @@ export async function pollTask(
     attempts++
 
     try {
-      const res = await toapisProxyApi.getTaskStatus(taskId)
+      const res = await generationApi.getStatus(dbTaskId)
       const data = res.data.data
 
       const result: PollTaskResult = {
-        status: data.status as 'queued' | 'in_progress' | 'completed' | 'failed',
+        status: (['queued', 'in_progress', 'completed', 'failed'].includes(data.status)
+          ? data.status
+          : 'in_progress') as PollTaskResult['status'],
         progress: data.progress ?? 0,
         resultUrls: data.resultUrls ?? [],
         expiresAt: data.expiresAt,
@@ -293,36 +282,6 @@ export async function pollTask(
   }
 }
 
-/**
- * 转存结果图到 OSS（统一函数，容错：单张失败不影响其他张）
- *
- * @param taskId ToAPIs 任务 ID
- * @param sourceUrls 结果图原始 URL 列表
- * @returns 成功转存的 OSS URL 列表（失败的会被跳过）
- */
-export async function importResultUrls(
-  taskId: string,
-  sourceUrls: string[],
-): Promise<string[]> {
-  const importedUrls: string[] = []
-  for (const sourceUrl of sourceUrls) {
-    try {
-      const imported = await ossApi.importResult(taskId, sourceUrl)
-      console.info('[OSS] Result imported', {
-        taskId,
-        sizeBytes: imported.sizeBytes,
-        sourceConnectedMs: imported.sourceConnectedMs,
-        totalMs: imported.totalMs,
-      })
-      importedUrls.push(imported.publicUrl)
-    } catch (err) {
-      // 单张转存失败不中断，继续转存其他张
-      console.warn('[OSS] importResult failed, skipping:', sourceUrl, err)
-    }
-  }
-  return importedUrls
-}
-
 // ─── High-Level Wrapper ───
 
 /**
@@ -330,12 +289,10 @@ export async function importResultUrls(
  *
  * 支持一键调用或分步控制：
  * - generateImage(params) — 只提交任务
- * - generateImage(params, { poll: true }) — 提交 + 轮询
- * - generateImage(params, { poll: true, import: true }) — 提交 + 轮询 + 转存
+ * - generateImage(params, { poll: true }) — 提交 + 阻塞轮询到终态
  *
- * @param params 任务参数
- * @param options 配置选项
- * @returns 任务结果
+ * 结果转存由服务端在轮询路径内完成（S5：转存失败保留原始 URL，
+ * 任务详情提供「重新加载」入口，见 useTaskManager.retryImportTask）。
  */
 export async function generateImage(
   params: SubmitTaskParams,
@@ -351,35 +308,9 @@ export async function generateImage(
     const pollOptions: PollTaskOptions =
       typeof shouldPoll === 'boolean' ? {} : shouldPoll
 
-    result.pollResult = await pollTask(submitResult.toapisTaskId, pollOptions)
-
+    result.pollResult = await pollTask(submitResult.dbTaskId, pollOptions)
     if (result.pollResult.status === 'completed') {
-      // 只要轮询完成，就更新 DB 为终态 completed（避免孤立 submitted）
-      // import 只决定是否同时转存结果图
-      const update: Parameters<typeof taskApi.update>[1] = {
-        status: 'completed',
-        progress: 100,
-        completed_at: new Date().toISOString(),
-        expires_at: result.pollResult.expiresAt,
-      }
-      if (options?.import) {
-        result.resultUrls = await importResultUrls(
-          submitResult.toapisTaskId,
-          result.pollResult.resultUrls,
-        )
-        update.result_image_urls = result.resultUrls
-      }
-      await taskApi.update(submitResult.dbTaskId, update)
-    } else {
-      // 轮询失败/超时 → 标记 DB 任务为失败，避免遗留孤立的 submitted 记录
-      await taskApi.update(submitResult.dbTaskId, {
-        status: 'failed',
-        progress: result.pollResult.progress,
-        error_message: result.pollResult.errorMessage || '生成失败',
-        error_code: result.pollResult.errorCode,
-      }).catch((err) => {
-        console.warn('[generateImage] Failed to mark DB task as failed:', err)
-      })
+      result.resultUrls = result.pollResult.resultUrls
     }
   }
 

@@ -5,13 +5,16 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import PageLayout from '@/components/PageLayout.vue'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+
+const modelCatalog = useModelCatalogStore()
 
 interface TaskRow {
   id: number
   username: string
   user_id: number
-  toapis_task_id: string
+  task_no: string | null
+  toapis_task_id?: string
   model: string
   prompt: string
   status: string
@@ -82,10 +85,14 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
     <el-table :data="tasks" v-loading="loading" stripe>
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="username" label="用户" width="100" />
-      <el-table-column prop="toapis_task_id" label="ToAPIs ID" width="200" show-overflow-tooltip />
+      <el-table-column prop="task_no" label="任务号" width="160" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="task-no">{{ row.task_no || row.toapis_task_id || '-' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="模型" width="150">
         <template #default="{ row }">
-          {{ MODELS.find((m) => m.id === row.model)?.name || row.model }}
+          {{ modelCatalog.displayNameFor(row.model) }}
         </template>
       </el-table-column>
       <el-table-column prop="prompt" label="提示词" min-width="200" show-overflow-tooltip />

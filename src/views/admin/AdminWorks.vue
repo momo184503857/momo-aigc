@@ -10,7 +10,9 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { adminWorksApi } from '@/services/worksApi'
 import type { WorkItem } from '@/services/worksApi'
 import { FEATURE_CONFIGS, getFeatureLabel } from '@/configs/featureConfig'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+
+const modelCatalog = useModelCatalogStore()
 import PageLayout from '@/components/PageLayout.vue'
 import { Search, Refresh, Delete, Plus, Upload } from '@element-plus/icons-vue'
 import { ossApi } from '@/services/ossApi'
@@ -51,7 +53,7 @@ const featureOptions = [
 ]
 
 function modelDisplayName(modelId: string): string {
-  return MODELS.find((m) => m.id === modelId)?.name || modelId
+  return modelCatalog.displayNameFor(modelId)
 }
 
 async function loadWorks() {
@@ -341,7 +343,7 @@ onMounted(() => {
           <el-col :span="8">
             <el-form-item label="模型">
               <el-select v-model="officialForm.model" style="width: 100%">
-                <el-option v-for="m in MODELS" :key="m.id" :label="m.name" :value="m.id" />
+                <el-option v-for="m in modelCatalog.flatImageModels" :key="m.id" :label="m.displayName" :value="m.modelId" />
               </el-select>
             </el-form-item>
           </el-col>

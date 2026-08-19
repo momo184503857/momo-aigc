@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import type { ModelId } from '@/types/adapter'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+import type { CatalogModel } from '@/stores/modelCatalog'
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
@@ -23,7 +25,7 @@ const props = defineProps<{ featureId: string }>()
 
 const emit = defineEmits<{
   (e: 'generate', params: {
-    modelId: ModelId
+    channelModelId: number
     prompt: string
     resolution: string
     aspectRatio: string
@@ -36,6 +38,7 @@ const emit = defineEmits<{
 }>()
 
 const serverStatus = useServerStatusStore()
+const modelCatalog = useModelCatalogStore()
 
 // Feature config
 const config = computed<FeatureConfig | undefined>(() => FEATURE_CONFIGS[props.featureId])
@@ -60,9 +63,9 @@ function initSlots() {
 }
 
 // Form state
-const selectedModelId = ref<ModelId>(DEFAULT_MODEL)
-const resolution = ref(DEFAULT_RESOLUTION)
-const aspectRatio = ref(DEFAULT_ASPECT_RATIO)
+const selectedChannelModelId = ref(0)
+const resolution = ref('')
+const aspectRatio = ref('')
 const count = ref(1)
 const userPrompt = ref('')
 
@@ -96,9 +99,10 @@ const modelPrompts = ref<Record<string, FeaturePromptItem>>({})
 // 当前会话内用户对系统提示词的修改，按 modelId 隔离；不持久化到服务器
 const editedSystemPromptsByModel = ref<Record<string, string>>({})
 
-const currentPrompt = computed(() => modelPrompts.value[selectedModelId.value])
+const promptKey = computed(() => selectedModel.value?.logicalCode ?? selectedModel.value?.modelId ?? '')
+const currentPrompt = computed(() => modelPrompts.value[promptKey.value])
 const systemPrompt = computed(() => {
-  const edited = editedSystemPromptsByModel.value[selectedModelId.value]
+  const edited = editedSystemPromptsByModel.value[promptKey.value]
   if (edited !== undefined) return edited
   return currentPrompt.value?.system_prompt || ''
 })
@@ -108,13 +112,13 @@ const userPromptPlaceholder = computed(() => currentPrompt.value?.user_prompt_pl
 // 提示词折叠面板绑定：单段系统提示词
 const promptPanelModel = computed({
   get: () => ({ system: systemPrompt.value }),
-  set: (val) => { editedSystemPromptsByModel.value[selectedModelId.value] = val.system },
+  set: (val) => { editedSystemPromptsByModel.value[promptKey.value] = val.system },
 })
 
 const defaultPromptPanelModel = computed(() => ({ system: currentPrompt.value?.system_prompt || '' }))
 
 function resetSystemPrompt() {
-  editedSystemPromptsByModel.value[selectedModelId.value] = currentPrompt.value?.system_prompt || ''
+  editedSystemPromptsByModel.value[promptKey.value] = currentPrompt.value?.system_prompt || ''
 }
 
 async function fetchPrompts() {
@@ -127,9 +131,9 @@ async function fetchPrompts() {
     items.forEach(item => { map[item.model_id] = item })
     modelPrompts.value = map
     // 若当前模型还没有本地编辑记录，初始化为后台默认值
-    const currentModelId = selectedModelId.value
-    if (editedSystemPromptsByModel.value[currentModelId] === undefined) {
-      editedSystemPromptsByModel.value[currentModelId] = map[currentModelId]?.system_prompt || ''
+    const key = promptKey.value
+    if (key && editedSystemPromptsByModel.value[key] === undefined) {
+      editedSystemPromptsByModel.value[key] = map[key]?.system_prompt || ''
     }
   } catch {
     promptError.value = true
@@ -147,45 +151,59 @@ onMounted(() => {
 // Apply feature defaults from config
 watch(config, (cfg) => {
   if (!cfg) return
-  if (cfg.defaultModelId) selectedModelId.value = cfg.defaultModelId
-  if (cfg.defaultResolution) resolution.value = cfg.defaultResolution
-  if (cfg.defaultAspectRatio) aspectRatio.value = cfg.defaultAspectRatio
+  pendingDefaults.resolution = cfg.defaultResolution || ''
+  pendingDefaults.aspectRatio = cfg.defaultAspectRatio || ''
+  pendingDefaults.modelName = cfg.defaultModelId || ''
+  applyDefaultsIfReady()
 }, { immediate: true })
 
+// 目录加载后应用默认模型/分辨率/宽高比（配置的默认模型名在目录中不存在时退回首项）
+const pendingDefaults = { modelName: '', resolution: '', aspectRatio: '' }
+function applyDefaultsIfReady() {
+  if (!modelCatalog.loaded || selectedChannelModelId.value) return
+  const cm = modelCatalog.getModelByName(pendingDefaults.modelName) ?? modelCatalog.defaultImageModel
+  if (!cm?.capabilities) return
+  selectedChannelModelId.value = cm.id
+  resolution.value = cm.capabilities.resolutions.includes(pendingDefaults.resolution)
+    ? pendingDefaults.resolution
+    : cm.capabilities.resolutions[0]
+  const ratios = modelCatalog.aspectRatiosFor(cm, resolution.value)
+  aspectRatio.value = ratios.includes(pendingDefaults.aspectRatio) ? pendingDefaults.aspectRatio : ratios[0]
+}
+modelCatalog.ensureLoaded().then(() => applyDefaultsIfReady())
+
 // 切换模型时，若提示词已加载且该模型还没有本地编辑记录，则初始化为后台默认值
-watch(selectedModelId, (modelId) => {
-  if (Object.keys(modelPrompts.value).length === 0) return
-  if (editedSystemPromptsByModel.value[modelId] === undefined) {
-    editedSystemPromptsByModel.value[modelId] = modelPrompts.value[modelId]?.system_prompt || ''
+watch(promptKey, (key) => {
+  if (!key || Object.keys(modelPrompts.value).length === 0) return
+  if (editedSystemPromptsByModel.value[key] === undefined) {
+    editedSystemPromptsByModel.value[key] = modelPrompts.value[key]?.system_prompt || ''
   }
 })
 
 // Model computed
-const selectedModel = computed(() => MODELS.find(m => m.id === selectedModelId.value))
-const availableResolutions = computed(() => selectedModel.value?.resolutions || ['1K'])
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
+const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
-  return getAspectRatios(selectedModel.value, resolution.value)
+  return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
-const currentPrice = computed(() => {
-  if (!selectedModel.value) return 0
-  return getPrice(selectedModel.value, resolution.value)
-})
+const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
 
 function handleModelChange() {
   const model = selectedModel.value
-  if (model) {
-    if (!model.resolutions.includes(resolution.value)) {
-      resolution.value = model.resolutions[0]
+  if (model?.capabilities) {
+    if (!model.capabilities.resolutions.includes(resolution.value)) {
+      resolution.value = model.capabilities.resolutions[0]
     }
-    aspectRatio.value = getAspectRatios(model, resolution.value)[0]
+    aspectRatio.value = modelCatalog.aspectRatiosFor(model, resolution.value)[0]
   }
 }
 
 function handleResolutionChange() {
   const model = selectedModel.value
   if (model) {
-    const ratios = getAspectRatios(model, resolution.value)
+    const ratios = modelCatalog.aspectRatiosFor(model, resolution.value)
     if (!ratios.includes(aspectRatio.value)) {
       aspectRatio.value = ratios[0]
     }
@@ -202,6 +220,7 @@ const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!config.value) return false
   if (!serverStatus.canGenerate) return false
+  if (!selectedChannelModelId.value) return false
   for (const slot of config.value.imageSlots) {
     if (slot.required && getSlotImages(slot.key).length === 0) return false
   }
@@ -242,7 +261,7 @@ function handleGenerate() {
   })
 
   emit('generate', {
-    modelId: selectedModelId.value,
+    channelModelId: selectedChannelModelId.value,
     prompt: buildFullPrompt(),
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
@@ -301,16 +320,28 @@ function handleStarredSelect(slotKey: string, template: StarredTemplate) {
 
 // Exposed for copyParams
 function setParams(params: {
-  modelId: ModelId
+  modelId: string
   prompt: string
   resolution: string
   aspectRatio: string
   referenceImages?: { dataUrl: string; sourceUrl?: string }[]
   supplementaryImages?: { name: string; url: string }[]
 }) {
-  selectedModelId.value = params.modelId
-  resolution.value = params.resolution
-  aspectRatio.value = params.aspectRatio
+  // 旧参数携带模型名字符串：按名反查渠道模型（兼容历史任务「复制参数」）
+  const cm = modelCatalog.getModelByName(params.modelId)
+  if (cm?.capabilities) {
+    selectedChannelModelId.value = cm.id
+    resolution.value = cm.capabilities.resolutions.includes(params.resolution)
+      ? params.resolution
+      : cm.capabilities.resolutions[0]
+    const ratios = modelCatalog.aspectRatiosFor(cm, resolution.value)
+    aspectRatio.value = ratios.includes(params.aspectRatio) ? params.aspectRatio : ratios[0]
+  } else if (!selectedChannelModelId.value && modelCatalog.defaultImageModel?.capabilities) {
+    const dm = modelCatalog.defaultImageModel
+    selectedChannelModelId.value = dm.id
+    resolution.value = dm.capabilities!.resolutions[0]
+    aspectRatio.value = modelCatalog.aspectRatiosFor(dm, resolution.value)[0]
+  }
   userPrompt.value = params.prompt
   if (params.referenceImages?.length) {
     initSlots()
@@ -351,7 +382,7 @@ defineExpose({ setParams })
       <!-- API Key warning -->
       <el-alert
         v-if="serverStatus.loaded && !serverStatus.canGenerate"
-        title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
+        title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
         type="warning"
         show-icon
         :closable="false"
@@ -452,8 +483,19 @@ defineExpose({ setParams })
       <div class="form-row-inline">
         <label class="form-label-left">模型</label>
         <div class="form-control-right">
-          <el-select v-model="selectedModelId" style="width: 100%" @change="handleModelChange">
-            <el-option v-for="m in MODELS" :key="m.id" :label="m.name" :value="m.id" />
+          <el-select v-model="selectedChannelModelId" style="width: 100%" @change="handleModelChange">
+            <template v-if="modelCatalog.loaded">
+              <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
+                <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                  <el-option
+                    v-for="m in group.models"
+                    :key="m.id"
+                    :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                    :value="m.id"
+                  />
+                </el-option-group>
+              </template>
+            </template>
           </el-select>
         </div>
       </div>
@@ -498,7 +540,7 @@ defineExpose({ setParams })
         style="width: 100%"
         @click="handleGenerate"
       >
-        生成图片 · {{ formatCredits(currentPrice) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}
+        {{ isPersonalChannel ? '生成图片 · 个人渠道 · 不扣积分' : `生成图片 · ${formatCredits(currentPrice)}` }}
       </el-button>
     </div>
   </div>

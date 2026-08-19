@@ -318,3 +318,17 @@
 **放弃的方案**：
 - 方案 A 最简单但违背 PRD 核心原则（图片不经过业务服务器），且会增加服务器带宽消耗
 - 方案 C 跨云会有额外的网络延迟和费用
+
+---
+
+## 2026-08-19 — AI 接入体系重构（ai-provider）D1-D12 决策落地
+
+一次性全上（D11）实施完成并本地测试环境验收通过。关键决策（详见 `docs/requirements/ai-provider.md` §3）：
+
+- **D1 渠道**：toapis（异步）+ 火山 Seedream（volcengine_image，同步）+ 通用 OpenAI 兼容生图中转（openai_image，同步）。
+- **D2 配置体系**：合并进 `api_providers / ai_models / api_provider_keys` 三表（识图/生图/文字统一），新增 `ai_logical_models` 逻辑模型。
+- **D3 编排**：服务端统一编排（`routes/generations.ts`），业务主键换内部任务号 `task_no`（gen-{id:08d}），同步渠道包装为立即完成任务。
+- **D5 定价**：渠道×模型×分辨率，`ai_models.pricing` 单一真源，前后端共用（catalog API）。
+- **D8 用户渠道**：不扣积分；D10 存量平滑迁移（共享 Key→toapis 平台渠道主 Key；个人 Key→用户渠道；历史任务回填 provider_code/provider_task_id/task_no），幂等标记三级、迁移前自动备份、`scripts/verify-ai-provider-migration.mjs` 校验全 PASS。
+- **D12 结果存储**：全渠道统一转存平台 OSS（转存失败保留原始 URL + 重新加载，S5；服务端 reimport）。
+- 退役：`/api/toapis` 生图三端点与 `POST|PATCH /api/tasks` 返回 410；前端 `MODELS` 常量/`src/adapter/*`/`pricing.ts` 硬编码删除；`user_toapis_keys`/`toapis_task_id` 停写待 DROP（上线 +2 版本）。

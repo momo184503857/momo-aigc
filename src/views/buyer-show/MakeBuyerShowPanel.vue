@@ -18,15 +18,14 @@ import { downloadRowsAsZip } from '@/utils/buyerShowZip'
 
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
-import { taskApi } from '@/services/taskApi'
 import { pointsApi } from '@/services/pointsApi'
-import { submitTask, importResultUrls } from '@/services/imageGeneration'
-import { getTaskStatus } from '@/adapter/toapisClient'
+import { submitTask } from '@/services/imageGeneration'
+import { generationApi } from '@/services/generationApi'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { buyerShowBatchApi } from '@/services/buyerShowBatchApi'
 import type { BatchItemRow } from '@/services/buyerShowBatchApi'
 import { translateError } from '@/utils/errors'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
-import type { ModelId } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
 import { UiImagePreview, UiEmptyState } from '@/components/ui'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
@@ -44,7 +43,9 @@ interface TableRow {
   selected: boolean
   status: 'pending' | 'submitting' | 'in_progress' | 'completed' | 'failed'
   progress: number
+  /** 关联的 generation_tasks.id（行级轮询/恢复轮询的键） */
   taskId: number | null
+  /** 业务任务号（展示用；原渠道任务号已退役） */
   toapisTaskId: string | null
   resultUrl?: string
   resultImageUrls?: string[]
@@ -67,29 +68,41 @@ const isGenerating = ref(false)
 const zipping = ref(false)
 
 // 统一生图参数（默认比例 9:16、张数 1）
-const selectedModelId = ref<ModelId>(DEFAULT_MODEL)
-const resolution = ref(DEFAULT_RESOLUTION) // '2K'
+const modelCatalog = useModelCatalogStore()
+const selectedChannelModelId = ref(0)
+const resolution = ref('') // '2K'
 const aspectRatio = ref('9:16')
 const countN = ref(1)
 
-const selectedModel = computed(() => MODELS.find(m => m.id === selectedModelId.value))
-const availableResolutions = computed(() => selectedModel.value?.resolutions || ['1K'])
+const selectedModel = computed(() => modelCatalog.getModel(selectedChannelModelId.value))
+const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
+const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
-  return getAspectRatios(selectedModel.value, resolution.value)
+  return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
-const unitPrice = computed(() => {
-  if (!selectedModel.value) return 0
-  return getPrice(selectedModel.value, resolution.value)
+const unitPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
+
+// 目录加载后初始化默认模型（买家秀默认 9:16）
+modelCatalog.ensureLoaded().then(() => {
+  if (!selectedChannelModelId.value) {
+    const m = modelCatalog.defaultImageModel
+    if (m?.capabilities) {
+      selectedChannelModelId.value = m.id
+      resolution.value = m.capabilities.resolutions.includes('2K') ? '2K' : m.capabilities.resolutions[0]
+      const ratios = modelCatalog.aspectRatiosFor(m, resolution.value)
+      aspectRatio.value = ratios.includes('9:16') ? '9:16' : (ratios[0] ?? '9:16')
+    }
+  }
 })
 
 function handleModelChange() {
   const model = selectedModel.value
-  if (model) {
-    if (!model.resolutions.includes(resolution.value)) {
-      resolution.value = model.resolutions[0]
+  if (model?.capabilities) {
+    if (!model.capabilities.resolutions.includes(resolution.value)) {
+      resolution.value = model.capabilities.resolutions[0]
     }
-    const ratios = getAspectRatios(model, resolution.value)
+    const ratios = modelCatalog.aspectRatiosFor(model, resolution.value)
     if (!ratios.includes(aspectRatio.value)) aspectRatio.value = ratios[0]
   }
 }
@@ -97,7 +110,7 @@ function handleModelChange() {
 function handleResolutionChange() {
   const model = selectedModel.value
   if (model) {
-    const ratios = getAspectRatios(model, resolution.value)
+    const ratios = modelCatalog.aspectRatiosFor(model, resolution.value)
     if (!ratios.includes(aspectRatio.value)) aspectRatio.value = ratios[0]
   }
 }
@@ -276,7 +289,7 @@ async function loadItems() {
     currentBatchId.value = records.length > 0 ? (records[0].batchId ?? null) : null
     // 恢复未结束任务的轮询
     tableData.value
-      .filter(r => r.status === 'in_progress' && r.toapisTaskId)
+      .filter(r => r.status === 'in_progress' && r.taskId)
       .forEach(r => startPollingRow(r))
   } catch (err) {
     error(err, '加载批次失败')
@@ -298,7 +311,9 @@ function stopAllPolling() {
 }
 
 interface SubmitParams {
-  model: ModelId
+  /** 模型名快照（行回显用） */
+  model: string
+  channelModelId: number
   resolution: string
   aspectRatio: string
   n: number
@@ -306,7 +321,8 @@ interface SubmitParams {
 
 function currentParams(): SubmitParams {
   return {
-    model: selectedModelId.value,
+    model: selectedModel.value?.displayName ?? selectedModel.value?.modelId ?? '',
+    channelModelId: selectedChannelModelId.value,
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
     n: countN.value,
@@ -315,8 +331,10 @@ function currentParams(): SubmitParams {
 
 // 该行原任务参数（重新生成用）；缺失时回落到当前选择器值
 function rowOriginalParams(row: TableRow): SubmitParams {
+  const cm = row.model ? modelCatalog.getModelByName(row.model) : undefined
   return {
-    model: (row.model || selectedModelId.value) as ModelId,
+    model: row.model || selectedModel.value?.displayName || '',
+    channelModelId: cm?.id ?? selectedChannelModelId.value,
     resolution: row.resolution || resolution.value,
     aspectRatio: row.aspectRatio || aspectRatio.value,
     n: row.n || 1,
@@ -341,7 +359,7 @@ async function doSubmit(row: TableRow, params: SubmitParams): Promise<{ ok: bool
   row.resultImageUrls = undefined
   try {
     const result = await submitTask({
-      model: params.model,
+      channelModelId: params.channelModelId,
       prompt: row.prompt,
       size: params.aspectRatio,
       resolution: params.resolution,
@@ -350,12 +368,12 @@ async function doSubmit(row: TableRow, params: SubmitParams): Promise<{ ok: bool
       n: params.n,
     })
     row.taskId = result.dbTaskId
-    row.toapisTaskId = result.toapisTaskId
+    row.toapisTaskId = result.taskNo
     row.status = 'in_progress'
     row.progress = 0
     row.submittedAt = Date.now()
     await buyerShowBatchApi.updateItem(row.id, {
-      status: 'in_progress', taskId: row.taskId, toapisTaskId: result.toapisTaskId, progress: 0, errorMessage: null,
+      status: 'in_progress', taskId: row.taskId, toapisTaskId: result.taskNo, progress: 0, errorMessage: null,
     })
     window.dispatchEvent(new CustomEvent('canvas:task-created'))
     startPollingRow(row)
@@ -378,7 +396,7 @@ async function handleGenerate() {
   const count = submittableCount.value
   const total = estimateCost.value
   try {
-    const costText = `预计消耗：${formatCredits(total)}${serverStatus.usingPersonalKey ? '（个人 Key）' : ''}`
+    const costText = `预计消耗：${formatCredits(total)}${isPersonalChannel ? '（个人渠道）' : ''}`
     await ElMessageBox.confirm(
       `选中待生成：${count} 个 × ${countN.value} 张\n${costText}`,
       '确认生成',
@@ -386,8 +404,8 @@ async function handleGenerate() {
     )
   } catch { return }
 
-  // Check balance（个人 Key 模式不消耗积分，跳过校验）
-  if (!serverStatus.usingPersonalKey) {
+  // Check balance（个人渠道不扣积分，跳过校验）
+  if (!isPersonalChannel.value) {
     try {
       const res = await pointsApi.getMyBalance()
       const balance = res.data.data?.balance ?? 0
@@ -436,27 +454,20 @@ async function persistRowStatus(row: TableRow) {
 }
 
 function startPollingRow(row: TableRow) {
-  if (!row.toapisTaskId) return
+  if (!row.taskId) return
   const timer = setInterval(async () => {
     try {
-      // 单次查询：由 setInterval 定时器驱动
-      const result = await getTaskStatus(row.toapisTaskId!)
+      // 单次查询（服务端查上游 + 转存）：由 setInterval 定时器驱动
+      const res = await generationApi.getStatus(row.taskId!)
+      const result = res.data.data
       row.progress = result.progress
 
       if (result.status === 'completed') {
-        const imported = await importResultUrls(row.toapisTaskId!, result.resultUrls)
+        const imported = result.resultUrls
         row.status = 'completed'
         row.resultImageUrls = imported
         row.resultUrl = imported[0]
         row.progress = 100
-        if (row.taskId) {
-          await taskApi.update(row.taskId, {
-            status: 'completed', progress: 100,
-            result_image_urls: imported,
-            completed_at: new Date().toISOString(),
-            expires_at: result.expiresAt,
-          })
-        }
         await persistRowStatus(row)
         clearInterval(timer)
       } else if (result.status === 'failed') {
@@ -470,12 +481,6 @@ function startPollingRow(row: TableRow) {
         }
         row.status = 'failed'
         row.errorMsg = result.errorMessage || '生成失败'
-        if (row.taskId) {
-          await taskApi.update(row.taskId, {
-            status: 'failed', progress: result.progress,
-            error_message: result.errorMessage, error_code: result.errorCode,
-          })
-        }
         await persistRowStatus(row)
         clearInterval(timer)
       }
@@ -604,7 +609,7 @@ const compareTasks = computed<TaskItem[]>(() =>
     .map(r => ({
       id: r.taskId as number,
       toapis_task_id: r.toapisTaskId || '',
-      model: (r.model || selectedModelId.value) as ModelId,
+      model: r.model || selectedModel.value?.modelId || '',
       prompt: r.prompt,
       resolution: r.resolution || resolution.value,
       aspectRatio: r.aspectRatio || aspectRatio.value,
@@ -672,7 +677,7 @@ onUnmounted(() => {
   <div class="bs-panel">
     <el-alert
       v-if="serverStatus.loaded && !serverStatus.canGenerate"
-      title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
+      title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
       type="warning" show-icon :closable="false" class="bs-alert"
     />
 
@@ -699,8 +704,19 @@ onUnmounted(() => {
         <div class="bs-params">
           <div class="param-row">
             <label class="param-label">模型</label>
-            <el-select v-model="selectedModelId" style="width: 200px" @change="handleModelChange">
-              <el-option v-for="m in MODELS" :key="m.id" :label="m.name" :value="m.id" />
+            <el-select v-model="selectedChannelModelId" style="width: 200px" @change="handleModelChange">
+              <template v-if="modelCatalog.loaded">
+                <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
+                  <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                    <el-option
+                      v-for="m in group.models"
+                      :key="m.id"
+                      :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                      :value="m.id"
+                    />
+                  </el-option-group>
+                </template>
+              </template>
             </el-select>
           </div>
           <div class="param-row">
@@ -724,7 +740,7 @@ onUnmounted(() => {
         </div>
 
         <div class="bs-submit">
-          <span v-if="submittableCount > 0" class="bs-cost">预计 {{ formatCredits(estimateCost) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}</span>
+          <span v-if="submittableCount > 0" class="bs-cost">预计 {{ formatCredits(estimateCost) }}{{ isPersonalChannel ? ' · 个人渠道' : '' }}</span>
           <el-button
             type="primary" :icon="MagicStick" :loading="isGenerating"
             :disabled="submittableCount === 0" @click="handleGenerate"

@@ -1,26 +1,33 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { MODELS, getAspectRatios } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { UiNumberInput } from '@/components/ui'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
 const emit = defineEmits<{ update: [patch: Record<string, unknown>] }>()
 
-const availableModels = MODELS.map((m) => ({ value: m.id, label: m.name }))
+const modelCatalog = useModelCatalogStore()
+modelCatalog.ensureLoaded()
 
-const selectedModel = computed(() => MODELS.find((m) => m.id === props.node.config.modelName))
+const availableModels = computed(() =>
+  modelCatalog.imageGroups.flatMap((g) => g.models.map((m) => ({
+    value: m.logicalCode ?? m.modelId,
+    label: g.mine ? `${m.displayName}（个人）` : m.displayName,
+  }))))
+
+const selectedModel = computed(() => modelCatalog.getModelByName(String(props.node.config.modelName || '')))
 
 const validAspectRatios = computed(() => {
   const model = selectedModel.value
   if (!model) return ['1:1']
-  return getAspectRatios(model, String(props.node.config.outputSize || '2K'))
+  return modelCatalog.aspectRatiosFor(model, String(props.node.config.outputSize || '2K'))
 })
 
 const validResolutions = computed(() => {
   const model = selectedModel.value
   if (!model) return ['2K']
-  return model.resolutions
+  return model.capabilities?.resolutions ?? ['2K']
 })
 
 const imageCount = computed(() => {

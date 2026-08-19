@@ -2,13 +2,15 @@
 import { ref } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import type { TaskItem } from './TaskList.vue'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { getFeatureLabel } from '@/configs/featureConfig'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { downloadUrl } from '@/utils/download'
 import { useImageRetry } from '@/composables/useImageRetry'
 const { success, info, warning, error } = useUiFeedback()
 const { retryOnError } = useImageRetry()
+
+const modelCatalog = useModelCatalogStore()
 
 const props = defineProps<{ task: TaskItem | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -21,8 +23,7 @@ function close() { visible.value = false; emit('close') }
 defineExpose({ open, close })
 
 function modelDisplayName(modelId: string): string {
-  const m = MODELS.find((m) => m.id === modelId)
-  return m?.name || modelId
+  return modelCatalog.displayNameFor(modelId)
 }
 
 function copyToClipboard(text: string) {
@@ -52,7 +53,7 @@ const statusMap: Record<string, string> = {
   >
     <div v-if="task" class="detail-content">
       <el-descriptions :column="2" border size="small">
-        <el-descriptions-item label="任务ID">{{ task.toapis_task_id }}</el-descriptions-item>
+        <el-descriptions-item label="任务号">{{ task.task_no || task.toapis_task_id }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="task.status === 'completed' ? 'success' : task.status === 'failed' ? 'danger' : 'info'" size="small">
             {{ statusMap[task.status] || task.status }}

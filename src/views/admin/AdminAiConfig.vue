@@ -16,6 +16,8 @@ import {
   type ModelRow,
   type ProviderKeyRow,
   type AdapterInfo,
+  type LogicalModelRow,
+  type UserProviderRow,
 } from '@/services/aiConfigApi'
 import { Plus, Refresh, Edit, Delete, Key, Connection, Picture, UploadFilled, ChatDotRound } from '@element-plus/icons-vue'
 
@@ -130,26 +132,80 @@ async function testProvider(row: ProviderRow) {
   }
 }
 
+// ── 逻辑模型清单（模型弹窗下拉用）──
+const logicalModels = ref<LogicalModelRow[]>([])
+async function loadLogicalModels() {
+  try {
+    const res = await aiConfigApi.listLogicalModels()
+    logicalModels.value = (res.data.data || []).filter((l) => l.kind === 'image' && l.status === 'active')
+  } catch { /* ignore */ }
+}
+
+/** 模型弹窗中当前选中逻辑模型的参数（供能力覆盖与定价行渲染） */
+const modelLogical = computed(() => logicalModels.value.find((l) => l.id === modelForm.value.logical_model_id) ?? null)
+/** 生效分辨率（逻辑模型 ∩ 覆盖），定价行按它渲染 */
+const modelEffectiveResolutions = computed(() => {
+  const base = modelLogical.value?.defaultParams?.resolutions ?? []
+  const ovr = modelForm.value.overrideResolutions
+  if (!ovr || ovr.length === 0) return base
+  return base.filter((r) => ovr.includes(r))
+})
+/** 逻辑模型全部宽高比（覆盖勾选用） */
+const modelLogicalRatios = computed(() => {
+  const p = modelLogical.value?.defaultParams
+  if (!p) return []
+  const set = new Set<string>(p.aspectRatios ?? [])
+  for (const list of Object.values(p.aspectRatiosByResolution ?? {})) for (const a of list) set.add(a)
+  return [...set]
+})
+
 // ── 模型弹窗 ──
 const modelDialog = ref(false)
 const modelEditing = ref<ModelRow | null>(null)
-const modelForm = ref({ model_id: '', display_name: '', supports_vision: false, supports_image_gen: false, remark: '' })
+const modelForm = ref({
+  model_id: '',
+  display_name: '',
+  supports_vision: false,
+  supports_image_gen: false,
+  supports_chat: false,
+  logical_model_id: null as number | null,
+  overrideResolutions: [] as string[],
+  overrideRatios: [] as string[],
+  overrideMaxRef: null as number | null,
+  overrideMaxPromptChars: null as number | null,
+  pricing: {} as Record<string, number>,
+  remark: '',
+})
 const modelSubmitting = ref(false)
 
 function openModelCreate() {
   if (!selected.value) return
   modelEditing.value = null
-  modelForm.value = { model_id: '', display_name: '', supports_vision: false, supports_image_gen: false, remark: '' }
+  modelForm.value = {
+    model_id: '', display_name: '', supports_vision: false, supports_image_gen: false, supports_chat: false,
+    logical_model_id: null as number | null,
+    overrideResolutions: [], overrideRatios: [],
+    overrideMaxRef: null as number | null, overrideMaxPromptChars: null as number | null,
+    pricing: {} as Record<string, number>, remark: '',
+  }
   modelDialog.value = true
 }
 
 function openModelEdit(row: ModelRow) {
   modelEditing.value = row
+  const overrides = (row.param_overrides ?? {}) as Record<string, any>
   modelForm.value = {
     model_id: row.model_id,
     display_name: row.display_name,
     supports_vision: row.supports_vision,
     supports_image_gen: row.supports_image_gen,
+    supports_chat: !!row.supports_chat,
+    logical_model_id: row.logical_model_id ?? null,
+    overrideResolutions: overrides.resolutions ?? [],
+    overrideRatios: overrides.aspectRatios ?? [],
+    overrideMaxRef: overrides.maxReferenceImages ?? null,
+    overrideMaxPromptChars: overrides.maxPromptChars ?? null,
+    pricing: { ...(row.pricing ?? {}) } as Record<string, number>,
     remark: row.remark,
   }
   modelDialog.value = true
@@ -159,6 +215,28 @@ function openModelEdit(row: ModelRow) {
 function onGenChange(v: any) {
   modelForm.value.supports_image_gen = !!v
   if (v) modelForm.value.supports_vision = true
+}
+
+/** 组装能力覆盖与定价（平台生图模型定价必填 S6） */
+function buildModelPayloadExtra(): Record<string, unknown> {
+  const f = modelForm.value
+  const payload: Record<string, unknown> = {
+    supports_chat: f.supports_chat,
+    logical_model_id: f.supports_image_gen ? f.logical_model_id : null,
+  }
+  if (f.supports_image_gen && f.logical_model_id) {
+    const overrides: Record<string, unknown> = {}
+    if (f.overrideResolutions.length > 0) overrides.resolutions = f.overrideResolutions
+    if (f.overrideRatios.length > 0) overrides.aspectRatios = f.overrideRatios
+    if (f.overrideMaxRef !== null) overrides.maxReferenceImages = f.overrideMaxRef
+    if (f.overrideMaxPromptChars !== null) overrides.maxPromptChars = f.overrideMaxPromptChars
+    payload.param_overrides = Object.keys(overrides).length > 0 ? overrides : null
+    payload.pricing = f.pricing
+  } else {
+    payload.param_overrides = null
+    payload.pricing = null
+  }
+  return payload
 }
 
 async function submitModel() {
@@ -171,19 +249,29 @@ async function submitModel() {
     warning('支持生图的模型必定支持识图，请同时勾选')
     return
   }
+  if (f.supports_image_gen && !f.logical_model_id) {
+    warning('生图模型必须关联逻辑模型')
+    return
+  }
+  if (f.supports_image_gen) {
+    const missing = modelEffectiveResolutions.value.filter((r) => typeof f.pricing[r] !== 'number')
+    if (missing.length > 0) {
+      warning(`定价未覆盖分辨率：${missing.join(' / ')}（平台生图模型定价必填）`)
+      return
+    }
+  }
   modelSubmitting.value = true
   try {
+    const base = {
+      model_id: f.model_id.trim(), display_name: f.display_name.trim(),
+      supports_vision: f.supports_vision, supports_image_gen: f.supports_image_gen, remark: f.remark,
+    }
+    const extra = buildModelPayloadExtra()
     if (modelEditing.value) {
-      await aiConfigApi.updateModel(modelEditing.value.id, {
-        model_id: f.model_id.trim(), display_name: f.display_name.trim(),
-        supports_vision: f.supports_vision, supports_image_gen: f.supports_image_gen, remark: f.remark,
-      })
+      await aiConfigApi.updateModel(modelEditing.value.id, { ...base, ...extra })
       success('模型已更新')
     } else {
-      await aiConfigApi.createModel({
-        provider_id: selected.value!.id, model_id: f.model_id.trim(), display_name: f.display_name.trim(),
-        supports_vision: f.supports_vision, supports_image_gen: f.supports_image_gen, remark: f.remark,
-      })
+      await aiConfigApi.createModel({ ...base, ...extra, provider_id: selected.value!.id } as any)
       success('模型已添加')
     }
     modelDialog.value = false
@@ -433,10 +521,138 @@ async function saveDefaultVision(value: string) {
   }
 }
 
+// ── 逻辑模型管理（FR2，平台级资产）──
+const allLogicalModels = ref<LogicalModelRow[]>([])
+const logicalDialog = ref(false)
+const logicalEditing = ref<LogicalModelRow | null>(null)
+const logicalSubmitting = ref(false)
+const logicalForm = ref({
+  code: '',
+  name: '',
+  kind: 'image' as 'image' | 'text',
+  resolutions: [] as string[],
+  aspectRatios: [] as string[],
+  maxReferenceImages: 14,
+  maxPromptChars: 32000,
+  remark: '',
+})
+
+async function loadAllLogicalModels() {
+  try {
+    const res = await aiConfigApi.listLogicalModels()
+    allLogicalModels.value = res.data.data || []
+    logicalModels.value = allLogicalModels.value.filter((l) => l.kind === 'image' && l.status === 'active')
+  } catch { /* ignore */ }
+}
+
+function openLogicalCreate() {
+  logicalEditing.value = null
+  logicalForm.value = { code: '', name: '', kind: 'image', resolutions: [], aspectRatios: ['1:1'], maxReferenceImages: 14, maxPromptChars: 32000, remark: '' }
+  logicalDialog.value = true
+}
+
+function openLogicalEdit(row: LogicalModelRow) {
+  logicalEditing.value = row
+  const p = row.defaultParams ?? {}
+  logicalForm.value = {
+    code: row.code,
+    name: row.name,
+    kind: row.kind,
+    resolutions: p.resolutions ?? [],
+    aspectRatios: p.aspectRatios ?? Object.values(p.aspectRatiosByResolution ?? {})[0] ?? [],
+    maxReferenceImages: p.maxReferenceImages ?? 14,
+    maxPromptChars: p.maxPromptChars ?? 32000,
+    remark: row.remark,
+  }
+  logicalDialog.value = true
+}
+
+async function submitLogicalModel() {
+  const f = logicalForm.value
+  if (!f.code.trim() || !f.name.trim()) { warning('Code 与显示名不能为空'); return }
+  if (f.kind === 'image') {
+    if (f.resolutions.length === 0) { warning('请至少配置一个分辨率'); return }
+    if (f.aspectRatios.length === 0) { warning('请至少配置一个宽高比'); return }
+  }
+  logicalSubmitting.value = true
+  try {
+    const defaultParams = f.kind === 'image'
+      ? { resolutions: f.resolutions, aspectRatios: f.aspectRatios, maxReferenceImages: f.maxReferenceImages, maxPromptChars: f.maxPromptChars }
+      : {}
+    if (logicalEditing.value) {
+      await aiConfigApi.updateLogicalModel(logicalEditing.value.id, { name: f.name.trim(), defaultParams, remark: f.remark })
+      success('逻辑模型已更新（关联渠道模型能力即时生效）')
+    } else {
+      await aiConfigApi.createLogicalModel({ code: f.code.trim(), name: f.name.trim(), kind: f.kind, defaultParams, remark: f.remark })
+      success('逻辑模型已创建')
+    }
+    logicalDialog.value = false
+    await loadAllLogicalModels()
+    await modelCatalogRefresh()
+  } catch (e) {
+    error(e, '保存失败')
+  } finally {
+    logicalSubmitting.value = false
+  }
+}
+
+async function toggleLogicalStatus(row: LogicalModelRow, active: boolean) {
+  try {
+    await aiConfigApi.updateLogicalModel(row.id, { status: active ? 'active' : 'disabled' })
+    success(active ? '已启用' : '已停用')
+    await loadAllLogicalModels()
+  } catch (e) {
+    error(e, '状态更新失败')
+  }
+}
+
+async function deleteLogicalModel(row: LogicalModelRow) {
+  try {
+    await confirmDanger({ message: `确定删除逻辑模型「${row.name}」吗？` })
+  } catch { return }
+  try {
+    await aiConfigApi.deleteLogicalModel(row.id)
+    success('已删除')
+    await loadAllLogicalModels()
+  } catch (e) {
+    error(e, '删除失败')
+  }
+}
+
+function logicalCapabilitySummary(row: LogicalModelRow): string {
+  if (row.kind === 'text') return '文字模型'
+  const p = row.defaultParams
+  const parts: string[] = []
+  if (p.resolutions?.length) parts.push(p.resolutions.join('/'))
+  const ratioCount = p.aspectRatios?.length ?? Object.values(p.aspectRatiosByResolution ?? {})[0]?.length ?? 0
+  if (ratioCount) parts.push(`${ratioCount} 种宽高比`)
+  if (p.maxReferenceImages !== undefined) parts.push(`参考图≤${p.maxReferenceImages}`)
+  return parts.join(' · ') || '—'
+}
+
+// ── 用户自建渠道只读列表（S1）──
+const userProviders = ref<UserProviderRow[]>([])
+async function loadUserProviders() {
+  try {
+    const res = await aiConfigApi.listUserProviders()
+    userProviders.value = res.data.data || []
+  } catch { /* ignore */ }
+}
+
+/** 逻辑模型/定价变更会改变前端模型目录，刷新缓存 */
+async function modelCatalogRefresh() {
+  try {
+    const { useModelCatalogStore } = await import('@/stores/modelCatalog')
+    await useModelCatalogStore().refresh()
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
   loadAll()
   loadAdapters()
   loadDefaultVision()
+  loadAllLogicalModels()
+  loadUserProviders()
 })
 </script>
 
@@ -444,8 +660,43 @@ onMounted(() => {
   <PageLayout>
     <template #header><h2>配置</h2></template>
 
+    <!-- ── 逻辑模型管理（平台级资产，渠道模型共享能力定义）── -->
+    <section class="logical-section">
+      <div class="section-head">
+        <h3 class="section-title">逻辑模型</h3>
+        <span class="section-hint">标准模型抽象：能力定义（分辨率/宽高比/上限）一处修改，所有关联渠道模型即时生效；渠道模型只能收窄。</span>
+        <el-button type="primary" size="small" :icon="Plus" @click="openLogicalCreate">新增逻辑模型</el-button>
+      </div>
+      <el-table :data="allLogicalModels" size="small" max-height="280">
+        <el-table-column prop="code" label="Code" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="name" label="显示名" min-width="150" />
+        <el-table-column label="类型" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.kind === 'image' ? 'warning' : 'info'" effect="light">
+              {{ row.kind === 'image' ? '生图' : '文字' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="能力定义" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">{{ logicalCapabilitySummary(row) }}</template>
+        </el-table-column>
+        <el-table-column prop="modelCount" label="关联渠道模型" width="110" align="center" />
+        <el-table-column label="状态" width="90" align="center">
+          <template #default="{ row }">
+            <el-switch :model-value="row.status === 'active'" @change="(v: any) => toggleLogicalStatus(row, v)" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="130" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" :icon="Edit" @click="openLogicalEdit(row)">编辑</el-button>
+            <el-button link type="danger" :icon="Delete" @click="deleteLogicalModel(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </section>
+
     <div class="toolbar">
-      <div class="hint">管理 AI 服务商、模型与 API Key。每个服务商唯一一把主 Key，所有调用通过主 Key 连接。</div>
+      <div class="hint">管理平台渠道（服务商）、渠道模型与 API Key。每个渠道唯一一把主 Key，所有调用通过主 Key 连接；生图渠道可选 toapis / openai_image / volcengine_image 协议。</div>
       <div class="toolbar-actions">
         <div class="default-vision-picker" title="业务侧 AI 识别共用出口，如成套生图第一步的服装风格/季节识别">
           <span class="picker-label">默认识图模型</span>
@@ -527,6 +778,27 @@ onMounted(() => {
               <el-table-column label="生图" width="90" align="center">
                 <template #default="{ row }">
                   <el-tag v-if="row.supports_image_gen" size="small" type="warning" effect="light">生图</el-tag>
+                  <span v-else class="cap-no">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="文字" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row.supports_chat" size="small" type="info" effect="light">文字</el-tag>
+                  <span v-else class="cap-no">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="逻辑模型" min-width="170" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <el-tag v-if="row.logical_code" size="small" effect="plain">{{ row.logical_code }}</el-tag>
+                  <span v-else class="cap-no">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="定价（积分/张）" min-width="170" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span v-if="row.pricing && Object.keys(row.pricing).length" class="pricing-cell">
+                    {{ Object.entries(row.pricing).map(([r, p]) => `${r}:${p}`).join(' · ') }}
+                  </span>
+                  <span v-else-if="row.supports_image_gen" class="cap-no">未配置</span>
                   <span v-else class="cap-no">—</span>
                 </template>
               </el-table-column>
@@ -727,18 +999,19 @@ onMounted(() => {
       </template>
     </el-dialog>
 
-    <!-- 模型弹窗 -->
+    <!-- 模型弹窗（渠道模型：关联逻辑模型 + 能力覆盖 + 定价） -->
     <el-dialog
       v-model="modelDialog"
       :title="modelEditing ? '编辑模型' : '新增模型'"
-      width="540px" destroy-on-close
+      width="640px" destroy-on-close
     >
       <el-form label-width="110px">
         <el-form-item label="模型 ID" required>
-          <el-input v-model="modelForm.model_id" placeholder="调用 API 时使用的模型名，如 doubao-seed-2.1-turbo" />
+          <el-input v-model="modelForm.model_id" placeholder="调用 API 时使用的模型名（渠道叫法），如 gpt-4o-image" />
+          <div class="form-hint">同一逻辑模型在不同渠道可不同名（渠道映射语义）</div>
         </el-form-item>
         <el-form-item label="显示名">
-          <el-input v-model="modelForm.display_name" placeholder="选填，如 Doubao Seed 2.1 Turbo" />
+          <el-input v-model="modelForm.display_name" placeholder="选填，默认取逻辑模型名" />
         </el-form-item>
         <el-form-item label="支持识图">
           <el-checkbox
@@ -752,6 +1025,61 @@ onMounted(() => {
             支持输出图片（勾选后自动要求支持识图）
           </el-checkbox>
         </el-form-item>
+        <el-form-item v-if="modelForm.supports_image_gen" label="逻辑模型" required>
+          <el-select v-model="modelForm.logical_model_id" placeholder="选择逻辑模型（继承能力定义）" style="width: 100%">
+            <el-option
+              v-for="lm in logicalModels" :key="lm.id" :value="lm.id"
+              :label="`${lm.name}（${lm.code}）`"
+            />
+          </el-select>
+          <div v-if="modelLogical" class="form-hint">
+            模板能力：{{ modelLogical.defaultParams?.resolutions?.join(' / ') || '—' }}；
+            宽高比 {{ (modelLogical.defaultParams?.aspectRatios?.length ?? 0) }} 种；
+            参考图 ≤ {{ modelLogical.defaultParams?.maxReferenceImages ?? '—' }}
+          </div>
+        </el-form-item>
+        <el-form-item v-if="modelForm.supports_image_gen && modelLogical" label="能力覆盖">
+          <div class="override-block">
+            <div class="override-row">
+              <span class="override-label">分辨率（不勾=全部继承）</span>
+              <el-checkbox-group v-model="modelForm.overrideResolutions">
+                <el-checkbox v-for="r in (modelLogical.defaultParams?.resolutions || [])" :key="r" :value="r">{{ r }}</el-checkbox>
+              </el-checkbox-group>
+            </div>
+            <div class="override-row">
+              <span class="override-label">宽高比（不勾=全部继承）</span>
+              <el-select v-model="modelForm.overrideRatios" multiple collapse-tags collapse-tags-tooltip style="width: 100%">
+                <el-option v-for="r in modelLogicalRatios" :key="r" :value="r" :label="r" />
+              </el-select>
+            </div>
+            <div class="override-row">
+              <span class="override-label">上限收窄（选填）</span>
+              <div class="override-inputs">
+                参考图 ≤ <el-input-number v-model="modelForm.overrideMaxRef" :min="0" :max="modelLogical.defaultParams?.maxReferenceImages ?? 20" size="small" placeholder="继承" />
+                提示词 ≤ <el-input-number v-model="modelForm.overrideMaxPromptChars" :min="100" :max="modelLogical.defaultParams?.maxPromptChars ?? 32000" :step="500" size="small" placeholder="继承" />
+              </div>
+            </div>
+            <div class="form-hint">覆盖只允许收窄（不能超出逻辑模型能力）；生效能力即时反映在定价行</div>
+          </div>
+        </el-form-item>
+        <el-form-item v-if="modelForm.supports_image_gen && modelLogical" label="定价" required>
+          <div class="pricing-block">
+            <div v-for="r in modelEffectiveResolutions" :key="r" class="pricing-row">
+              <span class="pricing-label">{{ r }}</span>
+              <el-input-number
+                :model-value="modelForm.pricing[r]"
+                @update:model-value="(v: any) => modelForm.pricing[r] = v"
+                :min="0" :step="0.1" :precision="2" size="small" style="width: 140px"
+                placeholder="积分"
+              />
+              <span class="pricing-unit">积分 / 张</span>
+            </div>
+            <div v-if="modelEffectiveResolutions.length === 0" class="form-hint">生效能力为空（覆盖过度收窄），请调整</div>
+          </div>
+        </el-form-item>
+        <el-form-item label="支持文字">
+          <el-checkbox v-model="modelForm.supports_chat">支持文字调用（画布文字 AI 节点可选；不计积分）</el-checkbox>
+        </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="modelForm.remark" type="textarea" :rows="2" placeholder="选填" />
         </el-form-item>
@@ -759,6 +1087,54 @@ onMounted(() => {
       <template #footer>
         <el-button @click="modelDialog = false">取消</el-button>
         <el-button type="primary" :loading="modelSubmitting" @click="submitModel">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 逻辑模型弹窗 -->
+    <el-dialog
+      v-model="logicalDialog"
+      :title="logicalEditing ? '编辑逻辑模型' : '新增逻辑模型'"
+      width="640px" destroy-on-close
+    >
+      <el-form label-width="110px">
+        <el-form-item label="Code" required>
+          <el-input v-model="logicalForm.code" placeholder="如 gpt-image-2、test-img" :disabled="!!logicalEditing" />
+        </el-form-item>
+        <el-form-item label="显示名" required>
+          <el-input v-model="logicalForm.name" placeholder="如 GPT-Image-2" />
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-radio-group v-model="logicalForm.kind" disabled>
+            <el-radio value="image">生图</el-radio>
+            <el-radio value="text">文字</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <template v-if="logicalForm.kind === 'image'">
+          <el-form-item label="分辨率" required>
+            <el-select v-model="logicalForm.resolutions" multiple filterable allow-create style="width: 100%" placeholder="如 1K、2K、4K、512">
+              <el-option v-for="r in ['512', '1K', '2K', '4K']" :key="r" :value="r" :label="r" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="宽高比" required>
+            <el-select v-model="logicalForm.aspectRatios" multiple filterable allow-create style="width: 100%" placeholder="如 1:1、3:4">
+              <el-option v-for="r in ['1:1', '16:9', '9:16', '4:3', '3:4', '4:5', '5:4', '2:3', '3:2', '21:9', '1:4', '4:1', '1:8', '8:1']" :key="r" :value="r" :label="r" />
+            </el-select>
+            <div class="form-hint">各分辨率可用宽高比矩阵可在保存后按渠道模型覆盖收窄</div>
+          </el-form-item>
+          <el-form-item label="参考图上限">
+            <el-input-number v-model="logicalForm.maxReferenceImages" :min="0" :max="20" />
+          </el-form-item>
+          <el-form-item label="提示词上限">
+            <el-input-number v-model="logicalForm.maxPromptChars" :min="100" :max="32000" :step="500" />
+          </el-form-item>
+        </template>
+        <el-form-item label="备注">
+          <el-input v-model="logicalForm.remark" type="textarea" :rows="2" placeholder="选填" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="logicalDialog = false">取消</el-button>
+        <el-button type="primary" :loading="logicalSubmitting" @click="submitLogicalModel">保存</el-button>
       </template>
     </el-dialog>
 
@@ -787,10 +1163,107 @@ onMounted(() => {
         <el-button type="primary" :loading="keySubmitting" @click="submitKey">保存</el-button>
       </template>
     </el-dialog>
+    <!-- ── 用户自建渠道只读列表（S1：运营排障；Key 仅脱敏 hint，无编辑入口）── -->
+    <section class="user-channels-section">
+      <div class="section-head">
+        <h3 class="section-title">用户自建渠道（只读）</h3>
+        <span class="section-hint">用户在「我的渠道」页自建；生图不扣积分，费用由用户与上游直接结算。</span>
+        <el-button size="small" :icon="Refresh" @click="loadUserProviders">刷新</el-button>
+      </div>
+      <el-table :data="userProviders" size="small" empty-text="暂无用户自建渠道">
+        <el-table-column prop="owner_username" label="所属用户" width="140">
+          <template #default="{ row }">{{ row.owner_nickname || row.owner_username || row.owner_user_id }}</template>
+        </el-table-column>
+        <el-table-column prop="name" label="渠道名" min-width="140" />
+        <el-table-column prop="adapter" label="协议" width="140" />
+        <el-table-column prop="base_url" label="Base URL" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="model_count" label="模型数" width="80" align="center" />
+        <el-table-column prop="key_hint" label="Key" min-width="140">
+          <template #default="{ row }">
+            <code class="key-hint">{{ row.key_hint || '—' }}</code>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.status === 'active' ? 'success' : 'danger'">
+              {{ row.status === 'active' ? '启用' : '停用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="170" show-overflow-tooltip />
+      </el-table>
+    </section>
   </PageLayout>
 </template>
 
 <style scoped>
+.logical-section,
+.user-channels-section {
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--momo-radius-md, 8px);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.section-title {
+  margin: 0;
+  font-size: var(--momo-font-size-base, 14px);
+  font-weight: 600;
+}
+.section-hint {
+  flex: 1;
+  font-size: var(--momo-font-size-xs, 12px);
+  color: var(--el-text-color-secondary);
+}
+.override-block,
+.pricing-block {
+  width: 100%;
+  border: 1px dashed var(--el-border-color-lighter);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.override-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.override-row:last-child { margin-bottom: 0; }
+.override-label {
+  width: 150px;
+  flex-shrink: 0;
+  font-size: var(--momo-font-size-xs, 12px);
+  color: var(--el-text-color-secondary);
+}
+.override-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--momo-font-size-xs, 12px);
+  color: var(--el-text-color-secondary);
+}
+.pricing-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.pricing-row:last-child { margin-bottom: 0; }
+.pricing-label {
+  width: 60px;
+  font-weight: 600;
+}
+.pricing-unit {
+  font-size: var(--momo-font-size-xs, 12px);
+  color: var(--el-text-color-secondary);
+}
+
 .toolbar {
   display: flex;
   justify-content: space-between;
@@ -949,6 +1422,10 @@ onMounted(() => {
   color: var(--el-text-color-secondary);
 }
 
+.pricing-cell {
+  font-family: monospace;
+  font-size: var(--momo-font-size-xs, 12px);
+}
 .cap-no { color: var(--el-text-color-placeholder); }
 .cap-hint { font-size: var(--momo-font-size-xs); color: var(--el-text-color-secondary); }
 .key-hint { font-family: monospace; font-size: var(--momo-font-size-sm); }

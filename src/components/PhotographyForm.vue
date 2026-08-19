@@ -7,7 +7,9 @@
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import type { ModelId } from '@/types/adapter'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+import type { CatalogModel } from '@/stores/modelCatalog'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { photographyApi } from '@/services/photographyApi'
 import type { PhotographyElement } from '@/services/photographyApi'
@@ -21,7 +23,7 @@ const serverStatus = useServerStatusStore()
 // ─── Emit ───
 const emit = defineEmits<{
   (e: 'generate', params: {
-    modelId: ModelId
+    channelModelId: number
     prompt: string
     resolution: string
     aspectRatio: string
@@ -74,21 +76,34 @@ function getElementPrompt(el: ElementDef, modelId: string): string {
 }
 
 // ─── Basic params ───
-const selectedModelId = ref<ModelId>(DEFAULT_MODEL)
-const resolution = ref(DEFAULT_RESOLUTION)
-const aspectRatio = ref(DEFAULT_ASPECT_RATIO)
+const selectedChannelModelId = ref(0)
+const resolution = ref('')
+const aspectRatio = ref('')
 const count = ref(1)
 const userPrompt = ref('')
 
-const selectedModel = computed(() => MODELS.find(m => m.id === selectedModelId.value))
-const availableResolutions = computed(() => selectedModel.value?.resolutions || ['1K'])
+const modelCatalog = useModelCatalogStore()
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
+/** 元素提示词键：逻辑模型 code（后台按 model_id 存量数据与逻辑 code 同名，天然兼容） */
+const promptKey = computed(() => selectedModel.value?.logicalCode ?? selectedModel.value?.modelId ?? '')
+const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
-  return getAspectRatios(selectedModel.value, resolution.value)
+  return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
-const currentPrice = computed(() => {
-  if (!selectedModel.value) return 0
-  return getPrice(selectedModel.value, resolution.value)
+const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
+
+// 目录加载完成后初始化默认模型
+modelCatalog.ensureLoaded().then(() => {
+  if (!selectedChannelModelId.value) {
+    const m = modelCatalog.defaultImageModel
+    if (m?.capabilities) {
+      selectedChannelModelId.value = m.id
+      resolution.value = m.capabilities.resolutions[0]
+      aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0] ?? '1:1'
+    }
+  }
 })
 
 // 已分配图片的活跃元素，按 sort_order 排序
@@ -103,16 +118,16 @@ const elementPromptPanelModel = computed({
   get: () => {
     const result: Record<string, string> = {}
     for (const el of activePhotoElements.value) {
-      result[el.id] = getElementPrompt(el, selectedModelId.value)
+      result[el.id] = getElementPrompt(el, promptKey.value)
     }
     return result
   },
   set: (val: Record<string, string>) => {
-    const modelId = selectedModelId.value
+    const key = promptKey.value
     for (const [idStr, prompt] of Object.entries(val)) {
       const id = Number(idStr)
       if (!editedElementPrompts.value[id]) editedElementPrompts.value[id] = {}
-      editedElementPrompts.value[id][modelId] = prompt
+      editedElementPrompts.value[id][key] = prompt
     }
   },
 })
@@ -127,16 +142,16 @@ const elementPromptPanelSections = computed(() => {
 const defaultElementPromptPanelModel = computed(() => {
   const result: Record<string, string> = {}
   for (const el of activePhotoElements.value) {
-    result[el.id] = el.prompts[selectedModelId.value] ?? ''
+    result[el.id] = el.prompts[promptKey.value] ?? ''
   }
   return result
 })
 
 function resetElementPrompts() {
-  const modelId = selectedModelId.value
+  const key = promptKey.value
   for (const el of activePhotoElements.value) {
     if (!editedElementPrompts.value[el.id]) editedElementPrompts.value[el.id] = {}
-    editedElementPrompts.value[el.id][modelId] = el.prompts[modelId] ?? ''
+    editedElementPrompts.value[el.id][key] = el.prompts[key] ?? ''
   }
 }
 
@@ -144,15 +159,15 @@ const finalPromptPreview = computed(() => buildPrompt().finalPrompt)
 
 function handleModelChange() {
   const m = selectedModel.value
-  if (m) {
-    if (!m.resolutions.includes(resolution.value)) resolution.value = m.resolutions[0]
-    aspectRatio.value = getAspectRatios(m, resolution.value)[0]
+  if (m?.capabilities) {
+    if (!m.capabilities.resolutions.includes(resolution.value)) resolution.value = m.capabilities.resolutions[0]
+    aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0]
   }
 }
 function handleResolutionChange() {
   const m = selectedModel.value
   if (m) {
-    const ratios = getAspectRatios(m, resolution.value)
+    const ratios = modelCatalog.aspectRatiosFor(m, resolution.value)
     if (!ratios.includes(aspectRatio.value)) aspectRatio.value = ratios[0]
   }
 }
@@ -332,6 +347,7 @@ function handleRemoveFromElement(elementId: number, poolImageId: string) {
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!serverStatus.canGenerate) return false
+  if (!selectedChannelModelId.value) return false
   // At least one element with an image
   const hasAnyAssignment = Object.values(elementAssignments.value).some(ids => ids.length > 0)
   if (!hasAnyAssignment) return false
@@ -339,7 +355,7 @@ const canGenerate = computed(() => {
 })
 
 function buildPrompt(): { systemPrompt: string; finalPrompt: string } {
-  const modelId = selectedModelId.value
+  const modelId = promptKey.value
 
   // Collect elements that have assigned images, ordered by sort_order
   const activeElements = photoElements.value
@@ -432,7 +448,7 @@ function handleGenerate() {
   }
 
   emit('generate', {
-    modelId: selectedModelId.value,
+    channelModelId: selectedChannelModelId.value,
     prompt: finalPrompt,
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
@@ -449,15 +465,27 @@ function handleGenerate() {
 const pendingRestore = ref<{ name: string; url: string }[] | null>(null)
 
 function setParams(params: {
-  modelId: ModelId
+  modelId: string
   resolution: string
   aspectRatio: string
   userPrompt?: string
   supplementaryImages?: { name: string; url: string }[]
 }) {
-  selectedModelId.value = params.modelId
-  resolution.value = params.resolution
-  aspectRatio.value = params.aspectRatio
+  // 旧参数携带模型名字符串：按名反查渠道模型（兼容历史任务「重新生成」）
+  const cm = modelCatalog.getModelByName(params.modelId)
+  if (cm?.capabilities) {
+    selectedChannelModelId.value = cm.id
+    resolution.value = cm.capabilities.resolutions.includes(params.resolution)
+      ? params.resolution
+      : cm.capabilities.resolutions[0]
+    const ratios = modelCatalog.aspectRatiosFor(cm, resolution.value)
+    aspectRatio.value = ratios.includes(params.aspectRatio) ? params.aspectRatio : ratios[0]
+  } else if (!selectedChannelModelId.value && modelCatalog.defaultImageModel?.capabilities) {
+    const dm = modelCatalog.defaultImageModel
+    selectedChannelModelId.value = dm.id
+    resolution.value = dm.capabilities!.resolutions[0]
+    aspectRatio.value = modelCatalog.aspectRatiosFor(dm, resolution.value)[0]
+  }
   userPrompt.value = params.userPrompt || ''
 
   if (!params.supplementaryImages || params.supplementaryImages.length === 0) return
@@ -518,8 +546,19 @@ onMounted(() => loadElements())
       <div class="params-row">
         <div class="param-item">
           <label>模型</label>
-          <el-select v-model="selectedModelId" placeholder="选择模型" style="width: 220px" @change="handleModelChange">
-            <el-option v-for="m in MODELS" :key="m.id" :label="m.name" :value="m.id" />
+          <el-select v-model="selectedChannelModelId" placeholder="选择模型" style="width: 220px" @change="handleModelChange">
+            <template v-if="modelCatalog.loaded">
+              <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
+                <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                  <el-option
+                    v-for="m in group.models"
+                    :key="m.id"
+                    :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                    :value="m.id"
+                  />
+                </el-option-group>
+              </template>
+            </template>
           </el-select>
         </div>
         <div class="param-item">
@@ -538,8 +577,11 @@ onMounted(() => loadElements())
           <label>数量</label>
           <el-input-number v-model="count" :min="1" :max="5" />
         </div>
-        <div v-if="currentPrice > 0" class="param-item price">
-          <span class="price-tag">{{ formatCredits(currentPrice) }} /张{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}</span>
+        <div v-if="isPersonalChannel" class="param-item price">
+          <span class="price-tag">个人渠道 · 不扣积分</span>
+        </div>
+        <div v-else-if="currentPrice > 0" class="param-item price">
+          <span class="price-tag">{{ formatCredits(currentPrice) }} /张</span>
         </div>
       </div>
 
@@ -680,7 +722,7 @@ onMounted(() => loadElements())
           生成图片
         </el-button>
         <span v-if="!canGenerate && serverStatus.loaded" class="gen-hint">
-          {{ serverStatus.canGenerate ? '请至少分配一张图片到元素' : '未配置可用的 API Key...' }}
+          {{ serverStatus.canGenerate ? '请至少分配一张图片到元素' : '暂无可用模型，请联系管理员或配置个人渠道' }}
         </span>
       </div>
     </div>

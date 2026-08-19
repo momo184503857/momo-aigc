@@ -8,7 +8,7 @@ import { worksApi, adminWorksApi } from '@/services/worksApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { getFeatureLabel } from '@/configs/featureConfig'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 const props = defineProps<{
   visible: boolean
@@ -29,7 +29,8 @@ const tags = ref<{ id: number; name: string; usage_count: number }[]>([])
 
 const previewImage = computed(() => props.task?.result_image_urls?.[0] || '')
 
-const modelDisplayName = (modelId: string) => MODELS.find((m) => m.id === modelId)?.name || modelId
+const modelCatalog = useModelCatalogStore()
+const modelDisplayName = (modelId: string) => modelCatalog.displayNameFor(modelId)
 
 async function loadTags() {
   try {

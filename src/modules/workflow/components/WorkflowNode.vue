@@ -8,7 +8,7 @@ import type { ImageNodeResultValue, LocalImageAsset, WorkflowCanvasNodeData } fr
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
 import { getNodeTheme, getNodeSummary } from '@/modules/workflow/nodes/nodeRegistry'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
-import { MODELS, TEXT_MODELS, getAspectRatios } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { UiImagePreview } from '@/components/ui'
 import { useImagePreview } from '@/composables/useImagePreview'
 
@@ -66,15 +66,25 @@ const configSummary = computed(() => getNodeSummary(workflowNode.value.type, wor
 function updateConfig(patch: Record<string, unknown>) {
   store.updateNodeConfig(workflowNode.value.id, patch)
 }
-const modelOptions = MODELS.map((m) => ({ value: m.id, label: m.name }))
-const textModelOptions = TEXT_MODELS.map((m) => ({ value: m.id, label: m.name }))
-const currentModel = computed(() => MODELS.find((m) => m.id === workflowNode.value.config.modelName))
+const modelCatalog = useModelCatalogStore()
+modelCatalog.ensureLoaded()
+const modelOptions = computed(() =>
+  modelCatalog.imageGroups.flatMap((g) => g.models.map((m) => ({
+    value: m.logicalCode ?? m.modelId,
+    label: g.mine ? `${m.displayName}（个人）` : m.displayName,
+  }))))
+const textModelOptions = computed(() =>
+  modelCatalog.textGroups.flatMap((g) => g.models.map((m) => ({
+    value: m.modelId,
+    label: g.mine ? `${m.displayName}（个人）` : m.displayName,
+  }))))
+const currentModel = computed(() => modelCatalog.getModelByName(String(workflowNode.value.config.modelName || '')))
 const aspectRatios = computed(() => {
   const model = currentModel.value
   if (!model) return ['1:1']
-  return getAspectRatios(model, String(workflowNode.value.config.outputSize || '2K'))
+  return modelCatalog.aspectRatiosFor(model, String(workflowNode.value.config.outputSize || '2K'))
 })
-const resolutions = computed(() => currentModel.value?.resolutions ?? ['2K'])
+const resolutions = computed(() => currentModel.value?.capabilities?.resolutions ?? ['2K'])
 
 // 输入值
 const inputValues = computed(() => {

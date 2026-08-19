@@ -3,7 +3,10 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Fold, Expand } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import AdminSidebar from './AdminSidebar.vue'
+
+useModelCatalogStore().ensureLoaded()
 
 const route = useRoute()
 const router = useRouter()

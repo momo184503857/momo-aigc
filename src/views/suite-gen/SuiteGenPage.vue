@@ -126,12 +126,23 @@
                 <el-descriptions-item label="点位数">5</el-descriptions-item>
                 <el-descriptions-item label="模型">
                   <el-select v-model="modelId" style="width: 240px">
-                    <el-option v-for="m in MODELS" :key="m.id" :value="m.id" :label="m.name" />
+                    <template v-if="modelCatalog.loaded">
+                      <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
+                        <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                          <el-option
+                            v-for="m in group.models"
+                            :key="m.id"
+                            :value="m.logicalCode ?? m.modelId"
+                            :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                          />
+                        </el-option-group>
+                      </template>
+                    </template>
                   </el-select>
                 </el-descriptions-item>
                 <el-descriptions-item label="分辨率">
                   <el-select v-model="resolution" style="width: 240px">
-                    <el-option v-for="r in modelInfo?.resolutions || ['2K']" :key="r" :value="r" :label="r" />
+                    <el-option v-for="r in modelInfo?.capabilities?.resolutions || ['2K']" :key="r" :value="r" :label="r" />
                   </el-select>
                 </el-descriptions-item>
                 <el-descriptions-item label="画幅">3:4 竖版（电商主图）</el-descriptions-item>
@@ -197,9 +208,9 @@ import PromptPreview from '@/components/sg/PromptPreview.vue'
 import SuiteTaskGroup from '@/components/sg/SuiteTaskGroup.vue'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { sgApi, toPromptEntry, type SgTheme, type SgTrack, type SgPersona, type SgSuite } from '@/services/sgApi'
-import { uploadImage } from '@/adapter/toapisClient'
+import { ossApi } from '@/services/ossApi'
 import { submitTask } from '@/services/imageGeneration'
-import { MODELS, type ModelId } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { assemble, type AssembleContext, type AssembleResult, type LockSelection, type GarmentInfo } from '@/utils/promptEngine'
 import { matchPlan, type MatchPlan } from '@/utils/smartMatch'
 import type { ImageAnalysis } from '@/utils/imageAnalysis'
@@ -240,7 +251,20 @@ const garmentDetail = ref<GarmentInfo['detail4'] & Pick<GarmentInfo, 'printText'
 })
 const lockSelections = ref<LockSelection[]>([])
 
-const modelId = ref<ModelId>('gemini-3.1-flash-image-preview')
+const modelCatalog = useModelCatalogStore()
+const modelId = ref('gemini-3.1-flash-image-preview')
+modelCatalog.ensureLoaded().then(() => {
+  // 默认模型动态化：目录中无原默认名时退回首项可用模型（§7.5）
+  if (!modelCatalog.getModelByName(modelId.value)) {
+    const m = modelCatalog.defaultImageModel
+    if (m) modelId.value = m.logicalCode ?? m.modelId
+  }
+})
+/** 提交用渠道模型 id：按模型名在目录解析 */
+function resolveChannelModelId(modelName?: string): number {
+  return modelCatalog.getModelByName(modelName || modelId.value)?.id
+    ?? modelCatalog.defaultImageModel?.id ?? 0
+}
 const resolution = ref('2K')
 const submitting = ref(false)
 const submittedCount = ref(0)
@@ -297,9 +321,9 @@ onMounted(async () => {
   } catch { /* 忽略非法 handoff */ }
 })
 
-const modelInfo = computed(() => MODELS.find((m) => m.id === modelId.value))
+const modelInfo = computed(() => modelCatalog.getModelByName(modelId.value))
 watch(modelId, () => {
-  const rs = modelInfo.value?.resolutions || []
+  const rs = modelInfo.value?.capabilities?.resolutions || []
   if (!rs.includes(resolution.value)) resolution.value = rs[0] || '2K'
 })
 
@@ -308,7 +332,7 @@ const themeQuery = computed(() => (season.value === 'all' ? {} : { season: seaso
 const selectedTrack = computed(() => tracksLib.list.value.find((t) => t.key === selectedTrackKey.value))
 
 function priceOf(model: string, res: string): number {
-  return MODELS.find((m) => m.id === model)?.pricing[res] ?? 0
+  return modelCatalog.priceFor(modelCatalog.getModelByName(model), res) ?? 0
 }
 
 // ── ① 分析 ──
@@ -444,10 +468,10 @@ const assembleResult = computed<AssembleResult>(() => {
 // ── ⑥ 提交 ──
 async function toUrl(img: SlotImage): Promise<string> {
   if (img.sourceUrl) return img.sourceUrl
-  if (img.file) return uploadImage(img.file)
+  if (img.file) return ossApi.upload(img.file, 'inputs').then((r) => r.publicUrl)
   const blob = await (await fetch(img.dataUrl)).blob()
   const file = new File([blob], 'ref.png', { type: blob.type || 'image/png' })
-  return uploadImage(file)
+  return ossApi.upload(file, 'inputs').then((r) => r.publicUrl)
 }
 
 async function submitSuite() {
@@ -507,7 +531,7 @@ async function submitSuite() {
     const results = await Promise.all(
       assembleResult.value.fullTexts.map((prompt, i) =>
         submitTask({
-          model: modelId.value,
+          channelModelId: resolveChannelModelId(),
           prompt,
           size: '3:4',
           resolution: resolution.value,
@@ -590,7 +614,7 @@ async function onRegenerateFailed(s: SgSuite) {
         : s.prompt_common
       try {
         await submitTask({
-          model: (s.model || modelId.value) as ModelId,
+          channelModelId: resolveChannelModelId(s.model || modelId.value),
           prompt,
           size: s.aspect_ratio || '3:4',
           resolution: s.resolution,

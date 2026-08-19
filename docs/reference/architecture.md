@@ -4,33 +4,53 @@
 
 ---
 
-## 任务生命周期
+## 生图链路（ai-provider 重构后：多渠道 + 服务端编排）
 
 ```
-前端 submit → ToAPIs submitted → ToAPIs queued → ToAPIs in_progress → ToAPIs completed
-                                                                              ↓
-                                                    前端 importing（OSS 导入中）
-                                                                              ↓
-                                                             前端 completed（所有操作完成）
+Vue 表单（模型下拉按渠道分组，能力/价格来自 GET /api/models/catalog）
+    ↓ POST /api/generations（channelModelId + 业务参数；参考图已先传 OSS）
+编排层 server/src/routes/generations.ts
+    ├─ 校验（渠道模型归属/生效能力/参考图数/提示词字数）
+    ├─ 计价预扣（平台渠道按 ai_models.pricing[分辨率]×n 预扣积分；用户渠道 cost=0）
+    ├─ 落库（generation_tasks，内部任务号 task_no=gen-{id:08d}；n>1 拆多条）
+    └─ 派发
+        ├─ 异步渠道（toapis）：同步调 submitImageTask 回填 provider_task_id
+        └─ 同步渠道（openai_image / volcengine_image）：后台执行（每用户并发上限 5）
+    ↓ GET /api/generations/:id/status（前端 4s 轮询，节奏不变）
+    ├─ 异步：queryImageTask 同步上游状态/进度
+    ├─ completed → importing 抢占（UPDATE 抢占式）→ 服务端逐张转存 OSS → completed
+    ├─ failed → 自动全额退款（refund 流水；completed 不回退，防套退）
+    └─ 同步渠道 submitted 无 provider_task_id → 补派发（重启恢复/并发超限）
+适配器层 server/src/providers/
+    toapis（异步任务式） · openai_image（同步） · volcengine_image（同步 Ark Seedream）
+    openai_compat / volcengine（识图与文字，沿用）
+渠道体系（D2：识图/生图/文字统一三表）
+    api_providers（owner_user_id NULL=平台渠道，非空=用户自建「我的渠道」）
+    ai_models（渠道模型：logical_model_id 关联 + param_overrides 只收窄覆盖 + pricing 定价 JSON）
+    ai_logical_models（逻辑模型：共享能力定义——分辨率/宽高比矩阵/参考图上限/提示词上限）
+    api_provider_keys（每渠道一把主 Key，AES-256-GCM 加密，明文永不回传）
 ```
 
-### 状态说明
+### 任务状态机
 
-| 状态 | 来源 | 含义 | 缩略图显示 |
-|------|------|------|-----------|
-| `submitted` | 前端本地 | 已发送给 ToAPIs，等待确认 | 转圈 |
-| `queued` | ToAPIs | ToAPIs 已接收，排队等待 GPU | 转圈 |
-| `in_progress` | ToAPIs | GPU 正在生成图片 | 转圈 + 进度条 |
-| `importing` | 前端本地 | ToAPIs 已完成，正在导入到 OSS | 转圈 + "正在下载图片..." |
-| `completed` | 前端本地 | OSS 导入完成，图片可用 | 显示结果图 |
-| `failed` | ToAPIs | 生成失败 | 静态占位图 + 错误信息 |
+| 状态 | 含义 | 谁写入 |
+|------|------|--------|
+| `submitted` | 已落库待派发（异步：提交上游中；同步：后台执行/排队） | 编排层 |
+| `queued` / `in_progress` | 异步渠道上游状态同步 | 轮询端点 |
+| `importing` | 转存权抢占（服务端内部过渡态，防多端重复转存） | 轮询/后台执行 |
+| `completed` | 结果图已转存 OSS（转存失败保留原始 URL + 「重新加载」） | 编排层 |
+| `failed` | 提交失败/上游失败/重启清扫；已扣费自动全额退款 | 编排层 |
 
-### 关键实现
+- 前端 `ACTIVE_STATUSES = ['submitted','queued','in_progress','importing']`。
+- 业务主键 = `task_no`（gen-00012345，展示/搜索/下载命名）；`provider_task_id` 仅异步渠道轮询用；旧列 `toapis_task_id` 已停写（迁移一个版本后删除）。
+- 重启清扫（`sweepOrphanTasks()`）：`importing` 复位可重入；`submitted` 无 `provider_task_id` 标 failed + 退款；异步在途任务凭 `provider_task_id` 由轮询自然恢复。
+- Key 解析：`resolveUserApiKey()` 已通用化为 `resolveProviderContext(userId, providerId)`（平台渠道读渠道主 Key；用户渠道校验 owner）。
 
-- `ACTIVE_STATUSES = ['submitted', 'queued', 'in_progress', 'importing']` — 统一活跃状态常量
-- `pollAllTasks()` 跳过 `importing` 和 `completed`/`failed` — 避免重复请求
-- `pollTask()` 中的状态切换：ToAPIs `completed` → 前端 `importing` → 等待 `importResultUrls()` → 前端 `completed`
-- `importing` 状态不写入数据库（仅前端运行时状态，持久化时仍用 `completed`）
+### 退役端点（410，一个过渡版本后删除）
+
+- `POST /api/toapis/create-task`、`GET /api/toapis/task-status/:id`、`POST /api/toapis/upload` → 由 `/api/generations` 取代
+- `POST/PATCH /api/tasks` → 状态同步职责在编排层（GET 列表保留兼容）
+- 前端 `src/adapter/*`、`toapisProxyApi`、`userKeyApi`、`server/src/utils/pricing.ts` 硬编码已删除
 
 ---
 

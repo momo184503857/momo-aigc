@@ -21,7 +21,7 @@ const generationForm = ref<InstanceType<typeof GenerationForm>>()
 // ─── 生成 ───
 
 async function handleGenerate(params: {
-  modelId: ModelId
+  channelModelId: number
   prompt: string
   resolution: string
   aspectRatio: string
@@ -38,7 +38,7 @@ async function handleGenerate(params: {
 // ─── 复制参数（从任务面板跳转回来时） ───
 
 function handleCopyParamsFromTask(params: {
-  modelId: ModelId
+  modelId: string
   prompt: string
   resolution: string
   aspectRatio: string

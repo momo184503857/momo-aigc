@@ -9,6 +9,44 @@ export interface AdapterInfo {
   code: string
   label: string
   description: string
+  imageCapable?: boolean
+  supportsBalance?: boolean
+}
+
+/** 逻辑模型（标准模型抽象：能力定义，所有关联渠道模型共享） */
+export interface LogicalModelRow {
+  id: number
+  code: string
+  name: string
+  kind: 'image' | 'text'
+  defaultParams: {
+    resolutions?: string[]
+    aspectRatiosByResolution?: Record<string, string[]>
+    aspectRatios?: string[]
+    maxReferenceImages?: number
+    maxPromptChars?: number
+  }
+  status: 'active' | 'disabled'
+  remark: string
+  modelCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 用户自建渠道（只读视图，S1） */
+export interface UserProviderRow {
+  id: number
+  code: string
+  name: string
+  base_url: string
+  adapter: string
+  status: string
+  owner_user_id: number
+  owner_username: string | null
+  owner_nickname: string | null
+  model_count: number
+  key_hint: string
+  created_at: string
 }
 
 export interface ProviderKeyRow {
@@ -30,6 +68,12 @@ export interface ModelRow {
   display_name: string
   supports_vision: boolean
   supports_image_gen: boolean
+  supports_chat?: boolean
+  logical_model_id?: number | null
+  logical_code?: string | null
+  logical_name?: string | null
+  param_overrides?: Record<string, unknown> | null
+  pricing?: Record<string, number> | null
   remark: string
   status: 'active' | 'disabled'
   created_at: string
@@ -66,6 +110,10 @@ export interface ModelPayload {
   display_name?: string
   supports_vision: boolean
   supports_image_gen: boolean
+  supports_chat?: boolean
+  logical_model_id?: number | null
+  param_overrides?: Record<string, unknown> | null
+  pricing?: Record<string, number> | null
   remark?: string
   status?: 'active' | 'disabled'
 }
@@ -123,4 +171,13 @@ export const aiConfigApi = {
   getDefaultVisionModel: () => http.get<{ data: DefaultVisionSetting | null }>('/admin/ai-config/default-vision-model'),
   setDefaultVisionModel: (payload: { provider_id: number; model_id: string } | null) =>
     http.put<{ data: DefaultVisionSetting | null }>('/admin/ai-config/default-vision-model', payload ?? {}),
+
+  /** 逻辑模型管理（FR2） */
+  listLogicalModels: () => http.get<{ data: LogicalModelRow[] }>('/admin/ai-config/logical-models'),
+  createLogicalModel: (payload: Partial<LogicalModelRow>) => http.post<{ data: LogicalModelRow }>('/admin/ai-config/logical-models', payload),
+  updateLogicalModel: (id: number, payload: Partial<LogicalModelRow>) => http.patch<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}`, payload),
+  deleteLogicalModel: (id: number) => http.delete(`/admin/ai-config/logical-models/${id}`),
+
+  /** 用户自建渠道只读列表（S1） */
+  listUserProviders: () => http.get<{ data: UserProviderRow[] }>('/admin/ai-config/user-providers'),
 }

@@ -1,6 +1,7 @@
 import { db } from './index.js'
 import { initSuiteGen } from './seedSuiteGen.js'
 import { initApiProviders } from './seedApiProviders.js'
+import { initAiProviderMigration } from './migrateAiProvider.js'
 
 export function initSchema(): void {
   db.exec(`
@@ -876,6 +877,9 @@ export function initSchema(): void {
 
   // suite-gen（成套生图与提示词专家）：资产表 + 套系表 + 种子数据
   initSuiteGen()
+
+  // ai-provider（AI 接入体系重构）：逻辑模型/渠道/渠道模型 + 存量数据迁移（幂等）
+  initAiProviderMigration()
 
   console.log('[DB] Schema initialized')
 }

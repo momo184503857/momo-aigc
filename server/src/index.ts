@@ -38,6 +38,9 @@ import { sgSuitesRouter } from './routes/sgSuites.js'
 import { sgAnalyzeRouter } from './routes/sgAnalyze.js'
 import { adminAiConfigRouter } from './routes/admin/aiConfig.js'
 import { themeLibraryRouter } from './routes/themeLibrary.js'
+import { generationsRouter, sweepOrphanTasks, waitForSyncTasks } from './routes/generations.js'
+import { modelsRouter } from './routes/models.js'
+import { myChannelsRouter } from './routes/myChannels.js'
 
 const app = express()
 
@@ -54,6 +57,9 @@ app.use('/docs', express.static(path.resolve(__dirname, '../../docs/help')))
 // Initialize database
 seed()
 
+// ai-provider：启动清扫（异步渠道凭渠道任务号恢复轮询；同步在途/中断任务标失败退款）
+sweepOrphanTasks()
+
 // Routes
 app.use('/api/auth', authRouter)
 app.use('/api/me', meRouter)
@@ -61,6 +67,9 @@ app.use('/api/me/toapis', meToapisKeyRouter)
 app.use('/api/oss', ossRouter)
 app.use('/api/templates', templatesRouter)
 app.use('/api/tasks', tasksRouter)
+app.use('/api/generations', generationsRouter)
+app.use('/api/models', modelsRouter)
+app.use('/api/my', myChannelsRouter)
 app.use('/api/prompts', promptsRouter)
 app.use('/api/admin/users', adminUsersRouter)
 app.use('/api/admin/tasks', adminTasksRouter)
@@ -94,6 +103,16 @@ app.use('/api/admin/sg', adminSgAssetsRouter)
 app.use('/api/admin/sg-extra', sgAdminExtraRouter)
 app.use('/api/admin/ai-config', adminAiConfigRouter)
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   console.log(`[Server] momoAigc server running on http://localhost:${config.port}`)
 })
+
+// 优雅停机：等待同步渠道在途任务落库（最多 10s）
+function shutdown() {
+  console.log('[Server] Shutting down…')
+  waitForSyncTasks().finally(() => server.close(() => process.exit(0)))
+  // 兜底：15s 后强制退出
+  setTimeout(() => process.exit(0), 15_000).unref()
+}
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)

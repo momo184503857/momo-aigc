@@ -21,7 +21,6 @@ import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { downloadRowsAsZip, rowToTaskItem } from '@/utils/buyerShowZip'
-import { DEFAULT_MODEL, DEFAULT_RESOLUTION } from '@/types/adapter'
 
 defineOptions({ name: 'BuyerShowHistoryPanel' })
 
@@ -261,7 +260,7 @@ async function downloadDetailZip() {
 const compareTasks = computed<TaskItem[]>(() =>
   items.value
     .filter(r => r.taskId && r.status === 'completed')
-    .map(r => rowToTaskItem(r, { model: DEFAULT_MODEL, resolution: DEFAULT_RESOLUTION, aspectRatio: '9:16' }))
+    .map(r => rowToTaskItem(r, { model: '', resolution: '', aspectRatio: '9:16' }))
     .filter((t): t is TaskItem => !!t)
 )
 

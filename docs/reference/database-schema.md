@@ -459,3 +459,43 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 > **失败退款与净消耗口径（2026-06-20）**：`generation` 扣费在任务创建时发生（`points_cost` 记入 `generation_tasks`）；任务失败时（`PATCH /api/tasks/:id` 转 `failed`）写一条 `refund` 流水（`amount=+points_cost`，`reference_type='generation_task'`）并**清零该任务 `points_cost`**。故 `SUM(generation_tasks.points_cost)` 即「净消耗」（失败退款后为 0），统计消耗无需再加 `status` 过滤。`completed→failed` 不退款（防套退）。历史已扣未退的失败任务由启动迁移 `refund_failed_v1` 一次性幂等补退（`system_config` 标记，与 `migration_credits_v1` 同模式）；附 `scripts/refund-failed-tasks.mjs` 手动补退脚本。
 
+---
+
+## AI 接入体系（ai-provider · 2026-08 迁移新增）
+
+### 新表 `ai_logical_models`（逻辑模型）
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| id / code(UNIQUE) / name / kind(image\|text) / status / remark | | 标准模型抽象 |
+| default_params | TEXT(JSON) | 能力定义：`{ resolutions, aspectRatiosByResolution?, aspectRatios?, maxReferenceImages?, maxPromptChars? }` |
+
+种子（`seed_ai_provider_v1`）：4 生图（gpt-image-2 / gemini-3-pro / gemini-3.1-flash / gemini-2.5-flash）+ 3 文字。
+
+### 扩列 `api_providers`（渠道归属）
+
+- `owner_user_id INTEGER`（NULL=平台渠道；非空=用户自建渠道，仅 owner 可见）
+- `balance_check_interval_sec INTEGER DEFAULT 60`（toapis 协议余额轮询间隔，随 T4 迁移保留）
+- 用户渠道 code 自动生成 `u{userId}-{6位随机}`；Key 仍存 `api_provider_keys`（一渠道一主 Key）。
+
+### 扩列 `ai_models`（渠道模型）
+
+- `logical_model_id` → ai_logical_models（平台生图模型必填；用户侧可 NULL=完全自定义能力）
+- `param_overrides TEXT(JSON)`（覆盖只允许收窄：分辨率/宽高比 ⊆ 逻辑模型，上限只能 ≤）
+- `pricing TEXT(JSON)`（`{"1K":3,...}`；平台生图必填覆盖全部生效分辨率；用户模型恒 NULL）
+- `supports_chat INTEGER`（文字模型标记，画布文字 AI 节点用）
+
+### 扩列 `generation_tasks`（任务键切换）
+
+- `task_no VARCHAR(64)` UNIQUE —— 内部任务号 `gen-{id:08d}`，业务主键（展示/搜索/下载命名）
+- `provider_task_id VARCHAR(255)` —— 渠道任务号（仅异步渠道轮询用）
+- `channel_model_id / channel_provider_id` —— 渠道模型/渠道软引用（删除后置 NULL，快照保留）
+- `provider_code VARCHAR(50)` —— 渠道 code 冗余快照（报表可读）
+- 旧列 `toapis_task_id` 停写（迁移时值复制到 provider_task_id；一个版本后删除）
+
+### 迁移标记（system_config）
+
+`seed_ai_provider_v1`（T1-T3 逻辑模型+toapis 平台渠道+渠道模型×7）、
+`migrate_user_keys_v1`（T4 个人 Key→用户渠道）、`migrate_tasks_v1`（T5 历史任务回填）。
+迁移前自动备份（VACUUM INTO `server/data/backup-pre-ai-provider-*.db`）；校验脚本
+`scripts/verify-ai-provider-migration.mjs`。`user_toapis_keys` 旧表保留只读待退役。

@@ -9,9 +9,11 @@ import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { pointsApi } from '@/services/pointsApi'
 import { submitTask } from '@/services/imageGeneration'
-import { uploadImage } from '@/adapter/toapisClient'
+import { ossApi } from '@/services/ossApi'
 import { translateError } from '@/utils/errors'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+import type { CatalogModel } from '@/stores/modelCatalog'
 import type { ModelId } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 import PromptEditorPanel from '@/components/PromptEditorPanel.vue'
@@ -33,13 +35,14 @@ const promptLoading = ref(false)
 const modelPrompts = ref<Record<string, FeaturePromptItem>>({})
 const userPrompt = ref('')
 
-const currentPrompt = computed(() => modelPrompts.value[selectedModelId.value])
+const promptKey = computed(() => selectedModel.value?.logicalCode ?? selectedModel.value?.modelId ?? '')
+const currentPrompt = computed(() => modelPrompts.value[promptKey.value])
 
 // 当前会话内用户对系统提示词的修改，按 modelId 隔离；不持久化到服务器
 const editedSystemPromptsByModel = ref<Record<string, string>>({})
 
 const systemPrompt = computed(() => {
-  const edited = editedSystemPromptsByModel.value[selectedModelId.value]
+  const edited = editedSystemPromptsByModel.value[promptKey.value]
   if (edited !== undefined) return edited
   return currentPrompt.value?.system_prompt || ''
 })
@@ -49,46 +52,57 @@ const userPromptPlaceholder = computed(() => currentPrompt.value?.user_prompt_pl
 // 提示词折叠面板绑定：单段系统提示词
 const promptPanelModel = computed({
   get: () => ({ system: systemPrompt.value }),
-  set: (val) => { editedSystemPromptsByModel.value[selectedModelId.value] = val.system },
+  set: (val) => { editedSystemPromptsByModel.value[promptKey.value] = val.system },
 })
 
 const defaultPromptPanelModel = computed(() => ({ system: currentPrompt.value?.system_prompt || '' }))
 
 function resetSystemPrompt() {
-  editedSystemPromptsByModel.value[selectedModelId.value] = currentPrompt.value?.system_prompt || ''
+  editedSystemPromptsByModel.value[promptKey.value] = currentPrompt.value?.system_prompt || ''
 }
 
 // ─── Model / Resolution / Aspect Ratio ───
 
-const selectedModelId = ref<ModelId>(DEFAULT_MODEL)
-const resolution = ref(DEFAULT_RESOLUTION)
-const aspectRatio = ref(DEFAULT_ASPECT_RATIO)
+const modelCatalog = useModelCatalogStore()
+const selectedChannelModelId = ref(0)
+const resolution = ref('')
+const aspectRatio = ref('')
 
-const selectedModel = computed(() => MODELS.find(m => m.id === selectedModelId.value))
-const availableResolutions = computed(() => selectedModel.value?.resolutions || ['1K'])
+// 目录加载完成后初始化默认模型
+modelCatalog.ensureLoaded().then(() => {
+  if (!selectedChannelModelId.value) {
+    const m = modelCatalog.defaultImageModel
+    if (m?.capabilities) {
+      selectedChannelModelId.value = m.id
+      resolution.value = m.capabilities.resolutions[0]
+      aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0] ?? '1:1'
+    }
+  }
+})
+
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
+const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
-  return getAspectRatios(selectedModel.value, resolution.value)
+  return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
-const unitPrice = computed(() => {
-  if (!selectedModel.value) return 0
-  return getPrice(selectedModel.value, resolution.value)
-})
+const unitPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
 
 function handleModelChange() {
   const model = selectedModel.value
-  if (model) {
-    if (!model.resolutions.includes(resolution.value)) {
-      resolution.value = model.resolutions[0]
+  if (model?.capabilities) {
+    if (!model.capabilities.resolutions.includes(resolution.value)) {
+      resolution.value = model.capabilities.resolutions[0]
     }
-    aspectRatio.value = getAspectRatios(model, resolution.value)[0]
+    aspectRatio.value = modelCatalog.aspectRatiosFor(model, resolution.value)[0]
   }
 }
 
 function handleResolutionChange() {
   const model = selectedModel.value
   if (model) {
-    const ratios = getAspectRatios(model, resolution.value)
+    const ratios = modelCatalog.aspectRatiosFor(model, resolution.value)
     if (!ratios.includes(aspectRatio.value)) {
       aspectRatio.value = ratios[0]
     }
@@ -100,6 +114,7 @@ function handleResolutionChange() {
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!serverStatus.canGenerate) return false
+  if (!selectedChannelModelId.value) return false
   if (clothImages.value.length === 0) return false
   if (faceImages.value.length === 0) return false
   return true
@@ -119,9 +134,9 @@ async function fetchPrompts() {
     items.forEach(item => { map[item.model_id] = item })
     modelPrompts.value = map
     // 若当前模型还没有本地编辑记录，初始化为后台默认值
-    const currentModelId = selectedModelId.value
-    if (editedSystemPromptsByModel.value[currentModelId] === undefined) {
-      editedSystemPromptsByModel.value[currentModelId] = map[currentModelId]?.system_prompt || ''
+    const key = promptKey.value
+    if (key && editedSystemPromptsByModel.value[key] === undefined) {
+      editedSystemPromptsByModel.value[key] = map[key]?.system_prompt || ''
     }
   } catch {
     modelPrompts.value = {}
@@ -131,10 +146,10 @@ async function fetchPrompts() {
 }
 
 // 切换模型时，若提示词已加载且该模型还没有本地编辑记录，则初始化为后台默认值
-watch(selectedModelId, (modelId) => {
-  if (Object.keys(modelPrompts.value).length === 0) return
-  if (editedSystemPromptsByModel.value[modelId] === undefined) {
-    editedSystemPromptsByModel.value[modelId] = modelPrompts.value[modelId]?.system_prompt || ''
+watch(promptKey, (key) => {
+  if (!key || Object.keys(modelPrompts.value).length === 0) return
+  if (editedSystemPromptsByModel.value[key] === undefined) {
+    editedSystemPromptsByModel.value[key] = modelPrompts.value[key]?.system_prompt || ''
   }
 })
 
@@ -154,7 +169,7 @@ function buildFullPrompt(): string {
 /** 将 SlotImage 解析为 OSS URL（本地文件先上传一次），供循环复用 */
 async function resolveSlotUrl(img: SlotImage): Promise<string> {
   if (img.sourceUrl) return img.sourceUrl
-  if (img.file) return await uploadImage(img.file)
+  if (img.file) return (await ossApi.upload(img.file, 'inputs')).publicUrl
   return img.dataUrl
 }
 
@@ -172,7 +187,7 @@ async function handleGenerate() {
 
   try {
     await ElMessageBox.confirm(
-      `衣服图：${count} 张\n模特脸图：1 张\n任务数量：${count} 个\n预计消耗：${formatCredits(total)}${serverStatus.usingPersonalKey ? '（个人 Key）' : ''}`,
+      `衣服图：${count} 张\n模特脸图：1 张\n任务数量：${count} 个\n预计消耗：${formatCredits(total)}${isPersonalChannel.value ? '（个人渠道）' : ''}`,
       '确认提交',
       {
         confirmButtonText: '确认提交',
@@ -186,7 +201,7 @@ async function handleGenerate() {
   }
 
   // Check balance（个人 Key 模式不消耗积分，跳过校验）
-  if (!serverStatus.usingPersonalKey) {
+  if (!isPersonalChannel.value) {
     try {
       const res = await pointsApi.getMyBalance()
       const balance = res.data.data?.balance ?? 0
@@ -212,7 +227,7 @@ async function handleGenerate() {
       // 调用统一入口 submitTask
       // change-face 的参考图顺序：目标图（衣服图）在前，源脸图在后
       await submitTask({
-        model: selectedModelId.value,
+        channelModelId: selectedChannelModelId.value,
         prompt,
         size: aspectRatio.value,
         resolution: resolution.value,
@@ -269,7 +284,7 @@ onMounted(() => {
         <!-- API Key warning -->
         <el-alert
           v-if="serverStatus.loaded && !serverStatus.canGenerate"
-          title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
+          title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
           type="warning"
           show-icon
           :closable="false"
@@ -339,8 +354,19 @@ onMounted(() => {
         <div class="form-row-inline">
           <label class="form-label-left">模型</label>
           <div class="form-control-right">
-            <el-select v-model="selectedModelId" style="width: 100%" @change="handleModelChange">
-              <el-option v-for="m in MODELS" :key="m.id" :label="m.name" :value="m.id" />
+            <el-select v-model="selectedChannelModelId" style="width: 100%" @change="handleModelChange">
+              <template v-if="modelCatalog.loaded">
+                <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
+                  <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                    <el-option
+                      v-for="m in group.models"
+                      :key="m.id"
+                      :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                      :value="m.id"
+                    />
+                  </el-option-group>
+                </template>
+              </template>
             </el-select>
           </div>
         </div>
@@ -375,7 +401,7 @@ onMounted(() => {
           style="width: 100%"
           @click="handleGenerate"
         >
-          批量生成 · {{ taskCount }} 个任务 · {{ formatCredits(totalCost) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}
+          批量生成 · {{ taskCount }} 个任务 · {{ formatCredits(totalCost) }}{{ isPersonalChannel ? ' · 个人渠道' : '' }}
         </el-button>
       </div>
     </div>

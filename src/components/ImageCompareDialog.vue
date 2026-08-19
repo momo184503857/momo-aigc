@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import type { TaskItem } from './TaskList.vue'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useImageRetry } from '@/composables/useImageRetry'
 
 const props = defineProps<{
@@ -48,9 +48,10 @@ const currentTask = computed(() => {
 const refImages = computed(() => currentTask.value?.input_image_urls || [])
 const resultImages = computed(() => currentTask.value?.result_image_urls || [])
 
+const modelCatalog = useModelCatalogStore()
+
 function modelDisplayName(modelId: string): string {
-  const m = MODELS.find((m) => m.id === modelId)
-  return m?.name || modelId
+  return modelCatalog.displayNameFor(modelId)
 }
 
 function open(index?: number) {

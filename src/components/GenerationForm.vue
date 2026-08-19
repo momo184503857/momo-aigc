@@ -5,16 +5,17 @@
  */
 import { ref, computed } from 'vue'
 import { Plus, Delete, Picture, Collection, Search, Star, StarFilled } from '@element-plus/icons-vue'
-import type { ModelId } from '@/types/adapter'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+import type { CatalogModel } from '@/stores/modelCatalog'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import { usePromptLibrary } from '@/composables/usePromptLibrary'
 import TemplateSelector from './TemplateSelector.vue'
 
 const emit = defineEmits<{
   (e: 'generate', params: {
-    modelId: ModelId
+    channelModelId: number
     prompt: string
     resolution: string
     aspectRatio: string
@@ -26,11 +27,12 @@ const emit = defineEmits<{
 }>()
 
 const serverStatus = useServerStatusStore()
+const modelCatalog = useModelCatalogStore()
 
-const selectedModelId = ref<ModelId>(DEFAULT_MODEL)
+const selectedChannelModelId = ref(0)
 const prompt = ref('')
-const resolution = ref(DEFAULT_RESOLUTION)
-const aspectRatio = ref(DEFAULT_ASPECT_RATIO)
+const resolution = ref('')
+const aspectRatio = ref('')
 const count = ref(1)
 const showTemplateSelector = ref(false)
 const previewVisible = ref(false)
@@ -88,39 +90,50 @@ const referenceImages = ref<RefImage[]>([])
 
 const draggedIndex = ref<number | null>(null)
 
-const selectedModel = computed(() => MODELS.find((m) => m.id === selectedModelId.value))
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
 
-const availableResolutions = computed(() => selectedModel.value?.resolutions || ['1K'])
+// 目录加载完成后初始化默认模型（首个平台模型）
+modelCatalog.ensureLoaded().then(() => {
+  if (!selectedChannelModelId.value) {
+    const m = modelCatalog.defaultImageModel
+    if (m) {
+      selectedChannelModelId.value = m.id
+      resolution.value = m.capabilities?.resolutions?.[0] ?? ''
+      aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0] ?? '1:1'
+    }
+  }
+})
+
+const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
-  return getAspectRatios(selectedModel.value, resolution.value)
+  return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
 
-const maxReferenceImages = computed(() => selectedModel.value?.maxReferenceImages ?? 9)
-const maxPromptChars = computed(() => selectedModel.value?.maxPromptChars ?? 32000)
+const maxReferenceImages = computed(() => selectedModel.value?.capabilities?.maxReferenceImages ?? 9)
+const maxPromptChars = computed(() => selectedModel.value?.capabilities?.maxPromptChars ?? 32000)
 const promptExceeded = computed(() => prompt.value.length > maxPromptChars.value)
-const currentPrice = computed(() => {
-  if (!selectedModel.value) return 0
-  return getPrice(selectedModel.value, resolution.value)
-})
+const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
 
 const canAddImage = computed(() => referenceImages.value.length < maxReferenceImages.value)
 	const canGenerate = computed(() => {
 	  if (prompt.value.trim().length === 0 || prompt.value.length > maxPromptChars.value) return false
 	  if (!serverStatus.loaded) return false
 	  if (!serverStatus.canGenerate) return false
+	  if (!selectedChannelModelId.value) return false
 	  return true
 	})
 
 // Model change: reset resolution/aspect to valid values
 function handleModelChange() {
   const model = selectedModel.value
-  if (model) {
-    if (!model.resolutions.includes(resolution.value)) {
-      resolution.value = model.resolutions[0]
+  if (model?.capabilities) {
+    if (!model.capabilities.resolutions.includes(resolution.value)) {
+      resolution.value = model.capabilities.resolutions[0]
     }
-    const ratios = getAspectRatios(model, resolution.value)
+    const ratios = modelCatalog.aspectRatiosFor(model, resolution.value)
     if (!ratios.includes(aspectRatio.value)) {
       aspectRatio.value = ratios[0]
     }
@@ -131,7 +144,7 @@ function handleModelChange() {
 function handleResolutionChange() {
   const model = selectedModel.value
   if (model) {
-    const ratios = getAspectRatios(model, resolution.value)
+    const ratios = modelCatalog.aspectRatiosFor(model, resolution.value)
     if (!ratios.includes(aspectRatio.value)) {
       aspectRatio.value = ratios[0]
     }
@@ -259,7 +272,7 @@ function handleGenerate() {
   })
 
   emit('generate', {
-    modelId: selectedModelId.value,
+    channelModelId: selectedChannelModelId.value,
     prompt: prompt.value.trim(),
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
@@ -282,13 +295,24 @@ function dataUrlToFile(dataUrl: string, filename: string): File {
 
 // External setParams
 function setParams(params: {
-  modelId: ModelId
+  modelId: string
   prompt: string
   resolution: string
   aspectRatio: string
   referenceImages?: { dataUrl: string; sourceUrl?: string }[]
 }) {
-  selectedModelId.value = params.modelId
+  // 旧参数携带模型名字符串：按名反查渠道模型（兼容历史任务「重新生成」）
+  const cm = modelCatalog.getModelByName(params.modelId)
+  if (cm) {
+    selectedChannelModelId.value = cm.id
+    if (!cm.capabilities?.resolutions?.includes(params.resolution)) {
+      resolution.value = cm.capabilities?.resolutions?.[0] ?? params.resolution
+    } else {
+      resolution.value = params.resolution
+    }
+    const ratios = modelCatalog.aspectRatiosFor(cm, resolution.value)
+    aspectRatio.value = ratios.includes(params.aspectRatio) ? params.aspectRatio : (ratios[0] ?? params.aspectRatio)
+  }
   prompt.value = params.prompt
   resolution.value = params.resolution
   aspectRatio.value = params.aspectRatio
@@ -313,7 +337,7 @@ defineExpose({ setParams })
       <!-- Key missing warning -->
       <el-alert
         v-if="serverStatus.loaded && !serverStatus.canGenerate"
-        title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
+        title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
         type="warning"
         :closable="false"
         show-icon
@@ -324,8 +348,19 @@ defineExpose({ setParams })
       <div class="form-row-inline">
         <label class="form-label-left">模型</label>
         <div class="form-control-right">
-          <el-select v-model="selectedModelId" style="width: 100%" @change="handleModelChange">
-            <el-option v-for="m in MODELS" :key="m.id" :label="m.name" :value="m.id" />
+          <el-select v-model="selectedChannelModelId" style="width: 100%" @change="handleModelChange">
+            <template v-if="modelCatalog.loaded">
+              <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
+                <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                  <el-option
+                    v-for="m in group.models"
+                    :key="m.id"
+                    :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                    :value="m.id"
+                  />
+                </el-option-group>
+              </template>
+            </template>
           </el-select>
         </div>
       </div>
@@ -534,7 +569,7 @@ defineExpose({ setParams })
         style="width: 100%"
         @click="handleGenerate"
       >
-        生成图片 · {{ formatCredits(currentPrice) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}
+        {{ isPersonalChannel ? '生成图片 · 个人渠道 · 不扣积分' : `生成图片 · ${formatCredits(currentPrice)}` }}
       </el-button>
     </div>
   </div>

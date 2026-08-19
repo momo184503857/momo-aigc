@@ -1,9 +1,9 @@
 import type { NodeModule, NodeRunResult } from '@/modules/workflow/nodes/types'
 import type { LocalImageAsset } from '@/modules/workflow/types/workflow'
-import type { ModelId } from '@/types/adapter'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
 import { canvasApi } from '@/services/canvasApi'
 import { generateImage } from '@/services/imageGeneration'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 function isLocalImageAsset(value: unknown): value is LocalImageAsset {
   if (!value || typeof value !== 'object') return false
@@ -36,6 +36,13 @@ const imageAi: NodeModule = {
   async run(workflow, node): Promise<NodeRunResult> {
     const config = node.config
     const modelName = typeof config.modelName === 'string' ? config.modelName : 'gpt-image-2'
+    // 按模型名在目录解析渠道模型 id（目录未命中时用默认模型，兼容旧画布存量节点）
+    const catalog = useModelCatalogStore()
+    await catalog.ensureLoaded()
+    const channelModel = catalog.getModelByName(modelName) ?? catalog.defaultImageModel
+    if (!channelModel) {
+      return { success: false, message: '暂无可用生图模型，请联系管理员配置渠道' }
+    }
     const aspectRatio = typeof config.aspectRatio === 'string' ? config.aspectRatio : '1:1'
     const outputSize = typeof config.outputSize === 'string' ? config.outputSize : '2K'
 
@@ -81,10 +88,10 @@ const imageAi: NodeModule = {
       // 获取生成数量
       const imageCount = typeof config.imageCount === 'number' ? Math.max(1, Math.min(5, config.imageCount)) : 1
 
-      // 调用统一生图函数（一键调用：提交 + 轮询 + 转存）
+      // 调用统一生图函数（提交 + 阻塞轮询；结果转存由服务端完成）
       const result = await generateImage(
         {
-          model: modelName as ModelId,
+          channelModelId: channelModel.id,
           prompt,
           size: aspectRatio,
           resolution: outputSize,
@@ -94,12 +101,11 @@ const imageAi: NodeModule = {
         },
         {
           poll: { interval: 3000, maxAttempts: 120 },  // 阻塞式轮询，最多 6 分钟
-          import: true,  // 自动转存到 OSS
         }
       )
 
       const durationMs = Date.now() - startedAt
-      logs.push({ level: 'info', message: `生图任务已提交，Task ID: ${result.toapisTaskId}` })
+      logs.push({ level: 'info', message: `生图任务已提交，任务号: ${result.taskNo}` })
       window.dispatchEvent(new CustomEvent('canvas:task-created'))
 
       // 检查结果
@@ -114,7 +120,7 @@ const imageAi: NodeModule = {
       // 构建图片资源列表
       const imageList: LocalImageAsset[] = result.resultUrls.map((url, idx) => ({
         id: crypto.randomUUID(),
-        fileName: `${result.toapisTaskId}-${idx + 1}.png`,
+        fileName: `${result.taskNo || 'canvas'}-${idx + 1}.png`,
         localPath: url,
         previewUrl: url,
       }))
@@ -132,7 +138,7 @@ const imageAi: NodeModule = {
 
       return {
         success: true,
-        result: { dataType: 'Image', value: { image: firstImage, imageList, taskId: result.toapisTaskId }, updatedAt: new Date().toISOString() },
+        result: { dataType: 'Image', value: { image: firstImage, imageList, taskId: result.taskNo }, updatedAt: new Date().toISOString() },
         logs,
       }
     } catch (err: unknown) {

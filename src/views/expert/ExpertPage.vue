@@ -157,8 +157,9 @@ import PersonaPicker from '@/components/sg/PersonaPicker.vue'
 import ThemeCard from '@/components/sg/ThemeCard.vue'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { sgApi, toPromptEntry, type SgKnowledge, type SgPersona } from '@/services/sgApi'
-import { uploadImage } from '@/adapter/toapisClient'
+import { ossApi } from '@/services/ossApi'
 import { submitTask } from '@/services/imageGeneration'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import { featurePromptApi } from '@/services/featurePromptApi'
 import { assemble, type AssembleContext } from '@/utils/promptEngine'
@@ -168,7 +169,6 @@ import {
   type DecomposeExpertId, type DecomposeFeedbackStore, type DecomposeHistoryItem,
 } from '@/utils/decomposeExperts'
 import { analyzeImage, type ImageAnalysis } from '@/utils/imageAnalysis'
-import { DEFAULT_ASPECT_RATIO, DEFAULT_MODEL, DEFAULT_RESOLUTION, type ModelId } from '@/types/adapter'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 
 defineOptions({ name: 'ExpertPage' })
@@ -315,10 +315,10 @@ function applyToGenerator() {
   if (!decomposePrompt.value) { ui.warning('请先生成 Prompt'); return }
   try {
     sessionStorage.setItem('regenerate_task', JSON.stringify({
-      modelId: DEFAULT_MODEL,
+      modelId: '',
       prompt: decomposePrompt.value,
-      resolution: DEFAULT_RESOLUTION,
-      aspectRatio: DEFAULT_ASPECT_RATIO,
+      resolution: '',
+      aspectRatio: '',
       input_image_urls: [],
       feature_id: 'free-gen',
     }))
@@ -350,7 +350,18 @@ const swapExtra = ref('')
 const generating = reactive({ fusion: false, swap: false })
 const lastTaskId = reactive<{ fusion?: number; swap?: number }>({})
 
-const expertModel = ref<ModelId>('gemini-3.1-flash-image-preview')
+const modelCatalog = useModelCatalogStore()
+const expertModel = ref('gemini-3.1-flash-image-preview')
+modelCatalog.ensureLoaded().then(() => {
+  // 目录中找不到原默认模型名（如渠道更名）时退回目录首项
+  if (!modelCatalog.getModelByName(expertModel.value) && modelCatalog.defaultImageModel) {
+    expertModel.value = modelCatalog.defaultImageModel.logicalCode ?? modelCatalog.defaultImageModel.modelId
+  }
+})
+/** 提交用渠道模型 id：按当前模型名在目录解析（平台渠道优先） */
+function resolveExpertChannelModelId(): number {
+  return modelCatalog.getModelByName(expertModel.value)?.id ?? modelCatalog.defaultImageModel?.id ?? 0
+}
 
 /** 系统提示词（feature_prompts，按模型） */
 const sysPromptCache = ref<Record<string, string>>({})
@@ -400,10 +411,10 @@ async function slotToUrls(key: string, slots: Record<string, SlotImage[]>, perso
   const urls: string[] = []
   for (const img of slots[key] || []) {
     if (img.sourceUrl) urls.push(img.sourceUrl)
-    else if (img.file) urls.push(await uploadImage(img.file))
+    else if (img.file) urls.push((await ossApi.upload(img.file, 'inputs')).publicUrl)
     else {
       const blob = await (await fetch(img.dataUrl)).blob()
-      urls.push(await uploadImage(new File([blob], 'ref.png', { type: blob.type || 'image/png' })))
+      urls.push((await ossApi.upload(new File([blob], 'ref.png', { type: blob.type || 'image/png' }), 'inputs')).publicUrl)
     }
   }
   // 融合模式选了人设且未传头像 → 用人设头像 + 指纹图
@@ -430,7 +441,7 @@ async function generateSingle(mode: 'fusion' | 'swap') {
     const sys = await sysPromptOf(mode === 'fusion' ? 'expert-fusion' : 'expert-swap')
     const prompt = [sys, mode === 'fusion' ? fusionPrompt.value : swapPrompt.value].filter(Boolean).join('\n')
     const res = await submitTask({
-      model: expertModel.value,
+      channelModelId: resolveExpertChannelModelId(),
       prompt,
       size: '3:4',
       resolution: '2K',

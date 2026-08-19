@@ -26,9 +26,9 @@ adminActivityRouter.get('/', (req: AuthRequest, res) => {
     : ''
   const userParams = user ? [`%${user}%`, `%${user}%`, `%${user}%`] : []
 
-  // 任务 ID 模糊匹配（toapis_task_id，tsk 开头业务号）；仅对生成行生效
-  const taskIdClause = taskId ? ` AND t.toapis_task_id LIKE ?` : ''
-  const taskIdParams = taskId ? [`%${taskId}%`] : []
+  // 任务号模糊匹配：task_no（gen-xxx 业务号）为主，兼容旧渠道任务号（provider_task_id / toapis_task_id）；仅对生成行生效
+  const taskIdClause = taskId ? ` AND (t.task_no LIKE ? OR t.provider_task_id LIKE ? OR t.toapis_task_id LIKE ?)` : ''
+  const taskIdParams = taskId ? [`%${taskId}%`, `%${taskId}%`, `%${taskId}%`] : []
 
   // ── 任务分支 ──
   let taskWhere = 'WHERE 1=1'
@@ -69,7 +69,7 @@ adminActivityRouter.get('/', (req: AuthRequest, res) => {
 
   if (type !== 'txn') {
     branches.push(`
-      SELECT 'task' AS type, t.id AS id, t.toapis_task_id, t.user_id, u.username,
+      SELECT 'task' AS type, t.id AS id, t.task_no, t.toapis_task_id, t.provider_code, t.user_id, u.username,
              t.model, t.prompt, t.status,
              -t.points_cost AS amount, t.points_balance_after AS balance_after,
              'generation' AS reason, '' AS operator_name, '' AS note,
@@ -83,7 +83,7 @@ adminActivityRouter.get('/', (req: AuthRequest, res) => {
 
   if (type !== 'task') {
     branches.push(`
-      SELECT 'txn' AS type, pt.id AS id, NULL AS toapis_task_id, pt.user_id, u.username,
+      SELECT 'txn' AS type, pt.id AS id, NULL AS task_no, NULL AS toapis_task_id, NULL AS provider_code, pt.user_id, u.username,
              NULL AS model, NULL AS prompt, NULL AS status,
              pt.amount AS amount, pt.balance_after AS balance_after,
              pt.reason AS reason, COALESCE(op.username, '') AS operator_name, COALESCE(pt.note, '') AS note,

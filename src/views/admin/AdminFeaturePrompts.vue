@@ -7,7 +7,7 @@ import { ArrowDown } from '@element-plus/icons-vue'
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
-import { MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import PageLayout from '@/components/PageLayout.vue'
 
 const categoryGroups = [
@@ -62,9 +62,10 @@ function toggleAll() {
   }
 }
 
+const modelCatalog = useModelCatalogStore()
+
 function modelDisplayName(modelId: string): string {
-  const m = MODELS.find(m => m.id === modelId)
-  return m?.name || modelId
+  return modelCatalog.displayNameFor(modelId)
 }
 
 async function load() {

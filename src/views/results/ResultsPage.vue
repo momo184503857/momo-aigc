@@ -63,7 +63,7 @@ async function handleDownload(task: TaskItem) {
   const url = task.result_image_urls?.[0]
   if (!url) { warning('没有可下载的图片'); return }
   try {
-    await downloadUrl(url, task.toapis_task_id || `任务${task.id}`)
+    await downloadUrl(url, task.task_no || task.toapis_task_id || `任务${task.id}`)
     success('下载完成')
   } catch {
     error('下载失败')
@@ -112,7 +112,7 @@ async function handleBatchDownload() {
   let count = 0
   for (const task of selected) {
     try {
-      await downloadUrl(task.result_image_urls[0], task.toapis_task_id || `任务${task.id}`)
+      await downloadUrl(task.result_image_urls[0], task.task_no || task.toapis_task_id || `任务${task.id}`)
       count++
       // Small delay between downloads to avoid browser throttling
       await new Promise((r) => setTimeout(r, 300))

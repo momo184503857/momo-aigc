@@ -2,19 +2,25 @@ import { ref, computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
-import { taskApi } from '@/services/taskApi'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+import { generationApi } from '@/services/generationApi'
 import { pointsApi } from '@/services/pointsApi'
-import {
-  submitTask,
-  importResultUrls,
-} from '@/services/imageGeneration'
-import { getTaskStatus } from '@/adapter/toapisClient'
+import { submitTask } from '@/services/imageGeneration'
 import { translateError } from '@/utils/errors'
 import { downloadUrl } from '@/utils/download'
 import { ossApi } from '@/services/ossApi'
-import type { ModelId } from '@/types/adapter'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { TaskItem } from '@/components/TaskList.vue'
+
+/**
+ * 全局任务面板管理（ai-provider 重构版）。
+ *
+ * 变化（相对旧版）：
+ *  - 提交走服务端编排（imageGeneration.submitTask → POST /api/generations）；
+ *  - 轮询走 GET /api/generations/:id/status（按内部任务 id，不再用 toapis 任务号）；
+ *  - 结果转存/失败退款全部由服务端完成，前端只读状态；
+ *  - 任务号展示/复制/下载命名使用 task_no（gen-xxxxxxxx）。
+ */
 
 // ─── Module-level singleton state ───
 
@@ -60,7 +66,8 @@ const compareTaskId = ref<number>(0)
 // Copy params event (for intra-workspace communication)
 const copyParamsEvent = ref<{ task: TaskItem; ts: number } | null>(null)
 
-const ACTIVE_STATUSES = ['submitted', 'queued', 'in_progress']
+// importing 为服务端内部过渡态（转存抢占），对前端视作进行中
+const ACTIVE_STATUSES = ['submitted', 'queued', 'in_progress', 'importing']
 
 const hasActiveJobs = computed(() =>
   tasks.value.some((t) => ACTIVE_STATUSES.includes(t.status))
@@ -156,7 +163,7 @@ export function useTaskManager() {
   async function loadHistory() {
     loading.value = true
     try {
-      const res = await taskApi.list({
+      const res = await generationApi.list({
         page: page.value,
         pageSize: pageSize.value,
         feature_id: filterFeatureId.value || undefined,
@@ -169,13 +176,14 @@ export function useTaskManager() {
       // Merge: keep in-progress local tasks that haven't appeared in API response yet
       const apiTasks: TaskItem[] = records.map((r: any) => ({
         ...r,
-        aspectRatio: r.aspect_ratio,  // snake_case → camelCase 映射
+        aspectRatio: r.aspectRatio ?? r.aspect_ratio,  // snake_case → camelCase 映射
+        task_no: r.taskNo ?? r.task_no,
       }))
       const apiTaskIds = new Set(apiTasks.map(t => t.id))
       const localPending = tasks.value.filter(
         t => !t.id && (t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress')
       )
-      // Also keep tasks that are polling (have toapis_task_id but not yet in API response)
+      // Also keep tasks that are polling (have db id but not yet in API response)
       const localPolling = tasks.value.filter(
         t => t.id && !apiTaskIds.has(t.id) && (t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress')
       )
@@ -204,7 +212,7 @@ export function useTaskManager() {
   // ─── Generate ───
 
   async function handleGenerate(params: {
-    modelId: ModelId
+    channelModelId: number
     prompt: string
     resolution: string
     aspectRatio: string
@@ -216,9 +224,15 @@ export function useTaskManager() {
     supplementaryImages?: { name: string; url: string }[]
     promptSegments?: Record<string, string>
     negativePrompt?: string
+    suiteId?: number
+    pointIndex?: number
   }) {
     if (!serverStatus.canGenerate) {
-      warning('未配置可用的 API Key（共享/个人均未配置）')
+      warning('暂无可用模型（平台渠道未配置或已停用），请联系管理员或配置个人渠道')
+      return
+    }
+    if (!params.channelModelId) {
+      warning('请先选择模型')
       return
     }
 
@@ -227,8 +241,9 @@ export function useTaskManager() {
     for (let i = 0; i < cnt; i++) {
       const newTask = reactive<TaskItem>({
         id: 0,
+        task_no: '',
         toapis_task_id: '',
-        model: params.modelId,
+        model: '',
         prompt: params.prompt,
         resolution: params.resolution,
         aspectRatio: params.aspectRatio,
@@ -248,9 +263,9 @@ export function useTaskManager() {
       tasks.value.unshift(newTask)
 
       try {
-        // 调用核心模块提交任务
+        // 调用核心模块提交任务（服务端编排：校验/计价/落库/派发）
         const result = await submitTask({
-          model: params.modelId,
+          channelModelId: params.channelModelId,
           prompt: params.prompt,
           userPrompt: params.userPrompt,
           systemPrompt: params.systemPrompt,
@@ -258,14 +273,18 @@ export function useTaskManager() {
           resolution: params.resolution,
           refImages: params.refImages,
           featureId: params.featureId,
+          n: 1,
           supplementaryImages: params.supplementaryImages,
           promptSegments: params.promptSegments,
           negativePrompt: params.negativePrompt,
+          suiteId: params.suiteId,
+          pointIndex: params.pointIndex,
         })
 
-        newTask.toapis_task_id = result.toapisTaskId
         newTask.id = result.dbTaskId
+        newTask.task_no = result.taskNo
         newTask.input_image_urls = result.inputImageUrls
+        newTask.model = newTask.model || ''
 
         await pollTask(newTask)
 
@@ -285,9 +304,6 @@ export function useTaskManager() {
         }
         newTask.status = 'failed'
         newTask.error_message = translateError(e)
-        if (!newTask.id && newTask.toapis_task_id) {
-          tasks.value.unshift(newTask)
-        }
         error(e)
       }
 
@@ -302,7 +318,7 @@ export function useTaskManager() {
   async function pollAllTasks() {
     for (const task of tasks.value) {
       if (task.status === 'completed' || task.status === 'failed') continue
-      if (!task.toapis_task_id) continue
+      if (!task.id) continue
       try {
         await pollTask(task)
       } catch { /* ignore */ }
@@ -311,67 +327,24 @@ export function useTaskManager() {
 
   async function pollTask(task: TaskItem) {
     try {
-      // 单次查询：由 pollAllTasks + setInterval 定时器驱动，不能用阻塞式 pollTask
-      const result = await getTaskStatus(task.toapis_task_id)
+      // 单次查询：由 pollAllTasks + setInterval 定时器驱动；
+      // 服务端在轮询路径内查上游状态并完成转存/退款
+      const res = await generationApi.getStatus(task.id)
+      const result = res.data.data
 
+      task.status = result.status
+      task.progress = result.progress ?? 0
       if (result.status === 'completed') {
-        task.status = 'completed'
-        task.progress = 100
-        task.completed_at = new Date().toISOString()
-        task.is_importing = true
-        await taskApi.update(task.id, {
-          status: 'completed',
-          progress: 100,
-          result_image_urls: [],
-          completed_at: task.completed_at,
-          expires_at: result.expiresAt,
-        })
-        try {
-          const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
-          // importResultUrls 容错：单张失败被跳过；若全部失败则提示用户重试
-          if (importedUrls.length === 0 && result.resultUrls.length > 0) {
-            task.result_image_urls = []
-            task.error_message = '结果转存 OSS 失败，请点击重新加载'
-            await taskApi.update(task.id, {
-              result_image_urls: [],
-              error_message: task.error_message,
-            })
-          } else {
-            task.result_image_urls = importedUrls
-            task.error_message = ''
-            await taskApi.update(task.id, {
-              result_image_urls: importedUrls,
-              error_message: '',
-            })
-          }
-        } catch (err) {
-          task.result_image_urls = []
+        task.completed_at = result.completedAt ?? new Date().toISOString()
+        task.result_image_urls = result.resultUrls ?? []
+        if ((result.resultUrls ?? []).length === 0) {
+          // 转存失败：服务端保留原始 URL，提示重新加载（S5）
           task.error_message = '结果转存 OSS 失败，请点击重新加载'
-          await taskApi.update(task.id, {
-            result_image_urls: [],
-            error_message: task.error_message,
-          })
-          console.warn('[OSS] Result import failed; ToAPIs URL was not exposed:', err)
-        } finally {
-          task.is_importing = false
+        } else if (task.error_message === '结果转存 OSS 失败，请点击重新加载') {
+          task.error_message = ''
         }
       } else if (result.status === 'failed') {
-        task.status = 'failed'
-        task.progress = result.progress
         task.error_message = result.errorMessage || ''
-        await taskApi.update(task.id, {
-          status: 'failed',
-          progress: result.progress,
-          error_code: result.errorCode,
-          error_message: result.errorMessage,
-        })
-      } else {
-        task.status = result.status
-        task.progress = result.progress
-        await taskApi.update(task.id, {
-          status: task.status,
-          progress: task.progress,
-        })
       }
     } catch (e: any) {
       task.status = 'unknown'
@@ -435,7 +408,7 @@ export function useTaskManager() {
     if (isPhotography) {
       const supplementary = task.supplementaryImages || []
       await handleGenerate({
-        modelId: task.model,
+        channelModelId: resolveChannelModelId(task),
         prompt: task.prompt,
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
@@ -450,7 +423,7 @@ export function useTaskManager() {
     }
 
     await handleGenerate({
-      modelId: task.model,
+      channelModelId: resolveChannelModelId(task),
       prompt: task.prompt,
       resolution: task.resolution,
       aspectRatio: task.aspectRatio,
@@ -458,6 +431,13 @@ export function useTaskManager() {
       refImages: (task.input_image_urls || []).map((url: string) => ({ url })),
       featureId: task.feature_id,
     })
+  }
+
+  /** 按任务快照的模型名反查渠道模型 id（目录中同名模型；查不到时提示选择） */
+  function resolveChannelModelId(task: TaskItem): number {
+    const catalog = useModelCatalogStore()
+    const m = catalog.getModelByName(task.model)
+    return m?.id ?? 0
   }
 
   async function handleDelete(task: TaskItem) {
@@ -472,7 +452,7 @@ export function useTaskManager() {
     const url = task.result_image_urls?.[0]
     if (!url) { warning('没有可下载的图片'); return }
     try {
-      await downloadUrl(url, task.toapis_task_id || `任务${task.id}`)
+      await downloadUrl(url, task.task_no || task.toapis_task_id || `任务${task.id}`)
     } catch {
       error('下载失败')
     }
@@ -518,7 +498,7 @@ export function useTaskManager() {
     let count = 0
     for (const task of selected) {
       try {
-        await downloadUrl(task.result_image_urls[0], task.toapis_task_id || `任务${task.id}`)
+        await downloadUrl(task.result_image_urls[0], task.task_no || task.toapis_task_id || `任务${task.id}`)
         count++
         await new Promise((r) => setTimeout(r, 300))
       } catch { /* skip */ }
@@ -550,39 +530,21 @@ export function useTaskManager() {
     success(`已删除 ${selected.length} 个任务`)
   }
 
-  // ─── Retry import ───
+  // ─── Retry import（转存失败重试，服务端执行）───
 
   async function retryImportTask(task: TaskItem) {
-    if (!task.toapis_task_id) {
+    if (!task.id) {
       warning('任务尚未提交，无法刷新')
       return
     }
     task.is_importing = true
     try {
-      // 单次查询任务状态
-      const result = await getTaskStatus(task.toapis_task_id)
-      if (result.status === 'completed' && result.resultUrls.length > 0) {
-        if (!task.completed_at) {
-          task.completed_at = new Date().toISOString()
-        }
-        const importedUrls = await importResultUrls(task.toapis_task_id, result.resultUrls)
-        task.result_image_urls = importedUrls
-        task.error_message = ''
-        await taskApi.update(task.id, {
-          status: 'completed',
-          progress: 100,
-          result_image_urls: importedUrls,
-          error_message: '',
-          completed_at: task.completed_at,
-        })
-        success('图片已刷新')
-      } else if (result.status !== 'completed') {
-        warning('任务尚未完成，请稍后再试')
-      } else {
-        warning('暂无结果图')
-      }
+      const res = await generationApi.reimport(task.id)
+      task.result_image_urls = res.data.data?.resultUrls ?? []
+      task.error_message = ''
+      success('图片已刷新')
     } catch (e: any) {
-      error('刷新失败: ' + (e.message || '未知错误'))
+      error('刷新失败: ' + (e?.response?.data?.error || e.message || '未知错误'))
     } finally {
       task.is_importing = false
     }

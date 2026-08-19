@@ -1,40 +1,53 @@
 # 积分与 Key 计费体系
 
-最后更新：2026-07-10  
-状态：已实现·后端已验证（curl + 直连 SQLite）/ 前端已验证（类型检查 + 构建）
+最后更新：2026-08-19（AI 接入体系重构后口径）  
+状态：已实现·后端已验证（API 级验收 55 项 PASS + 真实生图 e2e）
 
-> 本文档反映当前实现，取代 PRD v1.0 中「用户 ToAPIs Key 只存浏览器本地，服务器不保存」「不做复杂计费系统」的早期设定。
+> 本文档反映当前实现。**2026-08 AI 接入体系重构（ai-provider）后，计费模式随所选模型自动判定，
+> 旧「平台积分 / 个人 Key」全局开关已退役**；下文已按新体系修订。
 
 ---
 
 ## 1. 概述
 
-平台生图调用 ToAPIs 中转。每个用户生图时使用以下两种 Key 之一，模式由用户自由选择、全局生效：
+生图经多渠道体系（平台渠道 + 用户自建「我的渠道」）。**计费模式由所选渠道模型决定**（不再有全局开关）：
 
-| 模式 | Key 来源 | 计费 |
-|------|----------|------|
-| **共享 Key**（默认） | 管理员在 `/admin/toapis-key` 配置，存 `system_config.toapis_api_key`，全员共用 | 消耗用户的**新积分**（按 `pricing` 单价） |
-| **个人 Key**（可选） | 用户在 `/settings` 自行配置，服务端 AES-256-GCM 加密存储，仅本人用 | **不消耗平台积分**，费用由用户自己的 ToAPIs 账户承担 |
+| 模式 | 渠道模型来源 | 计费 |
+|------|--------------|------|
+| **平台积分**（默认） | 平台渠道（管理员在「配置」页维护），模型下拉的平台分组 | 按 `ai_models.pricing[分辨率] × n` 预扣**新积分** |
+| **个人渠道**（可选） | 用户在 `/my-channels` 自建渠道下的模型（下拉「我的渠道」分组，带"个人"标签） | **不扣积分**，费用由用户与上游渠道直接结算 |
 
 计费主单位为**新积分**：`1 新积分 = ¥0.035`（人民币）。所有展示处同时显示新积分与折合人民币（括号）。
+
+### 定价真源（单一，D5/S6）
+
+积分定价**只在管理后台「配置」页配置一处**：`ai_models.pricing`（JSON：`{"1K":3,"2K":4,...}`，按渠道×模型×分辨率）。
+前后端共用同一真源（前端经 `GET /api/models/catalog` 读取；「计费说明」页动态渲染）。
+原 `server/src/utils/pricing.ts` 硬编码与前端 `MODELS[].pricing` 常量已删除。平台生图模型保存时定价必填且必须覆盖全部生效分辨率。
+
+### 扣费/退款时序（服务端编排）
+
+1. **预扣**：`POST /api/generations` 事务内按 `单价×n` 预扣（`users.points` - `points_transactions(reason=generation)` ×n 条，任务各记 `points_cost`/`points_balance_after`）；积分不足 402，任务不创建。
+2. **退款**：任务进入 failed（提交失败/上游失败/超时/启动清扫）自动全额退款（`refund` 流水，`points_cost` 清零）；completed 后不再退（防套退）。
+3. 生成数量 n 的费用 = 单价 × n（每条任务各扣一次，沿用原口径）。
 
 ---
 
 ## 2. 角色与权限
 
-- **普通用户**：在 `/my-quota` 配置/测试/清空个人 Key、切换平台/个人模式、设置余额查询间隔，并查看平台余额/流水与 Key 额度。`/settings` 已降级为占位页（仅「前往我的额度」入口）。
-- **管理员**：在 `/admin/toapis-key` 配置共享 Key；在 `/admin/users`、`/admin/points` 为用户充值/扣减新积分；查看所有用户积分与流水（`/admin/dashboard`）。
-- 模式对所有登录用户**自由选择**，不强制；管理员也是用户，同样可配置个人 Key。
+- **普通用户**：在 `/my-channels` 自建渠道（协议 + Base URL + Key + 测试连通 + 启停；toapis 协议支持余额查询）；在 `/my-quota` 查看平台余额/流水与「我的渠道」入口。旧「平台/个人 Key」开关与个人 Key 弹窗已移除。
+- **管理员**：在 `/admin/ai-config`（配置页）维护平台渠道/逻辑模型/渠道模型与定价/主 Key；在 `/admin/users` 为用户充值/扣减新积分；`/admin/ai-config` 底部可只读查看用户自建渠道。旧 `/admin/toapis-key` 已迁移提示（共享 Key = toapis 平台渠道主 Key）。
+- 计费模式随所选模型自动判定；选中「我的渠道」模型即等价于原个人 Key 模式（S4/D9）。
 
 ---
 
 ## 3. 数据模型
 
-- `user_toapis_keys`（每用户至多一行，`user_id` 主键）：`encrypted_key` / `key_iv` / `key_tag`（AES-256-GCM）、`key_hint`（脱敏）、`use_personal_key`(0/1)、`encryption_version`、`balance_check_interval_sec`（个人 Key 余额轮询间隔，秒，默认 60，`0`=不查询）。
+- **用户渠道**：`api_providers.owner_user_id = 用户`（T4 迁移自 `user_toapis_keys`，密文原样搬移；余额轮询间隔存 `api_providers.balance_check_interval_sec`）；Key 存 `api_provider_keys`（AES-256-GCM、每渠道一把主 Key、仅脱敏 hint 回显）。旧表 `user_toapis_keys` 保留只读待退役。
 - `users.points`（REAL）—— **新积分**余额。
 - `points_transactions`：`amount`（带符号，新积分）/ `balance_after` / `reason`（`generation` 生图扣费 / `admin_recharge` 管理员充值 / `admin_deduct` 管理员扣减 / `refund` 失败退款）。退款行 `reference_type='generation_task'`、`reference_id` 指向被退的任务。
 - `generation_tasks.points_cost` / `points_balance_after` —— 新积分。**净消耗口径**：失败任务退款后 `points_cost` 清零（=0），故 `SUM(points_cost)` 天然只算「成功/进行中」的消耗，**统计消耗时不要再加 `WHERE status='completed'`**（会漏掉进行中已扣的），也不要把失败算进去。
-- 定价：`server/src/utils/pricing.ts` + `src/types/adapter.ts` `MODELS[].pricing`（双真源，需手动保持一致）。
+- 定价：`ai_models.pricing`（DB 单一真源；详见上文「定价真源」）。
 - **历史迁移**：曾以「元」为存储单位；一次性幂等迁移 `migration_credits_v1`（`×200/7`）已将上述列转为新积分。`toapis_balance_history`（ToAPIs CNY 快照）不迁移。
 
 ---

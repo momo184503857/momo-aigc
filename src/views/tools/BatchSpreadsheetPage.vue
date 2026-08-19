@@ -7,12 +7,13 @@ import * as XLSX from 'xlsx'
 import { downloadUrl } from '@/utils/download'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
-import { taskApi } from '@/services/taskApi'
+import { generationApi } from '@/services/generationApi'
 import { pointsApi } from '@/services/pointsApi'
-import { submitTask, importResultUrls } from '@/services/imageGeneration'
-import { getTaskStatus } from '@/adapter/toapisClient'
+import { submitTask } from '@/services/imageGeneration'
 import { translateError } from '@/utils/errors'
-import { MODELS, DEFAULT_MODEL, DEFAULT_RESOLUTION, DEFAULT_ASPECT_RATIO, getAspectRatios, getPrice, formatCredits } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+import type { CatalogModel } from '@/stores/modelCatalog'
 import type { ModelId } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 
@@ -45,35 +46,46 @@ const tableData = ref<TableRow[]>([])
 const nextId = ref(1)
 
 // Model params
-const selectedModelId = ref<ModelId>(DEFAULT_MODEL)
-const resolution = ref(DEFAULT_RESOLUTION)
-const aspectRatio = ref(DEFAULT_ASPECT_RATIO)
+const modelCatalog = useModelCatalogStore()
+const selectedChannelModelId = ref(0)
+const resolution = ref('')
+const aspectRatio = ref('')
 
-const selectedModel = computed(() => MODELS.find(m => m.id === selectedModelId.value))
-const availableResolutions = computed(() => selectedModel.value?.resolutions || ['1K'])
+// 目录加载完成后初始化默认模型
+modelCatalog.ensureLoaded().then(() => {
+  if (!selectedChannelModelId.value) {
+    const m = modelCatalog.defaultImageModel
+    if (m?.capabilities) {
+      selectedChannelModelId.value = m.id
+      resolution.value = m.capabilities.resolutions[0]
+      aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0] ?? '1:1'
+    }
+  }
+})
+
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
+const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
-  return getAspectRatios(selectedModel.value, resolution.value)
+  return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
-const unitPrice = computed(() => {
-  if (!selectedModel.value) return 0
-  return getPrice(selectedModel.value, resolution.value)
-})
+const unitPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
 
 function handleModelChange() {
   const model = selectedModel.value
-  if (model) {
-    if (!model.resolutions.includes(resolution.value)) {
-      resolution.value = model.resolutions[0]
+  if (model?.capabilities) {
+    if (!model.capabilities.resolutions.includes(resolution.value)) {
+      resolution.value = model.capabilities.resolutions[0]
     }
-    aspectRatio.value = getAspectRatios(model, resolution.value)[0]
+    aspectRatio.value = modelCatalog.aspectRatiosFor(model, resolution.value)[0]
   }
 }
 
 function handleResolutionChange() {
   const model = selectedModel.value
   if (model) {
-    const ratios = getAspectRatios(model, resolution.value)
+    const ratios = modelCatalog.aspectRatiosFor(model, resolution.value)
     if (!ratios.includes(aspectRatio.value)) {
       aspectRatio.value = ratios[0]
     }
@@ -196,7 +208,7 @@ async function handleGenerate() {
   const total = Math.round(unitPrice.value * count * 1000) / 1000
 
   try {
-    const costText = `预计消耗：${formatCredits(total)}${serverStatus.usingPersonalKey ? '（个人 Key）' : ''}`
+    const costText = `预计消耗：${formatCredits(total)}${isPersonalChannel.value ? '（个人渠道）' : ''}`
     await ElMessageBox.confirm(
       `选中任务：${count} 个\n${costText}`,
       '确认提交',
@@ -209,7 +221,7 @@ async function handleGenerate() {
   } catch { return }
 
   // Check balance（个人 Key 模式不消耗积分，跳过校验）
-  if (!serverStatus.usingPersonalKey) {
+  if (!isPersonalChannel.value) {
     try {
       const res = await pointsApi.getMyBalance()
       const balance = res.data.data?.balance ?? 0
@@ -231,9 +243,9 @@ async function handleGenerate() {
     row.status = 'submitting'
 
     try {
-      // 调用统一入口 submitTask
+      // 调用统一入口 submitTask（服务端编排）
       const result = await submitTask({
-        model: selectedModelId.value,
+        channelModelId: selectedChannelModelId.value,
         prompt: row.prompt,
         size: aspectRatio.value,
         resolution: resolution.value,
@@ -241,7 +253,7 @@ async function handleGenerate() {
       })
 
       row.taskId = result.dbTaskId
-      row.toapisTaskId = result.toapisTaskId
+      row.toapisTaskId = result.taskNo
       row.status = 'in_progress'
       row.progress = 0
 
@@ -280,37 +292,22 @@ async function handleGenerate() {
 }
 
 function startPollingRow(row: TableRow) {
-  if (!row.toapisTaskId) return
+  if (!row.taskId) return
   const timer = setInterval(async () => {
     try {
-      // 单次查询：由 setInterval 定时器驱动
-      const result = await getTaskStatus(row.toapisTaskId!)
+      // 单次查询（服务端查上游 + 转存）：由 setInterval 定时器驱动
+      const res = await generationApi.getStatus(row.taskId!)
+      const result = res.data.data
       row.progress = result.progress
 
       if (result.status === 'completed') {
-        const importedUrls = await importResultUrls(row.toapisTaskId!, result.resultUrls)
         row.status = 'completed'
-        row.resultUrl = importedUrls[0]
+        row.resultUrl = result.resultUrls[0]
         row.progress = 100
-        if (row.taskId) {
-          await taskApi.update(row.taskId, {
-            status: 'completed', progress: 100,
-            result_image_urls: importedUrls,
-            completed_at: new Date().toISOString(),
-            expires_at: result.expiresAt,
-          })
-        }
         clearInterval(timer)
       } else if (result.status === 'failed') {
         row.status = 'failed'
         row.errorMsg = result.errorMessage || '生成失败'
-        if (row.taskId) {
-          await taskApi.update(row.taskId, {
-            status: 'failed', progress: result.progress,
-            error_message: result.errorMessage,
-            error_code: result.errorCode,
-          })
-        }
         clearInterval(timer)
       }
     } catch {
@@ -329,9 +326,9 @@ async function retryRow(row: TableRow) {
   row.progress = 0
 
   try {
-    // 调用统一入口 submitTask
+    // 调用统一入口 submitTask（服务端编排）
     const result = await submitTask({
-      model: selectedModelId.value,
+      channelModelId: selectedChannelModelId.value,
       prompt: row.prompt,
       size: aspectRatio.value,
       resolution: resolution.value,
@@ -339,7 +336,7 @@ async function retryRow(row: TableRow) {
     })
 
     row.taskId = result.dbTaskId
-    row.toapisTaskId = result.toapisTaskId
+    row.toapisTaskId = result.taskNo
     row.status = 'in_progress'
     row.progress = 0
 
@@ -432,7 +429,7 @@ onUnmounted(() => {
     <div v-if="step === 'upload'" class="step-upload">
       <el-alert
         v-if="serverStatus.loaded && !serverStatus.canGenerate"
-        title="未配置可用的 API Key（共享/个人均未配置），生图功能暂不可用"
+        title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
         type="warning" show-icon :closable="false" style="margin-bottom: 16px"
       />
 
@@ -469,8 +466,19 @@ onUnmounted(() => {
       <div class="params-section">
         <div class="param-row">
           <label class="param-label">模型</label>
-          <el-select v-model="selectedModelId" style="width: 200px" @change="handleModelChange">
-            <el-option v-for="m in MODELS" :key="m.id" :label="m.name" :value="m.id" />
+          <el-select v-model="selectedChannelModelId" style="width: 200px" @change="handleModelChange">
+            <template v-if="modelCatalog.loaded">
+              <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
+                <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                  <el-option
+                    v-for="m in group.models"
+                    :key="m.id"
+                    :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                    :value="m.id"
+                  />
+                </el-option-group>
+              </template>
+            </template>
           </el-select>
         </div>
         <div class="param-row">
@@ -491,7 +499,7 @@ onUnmounted(() => {
       <div class="preview-footer">
         <el-button @click="step = 'upload'">重新上传</el-button>
         <el-button type="primary" :disabled="selectedCount === 0" @click="handleGenerate">
-          开始生成 · {{ selectedCount }} 个任务 · {{ formatCredits(unitPrice * selectedCount) }}{{ serverStatus.usingPersonalKey ? ' · 个人 Key' : '' }}
+          开始生成 · {{ selectedCount }} 个任务 · {{ formatCredits(unitPrice * selectedCount) }}{{ isPersonalChannel ? ' · 个人渠道' : '' }}
         </el-button>
       </div>
     </div>

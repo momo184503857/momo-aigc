@@ -6,6 +6,21 @@ import { encryptKey, decryptKey, maskKey } from '../../utils/crypto.js'
 import { getAdapter, listAdapters } from '../../providers/index.js'
 import type { ProviderRuntimeConfig, ChatImage } from '../../providers/types.js'
 import { DEFAULT_VISION_CONFIG_KEY, getDefaultVisionSetting } from '../../providers/defaultVision.js'
+import { validateProviderBaseUrl } from '../../utils/ssrf.js'
+import {
+  parseParams, validateCapabilityParams, validateOverridesNarrowing, effectiveParams,
+} from '../../utils/channelModel.js'
+
+/** 校验能力覆盖相对逻辑模型只收窄（M1-23）；返回错误信息或 null */
+function validateOverridesAgainstLogical(logicalModelId: number | null | undefined, overridesJson: string | null): string | null {
+  if (!logicalModelId || !overridesJson) return null
+  const lm = db.prepare(`SELECT default_params FROM ai_logical_models WHERE id = ?`).get(logicalModelId) as any
+  if (!lm) return '逻辑模型不存在'
+  const base = parseParams(lm.default_params)
+  const overrides = parseParams(overridesJson)
+  if (!base || !overrides) return null
+  return validateOverridesNarrowing(base, overrides)
+}
 
 // ────────────────────────────────────────────────────────────
 //  管理后台 ·「配置」页：AI 服务商 / 模型 / Key 管理
@@ -31,8 +46,17 @@ function serializeProvider(row: any) {
     FROM api_provider_keys WHERE provider_id = ? ORDER BY is_primary DESC, id ASC
   `).all(row.id) as any[]).map((k) => ({ ...k, is_primary: !!k.is_primary, last_check_ok: k.last_check_ok === null ? null : !!k.last_check_ok }))
   const models = (db.prepare(`
-    SELECT * FROM ai_models WHERE provider_id = ? ORDER BY id ASC
-  `).all(row.id) as any[]).map((m) => ({ ...m, supports_vision: !!m.supports_vision, supports_image_gen: !!m.supports_image_gen }))
+    SELECT m.*, lm.code AS logical_code, lm.name AS logical_name
+    FROM ai_models m LEFT JOIN ai_logical_models lm ON lm.id = m.logical_model_id
+    WHERE m.provider_id = ? ORDER BY m.id ASC
+  `).all(row.id) as any[]).map((m) => ({
+    ...m,
+    supports_vision: !!m.supports_vision,
+    supports_image_gen: !!m.supports_image_gen,
+    supports_chat: !!m.supports_chat,
+    pricing: (() => { try { return m.pricing ? JSON.parse(m.pricing) : null } catch { return m.pricing } })(),
+    param_overrides: parseParams(m.param_overrides),
+  }))
   const adapterInfo = (() => { try { return getAdapter(row.adapter) } catch { return undefined } })()
   return {
     ...row,
@@ -88,10 +112,10 @@ adminAiConfigRouter.get('/adapters', (_req, res) => {
 
 // ── 服务商 CRUD ──
 
-// GET /api/admin/ai-config/providers  全量列表（含各自 models / keys）
+// GET /api/admin/ai-config/providers  平台渠道全量列表（用户自建渠道见 user-providers）
 adminAiConfigRouter.get('/providers', (_req, res) => {
   try {
-    const rows = db.prepare(`SELECT * FROM api_providers ORDER BY id ASC`).all() as any[]
+    const rows = db.prepare(`SELECT * FROM api_providers WHERE owner_user_id IS NULL ORDER BY id ASC`).all() as any[]
     res.json({ success: true, data: rows.map(serializeProvider) })
   } catch (err: any) {
     console.error('[admin/ai-config] List providers error:', err.message)
@@ -100,27 +124,28 @@ adminAiConfigRouter.get('/providers', (_req, res) => {
 })
 
 // POST /api/admin/ai-config/providers
-adminAiConfigRouter.post('/providers', (req: AuthRequest, res) => {
+adminAiConfigRouter.post('/providers', async (req: AuthRequest, res) => {
   try {
     const { name, code, base_url, adapter, remark } = req.body || {}
     const trimmedName = String(name || '').trim()
     const trimmedCode = String(code || '').trim().toLowerCase()
-    const trimmedUrl = String(base_url || '').trim()
     const adapterCode = String(adapter || 'openai_compat').trim()
     if (!trimmedName) { res.status(400).json({ success: false, error: '服务商名称不能为空' }); return }
     if (!/^[a-z0-9_-]{2,50}$/.test(trimmedCode)) {
       res.status(400).json({ success: false, error: '服务商标识仅限小写字母/数字/中划线/下划线（2~50 位）' }); return
     }
-    if (!/^https?:\/\//.test(trimmedUrl)) { res.status(400).json({ success: false, error: 'Base URL 必须以 http(s):// 开头' }); return }
     try { getAdapter(adapterCode) } catch (e: any) {
       res.status(400).json({ success: false, error: e.message }); return
     }
+    // SSRF 防护：平台渠道与用户渠道同样校验（M1-11）
+    const urlCheck = await validateProviderBaseUrl(String(base_url || ''))
+    if (!urlCheck.ok) { res.status(400).json({ success: false, error: urlCheck.error }); return }
     if (db.prepare(`SELECT id FROM api_providers WHERE code = ?`).get(trimmedCode)) {
       res.status(409).json({ success: false, error: `服务商标识「${trimmedCode}」已存在` }); return
     }
     const result = db.prepare(`
       INSERT INTO api_providers (code, name, base_url, adapter, remark) VALUES (?, ?, ?, ?, ?)
-    `).run(trimmedCode, trimmedName, trimmedUrl, adapterCode, String(remark || ''))
+    `).run(trimmedCode, trimmedName, urlCheck.normalized, adapterCode, String(remark || ''))
     res.json({ success: true, data: serializeProvider(loadProvider(result.lastInsertRowid)) })
   } catch (err: any) {
     console.error('[admin/ai-config] Create provider error:', err.message)
@@ -129,11 +154,12 @@ adminAiConfigRouter.post('/providers', (req: AuthRequest, res) => {
 })
 
 // PATCH /api/admin/ai-config/providers/:id
-adminAiConfigRouter.patch('/providers/:id', (req: AuthRequest, res) => {
+adminAiConfigRouter.patch('/providers/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params
     const row = loadProvider(id)
     if (!row) { res.status(404).json({ success: false, error: '服务商不存在' }); return }
+    if (row.owner_user_id !== null) { res.status(403).json({ success: false, error: '用户自建渠道不可在管理端编辑' }); return }
     const { name, base_url, adapter, remark, status } = req.body || {}
     const fields: string[] = []
     const params: any[] = []
@@ -143,9 +169,9 @@ adminAiConfigRouter.patch('/providers/:id', (req: AuthRequest, res) => {
       fields.push('name = ?'); params.push(trimmed)
     }
     if (base_url !== undefined) {
-      const trimmed = String(base_url).trim()
-      if (!/^https?:\/\//.test(trimmed)) { res.status(400).json({ success: false, error: 'Base URL 必须以 http(s):// 开头' }); return }
-      fields.push('base_url = ?'); params.push(trimmed)
+      const urlCheck = await validateProviderBaseUrl(String(base_url))
+      if (!urlCheck.ok) { res.status(400).json({ success: false, error: urlCheck.error }); return }
+      fields.push('base_url = ?'); params.push(urlCheck.normalized)
     }
     if (adapter !== undefined) {
       try { getAdapter(String(adapter)) } catch (e: any) {
@@ -168,12 +194,13 @@ adminAiConfigRouter.patch('/providers/:id', (req: AuthRequest, res) => {
   }
 })
 
-// DELETE /api/admin/ai-config/providers/:id  级联删除其模型与 Key
+// DELETE /api/admin/ai-config/providers/:id  级联删除其模型与 Key（仅平台渠道）
 adminAiConfigRouter.delete('/providers/:id', (req: AuthRequest, res) => {
   try {
     const { id } = req.params
     const row = loadProvider(id)
     if (!row) { res.status(404).json({ success: false, error: '服务商不存在' }); return }
+    if (row.owner_user_id !== null) { res.status(403).json({ success: false, error: '用户自建渠道不可在管理端删除' }); return }
     db.prepare(`DELETE FROM api_providers WHERE id = ?`).run(id)
     res.json({ success: true })
   } catch (err: any) {
@@ -199,8 +226,9 @@ adminAiConfigRouter.post('/providers/:id/test', async (req: AuthRequest, res) =>
     const firstModel = db.prepare(
       `SELECT model_id FROM ai_models WHERE provider_id = ? AND status = 'active' ORDER BY id ASC LIMIT 1`
     ).get(row.id) as any
-    const adapter = getAdapter(row.adapter)
-    const result = await adapter.testConnection(runtime.config, firstModel?.model_id)
+    const adapter: any = getAdapter(row.adapter)
+    const testFn = (typeof adapter.testImageConnection === 'function' ? adapter.testImageConnection : adapter.testConnection).bind(adapter)
+    const result = await testFn(runtime.config, firstModel?.model_id)
     recordKeyCheck(runtime.keyRow.id, result.ok)
     res.json({ success: true, data: result })
   } catch (e: any) {
@@ -208,10 +236,11 @@ adminAiConfigRouter.post('/providers/:id/test', async (req: AuthRequest, res) =>
   }
 })
 
-// ── 模型 CRUD ──
+// ── 模型 CRUD（渠道模型：关联逻辑模型 + 能力覆盖 + 定价）──
 
 function validateModelBody(body: any, forCreate: boolean): { values: any; error?: string } {
-  const { provider_id, model_id, display_name, supports_vision, supports_image_gen, remark, status } = body || {}
+  const { provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat, remark, status,
+          logical_model_id, param_overrides, pricing } = body || {}
   if (forCreate) {
     if (!provider_id || !loadProvider(provider_id)) return { values: null, error: '所属服务商不存在' }
     if (!String(model_id || '').trim()) return { values: null, error: '模型 ID 不能为空' }
@@ -222,6 +251,47 @@ function validateModelBody(body: any, forCreate: boolean): { values: any; error?
   if (status !== undefined && !['active', 'disabled'].includes(status)) {
     return { values: null, error: 'status 仅支持 active/disabled' }
   }
+
+  // 生图模型必须关联逻辑模型（平台侧强校验，§2.3）
+  let logicalId: number | null = null
+  const isImage = forCreate ? !!supports_image_gen : undefined
+  if (logical_model_id !== undefined) {
+    if (logical_model_id === null || logical_model_id === '') {
+      logicalId = null
+    } else {
+      const lm = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(logical_model_id) as any
+      if (!lm) return { values: null, error: '逻辑模型不存在' }
+      logicalId = lm.id
+    }
+  }
+
+  // 能力覆盖校验（结构 + 只收窄）
+  let overridesJson: string | null | undefined
+  if (param_overrides !== undefined && param_overrides !== null) {
+    const err = validateCapabilityParams(param_overrides)
+    if (err) return { values: null, error: `能力覆盖非法：${err}` }
+    overridesJson = JSON.stringify(param_overrides)
+  } else if (param_overrides === null) {
+    overridesJson = null
+  }
+
+  // 计算生效能力（用于定价覆盖校验 S6）
+  const provider = forCreate ? loadProvider(provider_id) : null
+  const willImage = isImage !== undefined ? isImage : true
+  if ((logicalId !== undefined || overridesJson !== undefined || pricing !== undefined)) {
+    // 具体校验放到 create/patch 处理器（需要合并旧行），此处先做定价结构校验
+    if (pricing !== undefined && pricing !== null) {
+      if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing)) {
+        return { values: null, error: '定价必须是 {分辨率: 积分} 对象' }
+      }
+      for (const [res, price] of Object.entries(pricing)) {
+        if (typeof price !== 'number' || !Number.isFinite(price) || price < 0) {
+          return { values: null, error: `分辨率 ${res} 的定价必须为非负数字` }
+        }
+      }
+    }
+  }
+
   return {
     values: {
       provider_id: forCreate ? Number(provider_id) : undefined,
@@ -229,10 +299,43 @@ function validateModelBody(body: any, forCreate: boolean): { values: any; error?
       display_name: String(display_name || '').trim(),
       supports_vision: supports_vision === undefined ? undefined : (supports_vision || supports_image_gen ? 1 : 0),
       supports_image_gen: supports_image_gen === undefined ? undefined : (supports_image_gen ? 1 : 0),
+      supports_chat: supports_chat === undefined ? undefined : (supports_chat ? 1 : 0),
+      logicalId,
+      overridesJson,
       remark: String(remark || ''),
       status,
+      _providerOwner: provider?.owner_user_id ?? null,
+      _willImage: willImage,
     },
   }
+}
+
+/** 合并旧行计算生效能力并校验定价覆盖（S6：平台生图模型定价必填且覆盖全部生效分辨率） */
+function validatePricingCoverage(modelRow: any, logicalId: number | null, overridesJson: string | null, pricingObj: Record<string, number> | null | undefined, isUserChannel: boolean): string | null {
+  const isImage = !!modelRow.supports_image_gen
+  if (!isImage) return null
+  let base: any = null
+  if (logicalId) {
+    const lm = db.prepare(`SELECT default_params FROM ai_logical_models WHERE id = ?`).get(logicalId) as any
+    base = parseParams(lm?.default_params)
+    if (!lm) return '逻辑模型不存在'
+  }
+  const overrides = parseParams(overridesJson)
+  const caps = effectiveParams(base, overrides)
+  if (!caps.resolutions.length) return '该模型没有可用分辨率，请配置逻辑模型或能力覆盖'
+
+  if (isUserChannel) return null // 用户渠道模型不计费（D8）
+
+  const effective = pricingObj !== undefined ? pricingObj : (parseParams(modelRow.pricing) as any)
+  if (!effective || typeof effective !== 'object') {
+    return '平台生图模型必须配置定价（按分辨率）'
+  }
+  for (const res of caps.resolutions) {
+    if (typeof (effective as any)[res] !== 'number') {
+      return `定价未覆盖分辨率 ${res}（生效能力：${caps.resolutions.join(' / ')}）`
+    }
+  }
+  return null
 }
 
 // POST /api/admin/ai-config/models
@@ -240,14 +343,36 @@ adminAiConfigRouter.post('/models', (req: AuthRequest, res) => {
   try {
     const { values, error } = validateModelBody(req.body, true)
     if (error) { res.status(400).json({ success: false, error }); return }
+    const provider = loadProvider(req.body.provider_id)
+    if (provider.owner_user_id !== null) { res.status(400).json({ success: false, error: '不能在用户自建渠道下添加模型' }); return }
+
+    const isImage = !!values.supports_image_gen
+    let logicalId = values.logicalId ?? null
+    if (isImage && !logicalId) { res.status(400).json({ success: false, error: '生图模型必须关联逻辑模型' }); return }
+
+    // 定价覆盖校验（S6）
+    const pseudoRow = { supports_image_gen: values.supports_image_gen ?? 0, pricing: null }
+    if (isImage) {
+      const narrowErr = validateOverridesAgainstLogical(logicalId, values.overridesJson ?? null)
+      if (narrowErr) { res.status(400).json({ success: false, error: `能力覆盖只允许收窄：${narrowErr}` }); return }
+      const pricingObj = req.body.pricing ?? null
+      const err = validatePricingCoverage(pseudoRow, logicalId, values.overridesJson ?? null, pricingObj, false)
+      if (err) { res.status(400).json({ success: false, error: err }); return }
+    }
+
     const dup = db.prepare(`SELECT id FROM ai_models WHERE provider_id = ? AND model_id = ?`).get(values.provider_id, values.model_id)
     if (dup) { res.status(409).json({ success: false, error: '该服务商下已存在同名模型' }); return }
     const result = db.prepare(`
-      INSERT INTO ai_models (provider_id, model_id, display_name, supports_vision, supports_image_gen, remark, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(values.provider_id, values.model_id, values.display_name, values.supports_vision ?? 0, values.supports_image_gen ?? 0, values.remark, values.status ?? 'active')
+      INSERT INTO ai_models (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat, logical_model_id, param_overrides, pricing, remark, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      values.provider_id, values.model_id, values.display_name, values.supports_vision ?? 0, values.supports_image_gen ?? 0,
+      values.supports_chat ?? 0, logicalId, values.overridesJson ?? null,
+      isImage && req.body.pricing ? JSON.stringify(req.body.pricing) : null,
+      values.remark, values.status ?? 'active',
+    )
     const row = db.prepare(`SELECT * FROM ai_models WHERE id = ?`).get(result.lastInsertRowid) as any
-    res.json({ success: true, data: { ...row, supports_vision: !!row.supports_vision, supports_image_gen: !!row.supports_image_gen } })
+    res.json({ success: true, data: { ...row, supports_vision: !!row.supports_vision, supports_image_gen: !!row.supports_image_gen, supports_chat: !!row.supports_chat } })
   } catch (err: any) {
     console.error('[admin/ai-config] Create model error:', err.message)
     res.status(500).json({ success: false, error: '创建模型失败' })
@@ -260,6 +385,8 @@ adminAiConfigRouter.patch('/models/:id', (req: AuthRequest, res) => {
     const { id } = req.params
     const row = db.prepare(`SELECT * FROM ai_models WHERE id = ?`).get(id) as any
     if (!row) { res.status(404).json({ success: false, error: '模型不存在' }); return }
+    const provider = loadProvider(row.provider_id)
+    if (provider?.owner_user_id !== null && provider) { res.status(403).json({ success: false, error: '用户渠道模型不可在管理端编辑' }); return }
     const body = { ...req.body }
     // 合并旧值后再做「生图⇒识图」校验（部分更新场景）
     const mergedVision = body.supports_vision !== undefined ? !!body.supports_vision : !!row.supports_vision
@@ -278,13 +405,40 @@ adminAiConfigRouter.patch('/models/:id', (req: AuthRequest, res) => {
     if (body.display_name !== undefined) { fields.push('display_name = ?'); params.push(String(body.display_name).trim()) }
     if (body.supports_vision !== undefined) { fields.push('supports_vision = ?'); params.push(values.supports_vision) }
     if (body.supports_image_gen !== undefined) { fields.push('supports_image_gen = ?'); params.push(values.supports_image_gen) }
+    if (body.supports_chat !== undefined) { fields.push('supports_chat = ?'); params.push(values.supports_chat) }
+    if (body.logical_model_id !== undefined) {
+      if (mergedGen && !values.logicalId) { res.status(400).json({ success: false, error: '生图模型必须关联逻辑模型' }); return }
+      fields.push('logical_model_id = ?'); params.push(values.logicalId)
+    }
+    if (body.param_overrides !== undefined) { fields.push('param_overrides = ?'); params.push(values.overridesJson ?? null) }
+    if (body.pricing !== undefined) {
+      fields.push('pricing = ?')
+      params.push(body.pricing === null ? null : JSON.stringify(body.pricing))
+    }
     if (body.remark !== undefined) { fields.push('remark = ?'); params.push(String(body.remark)) }
     if (body.status !== undefined) { fields.push('status = ?'); params.push(body.status) }
     if (fields.length === 0) { res.status(400).json({ success: false, error: '无更新字段' }); return }
+
+    // 定价覆盖校验（合并后的最终状态）
+    const finalLogicalId = body.logical_model_id !== undefined ? values.logicalId : row.logical_model_id
+    const finalOverrides = body.param_overrides !== undefined ? (values.overridesJson ?? null) : row.param_overrides
+    const finalPricing = body.pricing !== undefined ? (body.pricing ?? null) : row.pricing
+    const pseudoRow = { supports_image_gen: mergedGen ? 1 : 0, pricing: finalPricing }
+    if (mergedGen) {
+      const narrowErr = validateOverridesAgainstLogical(finalLogicalId, finalOverrides)
+      if (narrowErr) { res.status(400).json({ success: false, error: `能力覆盖只允许收窄：${narrowErr}` }); return }
+      let pricingObj: any = undefined
+      if (typeof finalPricing === 'string') { try { pricingObj = JSON.parse(finalPricing) } catch { pricingObj = null } }
+      else if (finalPricing && typeof finalPricing === 'object') pricingObj = finalPricing
+      else if (finalPricing === null) pricingObj = null
+      const err = validatePricingCoverage(pseudoRow, finalLogicalId, finalOverrides, pricingObj, false)
+      if (err) { res.status(400).json({ success: false, error: err }); return }
+    }
+
     params.push(new Date().toISOString(), id)
     db.prepare(`UPDATE ai_models SET ${fields.join(', ')}, updated_at = ? WHERE id = ?`).run(...params)
     const updated = db.prepare(`SELECT * FROM ai_models WHERE id = ?`).get(id) as any
-    res.json({ success: true, data: { ...updated, supports_vision: !!updated.supports_vision, supports_image_gen: !!updated.supports_image_gen } })
+    res.json({ success: true, data: { ...updated, supports_vision: !!updated.supports_vision, supports_image_gen: !!updated.supports_image_gen, supports_chat: !!updated.supports_chat } })
   } catch (err: any) {
     console.error('[admin/ai-config] Update model error:', err.message)
     res.status(500).json({ success: false, error: '更新模型失败' })
@@ -440,8 +594,9 @@ adminAiConfigRouter.post('/keys/:id/test', async (req: AuthRequest, res) => {
     const firstModel = db.prepare(
       `SELECT model_id FROM ai_models WHERE provider_id = ? AND status = 'active' ORDER BY id ASC LIMIT 1`
     ).get(provider.id) as any
-    const adapter = getAdapter(provider.adapter)
-    const result = await adapter.testConnection({
+    const adapter: any = getAdapter(provider.adapter)
+    const testFn = (typeof adapter.testImageConnection === 'function' ? adapter.testImageConnection : adapter.testConnection).bind(adapter)
+    const result = await testFn({
       providerId: provider.id, code: provider.code, name: provider.name,
       baseUrl: provider.base_url, apiKey: plain,
     }, firstModel?.model_id)
@@ -483,6 +638,135 @@ adminAiConfigRouter.put('/default-vision-model', (req: AuthRequest, res) => {
   } catch (err: any) {
     console.error('[admin/ai-config] Set default vision model error:', err.message)
     res.status(500).json({ success: false, error: '保存默认识图模型失败' })
+  }
+})
+
+// ── 逻辑模型管理（FR2：标准模型抽象，渠道模型共享能力定义）──
+
+function serializeLogicalModel(row: any) {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    kind: row.kind,
+    defaultParams: parseParams(row.default_params) ?? {},
+    status: row.status,
+    remark: row.remark,
+    modelCount: (db.prepare(`SELECT COUNT(*) AS c FROM ai_models WHERE logical_model_id = ?`).get(row.id) as any).c,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+// GET /api/admin/ai-config/logical-models
+adminAiConfigRouter.get('/logical-models', (_req, res) => {
+  try {
+    const rows = db.prepare(`SELECT * FROM ai_logical_models ORDER BY kind ASC, id ASC`).all() as any[]
+    res.json({ success: true, data: rows.map(serializeLogicalModel) })
+  } catch (err: any) {
+    console.error('[admin/ai-config] List logical models error:', err.message)
+    res.status(500).json({ success: false, error: '加载逻辑模型失败' })
+  }
+})
+
+// POST /api/admin/ai-config/logical-models
+adminAiConfigRouter.post('/logical-models', (req: AuthRequest, res) => {
+  try {
+    const { code, name, kind, default_params, remark } = req.body || {}
+    const trimmedCode = String(code || '').trim()
+    if (!/^[a-zA-Z0-9._-]{2,100}$/.test(trimmedCode)) {
+      res.status(400).json({ success: false, error: 'code 仅限字母/数字/点/中划线/下划线（2~100 位）' }); return
+    }
+    const kindVal = kind === 'text' ? 'text' : 'image'
+    const err = validateCapabilityParams(default_params, { requireFull: kindVal === 'image' })
+    if (err) { res.status(400).json({ success: false, error: `能力定义非法：${err}` }); return }
+    if (db.prepare(`SELECT id FROM ai_logical_models WHERE code = ?`).get(trimmedCode)) {
+      res.status(409).json({ success: false, error: `逻辑模型 code「${trimmedCode}」已存在` }); return
+    }
+    const result = db.prepare(`
+      INSERT INTO ai_logical_models (code, name, kind, default_params, remark, status)
+      VALUES (?, ?, ?, ?, ?, 'active')
+    `).run(trimmedCode, String(name || '').trim() || trimmedCode, kindVal,
+      JSON.stringify(default_params || {}), String(remark || ''))
+    const row = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(result.lastInsertRowid) as any
+    res.json({ success: true, data: serializeLogicalModel(row) })
+  } catch (err: any) {
+    console.error('[admin/ai-config] Create logical model error:', err.message)
+    res.status(500).json({ success: false, error: '创建逻辑模型失败' })
+  }
+})
+
+// PATCH /api/admin/ai-config/logical-models/:id
+adminAiConfigRouter.patch('/logical-models/:id', (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params
+    const row = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
+    if (!row) { res.status(404).json({ success: false, error: '逻辑模型不存在' }); return }
+    const { name, default_params, remark, status } = req.body || {}
+    const fields: string[] = []
+    const params: any[] = []
+    if (name !== undefined) { fields.push('name = ?'); params.push(String(name).trim() || row.code) }
+    if (default_params !== undefined) {
+      const err = validateCapabilityParams(default_params, { requireFull: row.kind === 'image' })
+      if (err) { res.status(400).json({ success: false, error: `能力定义非法：${err}` }); return }
+      // 收窄校验：编辑后的能力必须覆盖现有渠道模型的能力覆盖（否则现有覆盖越界）
+      const err2 = validateCapabilityParams(default_params)
+      if (err2) { res.status(400).json({ success: false, error: err2 }); return }
+      fields.push('default_params = ?'); params.push(JSON.stringify(default_params))
+    }
+    if (remark !== undefined) { fields.push('remark = ?'); params.push(String(remark)) }
+    if (status !== undefined) {
+      if (!['active', 'disabled'].includes(status)) { res.status(400).json({ success: false, error: 'status 仅支持 active/disabled' }); return }
+      fields.push('status = ?'); params.push(status)
+    }
+    if (fields.length === 0) { res.status(400).json({ success: false, error: '无更新字段' }); return }
+    params.push(new Date().toISOString(), id)
+    db.prepare(`UPDATE ai_logical_models SET ${fields.join(', ')}, updated_at = ? WHERE id = ?`).run(...params)
+    const updated = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
+    res.json({ success: true, data: serializeLogicalModel(updated) })
+  } catch (err: any) {
+    console.error('[admin/ai-config] Update logical model error:', err.message)
+    res.status(500).json({ success: false, error: '更新逻辑模型失败' })
+  }
+})
+
+// DELETE /api/admin/ai-config/logical-models/:id（有关联渠道模型时拒绝，M1-14）
+adminAiConfigRouter.delete('/logical-models/:id', (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params
+    const row = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
+    if (!row) { res.status(404).json({ success: false, error: '逻辑模型不存在' }); return }
+    const refs = (db.prepare(`SELECT COUNT(*) AS c FROM ai_models WHERE logical_model_id = ?`).get(id) as any).c
+    if (refs > 0) {
+      res.status(400).json({ success: false, error: `仍有 ${refs} 个渠道模型关联该逻辑模型，请先解除关联` }); return
+    }
+    db.prepare(`DELETE FROM ai_logical_models WHERE id = ?`).run(id)
+    res.json({ success: true })
+  } catch (err: any) {
+    console.error('[admin/ai-config] Delete logical model error:', err.message)
+    res.status(500).json({ success: false, error: '删除失败' })
+  }
+})
+
+// ── 用户渠道只读列表（S1：运营排障，Key 不回显明文，无编辑入口）──
+
+// GET /api/admin/ai-config/user-providers
+adminAiConfigRouter.get('/user-providers', (_req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT p.id, p.code, p.name, p.base_url, p.adapter, p.status, p.owner_user_id,
+             p.created_at, u.username AS owner_username, u.nickname AS owner_nickname,
+             (SELECT COUNT(*) FROM ai_models m WHERE m.provider_id = p.id) AS model_count,
+             (SELECT key_hint FROM api_provider_keys k WHERE k.provider_id = p.id AND k.is_primary = 1 LIMIT 1) AS key_hint
+      FROM api_providers p
+      LEFT JOIN users u ON u.id = p.owner_user_id
+      WHERE p.owner_user_id IS NOT NULL
+      ORDER BY p.id DESC
+    `).all() as any[]
+    res.json({ success: true, data: rows })
+  } catch (err: any) {
+    console.error('[admin/ai-config] List user providers error:', err.message)
+    res.status(500).json({ success: false, error: '加载用户渠道失败' })
   }
 })
 

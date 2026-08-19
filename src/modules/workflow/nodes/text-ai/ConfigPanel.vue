@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
-import { TEXT_MODELS } from '@/types/adapter'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+
+const modelCatalog = useModelCatalogStore()
+modelCatalog.ensureLoaded()
 
 const props = defineProps<{ node: WorkflowNode }>()
 const emit = defineEmits<{ update: [patch: Record<string, unknown>] }>()
@@ -20,7 +23,18 @@ function boolVal(key: string): boolean {
 
     <label>模型名称</label>
     <el-select :model-value="val('modelName')" placeholder="选择文字模型" style="width: 100%" @update:model-value="emit('update', { modelName: $event })">
-      <el-option v-for="m in TEXT_MODELS" :key="m.id" :label="m.name" :value="m.id" />
+      <template v-if="modelCatalog.loaded">
+        <template v-for="group in modelCatalog.textGroups" :key="group.providerId">
+          <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+            <el-option
+              v-for="m in group.models"
+              :key="m.id"
+              :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+              :value="m.modelId"
+            />
+          </el-option-group>
+        </template>
+      </template>
     </el-select>
 
     <el-divider>节点提示词</el-divider>

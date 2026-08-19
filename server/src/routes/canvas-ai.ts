@@ -1,94 +1,112 @@
 import { Router } from 'express'
+import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
-import { resolveUserApiKey } from '../utils/toapis.js'
+import { getAdapter } from '../providers/index.js'
+import { resolveProviderContext, ProviderContextError } from '../utils/channelModel.js'
+
+/**
+ * 画布文字 AI 节点代理（ai-provider §8 文字模型迁移）。
+ *
+ * 请求体携带 channelModelId（渠道模型），服务端按渠道模型解析渠道（平台或我的）
+ * → 适配器 chat()。兼容旧画布存量节点：仅传模型名字符串时，按「渠道模型名全局查一次」兜底。
+ * 计费维持现状（不计积分）。
+ */
 
 export const canvasAiRouter = Router()
 
 canvasAiRouter.use(authMiddleware)
 
-const BASE_URL = 'https://toapis.com'
+interface ChatCallResult {
+  text: string
+}
 
-// Proxy text model (chat completions) call
+async function callChat(req: {
+  userId: number
+  model: string
+  messages: Array<{ role: string; content: unknown }>
+  temperature?: number | null
+  maxTokens?: number | null
+  images?: Array<{ mimeType: string; base64: string }>
+}): Promise<ChatCallResult> {
+  // 1. 解析渠道模型：优先 channelModelId（数字 id），其次按模型名全局兜底（旧画布兼容）
+  let cm: any = null
+  const byName = db.prepare(`
+    SELECT m.*, p.owner_user_id AS p_owner, p.id AS p_id FROM ai_models m
+    JOIN api_providers p ON p.id = m.provider_id
+    WHERE m.model_id = ? AND m.supports_chat = 1 AND m.status = 'active' AND p.status = 'active'
+    ORDER BY CASE WHEN p.owner_user_id IS NULL THEN 0 ELSE 1 END, m.id ASC
+    LIMIT 1
+  `).get(req.model) as any
+  if (byName) cm = byName
+  if (!cm) throw new ProviderContextError(`模型「${req.model}」不可用，请在画布中重新选择文字模型`, 404)
+
+  // 归属校验：用户渠道仅 owner 可用
+  const ctx = resolveProviderContext(req.userId, cm.provider_id, 'chat')
+  const provider = db.prepare(`SELECT adapter FROM api_providers WHERE id = ?`).get(cm.provider_id) as any
+  const adapter = getAdapter(provider.adapter)
+
+  // 组装 ChatRequest：messages 拍平为文本（画布节点是单轮生成场景）
+  const text = req.messages
+    .map((m) => (typeof m.content === 'string' ? m.content : ''))
+    .filter(Boolean)
+    .join('\n')
+  const result = await adapter.chat({
+    model: cm.model_id,
+    messages: [{ role: 'user', content: text || 'ping' }],
+    images: req.images || [],
+    maxTokens: req.maxTokens ?? 4096,
+    ...(req.temperature !== undefined && req.temperature !== null ? { temperature: req.temperature } : {}),
+  }, ctx.config)
+  return { text: result.text }
+}
+
 canvasAiRouter.post('/chat', async (req: AuthRequest, res) => {
-  const { key: apiKey } = resolveUserApiKey(req.user!.userId)
-  if (!apiKey) {
-    res.status(400).json({ success: false, error: 'API Key 未配置' })
+  const { channelModelId, model, messages, temperature, maxTokens, images } = req.body || {}
+  const finalModel = channelModelId ? null : model
+  if (!channelModelId && !finalModel) {
+    res.status(400).json({ success: false, error: '缺少模型参数' })
+    return
+  }
+  if (!messages) {
+    res.status(400).json({ success: false, error: '缺少 messages' })
     return
   }
 
-  const { model, messages, temperature, maxTokens } = req.body
-  if (!model || !messages) {
-    res.status(400).json({ success: false, error: '缺少 model 或 messages' })
-    return
+  // channelModelId → 渠道模型名（发给上游的 model 字符串）
+  let modelIdStr = finalModel
+  if (channelModelId) {
+    const cm = db.prepare(`
+      SELECT m.model_id FROM ai_models m
+      JOIN api_providers p ON p.id = m.provider_id
+      WHERE m.id = ? AND m.supports_chat = 1 AND m.status = 'active' AND p.status = 'active'
+    `).get(channelModelId) as any
+    if (!cm) {
+      res.status(404).json({ success: false, error: '所选文字模型不可用（渠道/模型已停用或删除），请重新选择' })
+      return
+    }
+    modelIdStr = cm.model_id
   }
-
-  const requestBody: Record<string, unknown> = { model, messages, stream: false }
-  if (temperature !== undefined && temperature !== null) requestBody.temperature = temperature
-  if (maxTokens !== undefined && maxTokens !== null) requestBody.max_tokens = maxTokens
 
   try {
-    // 文字模型（尤其带参考图的多模态）上游响应较慢；设 3 分钟超时，避免上游挂起导致前端一直转圈。
-    const response = await fetch(`${BASE_URL}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(180000),
+    const { text } = await callChat({
+      userId: req.user!.userId,
+      model: modelIdStr,
+      messages,
+      temperature,
+      maxTokens,
+      images,
     })
-
-    // 先读原始文本再解析：ToAPIs 在网关层（404/413/502/504）或上游异常时会返回 HTML 而非 JSON，
-    // 直接 response.json() 会抛 "Unexpected token '<'" 并吞掉真实状态码。这里手动判定，
-    // 非 JSON 时把状态码 + 文本片段透传回前端，便于定位（模型不可用 / 超时 / 请求过大 等）。
-    const rawText = await response.text()
-    const contentType = response.headers.get('content-type') || ''
-    const trimmed = rawText.trimStart()
-    const looksJson = contentType.includes('application/json') || trimmed.startsWith('{') || trimmed.startsWith('[')
-    if (!looksJson) {
-      console.error('[canvas-ai] ToAPIs 返回非 JSON:', response.status, contentType, rawText.slice(0, 500))
-      res.status(502).json({
-        success: false,
-        error: `中转站返回了非 JSON 响应（HTTP ${response.status}），通常是该文字模型不可用或上游网关超时。预览: ${trimmed.slice(0, 120)}`,
-      })
-      return
-    }
-
-    let data: Record<string, unknown>
-    try {
-      data = JSON.parse(rawText)
-    } catch {
-      console.error('[canvas-ai] ToAPIs 响应 JSON 解析失败:', response.status, rawText.slice(0, 500))
-      res.status(502).json({ success: false, error: `中转站响应 JSON 解析失败（HTTP ${response.status}）。预览: ${trimmed.slice(0, 120)}` })
-      return
-    }
-
-    if (!response.ok) {
-      console.error('[canvas-ai] ToAPIs 返回错误:', response.status, JSON.stringify(data).slice(0, 800))
-      const errMsg = (data.error as { message?: string } | undefined)?.message
-      res.status(response.status).json({ success: false, error: errMsg || `HTTP ${response.status}` })
-      return
-    }
-
-    // Extract content
-    const choices = data.choices as Array<{ message?: { content?: unknown } }> | undefined
-    const content = choices?.[0]?.message?.content
-    let text = ''
-    if (typeof content === 'string') {
-      text = content
-    } else if (Array.isArray(content)) {
-      text = content.map((item: { text?: string }) => item.text || '').join('')
-    }
-
     res.json({ success: true, data: { text } })
-  } catch (err: unknown) {
+  } catch (err: any) {
+    if (err instanceof ProviderContextError) {
+      res.status(err.status).json({ success: false, error: err.message })
+      return
+    }
     console.error('[canvas-ai] chat 代理异常:', err)
     const isTimeout = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
     const message = isTimeout
-      ? '文字模型请求超时（3 分钟未响应），可能该模型不可用或上游拥堵，请稍后重试或更换模型。'
-      : err instanceof Error
-        ? err.message
-        : '文字模型调用失败'
+      ? '文字模型请求超时，可能该模型不可用或上游拥堵，请稍后重试或更换模型。'
+      : err instanceof Error ? err.message : '文字模型调用失败'
     res.status(500).json({ success: false, error: message })
   }
 })
