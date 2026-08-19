@@ -18,7 +18,7 @@ export function translateError(err: any): string {
       404: '没找到这个任务，可能 Key 不一致或任务 ID 错误',
       422: '图片或提示词可能触发平台限制，请换图或修改提示词',
       429: '请求太频繁，稍等几秒再试',
-      500: 'ToAPIs 服务异常，请稍后重试',
+      500: '服务异常，请稍后重试',
     }
     if (map[code]) return map[code]
   }
@@ -40,7 +40,7 @@ export function translateError(err: any): string {
     return '请求太频繁，稍等几秒再试'
   }
   if (/(?:internal.*error|500|server.*error)/i.test(msg)) {
-    return 'ToAPIs 服务异常，请稍后重试'
+    return '服务异常，请稍后重试'
   }
   if (/image.*(?:too.*large|size|exceed|over.*limit)/i.test(msg)) {
     return '图片超过限制，请压缩后再上传'

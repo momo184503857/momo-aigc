@@ -30,7 +30,8 @@ const chatAdapter = createOpenAiCompatAdapter({
 export const openaiImageAdapter: ImageProviderAdapter = {
   code: 'openai_image',
   label: 'OpenAI 兼容生图（同步）',
-  description: 'POST /v1/images/generations 标准协议（各类 OpenAI 兼容中转站；提交后直接返回图片）',
+  description:
+    'OpenAI 兼容生图标准协议（提交后直接返回图片）。无参考图走 POST /v1/images/generations（文生图）；带参考图自动改走 POST /v1/images/edits（图生图），要求上游支持 edits 端点且能访问图片 URL',
 
   async chat(req: ChatRequest, ctx: ProviderRuntimeConfig): Promise<ChatResult> {
     return chatAdapter.chat(req, ctx)
@@ -80,21 +81,21 @@ export const openaiImageAdapter: ImageProviderAdapter = {
       response_format: 'url',
     }
     if (req.negativePrompt) body.negative_prompt = req.negativePrompt
-    if (req.imageUrls.length === 1) {
-      // 单参考图：常见透传字段（image 数组形式，兼容 image_url 的渠道按需扩展）
-      body.image = req.imageUrls
-    } else if (req.imageUrls.length > 1) {
+    // 参考图走图生图端点（OpenAI 语义：generations=文生图，edits=图生图），
+    // image 字段以 URL 数组透传，由上游自行下载
+    if (req.imageUrls.length > 0) {
       body.image = req.imageUrls
     }
+    const path = req.imageUrls.length > 0 ? '/v1/images/edits' : '/v1/images/generations'
 
-    let result = await postJson(joinUrl(ctx.baseUrl, '/v1/images/generations'), {
+    let result = await postJson(joinUrl(ctx.baseUrl, path), {
       authorization: `Bearer ${ctx.apiKey}`,
     }, body, 300_000)
 
     if (result.status === 400 || result.status === 422) {
       // response_format=url 不被支持时回退 b64_json 重试一次
       const retryBody = { ...body, response_format: 'b64_json' }
-      result = await postJson(joinUrl(ctx.baseUrl, '/v1/images/generations'), {
+      result = await postJson(joinUrl(ctx.baseUrl, path), {
         authorization: `Bearer ${ctx.apiKey}`,
       }, retryBody, 300_000)
     }

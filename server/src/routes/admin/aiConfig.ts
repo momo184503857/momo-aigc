@@ -201,6 +201,9 @@ adminAiConfigRouter.delete('/providers/:id', (req: AuthRequest, res) => {
     const row = loadProvider(id)
     if (!row) { res.status(404).json({ success: false, error: '服务商不存在' }); return }
     if (row.owner_user_id !== null) { res.status(403).json({ success: false, error: '用户自建渠道不可在管理端删除' }); return }
+    // 历史任务通过 channel_provider_id / channel_model_id 外键引用本渠道，且无 ON DELETE 级联：
+    // 先解除关联（任务保留，仅不再归属该渠道），否则删除会被外键约束拒绝
+    db.prepare(`UPDATE generation_tasks SET channel_provider_id = NULL, channel_model_id = NULL, provider_code = NULL WHERE channel_provider_id = ?`).run(id)
     db.prepare(`DELETE FROM api_providers WHERE id = ?`).run(id)
     res.json({ success: true })
   } catch (err: any) {

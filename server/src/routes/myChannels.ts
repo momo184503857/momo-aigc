@@ -183,7 +183,9 @@ myChannelsRouter.patch('/channels/:id', async (req: AuthRequest, res) => {
 myChannelsRouter.delete('/channels/:id', (req: AuthRequest, res) => {
   const row = loadMyChannel(req.user!.userId, req.params.id)
   if (!row) { res.status(404).json({ success: false, error: '渠道不存在' }); return }
-  // 级联删除渠道模型与 Key；历史任务保留快照（provider_code/model 字符串仍在）
+  // 级联删除渠道模型与 Key；历史任务保留快照（model 字符串仍在），
+  // 但 channel_provider_id / channel_model_id 外键无级联，须先解除关联
+  db.prepare(`UPDATE generation_tasks SET channel_provider_id = NULL, channel_model_id = NULL, provider_code = NULL WHERE channel_provider_id = ?`).run(row.id)
   db.prepare(`DELETE FROM api_providers WHERE id = ? AND owner_user_id = ?`).run(req.params.id, req.user!.userId)
   res.json({ success: true })
 })
@@ -412,7 +414,8 @@ myChannelsRouter.delete('/channels/:id/models/:modelId', (req: AuthRequest, res)
   if (!row) { res.status(404).json({ success: false, error: '渠道不存在' }); return }
   const model = db.prepare(`SELECT id FROM ai_models WHERE id = ? AND provider_id = ?`).get(req.params.modelId, row.id) as any
   if (!model) { res.status(404).json({ success: false, error: '模型不存在' }); return }
-  // 历史任务保留快照（generation_tasks.model 字符串 + provider_code），channel_model_id 软引用保留
+  // 历史任务保留快照（generation_tasks.model 字符串）；channel_model_id 外键无级联，先解除关联
+  db.prepare(`UPDATE generation_tasks SET channel_model_id = NULL WHERE channel_model_id = ?`).run(model.id)
   db.prepare(`DELETE FROM ai_models WHERE id = ?`).run(model.id)
   res.json({ success: true })
 })
