@@ -5,8 +5,11 @@
  * owner_user_id = X = 用户 X 私有。种子数据由 scripts/extract-workbench.mjs
  * 从《女装电商生图工作台 V10.0》提取生成（suiteGenSeed.json）。
  */
+import { readFileSync } from 'node:fs'
 import { db } from './index.js'
-import seedData from './data/suiteGenSeed.json'
+// 编译后 ESM 静态导入 JSON 需要 `with { type: 'json' }`（Node ≥ 20.10），
+// 改为运行时按模块相对路径读取，tsx(src) 与 tsc(dist) 两种形态均可用
+const seedData = JSON.parse(readFileSync(new URL('./data/suiteGenSeed.json', import.meta.url), 'utf-8'))
 import { themeSeasonsFor, themeStylesFor, buildPointDetails } from './themeMeta.js'
 
 export function initSuiteGen(): void {
