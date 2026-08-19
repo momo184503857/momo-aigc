@@ -9,6 +9,9 @@
 import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
+import {
+  sanitizePointDetails, derivePointsFromDetails, type ThemePointDetail,
+} from '../db/themeMeta.js'
 
 export const themeLibraryRouter = Router()
 themeLibraryRouter.use(authMiddleware)
@@ -33,6 +36,15 @@ function sanitizeStringArray(v: unknown, max: number): string[] {
 
 function sanitizeImages(v: unknown): string[] {
   return sanitizeStringArray(v, MAX_IMAGES).filter((s) => /^https?:\/\//.test(s))
+}
+
+function parsePointDetails(text: unknown): ThemePointDetail[] {
+  try {
+    const v = JSON.parse(String(text ?? '[]'))
+    return sanitizePointDetails(v)
+  } catch {
+    return []
+  }
 }
 
 function getTheme(id: number): any {
@@ -72,6 +84,7 @@ function decorate(row: any, userId: number): any {
     level: row.level,
     path: row.path,
     points: parseJsonArray(row.points),
+    point_details: parsePointDetails(row.point_details),
     use_count: row.use_count || 0,
     favorite_count: row.favorite_count || 0,
     sort_order: row.sort_order || 0,
@@ -190,16 +203,18 @@ themeLibraryRouter.post('/', (req: AuthRequest, res) => {
     const season = sanitizeStringArray(body.season, 4).filter((s) => VALID_SEASONS.includes(s))
     const styles = sanitizeStringArray(body.styles, 3)
     const level = VALID_LEVELS.includes(body.level) ? body.level : 'M'
-    const points = sanitizeStringArray(body.points, 10)
+    // 点位三字段为数据源；提供时 points 由其派生（旧点位描述保持同步），未提供则兼容旧 points 入参
+    const pointDetails = sanitizePointDetails(body.point_details)
+    const points = pointDetails.length > 0 ? derivePointsFromDetails(pointDetails) : sanitizeStringArray(body.points, 10)
     const isPublic = body.is_public === true || body.is_public === 1 ? 1 : 0
 
     const result = db.prepare(`
-      INSERT INTO sg_themes (owner_user_id, name, track_key, season, styles, images, level, path, points, status, sort_order, source, is_public)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 0, 'user', ?)
+      INSERT INTO sg_themes (owner_user_id, name, track_key, season, styles, images, level, path, points, point_details, status, sort_order, source, is_public)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 0, 'user', ?)
     `).run(
       req.user!.userId, name, String(body.track_key ?? '').trim(),
       JSON.stringify(season), JSON.stringify(styles), JSON.stringify(images),
-      level, String(body.path ?? '').trim(), JSON.stringify(points), isPublic,
+      level, String(body.path ?? '').trim(), JSON.stringify(points), JSON.stringify(pointDetails), isPublic,
     )
 
     res.json({ success: true, data: decorate(getTheme(Number(result.lastInsertRowid)), req.user!.userId) })
@@ -252,7 +267,12 @@ themeLibraryRouter.patch('/:id', (req: AuthRequest, res) => {
     }
     if (body.level !== undefined && VALID_LEVELS.includes(body.level)) { sets.push('level = ?'); vals.push(body.level) }
     if (body.path !== undefined) { sets.push('path = ?'); vals.push(String(body.path).trim()) }
-    if (body.points !== undefined) {
+    if (body.point_details !== undefined) {
+      // 三字段为数据源，points 随之派生同步
+      const pointDetails = sanitizePointDetails(body.point_details)
+      sets.push('point_details = ?'); vals.push(JSON.stringify(pointDetails))
+      sets.push('points = ?'); vals.push(JSON.stringify(derivePointsFromDetails(pointDetails)))
+    } else if (body.points !== undefined) {
       sets.push('points = ?'); vals.push(JSON.stringify(sanitizeStringArray(body.points, 10)))
     }
     if (body.is_public !== undefined) {

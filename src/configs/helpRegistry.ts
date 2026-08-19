@@ -16,10 +16,6 @@ export const helpRegistry: Record<string, HelpEntry> = {
     title: '提示词工坊',
     path: 'prompt-workshop/home.md',
   },
-  'suite-gen': {
-    title: '成套生图',
-    path: 'suite-gen/home.md',
-  },
   'expert': {
     title: '提示词专家',
     path: 'expert/home.md',

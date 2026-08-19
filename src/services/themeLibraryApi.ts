@@ -10,6 +10,13 @@ export interface ThemeAuthor {
   nickname: string | null
 }
 
+/** 主题点位三字段（数据源；points 由其派生同步） */
+export interface ThemePointDetail {
+  name: string
+  scene: string
+  camera: string
+}
+
 /** 主题条目（sg_themes 行的装饰结果） */
 export interface ThemeItem {
   id: number
@@ -27,8 +34,10 @@ export interface ThemeItem {
   level: string
   /** 动线路径 */
   path: string
-  /** 点位描述 */
+  /** 点位描述（由 point_details 派生；兼容旧数据） */
   points: string[]
+  /** 点位三字段：点位名 / 场景锁定 / 机位构图 */
+  point_details: ThemePointDetail[]
   use_count: number
   favorite_count: number
   sort_order: number
@@ -64,6 +73,7 @@ export interface ThemeUpsertData {
   level?: string
   path?: string
   points?: string[]
+  point_details?: ThemePointDetail[]
   is_public?: boolean
 }
 

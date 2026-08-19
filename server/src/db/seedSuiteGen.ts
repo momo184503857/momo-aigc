@@ -7,7 +7,7 @@
  */
 import { db } from './index.js'
 import seedData from './data/suiteGenSeed.json'
-import { themeSeasonsFor, themeStylesFor } from './themeMeta.js'
+import { themeSeasonsFor, themeStylesFor, buildPointDetails } from './themeMeta.js'
 
 export function initSuiteGen(): void {
   // ───────────────────────── 资产表（六类，统一双轨字段） ─────────────────────────
@@ -23,6 +23,7 @@ export function initSuiteGen(): void {
       level         VARCHAR(10)  NOT NULL DEFAULT 'M',
       path          VARCHAR(255) NOT NULL DEFAULT '',
       points        TEXT NOT NULL DEFAULT '[]',
+      point_details TEXT NOT NULL DEFAULT '[]',  -- 点位三字段 JSON：[{name,scene,camera}]（数据源；points 由其派生同步）
       status        VARCHAR(20) NOT NULL DEFAULT 'active',
       use_count     INTEGER NOT NULL DEFAULT 0,
       sort_order    INTEGER NOT NULL DEFAULT 0,
@@ -189,6 +190,31 @@ export function initSuiteGen(): void {
     console.log(`[DB] Backfilled sg_themes meta (styles/season) for ${rows.length} global themes`)
   }
 
+  // ── 点位三字段回填：把旧动态生成逻辑的输出固化为主题数据（一次性） ──
+  // 对所有 point_details 为空的主题（全局 + 用户）按 name/path/points 生成
+  // {name,scene,camera}；幂等守卫：seed_sg_theme_point_details_v1 + 行级 point_details='[]' 条件，
+  // 之后用户/管理员编辑过的三字段不会再被覆盖。
+  try { db.exec(`ALTER TABLE sg_themes ADD COLUMN point_details TEXT NOT NULL DEFAULT '[]'`) } catch { /* column already exists */ }
+  const pdCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'seed_sg_theme_point_details_v1'`).get() as { value: string } | undefined
+  if (pdCfg?.value !== 'done') {
+    const rows = db.prepare(
+      `SELECT id, name, path, points, point_details FROM sg_themes WHERE point_details IN ('[]', '')`
+    ).all() as Array<{ id: number; name: string; path: string; points: string; point_details: string }>
+    if (rows.length > 0) {
+      const upd = db.prepare(`UPDATE sg_themes SET point_details = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      db.transaction(() => {
+        for (const r of rows) {
+          let pts: string[] = []
+          try { pts = JSON.parse(r.points || '[]') } catch { /* 非法 JSON 按空处理 */ }
+          upd.run(JSON.stringify(buildPointDetails(r.name, r.path, pts)), r.id)
+        }
+      })()
+      console.log(`[DB] Backfilled sg_themes point_details for ${rows.length} themes`)
+    }
+    db.prepare(`INSERT INTO system_config (key, value) VALUES ('seed_sg_theme_point_details_v1', 'done')
+                ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+  }
+
   // ───────────────────────── 种子数据（幂等守卫） ─────────────────────────
   const cfg = db.prepare(`SELECT value FROM system_config WHERE key = 'seed_sg_assets_v1'`).get() as { value: string } | undefined
   if (cfg?.value === 'done') return
@@ -208,15 +234,17 @@ export function initSuiteGen(): void {
     }
 
     const insTheme = db.prepare(`
-      INSERT INTO sg_themes (owner_user_id, name, track_key, season, styles, level, path, points, sort_order, source)
-      VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'seed')
+      INSERT INTO sg_themes (owner_user_id, name, track_key, season, styles, level, path, points, point_details, sort_order, source)
+      VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'seed')
     `)
     for (const t of data.themes) {
       insTheme.run(
         t.name, t.track_key,
         JSON.stringify(themeSeasonsFor(t.name, t.season)),
         JSON.stringify(themeStylesFor(t.name, t.track_key)),
-        t.level, t.path, JSON.stringify(t.points), t.sort_order || 0,
+        t.level, t.path, JSON.stringify(t.points),
+        JSON.stringify(buildPointDetails(t.name, t.path, t.points)),
+        t.sort_order || 0,
       )
     }
 

@@ -76,10 +76,15 @@ const router = createRouter({
       meta: { title: 'AI摄影', requiresAuth: true },
     },
     {
+      // 旧六步成套生图已下线，历史页签/书签重定向到成套提示词
       path: '/suite-gen',
-      name: 'SuiteGen',
-      component: () => import('@/views/suite-gen/SuiteGenPage.vue'),
-      meta: { title: '成套生图', requiresAuth: true, helpKey: 'suite-gen' },
+      redirect: '/suite-prompt',
+    },
+    {
+      path: '/suite-prompt',
+      name: 'SuitePrompt',
+      component: () => import('@/views/suite-gen/SuitePromptPage.vue'),
+      meta: { title: '成套提示词', requiresAuth: true },
     },
     {
       path: '/expert',

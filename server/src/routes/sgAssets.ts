@@ -12,6 +12,7 @@ import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { adminMiddleware } from '../middleware/admin.js'
 import { v4 as uuidv4 } from 'uuid'
+import { sanitizePointDetails, derivePointsFromDetails } from '../db/themeMeta.js'
 
 interface AssetTypeConfig {
   table: string
@@ -35,9 +36,9 @@ interface AssetTypeConfig {
 const ASSET_TYPES: Record<string, AssetTypeConfig> = {
   themes: {
     table: 'sg_themes',
-    fields: ['name', 'track_key', 'season', 'styles', 'images', 'level', 'path', 'points', 'status', 'sort_order'],
+    fields: ['name', 'track_key', 'season', 'styles', 'images', 'level', 'path', 'points', 'point_details', 'status', 'sort_order'],
     required: ['name'],
-    jsonFields: ['points', 'season', 'styles', 'images'],
+    jsonFields: ['points', 'point_details', 'season', 'styles', 'images'],
     numberFields: ['sort_order'],
     orderBy: 'ORDER BY sort_order ASC, id ASC',
     searchFields: ['name', 'path'],
@@ -117,7 +118,17 @@ function buildWriteValues(cfg: AssetTypeConfig, body: any): { cols: string[]; va
     if (body[f] === undefined) continue
     let v = body[f]
     if (cfg.jsonFields.includes(f)) {
-      v = JSON.stringify(v ?? (f === 'points' ? [] : f === 'fingerprint' ? [] : []))
+      if (cfg.table === 'sg_themes' && f === 'point_details') {
+        // 点位三字段为数据源：清洗后同步派生 points，保持旧点位描述一致
+        const details = sanitizePointDetails(v)
+        v = JSON.stringify(details)
+        const derived = JSON.stringify(derivePointsFromDetails(details))
+        const pi = cols.indexOf('points')
+        if (pi >= 0) vals[pi] = derived
+        else { cols.push('points'); vals.push(derived) }
+      } else {
+        v = JSON.stringify(v ?? [])
+      }
     } else if (cfg.numberFields.includes(f)) {
       v = Number(v) || 0
     } else if (typeof v !== 'number') {

@@ -2,22 +2,26 @@
 /**
  * ThemeLibraryPage - 主题库。
  * 浏览管理员配置的官方主题（sg_themes 全局行）与自己上传的主题；
- * 支持筛选搜索、排序、收藏；自己上传的主题可删除、可切换公开/私有。
- * 卡片 hover 出现操作按钮：收藏 / 预览 / 公开切换（我的）/ 删除（我的）。
+ * 支持筛选搜索、排序、收藏；自己上传的主题可编辑、可删除、可切换公开/私有。
+ * 卡片 hover 出现操作按钮：收藏 / 预览 / 成套提示词 / 编辑（我的）/ 公开切换（我的）/ 删除（我的）。
  */
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import PageLayout from '@/components/PageLayout.vue'
 import { themeLibraryApi, type ThemeItem, type ThemeListParams } from '@/services/themeLibraryApi'
 import { sgApi, type SgTrack } from '@/services/sgApi'
 import { ossApi } from '@/services/ossApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
+import { buildPointDetails, emptyPointDetail, type ThemePointDetail } from '@/utils/themePoints'
 import {
   Search, Refresh, Upload, UploadFilled, Star, StarFilled, ZoomIn,
-  View, Hide, Delete, Picture, Loading, Close,
+  View, Hide, Delete, Picture, Loading, Close, MagicStick, EditPen, Plus,
 } from '@element-plus/icons-vue'
 
 defineOptions({ name: 'ThemeLibraryPage' })
+
+const router = useRouter()
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const { retryOnError } = useImageRetry()
@@ -170,10 +174,18 @@ function openDetail(theme: ThemeItem) {
   detailVisible.value = true
 }
 
-// ── 上传弹窗 ──
+// ── 成套提示词：带入主题跳转 /suite-prompt ──
+function goSuitePrompt(theme: ThemeItem) {
+  sessionStorage.setItem('sp_theme_handoff', JSON.stringify(theme))
+  router.push('/suite-prompt')
+}
+
+// ── 上传 / 编辑弹窗（双模式：editingTheme 为 null 时是上传，否则编辑该主题） ──
 const uploadVisible = ref(false)
 const submitting = ref(false)
 const MAX_IMAGES = 5
+const MAX_POINTS = 10
+const editingTheme = ref<ThemeItem | null>(null)
 
 const form = ref({
   name: '',
@@ -182,7 +194,7 @@ const form = ref({
   styles: [] as string[],
   level: 'M',
   path: '',
-  pointsText: '',
+  points: [] as ThemePointDetail[],
   is_public: false,
 })
 interface ImgItem { url: string; loading?: boolean }
@@ -190,15 +202,49 @@ const formImages = ref<ImgItem[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 function openUpload() {
+  editingTheme.value = null
+  uploadVisible.value = true
+}
+
+/** 编辑已有主题：预填全部字段；无三字段的旧主题按旧生成逻辑预填点位 */
+function openEdit(theme: ThemeItem) {
+  detailVisible.value = false
+  editingTheme.value = theme
+  form.value = {
+    name: theme.name,
+    track_key: theme.track_key,
+    season: [...theme.season],
+    styles: [...theme.styles],
+    level: theme.level || 'M',
+    path: theme.path,
+    points: theme.point_details?.length
+      ? theme.point_details.map((d) => ({ ...d }))
+      : buildPointDetails(theme.name, theme.path, theme.points),
+    is_public: theme.is_public,
+  }
+  formImages.value = theme.images.map((url) => ({ url }))
   uploadVisible.value = true
 }
 
 function resetForm() {
+  editingTheme.value = null
   form.value = {
     name: '', track_key: '', season: [], styles: [],
-    level: 'M', path: '', pointsText: '', is_public: false,
+    level: 'M', path: '', points: [], is_public: false,
   }
   formImages.value = []
+}
+
+function addPoint() {
+  if (form.value.points.length >= MAX_POINTS) {
+    warning(`最多 ${MAX_POINTS} 个点位`)
+    return
+  }
+  form.value.points.push(emptyPointDetail())
+}
+
+function removePoint(idx: number) {
+  form.value.points.splice(idx, 1)
 }
 
 function triggerUpload() {
@@ -241,7 +287,7 @@ function removeImage(idx: number) {
   formImages.value.splice(idx, 1)
 }
 
-async function submitUpload() {
+async function submitForm() {
   if (!form.value.name.trim()) {
     warning('请填写主题名称')
     return
@@ -257,7 +303,7 @@ async function submitUpload() {
 
   submitting.value = true
   try {
-    await themeLibraryApi.create({
+    const payload = {
       name: form.value.name.trim(),
       track_key: form.value.track_key,
       season: form.value.season,
@@ -265,22 +311,25 @@ async function submitUpload() {
       images: formImages.value.map((i) => i.url),
       level: form.value.level,
       path: form.value.path.trim(),
-      points: form.value.pointsText
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean),
+      point_details: form.value.points,
       is_public: form.value.is_public,
-    })
-    success('主题已上传')
+    }
+    if (editingTheme.value) {
+      await themeLibraryApi.update(editingTheme.value.id, payload)
+      success('主题已更新')
+    } else {
+      await themeLibraryApi.create(payload)
+      success('主题已上传')
+      // 跳到「我上传的」让用户立刻看到新主题
+      scope.value = 'mine'
+      sort.value = 'latest'
+    }
     uploadVisible.value = false
     resetForm()
-    // 跳到「我上传的」让用户立刻看到新主题
-    scope.value = 'mine'
-    sort.value = 'latest'
     page.value = 1
     loadThemes()
   } catch (e) {
-    error(e, '上传主题失败')
+    error(e, editingTheme.value ? '更新主题失败' : '上传主题失败')
   } finally {
     submitting.value = false
   }
@@ -380,6 +429,12 @@ onMounted(() => {
               </button>
               <button class="hover-btn" title="预览详情" @click="openDetail(t)">
                 <el-icon size="16"><ZoomIn /></el-icon>
+              </button>
+              <button class="hover-btn" title="生成成套提示词" @click="goSuitePrompt(t)">
+                <el-icon size="16"><MagicStick /></el-icon>
+              </button>
+              <button v-if="t.is_mine" class="hover-btn" title="编辑主题" @click="openEdit(t)">
+                <el-icon size="16"><EditPen /></el-icon>
               </button>
               <button
                 v-if="t.is_mine"
@@ -492,7 +547,20 @@ onMounted(() => {
           <span class="meta-label">动线</span>
           <span>{{ detailTheme.path }}</span>
         </div>
-        <div v-if="detailTheme.points.length" class="meta-row">
+        <div v-if="detailTheme.point_details?.length" class="meta-row">
+          <span class="meta-label">点位提示词</span>
+          <div class="meta-points-detail">
+            <div v-for="(d, i) in detailTheme.point_details" :key="i" class="point-detail-item">
+              <span class="pd-idx">P{{ i + 1 }}</span>
+              <div class="pd-body">
+                <div v-if="d.name" class="pd-line"><span class="pd-k">点位名</span>{{ d.name }}</div>
+                <div v-if="d.scene" class="pd-line"><span class="pd-k">场景锁定</span>{{ d.scene }}</div>
+                <div v-if="d.camera" class="pd-line"><span class="pd-k">机位构图</span>{{ d.camera }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="detailTheme.points.length" class="meta-row">
           <span class="meta-label">点位描述</span>
           <ol class="meta-points">
             <li v-for="(p, i) in detailTheme.points" :key="i">{{ p }}</li>
@@ -507,6 +575,20 @@ onMounted(() => {
 
     <template #footer>
       <el-button
+        type="primary"
+        :icon="MagicStick"
+        @click="detailTheme && goSuitePrompt(detailTheme)"
+      >
+        成套提示词
+      </el-button>
+      <el-button
+        v-if="detailTheme?.is_mine"
+        :icon="EditPen"
+        @click="detailTheme && openEdit(detailTheme)"
+      >
+        编辑
+      </el-button>
+      <el-button
         :type="detailTheme?.is_favorited ? 'warning' : 'default'"
         :icon="detailTheme?.is_favorited ? StarFilled : Star"
         @click="detailTheme && toggleFavorite(detailTheme)"
@@ -516,8 +598,14 @@ onMounted(() => {
     </template>
   </el-dialog>
 
-  <!-- 上传主题弹窗 -->
-  <el-dialog v-model="uploadVisible" title="上传主题" width="600px" :close-on-click-modal="false" @closed="resetForm">
+  <!-- 上传 / 编辑主题弹窗 -->
+  <el-dialog
+    v-model="uploadVisible"
+    :title="editingTheme ? '编辑主题' : '上传主题'"
+    width="600px"
+    :close-on-click-modal="false"
+    @closed="resetForm"
+  >
     <el-form label-position="top">
       <el-form-item required label="主题名称">
         <el-input v-model="form.name" placeholder="如：中式园林庭院" maxlength="50" show-word-limit />
@@ -552,15 +640,33 @@ onMounted(() => {
         <el-input v-model="form.path" placeholder="如：院外 → 中庭 → 池塘边 → 廊桥 → 茶室" maxlength="255" />
       </el-form-item>
 
-      <el-form-item label="点位描述（可选）">
-        <el-input
-          v-model="form.pointsText"
-          type="textarea"
-          :rows="4"
-          placeholder="每行一个点位描述"
-          maxlength="1000"
-          resize="none"
-        />
+      <el-form-item label="点位提示词（每个点位三字段，成套提示词按此生成）">
+        <div class="points-editor">
+          <div v-for="(p, i) in form.points" :key="i" class="point-block">
+            <div class="point-block-head">
+              <span class="point-idx">点位 {{ i + 1 }}</span>
+              <el-button link type="danger" size="small" @click="removePoint(i)">删除</el-button>
+            </div>
+            <el-input v-model="p.name" placeholder="点位名，如：中式园林庭院 · 院外" maxlength="100" />
+            <el-input
+              v-model="p.scene"
+              type="textarea"
+              :rows="2"
+              placeholder="场景锁定，如：木质露台入口，盆栽雏菊、老木构件，模特站立。姿态自然松弛…"
+              maxlength="600"
+              resize="none"
+            />
+            <el-input
+              v-model="p.camera"
+              type="textarea"
+              :rows="2"
+              placeholder="机位构图，如：全景，35mm 环境人像，人物占画面 1/3…。3:4 画幅内保留竖版全身机位…"
+              maxlength="600"
+              resize="none"
+            />
+          </div>
+          <el-button v-if="form.points.length < MAX_POINTS" :icon="Plus" @click="addPoint">添加点位</el-button>
+        </div>
       </el-form-item>
 
       <el-form-item required label="主题图片（1~5 张，首图为封面）">
@@ -603,7 +709,9 @@ onMounted(() => {
 
     <template #footer>
       <el-button @click="uploadVisible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="submitUpload">上传</el-button>
+      <el-button type="primary" :loading="submitting" @click="submitForm">
+        {{ editingTheme ? '保存' : '上传' }}
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -871,7 +979,72 @@ onMounted(() => {
   margin-bottom: 2px;
 }
 
-/* ── 上传弹窗 ── */
+/* ── 详情弹窗 · 点位三字段 ── */
+.meta-points-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--momo-space-2);
+  flex: 1;
+  min-width: 0;
+}
+.point-detail-item {
+  display: flex;
+  gap: var(--momo-space-2);
+  align-items: flex-start;
+}
+.pd-idx {
+  flex-shrink: 0;
+  min-width: 28px;
+  font-weight: 600;
+  color: var(--momo-color-text);
+}
+.pd-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pd-line {
+  display: flex;
+  gap: var(--momo-space-2);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--momo-color-text-secondary);
+}
+.pd-k {
+  flex-shrink: 0;
+  color: var(--momo-color-text-tertiary);
+}
+.pd-k::after {
+  content: '：';
+}
+
+/* ── 上传 / 编辑弹窗 ── */
+.points-editor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--momo-space-3);
+}
+.point-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--momo-space-2);
+  padding: var(--momo-space-3);
+  border: 1px solid var(--momo-color-border-soft);
+  border-radius: var(--momo-radius-md);
+  background: var(--momo-color-bg-soft);
+}
+.point-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.point-idx {
+  font-weight: 600;
+  font-size: var(--momo-font-size-sm);
+  color: var(--momo-color-text);
+}
 .form-row {
   display: flex;
   gap: 16px;

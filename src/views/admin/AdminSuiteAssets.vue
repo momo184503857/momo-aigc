@@ -185,7 +185,7 @@ const TYPE_TABS: TypeTab[] = [
       { key: 'track_key', label: '赛道', width: 60 },
       { key: 'season', label: '季节', width: 90, render: (row) => seasonText(row.season) },
       { key: 'styles', label: '适合风格', width: 150, render: (row) => arrayText(row.styles) || '—' },
-      { key: 'points', label: '点位' },
+      { key: 'point_details', label: '点位' },
       { key: 'path', label: '动线' },
       { key: 'images', label: '图片', width: 100, type: 'images' },
     ],
@@ -196,7 +196,10 @@ const TYPE_TABS: TypeTab[] = [
       { key: 'styles', label: '适合风格', options: THEME_STYLES, multiple: true },
       { key: 'level', label: '复杂度', options: ['L', 'M', 'H'] },
       { key: 'path', label: '动线', placeholder: '院外 → 中庭 → 池塘边 → 廊桥 → 茶室' },
-      { key: 'points', label: '5 点位描述', textarea: true, rows: 6, placeholder: '每行一个点位（共 5 行）' },
+      {
+        key: 'point_details', label: '点位三字段', textarea: true, rows: 10,
+        placeholder: 'JSON 数组，如 [{"name":"主题 · 院外","scene":"场景锁定文案","camera":"机位构图文案"}]；保存后点位描述自动同步',
+      },
       { key: 'images', label: '图片', images: true, max: 5 },
     ],
     required: ['name'],
@@ -357,9 +360,7 @@ function toApiPayload(): Record<string, unknown> {
       continue
     }
     if (v === undefined || v === '') continue
-    if (key === 'points' && typeof v === 'string') {
-      v = v.split('\n').map((s) => s.trim()).filter(Boolean)
-    } else if (['fingerprint', 'match_tags', 'models', 'scope'].includes(key) && typeof v === 'string') {
+    if (['fingerprint', 'match_tags', 'models', 'scope', 'point_details'].includes(key) && typeof v === 'string') {
       try { v = JSON.parse(v) } catch { ui.warning(`${f.label} 不是合法 JSON，已按原样保存文本`); v = v }
     } else if (key === 'order_no') {
       v = Number(v) || 0

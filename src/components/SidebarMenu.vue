@@ -57,7 +57,6 @@ const menuSections = computed<MenuSection[]>(() => {
       items: [
         { path: '/free-gen', title: '自由生图', icon: EditPen },
         { path: '/workspace', title: '快速生图', icon: MagicStick },
-        { path: '/suite-gen', title: '成套生图', icon: Camera },
         { path: '/photography', title: 'AI摄影', icon: Camera },
         { path: '/canvas-projects', title: 'AI画布', icon: Share },
         { path: '/toolbox', title: 'AI工具箱', icon: Box },

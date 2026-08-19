@@ -1,7 +1,68 @@
 /**
- * 主题元数据推导：按「主题名称关键词 + 赛道」推导适合风格（styles）与差异化季节（season）。
+ * 主题元数据推导：按「主题名称关键词 + 赛道」推导适合风格（styles）与差异化季节（season），
+ * 以及主题点位三字段（point_details）的清洗 / 派生 / 回填构建。
  * 纯函数、无 DB 依赖；种子初始化（seedSuiteGen）与存量回填共用，规则调整后重跑结果确定。
  */
+
+/** 主题点位三字段：点位名 / 场景锁定 / 机位构图（存储于 sg_themes.point_details） */
+export interface ThemePointDetail {
+  name: string
+  scene: string
+  camera: string
+}
+
+/** 清洗 point_details 入参：数组 ≤10，字段 trim 为字符串，全空条目剔除 */
+export function sanitizePointDetails(v: unknown): ThemePointDetail[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .slice(0, 10)
+    .map((x) => {
+      const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>
+      return {
+        name: String(o.name ?? '').trim(),
+        scene: String(o.scene ?? '').trim(),
+        camera: String(o.camera ?? '').trim(),
+      }
+    })
+    .filter((d) => d.name || d.scene || d.camera)
+}
+
+/** 三字段 → 旧点位描述数组（scene 首句，兜底点位名），保持 points 字段与展示同步 */
+export function derivePointsFromDetails(details: ThemePointDetail[]): string[] {
+  return details
+    .map((d) => d.scene.split('。')[0]?.trim() || d.name)
+    .filter(Boolean)
+}
+
+/** 景别递进表（与前端 src/utils/promptEngine/entries.ts 的 POINT_PROGRESSION 保持同源） */
+const POINT_SHOT_PROGRESSION = [
+  '全景，35mm 环境人像，人物占画面 1/3，站位于右 1/3 线，自然直立',
+  '中全景，50mm 标准人像，人物占画面 1/2，站位于左 1/3 线，微侧身站立',
+  '中景，85mm 人像，膝上构图，居中偏右站位，轻靠环境物（栏杆/墙面）',
+  '中近景，85mm 人像，腰上构图，居中站位，端庄姿态或轻互动道具',
+  '近景特写，85-135mm，胸以上构图，居中偏左站位，正面直立突出服装上身细节',
+]
+const SCENE_LOCK_TAIL = '姿态自然松弛，生活化抓拍感；严禁跳跃、奔跑、大幅扭身等夸张动作。'
+const CAMERA_TAIL = '3:4 画幅内保留竖版全身机位：人物纵向主体、上下不裁切、背景简洁留白、突出服装主体。'
+
+/**
+ * 按旧动态生成逻辑从主题数据构建点位三字段。
+ * 存量回填与前端编辑预填共用；三字段写入后即为主题数据源，不再动态拼装。
+ */
+export function buildPointDetails(themeName: string, path: string, points: string[]): ThemePointDetail[] {
+  const segs = String(path || '').split('→').map((s) => s.trim()).filter(Boolean)
+  const pts = Array.isArray(points) ? points.map((p) => String(p ?? '').trim()).filter(Boolean) : []
+  const n = Math.min(pts.length || Math.max(segs.length, 5), 10)
+  return Array.from({ length: n }, (_, i) => {
+    const seg = segs[i] || ''
+    const base = pts[i] || seg
+    return {
+      name: seg ? `${themeName} · ${seg}` : themeName,
+      scene: base ? `${base}。${SCENE_LOCK_TAIL}` : SCENE_LOCK_TAIL,
+      camera: `${POINT_SHOT_PROGRESSION[i] || POINT_SHOT_PROGRESSION[0]}。${CAMERA_TAIL}`,
+    }
+  })
+}
 
 /** 适合风格选项（与管理端 AdminSuiteAssets 的 THEME_STYLES 保持一致） */
 export const THEME_STYLE_OPTIONS = [

@@ -43,6 +43,7 @@
     <div class="pp-full">
       <div class="pp-col-title">
         完整 Prompt（P{{ parseInt(activePoint) + 1 }}）
+        <el-button size="small" @click="copyAll">复制全部 {{ result.fullTexts.length }} 张</el-button>
         <el-button size="small" type="primary" plain @click="copyFull">复制本张</el-button>
       </div>
       <div class="full-text">{{ result.fullTexts[parseInt(activePoint)] || '' }}</div>
@@ -123,6 +124,24 @@ async function copyFull() {
   try {
     await navigator.clipboard.writeText(text)
     ui.success('已复制到剪贴板')
+  } catch {
+    ui.error(new Error('复制失败'), '复制失败，请手动选择复制')
+  }
+}
+
+async function copyAll() {
+  const { commonText, pointTexts } = props.result
+  if (!pointTexts.length) return
+  // 公共部分只带一份，随后依次拼接各点位差异文本
+  const parts: string[] = []
+  if (commonText.trim()) parts.push(`【公共部分】\n${commonText.trim()}`)
+  pointTexts.forEach((t, i) => {
+    if (t.trim()) parts.push(`【点位${i + 1}】\n${t.trim()}`)
+  })
+  const text = parts.join('\n\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    ui.success(`已复制全部 ${pointTexts.length} 张提示词`)
   } catch {
     ui.error(new Error('复制失败'), '复制失败，请手动选择复制')
   }

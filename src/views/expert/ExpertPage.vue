@@ -507,15 +507,15 @@ async function saveDerivedTheme() {
 async function goSuiteWithDerived() {
   const p = derivedPreview.value
   if (!p) { ui.warning('请先填写主题名与空间动线'); return }
-  // 先存主题，再携带主图与主题名跳转成套生图
+  // 先存主题，再携带主题数据跳转成套提示词（衍生主题无三字段，新页走动态兜底）
   await saveDerivedTheme()
   try {
-    sessionStorage.setItem('sg_derive_handoff', JSON.stringify({
-      themeName: p.name,
-      mainDataUrl: deriveImage.value[0]?.dataUrl || '',
+    sessionStorage.setItem('sp_theme_handoff', JSON.stringify({
+      ...p,
+      images: deriveImage.value[0]?.sourceUrl ? [deriveImage.value[0].sourceUrl] : [],
     }))
-  } catch { /* 超限时仅带主题名 */ }
-  router.push('/suite-gen')
+  } catch { /* 超限时仅带基础字段 */ }
+  router.push('/suite-prompt')
 }
 
 // ══════ 生成面板（内联小组件） ══════

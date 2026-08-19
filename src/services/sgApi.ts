@@ -30,6 +30,8 @@ export interface SgTheme extends SgAssetBase {
   level: string
   path: string
   points: string[]
+  /** 点位三字段：点位名 / 场景锁定 / 机位构图（数据源，points 由其派生） */
+  point_details?: Array<{ name: string; scene: string; camera: string }>
   sort_order: number
 }
 

@@ -48,11 +48,12 @@ function interpolate(text: string, ctx: AssembleContext, pointIndex?: number): s
   const persona = ctx.persona
   const point = pointIndex !== undefined ? POINT_PROGRESSION[pointIndex] ?? POINT_PROGRESSION[0] : undefined
   const vars: Record<string, unknown> = {
-    persona: persona ? {
-      name: persona.name,
-      dna: persona.dna || '（未指定）',
-      hair: persona.hair_default || ctx.track.hair,
-    } : undefined,
+    persona: {
+      name: persona?.name,
+      // 无 persona 时 dna 留空（相关条目已由 cond 剔除），hair 回退赛道妆发
+      dna: persona ? (persona.dna || '（未指定）') : undefined,
+      hair: persona?.hair_default || ctx.track.hair,
+    },
     track: ctx.track,
     theme: ctx.theme ? {
       name: ctx.theme.name,
