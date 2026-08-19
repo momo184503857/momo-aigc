@@ -99,6 +99,17 @@ const modelPrompts = ref<Record<string, FeaturePromptItem>>({})
 // 当前会话内用户对系统提示词的修改，按 modelId 隔离；不持久化到服务器
 const editedSystemPromptsByModel = ref<Record<string, string>>({})
 
+// Model computed（必须在下方 promptKey 之前声明：watch(promptKey) 会在 setup 阶段
+// 立即求值一次 getter，若 selectedModel 声明在后会命中 TDZ 报错导致整页白屏）
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
+const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
+const availableAspectRatios = computed(() => {
+  if (!selectedModel.value) return ['1:1']
+  return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
+})
+const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
+
 const promptKey = computed(() => selectedModel.value?.logicalCode ?? selectedModel.value?.modelId ?? '')
 const currentPrompt = computed(() => modelPrompts.value[promptKey.value])
 const systemPrompt = computed(() => {
@@ -148,6 +159,10 @@ onMounted(() => {
   fetchStarredTemplates()
 })
 
+// 目录加载后应用默认模型/分辨率/宽高比（配置的默认模型名在目录中不存在时退回首项）
+// 注意：必须在下方 immediate watch 之前声明，否则回调同步执行时会命中 TDZ 报错、整页白屏
+const pendingDefaults = { modelName: '', resolution: '', aspectRatio: '' }
+
 // Apply feature defaults from config
 watch(config, (cfg) => {
   if (!cfg) return
@@ -157,8 +172,6 @@ watch(config, (cfg) => {
   applyDefaultsIfReady()
 }, { immediate: true })
 
-// 目录加载后应用默认模型/分辨率/宽高比（配置的默认模型名在目录中不存在时退回首项）
-const pendingDefaults = { modelName: '', resolution: '', aspectRatio: '' }
 function applyDefaultsIfReady() {
   if (!modelCatalog.loaded || selectedChannelModelId.value) return
   const cm = modelCatalog.getModelByName(pendingDefaults.modelName) ?? modelCatalog.defaultImageModel
@@ -180,16 +193,7 @@ watch(promptKey, (key) => {
   }
 })
 
-// Model computed
-const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
-const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
-const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
-const availableAspectRatios = computed(() => {
-  if (!selectedModel.value) return ['1:1']
-  return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
-})
-const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
-
+// Model change: reset resolution/aspect to valid values
 function handleModelChange() {
   const model = selectedModel.value
   if (model?.capabilities) {
