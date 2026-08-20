@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { db } from '../../db/index.js'
 import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
-import { encryptKey, resolveKeyPlain, maskKey } from '../../utils/crypto.js'
+import { resolveKeyPlain, maskKey } from '../../utils/crypto.js'
 import { getAdapter, listAdapters } from '../../providers/index.js'
 import type { ProviderRuntimeConfig, ChatImage } from '../../providers/types.js'
 import { DEFAULT_VISION_CONFIG_KEY, getDefaultVisionSetting } from '../../providers/defaultVision.js'
@@ -23,12 +23,13 @@ function validateOverridesAgainstLogical(logicalModelId: number | null | undefin
 }
 
 // ────────────────────────────────────────────────────────────
-//  管理后台 ·「配置」页：AI 服务商 / 模型 / Key 管理
+//  管理后台 ·「配置」页：AI 服务商 / 模型 / Key 池管理
 //
 //  关系：api_providers 1─N ai_models、api_providers 1─N api_provider_keys。
-//  每个服务商唯一一把主 Key（is_primary，部分唯一索引保证），连接调用一律用主 Key。
-//  平台渠道 Key 明文存储（key_iv 置空），接口回传完整 Key 供后台查看/复制；
-//  用户渠道 Key 仍 AES-256-GCM 加密（仅脱敏 hint）。
+//  全部为平台渠道（fixed-channels：用户自建渠道已下线）。
+//  Key 池：一渠道多 Key，正整数优先级小者优先（priority ASC, id ASC 取第一个可用）；
+//  状态 active/disabled/exhausted，耗尽由服务端欠费切换写入、仅管理员可重新启用。
+//  Key 明文存储（key_iv 置空），接口回传完整 Key 供后台查看/复制。
 //  实际调用走 providers/ 适配器层，与协议细节解耦。
 // ────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ function loadProvider(id: string | number | bigint | string[]): any | undefined 
   return db.prepare(`SELECT * FROM api_providers WHERE id = ?`).get(String(id))
 }
 
-/** 序列化 Key 行：回传完整明文（平台渠道明文存储，后台可复制）；历史密文解密失败时 key 为 null */
+/** 序列化 Key 行：回传完整明文（明文存储，后台可复制）；历史密文解密失败时 key 为 null */
 function serializeKey(row: any) {
   let plain: string | null = null
   try {
@@ -55,8 +56,9 @@ function serializeKey(row: any) {
     name: row.name,
     key: plain,
     key_hint: row.key_hint,
-    is_primary: !!row.is_primary,
+    priority: row.priority,
     status: row.status,
+    exhausted_at: row.exhausted_at ?? null,
     last_checked_at: row.last_checked_at,
     last_check_ok: row.last_check_ok === null ? null : !!row.last_check_ok,
     created_at: row.created_at,
@@ -65,7 +67,7 @@ function serializeKey(row: any) {
 
 function serializeProvider(row: any) {
   const keys = (db.prepare(`
-    SELECT * FROM api_provider_keys WHERE provider_id = ? ORDER BY is_primary DESC, id ASC
+    SELECT * FROM api_provider_keys WHERE provider_id = ? ORDER BY priority ASC, id ASC
   `).all(row.id) as any[]).map(serializeKey)
   const models = (db.prepare(`
     SELECT m.*, lm.code AS logical_code, lm.name AS logical_name
@@ -80,19 +82,22 @@ function serializeProvider(row: any) {
     param_overrides: parseParams(m.param_overrides),
   }))
   const adapterInfo = (() => { try { return getAdapter(row.adapter) } catch { return undefined } })()
+  const firstActive = keys.find((k) => k.status === 'active')
   return {
     ...row,
     keys,
     models,
     adapter_label: adapterInfo?.label ?? `未知适配器(${row.adapter})`,
-    primary_key_hint: keys.find((k) => k.is_primary)?.key_hint ?? '',
+    first_key_hint: firstActive?.key_hint ?? '',
+    has_active_key: !!firstActive,
   }
 }
 
-/** 取服务商主 Key（明文仅供服务端出站调用/后台回显） */
-function getPrimaryApiKey(providerId: number): { row: any; plain: string } | null {
+/** 取渠道第一个可用 Key（priority ASC, id ASC；明文仅供服务端出站调用/后台回显） */
+function getFirstApiKey(providerId: number): { row: any; plain: string } | null {
   const row = db.prepare(`
-    SELECT * FROM api_provider_keys WHERE provider_id = ? AND is_primary = 1 AND status = 'active'
+    SELECT * FROM api_provider_keys WHERE provider_id = ? AND status = 'active'
+    ORDER BY priority ASC, id ASC LIMIT 1
   `).get(providerId) as any
   if (!row) return null
   try {
@@ -103,11 +108,11 @@ function getPrimaryApiKey(providerId: number): { row: any; plain: string } | nul
   }
 }
 
-/** 组装适配器运行时配置（provider 行 + 主 Key 明文） */
+/** 组装适配器运行时配置（provider 行 + 第一个可用 Key 明文） */
 function buildRuntimeConfig(provider: any): { config: ProviderRuntimeConfig; keyRow: any } {
-  const pk = getPrimaryApiKey(provider.id)
+  const pk = getFirstApiKey(provider.id)
   if (!pk) {
-    throw new Error('该服务商没有可用的主 Key，请先在「Key 管理」中配置')
+    throw new Error('该渠道没有可用 Key（可能所有 Key 已耗尽或停用），请先在「Key 管理」中配置或重新启用')
   }
   return {
     config: {
@@ -116,6 +121,7 @@ function buildRuntimeConfig(provider: any): { config: ProviderRuntimeConfig; key
       name: provider.name,
       baseUrl: provider.base_url,
       apiKey: pk.plain,
+      keyId: pk.row.id,
     },
     keyRow: pk.row,
   }
@@ -134,10 +140,10 @@ adminAiConfigRouter.get('/adapters', (_req, res) => {
 
 // ── 服务商 CRUD ──
 
-// GET /api/admin/ai-config/providers  平台渠道全量列表（用户自建渠道见 user-providers）
+// GET /api/admin/ai-config/providers  渠道全量列表（全部为平台渠道）
 adminAiConfigRouter.get('/providers', (_req, res) => {
   try {
-    const rows = db.prepare(`SELECT * FROM api_providers WHERE owner_user_id IS NULL ORDER BY id ASC`).all() as any[]
+    const rows = db.prepare(`SELECT * FROM api_providers ORDER BY id ASC`).all() as any[]
     res.json({ success: true, data: rows.map(serializeProvider) })
   } catch (err: any) {
     console.error('[admin/ai-config] List providers error:', err.message)
@@ -181,7 +187,6 @@ adminAiConfigRouter.patch('/providers/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     const row = loadProvider(id)
     if (!row) { res.status(404).json({ success: false, error: '服务商不存在' }); return }
-    if (row.owner_user_id !== null) { res.status(403).json({ success: false, error: '用户自建渠道不可在管理端编辑' }); return }
     const { name, base_url, adapter, remark, status } = req.body || {}
     const fields: string[] = []
     const params: any[] = []
@@ -216,13 +221,12 @@ adminAiConfigRouter.patch('/providers/:id', async (req: AuthRequest, res) => {
   }
 })
 
-// DELETE /api/admin/ai-config/providers/:id  级联删除其模型与 Key（仅平台渠道）
+// DELETE /api/admin/ai-config/providers/:id  级联删除其模型与 Key
 adminAiConfigRouter.delete('/providers/:id', (req: AuthRequest, res) => {
   try {
     const { id } = req.params
     const row = loadProvider(id)
     if (!row) { res.status(404).json({ success: false, error: '服务商不存在' }); return }
-    if (row.owner_user_id !== null) { res.status(403).json({ success: false, error: '用户自建渠道不可在管理端删除' }); return }
     // 历史任务通过 channel_provider_id / channel_model_id 外键引用本渠道，且无 ON DELETE 级联：
     // 先解除关联（任务保留，仅不再归属该渠道），否则删除会被外键约束拒绝
     db.prepare(`UPDATE generation_tasks SET channel_provider_id = NULL, channel_model_id = NULL, provider_code = NULL WHERE channel_provider_id = ?`).run(id)
@@ -234,7 +238,7 @@ adminAiConfigRouter.delete('/providers/:id', (req: AuthRequest, res) => {
   }
 })
 
-// POST /api/admin/ai-config/providers/:id/test  用主 Key 测试连接
+// POST /api/admin/ai-config/providers/:id/test  用优先级最高的可用 Key 测试连接
 adminAiConfigRouter.post('/providers/:id/test', async (req: AuthRequest, res) => {
   const { id } = req.params
   const row = loadProvider(id)
@@ -277,9 +281,8 @@ function validateModelBody(body: any, forCreate: boolean): { values: any; error?
     return { values: null, error: 'status 仅支持 active/disabled' }
   }
 
-  // 生图模型必须关联逻辑模型（平台侧强校验，§2.3）
+  // 生图模型必须关联逻辑模型（强校验，§2.3）
   let logicalId: number | null = null
-  const isImage = forCreate ? !!supports_image_gen : undefined
   if (logical_model_id !== undefined) {
     if (logical_model_id === null || logical_model_id === '') {
       logicalId = null
@@ -301,8 +304,6 @@ function validateModelBody(body: any, forCreate: boolean): { values: any; error?
   }
 
   // 计算生效能力（用于定价覆盖校验 S6）
-  const provider = forCreate ? loadProvider(provider_id) : null
-  const willImage = isImage !== undefined ? isImage : true
   if ((logicalId !== undefined || overridesJson !== undefined || pricing !== undefined)) {
     // 具体校验放到 create/patch 处理器（需要合并旧行），此处先做定价结构校验
     if (pricing !== undefined && pricing !== null) {
@@ -329,14 +330,12 @@ function validateModelBody(body: any, forCreate: boolean): { values: any; error?
       overridesJson,
       remark: String(remark || ''),
       status,
-      _providerOwner: provider?.owner_user_id ?? null,
-      _willImage: willImage,
     },
   }
 }
 
-/** 合并旧行计算生效能力并校验定价覆盖（S6：平台生图模型定价必填且覆盖全部生效分辨率） */
-function validatePricingCoverage(modelRow: any, logicalId: number | null, overridesJson: string | null, pricingObj: Record<string, number> | null | undefined, isUserChannel: boolean): string | null {
+/** 合并旧行计算生效能力并校验定价覆盖（S6：生图模型定价必填且覆盖全部生效分辨率，无豁免） */
+function validatePricingCoverage(modelRow: any, logicalId: number | null, overridesJson: string | null, pricingObj: Record<string, number> | null | undefined): string | null {
   const isImage = !!modelRow.supports_image_gen
   if (!isImage) return null
   let base: any = null
@@ -349,11 +348,9 @@ function validatePricingCoverage(modelRow: any, logicalId: number | null, overri
   const caps = effectiveParams(base, overrides)
   if (!caps.resolutions.length) return '该模型没有可用分辨率，请配置逻辑模型或能力覆盖'
 
-  if (isUserChannel) return null // 用户渠道模型不计费（D8）
-
   const effective = pricingObj !== undefined ? pricingObj : (parseParams(modelRow.pricing) as any)
   if (!effective || typeof effective !== 'object') {
-    return '平台生图模型必须配置定价（按分辨率）'
+    return '生图模型必须配置定价（按分辨率）'
   }
   for (const res of caps.resolutions) {
     if (typeof (effective as any)[res] !== 'number') {
@@ -368,8 +365,7 @@ adminAiConfigRouter.post('/models', (req: AuthRequest, res) => {
   try {
     const { values, error } = validateModelBody(req.body, true)
     if (error) { res.status(400).json({ success: false, error }); return }
-    const provider = loadProvider(req.body.provider_id)
-    if (provider.owner_user_id !== null) { res.status(400).json({ success: false, error: '不能在用户自建渠道下添加模型' }); return }
+    if (!loadProvider(req.body.provider_id)) { res.status(400).json({ success: false, error: '所属服务商不存在' }); return }
 
     const isImage = !!values.supports_image_gen
     let logicalId = values.logicalId ?? null
@@ -381,7 +377,7 @@ adminAiConfigRouter.post('/models', (req: AuthRequest, res) => {
       const narrowErr = validateOverridesAgainstLogical(logicalId, values.overridesJson ?? null)
       if (narrowErr) { res.status(400).json({ success: false, error: `能力覆盖只允许收窄：${narrowErr}` }); return }
       const pricingObj = req.body.pricing ?? null
-      const err = validatePricingCoverage(pseudoRow, logicalId, values.overridesJson ?? null, pricingObj, false)
+      const err = validatePricingCoverage(pseudoRow, logicalId, values.overridesJson ?? null, pricingObj)
       if (err) { res.status(400).json({ success: false, error: err }); return }
     }
 
@@ -410,8 +406,7 @@ adminAiConfigRouter.patch('/models/:id', (req: AuthRequest, res) => {
     const { id } = req.params
     const row = db.prepare(`SELECT * FROM ai_models WHERE id = ?`).get(id) as any
     if (!row) { res.status(404).json({ success: false, error: '模型不存在' }); return }
-    const provider = loadProvider(row.provider_id)
-    if (provider?.owner_user_id !== null && provider) { res.status(403).json({ success: false, error: '用户渠道模型不可在管理端编辑' }); return }
+    if (!loadProvider(row.provider_id)) { res.status(404).json({ success: false, error: '所属服务商不存在' }); return }
     const body = { ...req.body }
     // 合并旧值后再做「生图⇒识图」校验（部分更新场景）
     const mergedVision = body.supports_vision !== undefined ? !!body.supports_vision : !!row.supports_vision
@@ -456,7 +451,7 @@ adminAiConfigRouter.patch('/models/:id', (req: AuthRequest, res) => {
       if (typeof finalPricing === 'string') { try { pricingObj = JSON.parse(finalPricing) } catch { pricingObj = null } }
       else if (finalPricing && typeof finalPricing === 'object') pricingObj = finalPricing
       else if (finalPricing === null) pricingObj = null
-      const err = validatePricingCoverage(pseudoRow, finalLogicalId, finalOverrides, pricingObj, false)
+      const err = validatePricingCoverage(pseudoRow, finalLogicalId, finalOverrides, pricingObj)
       if (err) { res.status(400).json({ success: false, error: err }); return }
     }
 
@@ -483,45 +478,37 @@ adminAiConfigRouter.delete('/models/:id', (req: AuthRequest, res) => {
   }
 })
 
-// ── Key CRUD ──
+// ── Key 池 CRUD ──
 
-function clearOtherPrimaryKeys(providerId: number, exceptKeyId?: number) {
-  db.prepare(`UPDATE api_provider_keys SET is_primary = 0, updated_at = CURRENT_TIMESTAMP WHERE provider_id = ? AND is_primary = 1 AND id != ?`)
-    .run(providerId, exceptKeyId ?? -1)
-}
-
-/** 删除主 Key 后，自动把剩下最早的启用 Key 提升为主 Key */
-function promoteNextPrimaryKey(providerId: number) {
-  const next = db.prepare(`
-    SELECT id FROM api_provider_keys WHERE provider_id = ? AND status = 'active' ORDER BY id ASC LIMIT 1
-  `).get(providerId) as any
-  if (next) {
-    db.prepare(`UPDATE api_provider_keys SET is_primary = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(next.id)
+/** 校验优先级入参：正整数（S1：小者优先；允许重复，同优先级按 id 稳定排序） */
+function parseKeyPriority(v: unknown): { value?: number; error?: string } {
+  if (v === undefined || v === null || v === '') return {}
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) {
+    return { error: '优先级必须是 ≥ 1 的整数（数字越小越先用）' }
   }
+  return { value: v }
 }
 
-// POST /api/admin/ai-config/keys  { provider_id, name, key, is_primary }
+// POST /api/admin/ai-config/keys  { provider_id, name, key, priority? }
 adminAiConfigRouter.post('/keys', (req: AuthRequest, res) => {
   try {
-    const { provider_id, name, key, is_primary } = req.body || {}
+    const { provider_id, name, key } = req.body || {}
     const provider = loadProvider(provider_id)
     if (!provider) { res.status(404).json({ success: false, error: '所属服务商不存在' }); return }
     const plain = String(key || '').trim()
     if (!plain) { res.status(400).json({ success: false, error: 'API Key 不能为空' }); return }
+    const pri = parseKeyPriority(req.body?.priority)
+    if (pri.error) { res.status(400).json({ success: false, error: pri.error }); return }
 
-    // 平台渠道明文存储（后台可查看/复制）；用户渠道仍加密
-    const stored = provider.owner_user_id === null
-      ? { ciphertext: plain, iv: '', tag: '' }
-      : encryptKey(plain)
+    // Key 明文存储（key_iv 置空，后台可查看/复制，F7）
     const tx = db.transaction(() => {
-      const makePrimary = is_primary !== false // 新增默认设为主（尤其服务商还没有主 Key 时）
-      const hasPrimary = !!db.prepare(`SELECT id FROM api_provider_keys WHERE provider_id = ? AND is_primary = 1`).get(provider_id)
-      const finalPrimary = makePrimary || !hasPrimary
-      if (finalPrimary) clearOtherPrimaryKeys(provider_id)
+      // 新 Key 默认优先级 = 该渠道现有最大 + 1（首个为 1），即默认排到最后（S1）
+      const maxRow = db.prepare(`SELECT MAX(priority) AS m FROM api_provider_keys WHERE provider_id = ?`).get(provider_id) as any
+      const priority = pri.value ?? (maxRow?.m ?? 0) + 1
       const result = db.prepare(`
-        INSERT INTO api_provider_keys (provider_id, name, encrypted_key, key_iv, key_tag, key_hint, is_primary)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(provider_id, String(name || '').trim() || '未命名 Key', stored.ciphertext, stored.iv, stored.tag, maskKey(plain), finalPrimary ? 1 : 0)
+        INSERT INTO api_provider_keys (provider_id, name, encrypted_key, key_iv, key_tag, key_hint, priority, status, created_at, updated_at)
+        VALUES (?, ?, ?, '', '', ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(provider_id, String(name || '').trim() || '未命名 Key', plain, maskKey(plain), priority)
       return result.lastInsertRowid
     })
     const keyId = tx() as number
@@ -533,13 +520,15 @@ adminAiConfigRouter.post('/keys', (req: AuthRequest, res) => {
   }
 })
 
-// PATCH /api/admin/ai-config/keys/:id  { name?, key?(轮换), is_primary?, status? }
+// PATCH /api/admin/ai-config/keys/:id  { name?, key?(轮换), priority?, status? }
+// 状态机（§2.2）：active↔disabled 管理员启停；exhausted→active 重新启用（清 exhausted_at）；
+// exhausted 态拒绝改 priority（S4）；exhausted→disabled 不允许
 adminAiConfigRouter.patch('/keys/:id', (req: AuthRequest, res) => {
   try {
     const { id } = req.params
     const row = db.prepare(`SELECT * FROM api_provider_keys WHERE id = ?`).get(id) as any
     if (!row) { res.status(404).json({ success: false, error: 'Key 不存在' }); return }
-    const { name, key, is_primary, status } = req.body || {}
+    const { name, key, status } = req.body || {}
 
     const fields: string[] = []
     const params: any[] = []
@@ -547,30 +536,30 @@ adminAiConfigRouter.patch('/keys/:id', (req: AuthRequest, res) => {
     if (key !== undefined) {
       const plain = String(key).trim()
       if (!plain) { res.status(400).json({ success: false, error: 'API Key 不能为空（留空表示不修改）' }); return }
-      // 平台渠道明文存储；用户渠道仍加密
-      const provider = loadProvider(row.provider_id)
-      const stored = provider && provider.owner_user_id === null
-        ? { ciphertext: plain, iv: '', tag: '' }
-        : encryptKey(plain)
+      // 明文存储（F7）；轮换 Key 值沿用清空最近检测结果
       fields.push('encrypted_key = ?', 'key_iv = ?', 'key_tag = ?', 'key_hint = ?', 'last_check_ok = NULL')
-      params.push(stored.ciphertext, stored.iv, stored.tag, maskKey(plain))
+      params.push(plain, '', '', maskKey(plain))
+    }
+    if (req.body?.priority !== undefined) {
+      const pri = parseKeyPriority(req.body.priority)
+      if (pri.error) { res.status(400).json({ success: false, error: pri.error }); return }
+      if (row.status === 'exhausted') {
+        res.status(400).json({ success: false, error: '已耗尽的 Key 不能修改优先级，请先重新启用或删除' }); return
+      }
+      fields.push('priority = ?'); params.push(pri.value)
     }
     if (status !== undefined) {
-      if (!['active', 'disabled'].includes(status)) { res.status(400).json({ success: false, error: 'status 仅支持 active/disabled' }); return }
-      if (row.is_primary && status === 'disabled') {
-        res.status(400).json({ success: false, error: '主 Key 不可停用，请先把其他 Key 设为主 Key' }); return
+      if (!['active', 'disabled'].includes(status)) {
+        res.status(400).json({ success: false, error: 'status 仅支持 active/disabled（耗尽态由服务端自动标记，通过 active 重新启用）' }); return
       }
-      fields.push('status = ?'); params.push(status)
-    }
-    if (is_primary !== undefined) {
-      if (is_primary) {
-        if (row.status !== 'active') { res.status(400).json({ success: false, error: '停用状态的 Key 不能设为主 Key' }); return }
-        clearOtherPrimaryKeys(row.provider_id, row.id)
-        fields.push('is_primary = 1')
-      } else if (row.is_primary) {
-        res.status(400).json({ success: false, error: '必须保留一把主 Key：请把其他 Key 设为主 Key，而不是取消当前主 Key' }); return
+      if (row.status === 'exhausted' && status === 'disabled') {
+        res.status(400).json({ success: false, error: '已耗尽的 Key 不能停用：请「重新启用」（active）或删除' }); return
+      }
+      if (status === 'active') {
+        // 重新启用/启用：清空耗尽标记（F4）
+        fields.push('status = ?', 'exhausted_at = NULL'); params.push(status)
       } else {
-        fields.push('is_primary = 0')
+        fields.push('status = ?'); params.push(status)
       }
     }
     if (fields.length === 0) { res.status(400).json({ success: false, error: '无更新字段' }); return }
@@ -584,17 +573,13 @@ adminAiConfigRouter.patch('/keys/:id', (req: AuthRequest, res) => {
   }
 })
 
-// DELETE /api/admin/ai-config/keys/:id
+// DELETE /api/admin/ai-config/keys/:id  直接删除（Key 选取动态按优先级，无「自动提升」逻辑）
 adminAiConfigRouter.delete('/keys/:id', (req: AuthRequest, res) => {
   try {
     const { id } = req.params
-    const row = db.prepare(`SELECT * FROM api_provider_keys WHERE id = ?`).get(id) as any
+    const row = db.prepare(`SELECT id FROM api_provider_keys WHERE id = ?`).get(id)
     if (!row) { res.status(404).json({ success: false, error: 'Key 不存在' }); return }
-    const tx = db.transaction(() => {
-      db.prepare(`DELETE FROM api_provider_keys WHERE id = ?`).run(id)
-      if (row.is_primary) promoteNextPrimaryKey(row.provider_id)
-    })
-    tx()
+    db.prepare(`DELETE FROM api_provider_keys WHERE id = ?`).run(id)
     res.json({ success: true })
   } catch (err: any) {
     console.error('[admin/ai-config] Delete key error:', err.message)
@@ -727,29 +712,7 @@ adminAiConfigRouter.delete('/logical-models/:id', (_req, res) => {
   res.status(410).json({ success: false, error: '逻辑模型由平台代码定义，不支持删除' })
 })
 
-// ── 用户渠道只读列表（S1：运营排障，Key 不回显明文，无编辑入口）──
-
-// GET /api/admin/ai-config/user-providers
-adminAiConfigRouter.get('/user-providers', (_req, res) => {
-  try {
-    const rows = db.prepare(`
-      SELECT p.id, p.code, p.name, p.base_url, p.adapter, p.status, p.owner_user_id,
-             p.created_at, u.username AS owner_username, u.nickname AS owner_nickname,
-             (SELECT COUNT(*) FROM ai_models m WHERE m.provider_id = p.id) AS model_count,
-             (SELECT key_hint FROM api_provider_keys k WHERE k.provider_id = p.id AND k.is_primary = 1 LIMIT 1) AS key_hint
-      FROM api_providers p
-      LEFT JOIN users u ON u.id = p.owner_user_id
-      WHERE p.owner_user_id IS NOT NULL
-      ORDER BY p.id DESC
-    `).all() as any[]
-    res.json({ success: true, data: rows })
-  } catch (err: any) {
-    console.error('[admin/ai-config] List user providers error:', err.message)
-    res.status(500).json({ success: false, error: '加载用户渠道失败' })
-  }
-})
-
-// ── 调试调用：走「主 Key + 适配器」完整链路 ──
+// ── 调试调用：走「第一个可用 Key + 适配器」完整链路 ──
 
 // POST /api/admin/ai-config/chat  { provider_id, model, prompt, image?: { mimeType, base64 } }
 adminAiConfigRouter.post('/chat', async (req: AuthRequest, res) => {

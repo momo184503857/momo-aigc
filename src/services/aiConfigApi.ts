@@ -33,31 +33,18 @@ export interface LogicalModelRow {
   updatedAt: string
 }
 
-/** 用户自建渠道（只读视图，S1） */
-export interface UserProviderRow {
-  id: number
-  code: string
-  name: string
-  base_url: string
-  adapter: string
-  status: string
-  owner_user_id: number
-  owner_username: string | null
-  owner_nickname: string | null
-  model_count: number
-  key_hint: string
-  created_at: string
-}
-
+/** 渠道 Key（Key 池：正整数优先级小者优先；状态含服务端标记的耗尽） */
 export interface ProviderKeyRow {
   id: number
   provider_id: number
   name: string
-  /** 完整 Key 明文（平台渠道明文存储，可复制展示）；历史密文解密失败时为 null */
+  /** 完整 Key 明文（明文存储，可复制展示）；历史密文解密失败时为 null */
   key: string | null
   key_hint: string
-  is_primary: boolean
-  status: 'active' | 'disabled'
+  priority: number
+  status: 'active' | 'disabled' | 'exhausted'
+  /** 耗尽时间（仅 exhausted 态非空；服务端欠费切换写入） */
+  exhausted_at: string | null
   last_checked_at: string | null
   last_check_ok: boolean | null
   created_at: string
@@ -91,7 +78,10 @@ export interface ProviderRow {
   adapter_label: string
   remark: string
   status: 'active' | 'disabled'
-  primary_key_hint: string
+  /** 首个可用 Key 的脱敏 hint（无可用 Key 时为空） */
+  first_key_hint: string
+  /** 是否存在可用 Key（全部停用/耗尽时 false，渠道实际不可用） */
+  has_active_key: boolean
   keys: ProviderKeyRow[]
   models: ModelRow[]
   created_at: string
@@ -124,7 +114,8 @@ export interface KeyPayload {
   provider_id: number
   name: string
   key: string
-  is_primary?: boolean
+  /** 优先级（≥1 整数，小者优先）；缺省 = 该渠道现有最大 + 1 */
+  priority?: number
 }
 
 export interface TestResult {
@@ -160,12 +151,12 @@ export const aiConfigApi = {
   deleteModel: (id: number) => http.delete(`/admin/ai-config/models/${id}`),
 
   createKey: (payload: KeyPayload) => http.post<{ data: ProviderKeyRow }>('/admin/ai-config/keys', payload),
-  updateKey: (id: number, payload: { name?: string; key?: string; is_primary?: boolean; status?: string }) =>
+  updateKey: (id: number, payload: { name?: string; key?: string; priority?: number; status?: string }) =>
     http.patch<{ data: ProviderKeyRow }>(`/admin/ai-config/keys/${id}`, payload),
   deleteKey: (id: number) => http.delete(`/admin/ai-config/keys/${id}`),
   testKey: (id: number) => http.post<{ data: TestResult }>(`/admin/ai-config/keys/${id}/test`, {}),
 
-  /** 调试调用（识图/对话），走「主 Key + 适配器」完整链路 */
+  /** 调试调用（识图/对话），走「第一个可用 Key + 适配器」完整链路 */
   chat: (payload: { provider_id: number; model: string; prompt: string; image?: { mimeType: string; base64: string } }) =>
     http.post<{ data: ChatDebugResult }>('/admin/ai-config/chat', payload, { timeout: 120_000 }),
 
@@ -177,7 +168,4 @@ export const aiConfigApi = {
   /** 逻辑模型管理（FR2） */
   listLogicalModels: () => http.get<{ data: LogicalModelRow[] }>('/admin/ai-config/logical-models'),
   updateLogicalModel: (id: number, payload: { name: string }) => http.patch<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}`, payload),
-
-  /** 用户自建渠道只读列表（S1） */
-  listUserProviders: () => http.get<{ data: UserProviderRow[] }>('/admin/ai-config/user-providers'),
 }

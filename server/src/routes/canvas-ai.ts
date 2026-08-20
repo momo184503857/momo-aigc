@@ -2,13 +2,14 @@ import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { getAdapter } from '../providers/index.js'
-import { resolveProviderContext, ProviderContextError } from '../utils/channelModel.js'
+import { withKeyFailover, ProviderContextError } from '../utils/channelModel.js'
 
 /**
- * 画布文字 AI 节点代理（ai-provider §8 文字模型迁移）。
+ * 画布文字 AI 节点代理（ai-provider §8 文字模型迁移；fixed-channels 后仅平台渠道）。
  *
- * 请求体携带 channelModelId（渠道模型），服务端按渠道模型解析渠道（平台或我的）
- * → 适配器 chat()。兼容旧画布存量节点：仅传模型名字符串时，按「渠道模型名全局查一次」兜底。
+ * 请求体携带 channelModelId（渠道模型），服务端按渠道模型解析渠道 → 适配器 chat()。
+ * chat 调用接入 Key 轮换：欠费 → 标记耗尽 → 换 Key 重试本次请求（F3）。
+ * 兼容旧画布存量节点：仅传模型名字符串时，按「渠道模型名全局查一次」兜底。
  * 计费维持现状（不计积分）。
  */
 
@@ -21,7 +22,6 @@ interface ChatCallResult {
 }
 
 async function callChat(req: {
-  userId: number
   model: string
   messages: Array<{ role: string; content: unknown }>
   temperature?: number | null
@@ -31,17 +31,16 @@ async function callChat(req: {
   // 1. 解析渠道模型：优先 channelModelId（数字 id），其次按模型名全局兜底（旧画布兼容）
   let cm: any = null
   const byName = db.prepare(`
-    SELECT m.*, p.owner_user_id AS p_owner, p.id AS p_id FROM ai_models m
+    SELECT m.*, p.id AS p_id FROM ai_models m
     JOIN api_providers p ON p.id = m.provider_id
     WHERE m.model_id = ? AND m.supports_chat = 1 AND m.status = 'active' AND p.status = 'active'
-    ORDER BY CASE WHEN p.owner_user_id IS NULL THEN 0 ELSE 1 END, m.id ASC
+    ORDER BY m.id ASC
     LIMIT 1
   `).get(req.model) as any
   if (byName) cm = byName
   if (!cm) throw new ProviderContextError(`模型「${req.model}」不可用，请在画布中重新选择文字模型`, 404)
 
-  // 归属校验：用户渠道仅 owner 可用
-  const ctx = resolveProviderContext(req.userId, cm.provider_id, 'chat')
+  // Key 选取在 withKeyFailover 内按优先级进行；无可用 Key 时其抛 ProviderContextError
   const provider = db.prepare(`SELECT adapter FROM api_providers WHERE id = ?`).get(cm.provider_id) as any
   const adapter = getAdapter(provider.adapter)
 
@@ -50,13 +49,14 @@ async function callChat(req: {
     .map((m) => (typeof m.content === 'string' ? m.content : ''))
     .filter(Boolean)
     .join('\n')
-  const result = await adapter.chat({
-    model: cm.model_id,
-    messages: [{ role: 'user', content: text || 'ping' }],
-    images: req.images || [],
-    maxTokens: req.maxTokens ?? 4096,
-    ...(req.temperature !== undefined && req.temperature !== null ? { temperature: req.temperature } : {}),
-  }, ctx.config)
+  const result = await withKeyFailover(cm.provider_id, 'chat', (config) =>
+    adapter.chat({
+      model: cm.model_id,
+      messages: [{ role: 'user', content: text || 'ping' }],
+      images: req.images || [],
+      maxTokens: req.maxTokens ?? 4096,
+      ...(req.temperature !== undefined && req.temperature !== null ? { temperature: req.temperature } : {}),
+    }, config))
   return { text: result.text }
 }
 
@@ -89,7 +89,6 @@ canvasAiRouter.post('/chat', async (req: AuthRequest, res) => {
 
   try {
     const { text } = await callChat({
-      userId: req.user!.userId,
       model: modelIdStr,
       messages,
       temperature,

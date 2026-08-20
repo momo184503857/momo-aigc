@@ -12,18 +12,15 @@ onMounted(() => modelCatalog.ensureLoaded())
 
 interface Row { resolution: string; price: number }
 
-/** 平台渠道分组（每组内每个模型一张定价表） */
+/** 渠道分组（每组内每个模型一张定价表） */
 const platformGroups = computed(() =>
   modelCatalog.imageGroups
-    .filter((g) => !g.mine)
     .map((g) => ({
       ...g,
       models: g.models.filter((m) => m.pricing && m.capabilities),
     }))
     .filter((g) => g.models.length > 0),
 )
-
-const mineGroups = computed(() => modelCatalog.imageGroups.filter((g) => g.mine))
 
 function rowsOf(pricing: Record<string, number> | null, resolutions: string[]): Row[] {
   if (!pricing) return []
@@ -60,16 +57,9 @@ function rowsOf(pricing: Record<string, number> | null, resolutions: string[]): 
       </div>
 
       <el-alert
-        v-if="mineGroups.length > 0"
-        class="note"
-        type="success" :closable="false" show-icon
-        :title="`我的渠道（${mineGroups.map((g) => g.providerName).join('、')}）的模型生图不扣积分，费用由你与上游渠道直接结算。`"
-      />
-
-      <el-alert
         class="note"
         type="info" :closable="false" show-icon
-        title="生成失败自动全额退款；「我的渠道」模型生图不消耗平台积分（可在「我的渠道」页自建渠道）。"
+        title="生成失败自动全额退款。"
       />
     </template>
   </PageLayout>

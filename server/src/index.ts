@@ -19,7 +19,6 @@ import { featurePromptsRouter, adminFeaturePromptsRouter } from './routes/featur
 import { proxyRouter } from './routes/proxy.js'
 import { toapisProxyRouter } from './routes/toapis-proxy.js'
 import { adminToapisKeyRouter } from './routes/admin/toapis-key.js'
-import { meToapisKeyRouter } from './routes/me-toapis-key.js'
 import { pointsRouter } from './routes/points.js'
 import { canvasRouter } from './routes/canvas.js'
 import { canvasAiRouter } from './routes/canvas-ai.js'
@@ -40,7 +39,6 @@ import { adminAiConfigRouter } from './routes/admin/aiConfig.js'
 import { themeLibraryRouter } from './routes/themeLibrary.js'
 import { generationsRouter, sweepOrphanTasks, waitForSyncTasks } from './routes/generations.js'
 import { modelsRouter } from './routes/models.js'
-import { myChannelsRouter } from './routes/myChannels.js'
 
 const app = express()
 
@@ -63,13 +61,11 @@ sweepOrphanTasks()
 // Routes
 app.use('/api/auth', authRouter)
 app.use('/api/me', meRouter)
-app.use('/api/me/toapis', meToapisKeyRouter)
 app.use('/api/oss', ossRouter)
 app.use('/api/templates', templatesRouter)
 app.use('/api/tasks', tasksRouter)
 app.use('/api/generations', generationsRouter)
 app.use('/api/models', modelsRouter)
-app.use('/api/my', myChannelsRouter)
 app.use('/api/prompts', promptsRouter)
 app.use('/api/admin/users', adminUsersRouter)
 app.use('/api/admin/tasks', adminTasksRouter)

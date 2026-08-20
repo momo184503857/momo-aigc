@@ -3,9 +3,9 @@ import { ref, computed } from 'vue'
 import http from '@/services/http'
 
 /**
- * 模型目录 store（ai-provider 重构后前端唯一模型真源，替代原 types/adapter.ts 的
- * MODELS/TEXT_MODELS 硬编码常量）。数据来自 GET /api/models/catalog：
- * 平台渠道组（走积分计费）在前，「我的渠道」组（个人渠道不扣积分）在后。
+ * 模型目录 store（前端唯一模型真源，替代原 types/adapter.ts 的 MODELS/TEXT_MODELS
+ * 硬编码常量）。数据来自 GET /api/models/catalog：fixed-channels 后渠道全部为
+ * 平台渠道（管理员配置），模型按渠道分组展示，统一按积分计费。
  */
 
 export interface ModelCapabilities {
@@ -24,27 +24,24 @@ export interface CatalogModel {
   displayName: string
   logicalCode: string | null
   capabilities: ModelCapabilities | null
-  /** 平台模型定价（分辨率→积分）；我的渠道恒 null */
+  /** 定价（分辨率→积分），ai_models.pricing 单一真源 */
   pricing: Record<string, number> | null
   kind: 'image' | 'text'
   /** 所属渠道 */
   providerId: number
   providerName: string
   adapter: string
-  mine: boolean
 }
 
 export interface CatalogGroup {
   providerId: number
   providerName: string
   adapter: string
-  mine: boolean
   models: CatalogModel[]
 }
 
 interface CatalogResponse {
   platform: Array<{ providerId: number; providerName: string; adapter: string; models: any[] }>
-  mine: Array<{ providerId: number; providerName: string; adapter: string; models: any[] }>
 }
 
 export const useModelCatalogStore = defineStore('modelCatalog', () => {
@@ -55,29 +52,25 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
   let loadedAt = 0
 
   function normalize(res: CatalogResponse, kind: 'image' | 'text'): CatalogGroup[] {
-    const build = (groups: CatalogResponse['platform'], mine: boolean): CatalogGroup[] =>
-      groups
-        .map((g) => ({
+    return (res.platform || [])
+      .map((g) => ({
+        providerId: g.providerId,
+        providerName: g.providerName,
+        adapter: g.adapter,
+        models: (g.models || []).map((m) => ({
+          id: m.id,
+          modelId: m.modelId,
+          displayName: m.displayName,
+          logicalCode: m.logicalCode ?? null,
+          capabilities: m.capabilities ?? null,
+          pricing: m.pricing ?? null,
+          kind: m.kind ?? kind,
           providerId: g.providerId,
           providerName: g.providerName,
           adapter: g.adapter,
-          mine,
-          models: (g.models || []).map((m) => ({
-            id: m.id,
-            modelId: m.modelId,
-            displayName: m.displayName,
-            logicalCode: m.logicalCode ?? null,
-            capabilities: m.capabilities ?? null,
-            pricing: mine ? null : (m.pricing ?? null),
-            kind: m.kind ?? kind,
-            providerId: g.providerId,
-            providerName: g.providerName,
-            adapter: g.adapter,
-            mine,
-          })) as CatalogModel[],
-        }))
-        .filter((g) => g.models.length > 0)
-    return [...build(res.platform, false), ...build(res.mine, true)]
+        })) as CatalogModel[],
+      }))
+      .filter((g) => g.models.length > 0)
   }
 
   async function fetchCatalog(force = false): Promise<void> {
@@ -114,15 +107,9 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
   const allModels = computed<CatalogModel[]>(() => [...flatImageModels.value, ...flatTextModels.value])
 
   const hasImageModels = computed(() => flatImageModels.value.length > 0)
-  /** 默认模型：首个平台生图模型（无平台模型时退回首个我的渠道模型） */
-  const defaultImageModel = computed<CatalogModel | null>(() => {
-    const platform = flatImageModels.value.find((m) => !m.mine)
-    return platform ?? flatImageModels.value[0] ?? null
-  })
-  const defaultTextModel = computed<CatalogModel | null>(() => {
-    const platform = flatTextModels.value.find((m) => !m.mine)
-    return platform ?? flatTextModels.value[0] ?? null
-  })
+  /** 默认模型：目录第一个可用模型 */
+  const defaultImageModel = computed<CatalogModel | null>(() => flatImageModels.value[0] ?? null)
+  const defaultTextModel = computed<CatalogModel | null>(() => flatTextModels.value[0] ?? null)
 
   function getModel(channelModelId: number | null | undefined): CatalogModel | undefined {
     if (channelModelId === null || channelModelId === undefined) return undefined
@@ -151,17 +138,13 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     return caps.aspectRatios ?? []
   }
 
-  /** 单价（积分）；我的渠道/无定价返回 null（展示「个人渠道 · 不扣积分」） */
+  /** 单价（积分）；无定价返回 null（展示时提示请联系管理员配置） */
   function priceFor(model: CatalogModel | undefined, resolution: string): number | null {
-    if (!model || model.mine || !model.pricing) return null
+    if (!model || !model.pricing) return null
     const price = model.pricing[resolution]
     if (price !== undefined) return price
     const first = model.capabilities?.resolutions?.[0]
     return first !== undefined ? (model.pricing[first] ?? null) : null
-  }
-
-  function isMineModel(channelModelId: number | null | undefined): boolean {
-    return !!getModel(channelModelId)?.mine
   }
 
   return {
@@ -183,6 +166,5 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     displayNameFor,
     aspectRatiosFor,
     priceFor,
-    isMineModel,
   }
 })

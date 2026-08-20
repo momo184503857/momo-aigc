@@ -228,7 +228,7 @@ export function useTaskManager() {
     pointIndex?: number
   }) {
     if (!serverStatus.canGenerate) {
-      warning('暂无可用模型（平台渠道未配置或已停用），请联系管理员或配置个人渠道')
+      warning('暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型')
       return
     }
     if (!params.channelModelId) {

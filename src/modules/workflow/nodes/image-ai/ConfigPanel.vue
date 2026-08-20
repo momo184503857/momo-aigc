@@ -13,7 +13,7 @@ modelCatalog.ensureLoaded()
 const availableModels = computed(() =>
   modelCatalog.imageGroups.flatMap((g) => g.models.map((m) => ({
     value: m.logicalCode ?? m.modelId,
-    label: g.mine ? `${m.displayName}（个人）` : m.displayName,
+    label: m.displayName,
   }))))
 
 const selectedModel = computed(() => modelCatalog.getModelByName(String(props.node.config.modelName || '')))

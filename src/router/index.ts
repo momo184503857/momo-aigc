@@ -136,12 +136,6 @@ const router = createRouter({
       meta: { title: '我的额度', requiresAuth: true },
     },
     {
-      path: '/my-channels',
-      name: 'MyChannels',
-      component: () => import('@/views/user/MyChannelsPage.vue'),
-      meta: { title: '我的渠道', requiresAuth: true },
-    },
-    {
       path: '/my-consumption',
       name: 'MyConsumption',
       component: () => import('@/views/user/MyConsumptionPage.vue'),

@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
-import { useServerStatusStore } from '@/stores/serverStatus'
 import { formatCredits } from '@/types/adapter'
 import {
   MagicStick,
@@ -12,7 +11,6 @@ import {
   Collection,
   EditPen,
   Coin,
-  Connection,
   ArrowDown,
   Share,
   Box,
@@ -31,9 +29,8 @@ const auth = useAuthStore()
 const tabStore = useTabStore()
 const router = useRouter()
 const route = useRoute()
-const serverStatus = useServerStatusStore()
 
-// 头像显示平台积分余额（个人渠道不计积分，余额展示移至「我的渠道」页）
+// 头像显示平台积分余额（fixed-channels：渠道由平台统一配置，计费单轨积分）
 const avatarCreditsLabel = computed(() => {
   return formatCredits(auth.user?.points ?? 0, { creditDigits: 0, yuanDigits: 2 })
 })
@@ -75,7 +72,6 @@ const menuSections = computed<MenuSection[]>(() => {
     {
       title: '资产管理',
       items: [
-        { path: '/my-channels', title: '我的渠道', icon: Connection },
         { path: '/templates', title: '模板图库', icon: PictureFilled },
         { path: '/prompts', title: '提示词库', icon: Collection },
         { path: '/results', title: '生图结果', icon: Picture },

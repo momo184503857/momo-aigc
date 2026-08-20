@@ -84,7 +84,6 @@ const userPrompt = ref('')
 
 const modelCatalog = useModelCatalogStore()
 const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
-const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
 /** 元素提示词键：逻辑模型 code（后台按 model_id 存量数据与逻辑 code 同名，天然兼容） */
 const promptKey = computed(() => selectedModel.value?.logicalCode ?? selectedModel.value?.modelId ?? '')
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
@@ -92,7 +91,12 @@ const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
   return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
-const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
+/** 展示用单价（积分+¥/张） */
+const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value))
+/** 按钮文案：显示本次预计消耗（积分+¥，×张数） */
+const generateButtonLabel = computed(() => {
+  return `生成图片 · ${formatCredits((currentPrice.value ?? 0) * count.value)}`
+})
 
 // 目录加载完成后初始化默认模型
 modelCatalog.ensureLoaded().then(() => {
@@ -549,11 +553,11 @@ onMounted(() => loadElements())
           <el-select v-model="selectedChannelModelId" placeholder="选择模型" style="width: 220px" @change="handleModelChange">
             <template v-if="modelCatalog.loaded">
               <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
-                <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                <el-option-group :label="group.providerName">
                   <el-option
                     v-for="m in group.models"
                     :key="m.id"
-                    :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                    :label="m.displayName"
                     :value="m.id"
                   />
                 </el-option-group>
@@ -577,10 +581,7 @@ onMounted(() => loadElements())
           <label>数量</label>
           <el-input-number v-model="count" :min="1" :max="5" />
         </div>
-        <div v-if="isPersonalChannel" class="param-item price">
-          <span class="price-tag">个人渠道 · 不扣积分</span>
-        </div>
-        <div v-else-if="currentPrice > 0" class="param-item price">
+        <div v-if="currentPrice" class="param-item price">
           <span class="price-tag">{{ formatCredits(currentPrice) }} /张</span>
         </div>
       </div>
@@ -719,10 +720,10 @@ onMounted(() => loadElements())
           :disabled="!canGenerate"
           @click="handleGenerate"
         >
-          生成图片
+          {{ generateButtonLabel }}
         </el-button>
         <span v-if="!canGenerate && serverStatus.loaded" class="gen-hint">
-          {{ serverStatus.canGenerate ? '请至少分配一张图片到元素' : '暂无可用模型，请联系管理员或配置个人渠道' }}
+          {{ serverStatus.canGenerate ? '请至少分配一张图片到元素' : '暂无可用模型，请联系管理员配置渠道与模型' }}
         </span>
       </div>
     </div>

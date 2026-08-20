@@ -1,24 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { toBJMinute } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { pointsApi } from '@/services/pointsApi'
-import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { formatCredits } from '@/types/adapter'
-import { Coin, Connection, Right } from '@element-plus/icons-vue'
+import { Coin } from '@element-plus/icons-vue'
 import PageLayout from '@/components/PageLayout.vue'
 
 defineOptions({ name: 'MyQuota' })
 
 /**
- * 我的额度（ai-provider 重构后）：
- * 旧「平台积分 / 个人 Key」全局开关已退役（S4）——费用模式随所选模型自动判定。
- * 平台模型消耗积分（本页展示余额与流水）；「我的渠道」模型不扣积分（入口见下方卡片）。
+ * 我的额度（fixed-channels：渠道由平台统一配置，计费单轨积分）。
+ * 所有模型生图按定价扣积分（本页展示余额与流水）；生成失败自动全额退款。
  */
 const { error } = useUiFeedback()
-const router = useRouter()
-const modelCatalog = useModelCatalogStore()
 
 interface QuotaData {
   platform: { credits: number; yuan: number }
@@ -38,7 +33,7 @@ const reasonLabel: Record<string, string> = {
   refund: '失败退款',
 }
 
-async function load() {
+onMounted(async () => {
   loading.value = true
   try {
     const res = await pointsApi.getMyQuota()
@@ -47,19 +42,6 @@ async function load() {
     error('加载额度失败: ' + (e.response?.data?.error || e.message))
   } finally {
     loading.value = false
-  }
-}
-
-/** 我的渠道分组（入口卡片展示渠道数与模型数） */
-const mineSummary = ref({ channels: 0, models: 0 })
-
-onMounted(async () => {
-  load()
-  await modelCatalog.ensureLoaded()
-  const mine = modelCatalog.imageGroups.filter((g) => g.mine)
-  mineSummary.value = {
-    channels: mine.length,
-    models: mine.reduce((s, g) => s + g.models.length, 0),
   }
 })
 </script>
@@ -71,7 +53,7 @@ onMounted(async () => {
     <el-alert
       class="mode-note"
       type="info" :closable="false" show-icon
-      title="计费方式随所选模型自动判定：平台渠道模型按积分计费（消耗下方余额）；「我的渠道」模型生图不扣积分。"
+      title="所有模型按「渠道 × 模型 × 分辨率」定价扣积分（消耗下方余额）；生成失败自动全额退款。"
     />
 
     <div v-loading="loading">
@@ -82,21 +64,7 @@ onMounted(async () => {
             <span>平台积分余额</span>
           </div>
           <div v-if="quota" class="qc-value">{{ formatCredits(quota.platform.credits, { creditDigits: 0, yuanDigits: 2 }) }}</div>
-          <div class="qc-hint">平台渠道模型生图消耗此余额；生成失败自动全额退款</div>
-        </div>
-
-        <div class="quota-card mine-entry" @click="router.push('/my-channels')">
-          <div class="qc-header">
-            <el-icon size="18" color="var(--el-color-primary)"><Connection /></el-icon>
-            <span>我的渠道</span>
-            <el-icon class="entry-arrow"><Right /></el-icon>
-          </div>
-          <div class="qc-value qc-value-sm">
-            {{ mineSummary.channels > 0 ? `${mineSummary.channels} 个渠道 · ${mineSummary.models} 个模型` : '未配置' }}
-          </div>
-          <div class="qc-hint">
-            {{ mineSummary.channels > 0 ? '我的渠道模型生图不扣积分，前往管理渠道与余额' : '自建渠道（协议 + Base URL + Key）后可用个人渠道生图，不扣积分' }}
-          </div>
+          <div class="qc-hint">模型生图消耗此余额；生成失败自动全额退款</div>
         </div>
       </div>
 
@@ -145,14 +113,6 @@ onMounted(async () => {
 .quota-card.primary {
   background: var(--el-color-warning-light-9);
   border-color: var(--el-color-warning-light-5);
-}
-.quota-card.mine-entry {
-  cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.quota-card.mine-entry:hover {
-  border-color: var(--el-color-primary);
-  box-shadow: var(--el-box-shadow-light);
 }
 .qc-header {
   display: flex;

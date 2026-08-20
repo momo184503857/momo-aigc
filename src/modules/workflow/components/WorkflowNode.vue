@@ -71,12 +71,12 @@ modelCatalog.ensureLoaded()
 const modelOptions = computed(() =>
   modelCatalog.imageGroups.flatMap((g) => g.models.map((m) => ({
     value: m.logicalCode ?? m.modelId,
-    label: g.mine ? `${m.displayName}（个人）` : m.displayName,
+    label: m.displayName,
   }))))
 const textModelOptions = computed(() =>
   modelCatalog.textGroups.flatMap((g) => g.models.map((m) => ({
     value: m.modelId,
-    label: g.mine ? `${m.displayName}（个人）` : m.displayName,
+    label: m.displayName,
   }))))
 const currentModel = computed(() => modelCatalog.getModelByName(String(workflowNode.value.config.modelName || '')))
 const aspectRatios = computed(() => {

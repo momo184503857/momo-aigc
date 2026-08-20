@@ -1,5 +1,6 @@
 import { db } from '../db/index.js'
 import { resolveKeyPlain } from './crypto.js'
+import { ProviderCallError } from '../providers/http.js'
 import type { ProviderRuntimeConfig } from '../providers/types.js'
 
 /**
@@ -41,7 +42,6 @@ export interface ProviderRow {
   base_url: string
   adapter: string
   status: string
-  owner_user_id: number | null
 }
 
 const ASPECT_RE = /^\d{1,3}:\d{1,3}$/
@@ -221,7 +221,7 @@ export function aspectRatiosAtResolution(params: CapabilityParams, resolution?: 
   return aspectRatiosFor(params, resolution)
 }
 
-// ── 渠道上下文解析（resolveUserApiKey 的通用化，退役清单 §9）──
+// ── 渠道上下文解析与 Key 池轮换（fixed-channels：渠道全部为平台渠道，Key 按优先级选取）──
 
 export interface ResolvedProviderContext {
   provider: ProviderRow
@@ -236,24 +236,23 @@ export class ProviderContextError extends Error {
 }
 
 /**
- * 解析渠道运行时配置：校验渠道归属（平台渠道任何人可用；用户渠道仅 owner），
- * 取主 Key（平台渠道明文存储、用户渠道密文解密，见 resolveKeyPlain）。
+ * 解析渠道运行时配置：校验渠道状态，按 `priority ASC, id ASC` 取第一个可用 Key
+ * （明文存储，见 resolveKeyPlain）。config.keyId 供欠费切换路径标记耗尽用。
  */
-export function resolveProviderContext(userId: number, providerId: number, kind: 'image' | 'chat' = 'image'): ResolvedProviderContext {
+export function resolveProviderContext(providerId: number, kind: 'image' | 'chat' = 'image'): ResolvedProviderContext {
   const provider = db.prepare(`
-    SELECT id, code, name, base_url, adapter, status, owner_user_id FROM api_providers WHERE id = ?
+    SELECT id, code, name, base_url, adapter, status FROM api_providers WHERE id = ?
   `).get(providerId) as ProviderRow | undefined
   if (!provider) throw new ProviderContextError('渠道不存在', 404)
-  if (provider.owner_user_id !== null && provider.owner_user_id !== userId) {
-    throw new ProviderContextError('无权访问该渠道', 403)
-  }
   if (provider.status !== 'active') throw new ProviderContextError('渠道已停用', 400)
 
   const keyRow = db.prepare(`
-    SELECT encrypted_key, key_iv, key_tag FROM api_provider_keys
-    WHERE provider_id = ? AND is_primary = 1 AND status = 'active'
-  `).get(providerId) as { encrypted_key: string; key_iv: string; key_tag: string } | undefined
-  if (!keyRow) throw new ProviderContextError('该渠道没有可用的主 Key，请先配置', 400)
+    SELECT id AS key_id, encrypted_key, key_iv, key_tag FROM api_provider_keys
+    WHERE provider_id = ? AND status = 'active'
+    ORDER BY priority ASC, id ASC
+    LIMIT 1
+  `).get(providerId) as { key_id: number; encrypted_key: string; key_iv: string; key_tag: string } | undefined
+  if (!keyRow) throw new ProviderContextError('该渠道没有可用 Key（可能所有 Key 已耗尽或停用）', 400)
 
   let apiKey: string
   try {
@@ -270,8 +269,69 @@ export function resolveProviderContext(userId: number, providerId: number, kind:
       name: provider.name,
       baseUrl: provider.base_url,
       apiKey,
+      keyId: keyRow.key_id,
       providerTaskKind: kind,
     },
+  }
+}
+
+// ── Key 欠费自动切换（F3：欠费判定 → 标记耗尽 → 换 Key 重试本次请求）──
+
+const EXHAUST_KEYWORDS = /余额不足|欠费|insufficient|quota|balance/i
+
+/**
+ * 欠费信号判定：HTTP 402 无条件视为耗尽；400/403/429 需错误文案佐证
+ * （部分中转站把欠费报成 400「insufficient quota」或 429「quota exceeded」）。
+ * 401（Key 失效）/ 5xx / 网络错误不切换——避免把临时性故障误判为永久耗尽。
+ */
+export function isKeyExhaustionError(e: unknown): boolean {
+  if (!(e instanceof ProviderCallError)) return false
+  if (e.status === 402) return true
+  if (e.status === 400 || e.status === 403 || e.status === 429) {
+    return EXHAUST_KEYWORDS.test(e.message || '')
+  }
+  return false
+}
+
+/**
+ * 标记 Key 耗尽（仅服务端欠费切换路径写入）。条件更新天然幂等 + 并发安全：
+ * 多请求同时耗尽同一 Key 时，仅第一个 UPDATE 生效（changes=1），后续 changes=0 无副作用。
+ */
+export function markKeyExhausted(keyId: number, reason: string): boolean {
+  const r = db.prepare(`
+    UPDATE api_provider_keys
+    SET status = 'exhausted', exhausted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND status = 'active'
+  `).run(keyId)
+  if (r.changes > 0) {
+    console.log(`[key-pool] key ${keyId} exhausted: ${reason.slice(0, 200)}`)
+  }
+  return r.changes > 0
+}
+
+/**
+ * 带 Key 轮换的调用包装：命中欠费信号 → 标记当前 Key 耗尽 → 立即取下一个可用 Key
+ * 重试**本次请求**（无退避；循环上限 = 渠道可用 Key 数）。非欠费错误原样抛出；
+ * 渠道无可用 Key 时由 resolveProviderContext 抛 ProviderContextError（调用方转译为
+ * 业务错误，生图 = ALL_KEYS_EXHAUSTED）。
+ */
+export async function withKeyFailover<T>(
+  providerId: number,
+  kind: 'image' | 'chat',
+  fn: (ctx: ProviderRuntimeConfig) => Promise<T>,
+): Promise<T> {
+  for (;;) {
+    const { config } = resolveProviderContext(providerId, kind) // 每轮重取：上一轮已标记耗尽，本轮自然取下一个
+    try {
+      return await fn(config)
+    } catch (e) {
+      if (isKeyExhaustionError(e)) {
+        // 标记失败（已被并发请求标记）也无妨：下一轮 resolve 自然取别的 Key
+        if (config.keyId !== undefined) markKeyExhausted(config.keyId, (e as Error).message)
+        continue
+      }
+      throw e
+    }
   }
 }
 

@@ -102,13 +102,16 @@ const editedSystemPromptsByModel = ref<Record<string, string>>({})
 // Model computed（必须在下方 promptKey 之前声明：watch(promptKey) 会在 setup 阶段
 // 立即求值一次 getter，若 selectedModel 声明在后会命中 TDZ 报错导致整页白屏）
 const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
-const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
   return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
-const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value) ?? 0)
+const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value))
+/** 按钮文案：显示本次预计消耗（积分+¥，×张数） */
+const generateButtonLabel = computed(() => {
+  return `生成图片 · ${formatCredits((currentPrice.value ?? 0) * count.value)}`
+})
 
 const promptKey = computed(() => selectedModel.value?.logicalCode ?? selectedModel.value?.modelId ?? '')
 const currentPrompt = computed(() => modelPrompts.value[promptKey.value])
@@ -386,7 +389,7 @@ defineExpose({ setParams })
       <!-- API Key warning -->
       <el-alert
         v-if="serverStatus.loaded && !serverStatus.canGenerate"
-        title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
+        title="暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型"
         type="warning"
         show-icon
         :closable="false"
@@ -490,11 +493,11 @@ defineExpose({ setParams })
           <el-select v-model="selectedChannelModelId" style="width: 100%" @change="handleModelChange">
             <template v-if="modelCatalog.loaded">
               <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
-                <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                <el-option-group :label="group.providerName">
                   <el-option
                     v-for="m in group.models"
                     :key="m.id"
-                    :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                    :label="m.displayName"
                     :value="m.id"
                   />
                 </el-option-group>
@@ -544,7 +547,7 @@ defineExpose({ setParams })
         style="width: 100%"
         @click="handleGenerate"
       >
-        {{ isPersonalChannel ? '生成图片 · 个人渠道 · 不扣积分' : `生成图片 · ${formatCredits(currentPrice)}` }}
+        {{ generateButtonLabel }}
       </el-button>
     </div>
   </div>

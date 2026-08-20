@@ -64,7 +64,6 @@ modelCatalog.ensureLoaded().then(() => {
 })
 
 const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
-const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
@@ -208,7 +207,7 @@ async function handleGenerate() {
   const total = Math.round(unitPrice.value * count * 1000) / 1000
 
   try {
-    const costText = `预计消耗：${formatCredits(total)}${isPersonalChannel.value ? '（个人渠道）' : ''}`
+    const costText = `预计消耗：${formatCredits(total)}`
     await ElMessageBox.confirm(
       `选中任务：${count} 个\n${costText}`,
       '确认提交',
@@ -220,17 +219,15 @@ async function handleGenerate() {
     )
   } catch { return }
 
-  // Check balance（个人 Key 模式不消耗积分，跳过校验）
-  if (!isPersonalChannel.value) {
-    try {
-      const res = await pointsApi.getMyBalance()
-      const balance = res.data.data?.balance ?? 0
-      if (balance < total) {
-        warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
-        return
-      }
-    } catch { /* proceed */ }
-  }
+  // 余额预检（服务端仍会二次校验）
+  try {
+    const res = await pointsApi.getMyBalance()
+    const balance = res.data.data?.balance ?? 0
+    if (balance < total) {
+      warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
+      return
+    }
+  } catch { /* proceed */ }
 
   // Filter to selected rows
   const toSubmit = tableData.value.filter(r => r.selected)
@@ -429,7 +426,7 @@ onUnmounted(() => {
     <div v-if="step === 'upload'" class="step-upload">
       <el-alert
         v-if="serverStatus.loaded && !serverStatus.canGenerate"
-        title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
+        title="暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型"
         type="warning" show-icon :closable="false" style="margin-bottom: 16px"
       />
 
@@ -469,11 +466,11 @@ onUnmounted(() => {
           <el-select v-model="selectedChannelModelId" style="width: 200px" @change="handleModelChange">
             <template v-if="modelCatalog.loaded">
               <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
-                <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                <el-option-group :label="group.providerName">
                   <el-option
                     v-for="m in group.models"
                     :key="m.id"
-                    :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                    :label="m.displayName"
                     :value="m.id"
                   />
                 </el-option-group>
@@ -499,7 +496,7 @@ onUnmounted(() => {
       <div class="preview-footer">
         <el-button @click="step = 'upload'">重新上传</el-button>
         <el-button type="primary" :disabled="selectedCount === 0" @click="handleGenerate">
-          开始生成 · {{ selectedCount }} 个任务 · {{ formatCredits(unitPrice * selectedCount) }}{{ isPersonalChannel ? ' · 个人渠道' : '' }}
+          开始生成 · {{ selectedCount }} 个任务 · {{ formatCredits(unitPrice * selectedCount) }}
         </el-button>
       </div>
     </div>

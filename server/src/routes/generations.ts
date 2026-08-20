@@ -9,6 +9,7 @@ import {
   getChannelModelCapabilities,
   aspectRatiosAtResolution,
   resolveProviderContext,
+  withKeyFailover,
   ProviderContextError,
 } from '../utils/channelModel.js'
 
@@ -75,7 +76,7 @@ function loadChannelModel(channelModelId: number) {
     SELECT m.id, m.provider_id, m.model_id, m.display_name, m.logical_model_id, m.param_overrides,
            m.pricing, m.supports_vision, m.supports_image_gen, m.supports_chat, m.status AS model_status,
            p.id AS p_id, p.code AS p_code, p.name AS p_name, p.base_url AS p_base_url, p.adapter AS p_adapter,
-           p.status AS p_status, p.owner_user_id AS p_owner_user_id
+           p.status AS p_status
     FROM ai_models m JOIN api_providers p ON p.id = m.provider_id
     WHERE m.id = ?
   `).get(channelModelId) as any
@@ -192,10 +193,11 @@ async function runSyncTask(taskId: number): Promise<void> {
   try {
     cm = loadChannelModel(task.channel_model_id)
     if (!cm || cm.p_status !== 'active' || cm.model_status !== 'active') throw new Error('渠道或模型已停用/删除')
-    const ctx = resolveProviderContext(task.user_id, cm.p_id, 'image')
     const adapter = getImageAdapter(cm.p_adapter)
 
-    const images = await adapter.submitImageTask(buildImageGenRequest(task, cm), ctx.config)
+    // 同步渠道执行同样接入 Key 轮换：欠费 → 标记耗尽 → 换 Key 重试本次请求（F3）
+    const images = await withKeyFailover(cm.p_id, 'image', (config) =>
+      adapter.submitImageTask(buildImageGenRequest(task, cm), config))
     if (!images.images || images.images.length === 0) throw new Error('上游未返回任何图片')
 
     // 抢占转存权（轮询请求/其他实例可能已处理）
@@ -210,7 +212,8 @@ async function runSyncTask(taskId: number): Promise<void> {
     commitImportResult(fresh, imported, rawUrls)
   } catch (e: any) {
     if (e instanceof ProviderContextError) {
-      failTaskAndRefund(task.id, 'PROVIDER_CONTEXT', e.message)
+      // 无可用 Key（通常为全部耗尽/停用；含首轮渠道无 Key）
+      failTaskAndRefund(task.id, 'ALL_KEYS_EXHAUSTED', e.message)
     } else {
       failTaskAndRefund(task.id, 'UPSTREAM_ERROR', e.message || String(e))
     }
@@ -273,9 +276,6 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
   // 1. 解析与校验
   const cm = loadChannelModel(Number(channelModelId))
   if (!cm) { res.status(404).json({ success: false, error: '渠道模型不存在' }); return }
-  if (cm.p_owner_user_id !== null && cm.p_owner_user_id !== userId) {
-    res.status(403).json({ success: false, error: '无权使用该渠道模型' }); return
-  }
   if (cm.p_status !== 'active' || cm.model_status !== 'active') {
     res.status(400).json({ success: false, error: '渠道或模型已停用' }); return
   }
@@ -311,10 +311,9 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
   }
   const count = Math.max(1, Math.min(5, Number(n) || 1))
 
-  // 2. 计价（平台渠道按定价预扣；用户渠道不计费 D8）
-  const isPlatform = cm.p_owner_user_id === null
+  // 2. 计价（F5 计费统一：全部渠道模型按平台定价预扣，单轨）
   let unitPrice = 0
-  if (isPlatform) {
+  {
     let pricing: Record<string, number> | null = null
     try { pricing = cm.pricing ? JSON.parse(cm.pricing) : null } catch { pricing = null }
     const price = pricing?.[effResolution]
@@ -332,7 +331,7 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
       if (!user) throw { status: 404, error: '用户不存在' }
       const currentBalance = Number(user.points) || 0
       const totalCost = Math.round(unitPrice * count * 1000) / 1000
-      if (isPlatform && currentBalance < totalCost) {
+      if (currentBalance < totalCost) {
         throw {
           status: 402,
           error: `积分不足，需要 ${totalCost} 积分，当前仅有 ${Math.round(currentBalance * 1000) / 1000} 积分`,
@@ -365,7 +364,7 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
           templateImageIds ? JSON.stringify(templateImageIds) : null,
           JSON.stringify(refUrls),
           featureId || null, userPrompt || '',
-          cost, isPlatform ? balance : null,
+          cost, balance,
           JSON.stringify(supplementaryImages || []),
           JSON.stringify(promptSegments || {}),
           negativePrompt || '',
@@ -376,7 +375,7 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
         const id = Number(r.lastInsertRowid)
         const no = taskNoOf(id)
         updateNo.run(no, id)
-        if (isPlatform && cost > 0) {
+        if (cost > 0) {
           deduct.run(balance, userId)
           txnLog.run(userId, -cost, balance, id)
         }
@@ -395,18 +394,24 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
 
   // 4. 派发（事务提交后）。toapis 为异步任务式渠道；openai_image / volcengine_image 同步渠道
   if (cm.p_adapter === 'toapis') {
-    const ctx = resolveProviderContext(userId, cm.p_id, 'image')
     const adapter = getImageAdapter(cm.p_adapter)
     for (const t of created) {
       try {
-        const submit = await adapter.submitImageTask(
-          { model: cm.model_id, logicalCode: logicalCodeOf(cm), prompt: finalPrompt, negativePrompt: negativePrompt || undefined, aspectRatio: effRatio, resolution: effResolution, n: 1, imageUrls: refUrls },
-          ctx.config,
-        )
+        // 异步提交接入 Key 轮换：欠费 → 标记耗尽 → 换 Key 重试本次请求（F3）
+        const submit = await withKeyFailover(cm.p_id, 'image', (config) =>
+          adapter.submitImageTask(
+            { model: cm.model_id, logicalCode: logicalCodeOf(cm), prompt: finalPrompt, negativePrompt: negativePrompt || undefined, aspectRatio: effRatio, resolution: effResolution, n: 1, imageUrls: refUrls },
+            config,
+          ))
         db.prepare(`UPDATE generation_tasks SET provider_task_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
           .run(submit.providerTaskId ?? null, t.id)
       } catch (e: any) {
-        failTaskAndRefund(t.id, 'SUBMIT_FAILED', e.message || String(e))
+        if (e instanceof ProviderContextError) {
+          // 无可用 Key（渠道全部耗尽/停用，或首轮即无 Key）：任务失败 + 全额退款
+          failTaskAndRefund(t.id, 'ALL_KEYS_EXHAUSTED', e.message)
+        } else {
+          failTaskAndRefund(t.id, 'SUBMIT_FAILED', e.message || String(e))
+        }
       }
     }
   } else {
@@ -496,7 +501,8 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
       return
     }
     try {
-      const ctx = resolveProviderContext(task.user_id, cm.p_id, 'image')
+      // 轮询路径不接入 Key 切换（S3）：任务已在上游，换 Key 无济于事；异常记警告、下轮重试
+      const ctx = resolveProviderContext(cm.p_id, 'image')
       const adapter = getImageAdapter(cm.p_adapter)
       const result = await adapter.queryImageTask(task.provider_task_id, ctx.config)
 
@@ -573,7 +579,7 @@ generationsRouter.post('/:id/reimport', async (req: AuthRequest, res) => {
   if (images.length === 0 && task.provider_task_id && task.channel_model_id) {
     try {
       const cm = loadChannelModel(task.channel_model_id)
-      const ctx = resolveProviderContext(task.user_id, cm.p_id, 'image')
+      const ctx = resolveProviderContext(cm.p_id, 'image')
       const adapter = getImageAdapter(cm.p_adapter)
       const result = await adapter.queryImageTask(task.provider_task_id, ctx.config)
       if (result.status === 'completed') images = result.resultUrls.map((url) => ({ url }))

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
- * AdminAiConfig - 管理后台「配置」页：AI 服务商 / 模型 / Key 管理。
+ * AdminAiConfig - 管理后台「配置」页：AI 服务商 / 模型 / Key 池管理。
  *
- * 关系：服务商 1─N 模型、服务商 1─N Key（唯一主 Key，连接调用一律走主 Key）。
+ * 关系：服务商 1─N 模型、服务商 1─N Key（Key 池：正整数优先级小者优先，同优先级按录入先后）。
+ * Key 状态：active/disabled 管理员启停；exhausted 由服务端欠费切换自动标记（红色「已耗尽」），
+ * 充值后管理员「重新启用」恢复参与轮换。
  * 模型能力：识图（图片输入）/ 生图（图片输出，生图模型必定支持识图）。
  * 实际调用由后端 providers/ 适配器层完成，本页仅做配置与调试。
  */
@@ -18,9 +20,8 @@ import {
   type ProviderKeyRow,
   type AdapterInfo,
   type LogicalModelRow,
-  type UserProviderRow,
 } from '@/services/aiConfigApi'
-import { Plus, Refresh, Edit, Delete, Key, Connection, Picture, UploadFilled, ChatDotRound, CopyDocument } from '@element-plus/icons-vue'
+import { Plus, Refresh, Edit, Delete, Key, Connection, UploadFilled, ChatDotRound, CopyDocument } from '@element-plus/icons-vue'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const { copy } = useClipboard()
@@ -31,7 +32,7 @@ const adapters = ref<AdapterInfo[]>([])
 const loading = ref(false)
 const selectedId = ref<number | null>(null)
 const selected = computed(() => providers.value.find((p) => p.id === selectedId.value) ?? null)
-/** 顶层页签：providers（服务商与模型）/ logical（逻辑模型）/ userChannels（用户自建渠道） */
+/** 顶层页签：providers（服务商与模型）/ logical（逻辑模型） */
 const activeTab = ref('providers')
 /** 服务商详情内层页签：models / keys / debug */
 const detailTab = ref('models')
@@ -314,20 +315,21 @@ async function deleteModel(row: ModelRow) {
 // ── Key 弹窗 ──
 const keyDialog = ref(false)
 const keyEditing = ref<ProviderKeyRow | null>(null)
-const keyForm = ref({ name: '', key: '', is_primary: true })
+const keyForm = ref({ name: '', key: '', priority: null as number | null })
 const keySubmitting = ref(false)
 
 function openKeyCreate() {
   if (!selected.value) return
   keyEditing.value = null
-  // 已有主 Key 时，新增 Key 默认不抢主 Key
-  keyForm.value = { name: '', key: '', is_primary: !selected.value.keys.some((k) => k.is_primary) }
+  // 新 Key 默认优先级 = 当前最大 + 1（首个为 1），默认排到最后；后端缺省同样处理
+  const maxPriority = selected.value.keys.reduce((m, k) => Math.max(m, k.priority), 0)
+  keyForm.value = { name: '', key: '', priority: maxPriority + 1 }
   keyDialog.value = true
 }
 
 function openKeyEdit(row: ProviderKeyRow) {
   keyEditing.value = row
-  keyForm.value = { name: row.name, key: '', is_primary: row.is_primary }
+  keyForm.value = { name: row.name, key: '', priority: row.priority }
   keyDialog.value = true
 }
 
@@ -335,9 +337,12 @@ async function submitKey() {
   const f = keyForm.value
   if (keyEditing.value) {
     if (!f.name.trim()) { warning('请填写 Key 名称'); return }
-    const payload: { name: string; key?: string; is_primary?: boolean } = { name: f.name.trim() }
+    const payload: { name: string; key?: string; priority?: number } = { name: f.name.trim() }
     if (f.key.trim()) payload.key = f.key.trim()
-    if (!keyEditing.value.is_primary) payload.is_primary = f.is_primary
+    // 耗尽态 Key 不允许改优先级（S4：仅重新启用或删除）
+    if (keyEditing.value.status !== 'exhausted' && f.priority !== null && Number.isInteger(f.priority) && f.priority >= 1) {
+      payload.priority = f.priority
+    }
     keySubmitting.value = true
     try {
       await aiConfigApi.updateKey(keyEditing.value.id, payload)
@@ -355,7 +360,10 @@ async function submitKey() {
   keySubmitting.value = true
   try {
     await aiConfigApi.createKey({
-      provider_id: selected.value!.id, name: f.name.trim(), key: f.key.trim(), is_primary: f.is_primary,
+      provider_id: selected.value!.id,
+      name: f.name.trim(),
+      key: f.key.trim(),
+      priority: f.priority !== null && Number.isInteger(f.priority) && f.priority >= 1 ? f.priority : undefined,
     })
     success('Key 已添加')
     keyDialog.value = false
@@ -364,16 +372,6 @@ async function submitKey() {
     error(e, '保存失败')
   } finally {
     keySubmitting.value = false
-  }
-}
-
-async function setPrimaryKey(row: ProviderKeyRow) {
-  try {
-    await aiConfigApi.updateKey(row.id, { is_primary: true })
-    success(`已把「${row.name}」设为主 Key`)
-    await loadAll()
-  } catch (e) {
-    error(e, '设置失败')
   }
 }
 
@@ -387,9 +385,28 @@ async function toggleKeyStatus(row: ProviderKeyRow, active: boolean) {
   }
 }
 
+/** 重新启用已耗尽的 Key（F4：清空耗尽标记，恢复参与轮换） */
+async function reactivateKey(row: ProviderKeyRow) {
+  try {
+    await confirmDanger({
+      title: '重新启用 Key',
+      message: `确定重新启用「${row.name}」吗？确认上游已充值——启用后该 Key 将立即按优先级重新参与调用轮换。`,
+      confirmText: '重新启用',
+      cancelText: '取消',
+    })
+  } catch { return }
+  try {
+    await aiConfigApi.updateKey(row.id, { status: 'active' })
+    success(`「${row.name}」已重新启用，恢复参与轮换`)
+    await loadAll()
+  } catch (e) {
+    error(e, '重新启用失败')
+  }
+}
+
 async function deleteKey(row: ProviderKeyRow) {
   try {
-    await confirmDanger({ message: `确定删除 Key「${row.name}」吗？${row.is_primary ? '该 Key 是主 Key，删除后将自动提升其他 Key 为主 Key。' : ''}` })
+    await confirmDanger({ message: `确定删除 Key「${row.name}」吗？` })
   } catch { return }
   try {
     await aiConfigApi.deleteKey(row.id)
@@ -569,21 +586,11 @@ function logicalCapabilitySummary(row: LogicalModelRow): string {
   return parts.join(' · ') || '—'
 }
 
-// ── 用户自建渠道只读列表（S1）──
-const userProviders = ref<UserProviderRow[]>([])
-async function loadUserProviders() {
-  try {
-    const res = await aiConfigApi.listUserProviders()
-    userProviders.value = res.data.data || []
-  } catch { /* ignore */ }
-}
-
 onMounted(() => {
   loadAll()
   loadAdapters()
   loadDefaultVision()
   loadAllLogicalModels()
-  loadUserProviders()
 })
 </script>
 
@@ -608,7 +615,7 @@ onMounted(() => {
       <!-- ═══ Tab 1：服务商与模型（渠道 / 渠道模型 / Key / 调试调用）═══ -->
       <el-tab-pane label="服务商与模型" name="providers">
         <div class="toolbar">
-          <div class="hint">管理平台渠道（服务商）、渠道模型与 API Key。每个渠道唯一一把主 Key，所有调用通过主 Key 连接；生图渠道可选 toapis / openai_image / volcengine_image 协议。</div>
+          <div class="hint">管理平台渠道（服务商）、渠道模型与 Key 池。一渠道可配多把 Key，按优先级（小者优先）轮换调用，上游欠费自动切换；生图渠道可选 toapis / openai_image / volcengine_image 协议。</div>
           <div class="toolbar-actions">
             <el-button type="primary" :icon="Plus" @click="openProviderCreate">新增服务商</el-button>
             <el-button :icon="Refresh" @click="loadAll">刷新</el-button>
@@ -632,9 +639,10 @@ onMounted(() => {
               </div>
               <div class="provider-code">{{ p.code }} · {{ p.base_url }}</div>
               <div class="provider-meta">
-                <span>{{ p.models.length }} 模型 / {{ p.keys.length }} Key</span>
-                <span class="primary-hint" :class="{ missing: !p.primary_key_hint }">
-                  {{ p.primary_key_hint ? `主Key ${p.primary_key_hint}` : '未设主Key' }}
+                <span>Keys {{ p.keys.length }} · {{ p.models.length }} 模型</span>
+                <span v-if="p.has_active_key" class="primary-hint">首Key {{ p.first_key_hint }}</span>
+                <span v-else class="primary-hint missing" title="该渠道所有 Key 已停用或耗尽，其下模型实际不可用">
+                  无可用 Key
                 </span>
               </div>
             </div>
@@ -723,15 +731,15 @@ onMounted(() => {
                 </el-table>
               </el-tab-pane>
 
-              <!-- Tab 2：Key 管理 -->
+              <!-- Tab 2：Key 池管理 -->
               <el-tab-pane :label="`Key 管理`" name="keys">
                 <div class="tab-toolbar">
-                  <span class="tab-hint">Key 明文存储、可查看复制；主 Key 唯一，连接调用一律使用主 Key。</span>
+                  <span class="tab-hint">Key 明文存储、可查看复制；调用按优先级（小者优先）取第一个可用 Key，上游欠费自动切换到下一个。</span>
                   <el-button type="primary" size="small" :icon="Key" @click="openKeyCreate">新增 Key</el-button>
                 </div>
                 <el-table :data="selected.keys" size="default" empty-text="暂无 Key">
-                  <el-table-column prop="name" label="名称" min-width="130" show-overflow-tooltip />
-                  <el-table-column label="Key" min-width="240">
+                  <el-table-column prop="name" label="名称" min-width="120" show-overflow-tooltip />
+                  <el-table-column label="Key" min-width="220">
                     <template #default="{ row }">
                       <div v-if="row.key" class="key-cell">
                         <code class="key-plain" :title="row.key">{{ row.key }}</code>
@@ -748,22 +756,24 @@ onMounted(() => {
                       </el-tooltip>
                     </template>
                   </el-table-column>
-                  <el-table-column label="主 Key" width="110" align="center">
+                  <el-table-column label="优先级" width="90" align="center">
                     <template #default="{ row }">
-                      <el-tag v-if="row.is_primary" size="small" type="primary" effect="dark">主 Key</el-tag>
-                      <el-button v-else link type="primary" @click="setPrimaryKey(row)">设为主 Key</el-button>
+                      <el-tag size="small" effect="plain">{{ row.priority }}</el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="状态" width="90" align="center">
+                  <el-table-column label="状态" width="130" align="center">
                     <template #default="{ row }">
                       <el-switch
+                        v-if="row.status !== 'exhausted'"
                         :model-value="row.status === 'active'"
-                        :disabled="row.is_primary"
                         @change="(v: any) => toggleKeyStatus(row, v)"
                       />
+                      <el-tooltip v-else :content="`耗尽时间：${row.exhausted_at || '—'}（上游判定欠费/额度耗尽，已自动停用轮换）`">
+                        <el-tag size="small" type="danger" effect="dark">已耗尽</el-tag>
+                      </el-tooltip>
                     </template>
                   </el-table-column>
-                  <el-table-column label="最近检测" min-width="150">
+                  <el-table-column label="最近检测" min-width="140">
                     <template #default="{ row }">
                       <template v-if="row.last_checked_at">
                         <span :class="['check-result', row.last_check_ok ? 'ok' : 'fail']">
@@ -774,8 +784,12 @@ onMounted(() => {
                       <span v-else class="cap-no">未检测</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" width="180" align="center">
+                  <el-table-column label="操作" width="220" align="center">
                     <template #default="{ row }">
+                      <el-button
+                        v-if="row.status === 'exhausted'"
+                        link type="success" @click="reactivateKey(row)"
+                      >重新启用</el-button>
                       <el-button
                         link type="success" :loading="testingKeyId === row.id" @click="testKey(row)"
                       >测试</el-button>
@@ -840,7 +854,7 @@ onMounted(() => {
                         <el-button
                           type="primary" :icon="ChatDotRound" :loading="debugCalling"
                           :disabled="!debugModel" @click="runDebug"
-                        >调用（走主 Key）</el-button>
+                        >调用（走第一个可用 Key）</el-button>
                       </div>
                     </div>
                   </div>
@@ -906,39 +920,6 @@ onMounted(() => {
               <template #default="{ row }">{{ logicalCapabilitySummary(row) }}</template>
             </el-table-column>
             <el-table-column prop="modelCount" label="关联渠道模型" width="110" align="center" />
-          </el-table>
-        </section>
-      </el-tab-pane>
-
-      <!-- ═══ Tab 3：用户自建渠道（S1，只读；Key 仅脱敏 hint，无编辑入口）═══ -->
-      <el-tab-pane label="用户自建渠道（只读）" name="userChannels">
-        <section class="user-channels-section">
-          <div class="section-head">
-            <h3 class="section-title">用户自建渠道</h3>
-            <span class="section-hint">用户在「我的渠道」页自建；生图不扣积分，费用由用户与上游直接结算。</span>
-            <el-button size="small" :icon="Refresh" @click="loadUserProviders">刷新</el-button>
-          </div>
-          <el-table :data="userProviders" size="small" empty-text="暂无用户自建渠道">
-            <el-table-column prop="owner_username" label="所属用户" width="140">
-              <template #default="{ row }">{{ row.owner_nickname || row.owner_username || row.owner_user_id }}</template>
-            </el-table-column>
-            <el-table-column prop="name" label="渠道名" min-width="140" />
-            <el-table-column prop="adapter" label="协议" width="140" />
-            <el-table-column prop="base_url" label="Base URL" min-width="220" show-overflow-tooltip />
-            <el-table-column prop="model_count" label="模型数" width="80" align="center" />
-            <el-table-column prop="key_hint" label="Key" min-width="140">
-              <template #default="{ row }">
-                <code class="key-hint">{{ row.key_hint || '—' }}</code>
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="90" align="center">
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.status === 'active' ? 'success' : 'danger'">
-                  {{ row.status === 'active' ? '启用' : '停用' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_at" label="创建时间" width="170" show-overflow-tooltip />
           </el-table>
         </section>
       </el-tab-pane>
@@ -1085,7 +1066,7 @@ onMounted(() => {
     >
       <el-form label-width="90px">
         <el-form-item label="名称" required>
-          <el-input v-model="keyForm.name" placeholder="如：生产主 Key" maxlength="100" />
+          <el-input v-model="keyForm.name" placeholder="如：生产 Key A / 备用-充值卡B" maxlength="100" />
         </el-form-item>
         <el-form-item :label="keyEditing ? '新 Key' : 'API Key'" :required="!keyEditing">
           <el-input
@@ -1093,8 +1074,13 @@ onMounted(() => {
             :placeholder="keyEditing ? '留空表示不修改 Key 内容' : 'ark-... / sk-...'"
           />
         </el-form-item>
-        <el-form-item v-if="!keyEditing" label="设为主 Key">
-          <el-checkbox v-model="keyForm.is_primary">作为该服务商的连接主 Key</el-checkbox>
+        <el-form-item label="优先级" required>
+          <el-input-number
+            v-model="keyForm.priority" :min="1" :step="1" :precision="0" step-strictly
+            :disabled="keyEditing?.status === 'exhausted'"
+          />
+          <div v-if="keyEditing?.status === 'exhausted'" class="form-hint">已耗尽的 Key 不能修改优先级，请先重新启用或删除</div>
+          <div v-else class="form-hint">正整数，数字越小越先用；同优先级按录入先后排序</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -1106,8 +1092,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.logical-section,
-.user-channels-section {
+.logical-section {
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--momo-radius-md, 8px);

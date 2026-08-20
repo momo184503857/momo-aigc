@@ -414,23 +414,9 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 ## 积分与 Key 计费体系
 
-### user_toapis_keys
+### user_toapis_keys（已 DROP）
 
-用户自带的 ToAPIs 个人 Key（服务端 AES-256-GCM 加密存储），每用户至多一行。详见 `docs/requirements/billing.md`。
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| user_id | INTEGER PK, FK → users(id) ON DELETE CASCADE | 所属用户（主键天然防并发） |
-| encrypted_key | TEXT NOT NULL | base64 密文 |
-| key_iv | TEXT NOT NULL | base64 GCM IV（12B） |
-| key_tag | TEXT NOT NULL | base64 GCM auth tag |
-| key_hint | TEXT DEFAULT '' | 脱敏提示，如 `sk-t****7890` |
-| use_personal_key | INTEGER DEFAULT 0 | 0=用共享 Key，1=用个人 Key |
-| balance_check_interval_sec | INTEGER NOT NULL DEFAULT 60 | 个人 Key 余额轮询间隔（秒）；`0`=不查询。幂等 `ALTER TABLE ... ADD COLUMN` 迁移，旧行自动取默认 60 |
-| encryption_version | TEXT DEFAULT 'v1' | 加密版本（密钥轮换用） |
-| created_at / updated_at | TIMESTAMP | |
-
-加密密钥来源：优先 env `ENCRYPTION_KEY`（32B hex）；缺失时从 `JWT_SECRET` HKDF-SHA256 派生兜底。
+用户自带的 ToAPIs 个人 Key 表已随 fixed-channels 重构（T7.5）删除：渠道收敛为管理员配置的平台渠道，个人 Key 体系整体退役。历史结构见 git 记录（AES-256-GCM 加密存储、每用户一行）。
 
 ### users.points（语义：新积分）
 
@@ -472,23 +458,23 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 种子（`seed_ai_provider_v1`）：4 生图（gpt-image-2 / gemini-3-pro / gemini-3.1-flash / gemini-2.5-flash）+ 3 文字。
 
-### 扩列 `api_providers`（渠道归属）
+### 扩列 `api_providers`（fixed-channels 后全为平台渠道）
 
-- `owner_user_id INTEGER`（NULL=平台渠道；非空=用户自建渠道，仅 owner 可见）
-- `balance_check_interval_sec INTEGER DEFAULT 60`（toapis 协议余额轮询间隔，随 T4 迁移保留）
-- 用户渠道 code 自动生成 `u{userId}-{6位随机}`；Key 仍存 `api_provider_keys`（一渠道一主 Key）。
+- `owner_user_id INTEGER`：休眠死列（T7 后全表恒 NULL，代码零引用；下个大版本清理）。用户自建渠道已随 fixed-channels 重构删除。
+- `balance_check_interval_sec INTEGER`：休眠死列（随用户渠道退役，同上）。
 
-### `api_provider_keys` Key 存储格式（2026-08 起双格式）
+### `api_provider_keys` Key 池（fixed-channels）
 
-- **平台渠道（后台配置）**：明文存储——`encrypted_key` 存明文、`key_iv`/`key_tag` 置空串；管理端接口回传完整 Key（后台可查看/复制）。存量密文由启动迁移 T6 自动解密转明文（幂等：`key_iv=''` 即已转换；转换前自动备份；解密失败的行保留密文并告警）。
-- **用户渠道（我的渠道）**：仍 AES-256-GCM 加密（`encrypted_key`=base64 密文 + `key_iv`/`key_tag`），仅脱敏 hint 回显。
-- 服务端统一读取入口：`resolveKeyPlain()`（`server/src/utils/crypto.ts`，按 `key_iv` 是否为空自动分流）。
+- **Key 池模型**：一渠道多 Key；`priority INTEGER NOT NULL DEFAULT 100`（正整数，**小者优先**，允许重复；选取序 `priority ASC, id ASC` 取第一个 `status='active'`）；`exhausted_at TIMESTAMP NULL`（耗尽时间，仅展示/对账）。
+- **状态机**：`status` ∈ active / disabled（管理员启停）/ exhausted（**仅服务端欠费切换写入**：HTTP 402 或 400/403/429×文案「余额不足|欠费|insufficient|quota|balance」→ 标记耗尽 → 换下一个可用 Key 重试本次请求）。exhausted→active 仅管理员「重新启用」（清 `exhausted_at`）。
+- **存储**：明文存储（`encrypted_key` 存明文、`key_iv`/`key_tag` 置空串）；管理端接口回传完整 Key（后台可查看/复制）。存量密文由启动迁移 T6 自动解密转明文（幂等：`key_iv=''` 即已转换）。服务端统一读取入口：`resolveKeyPlain()`（`server/src/utils/crypto.ts`，密文分支仅剩历史兜底）。
+- 旧 `is_primary` 列与 `idx_api_provider_keys_primary` 部分唯一索引已由 T7 拆除（DROP COLUMN 需 SQLite ≥ 3.35，失败保留死列、代码零引用）。
 
 ### 扩列 `ai_models`（渠道模型）
 
-- `logical_model_id` → ai_logical_models（平台生图模型必填；用户侧可 NULL=完全自定义能力）
+- `logical_model_id` → ai_logical_models（生图模型必填）
 - `param_overrides TEXT(JSON)`（覆盖只允许收窄：分辨率/宽高比 ⊆ 逻辑模型，上限只能 ≤）
-- `pricing TEXT(JSON)`（`{"1K":3,...}`；平台生图必填覆盖全部生效分辨率；用户模型恒 NULL）
+- `pricing TEXT(JSON)`（`{"1K":3,...}`；生图必填覆盖全部生效分辨率，无豁免——fixed-channels 后全部渠道模型按平台定价扣积分）
 - `supports_chat INTEGER`（文字模型标记，画布文字 AI 节点用）
 
 ### 扩列 `generation_tasks`（任务键切换）
@@ -502,7 +488,9 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 ### 迁移标记（system_config）
 
 `seed_ai_provider_v1`（T1-T3 逻辑模型+toapis 平台渠道+渠道模型×7）、
-`migrate_user_keys_v1`（T4 个人 Key→用户渠道）、`migrate_tasks_v1`（T5 历史任务回填）。
+`migrate_user_keys_v1`（T4 个人 Key→用户渠道）、`migrate_tasks_v1`（T5 历史任务回填）、
+`migrate_fixed_channels_v1`（T7 fixed-channels 收尾：Key 池列+回填 priority、拆 is_primary 约束、
+删除全部用户渠道（历史任务外键置空）、DROP `user_toapis_keys`）。
 T6（平台渠道 Key 密文→明文）无标记，按 `key_iv=''` 天然幂等，每次启动扫描待转行。
 迁移前自动备份（VACUUM INTO `server/data/backup-pre-ai-provider-*.db`）；校验脚本
-`scripts/verify-ai-provider-migration.mjs`。`user_toapis_keys` 旧表保留只读待退役。
+`scripts/verify-ai-provider-migration.mjs`。

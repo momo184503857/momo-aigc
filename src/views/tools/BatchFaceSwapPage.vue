@@ -81,7 +81,6 @@ modelCatalog.ensureLoaded().then(() => {
 })
 
 const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
-const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
@@ -187,7 +186,7 @@ async function handleGenerate() {
 
   try {
     await ElMessageBox.confirm(
-      `衣服图：${count} 张\n模特脸图：1 张\n任务数量：${count} 个\n预计消耗：${formatCredits(total)}${isPersonalChannel.value ? '（个人渠道）' : ''}`,
+      `衣服图：${count} 张\n模特脸图：1 张\n任务数量：${count} 个\n预计消耗：${formatCredits(total)}`,
       '确认提交',
       {
         confirmButtonText: '确认提交',
@@ -200,17 +199,15 @@ async function handleGenerate() {
     return // cancelled
   }
 
-  // Check balance（个人 Key 模式不消耗积分，跳过校验）
-  if (!isPersonalChannel.value) {
-    try {
-      const res = await pointsApi.getMyBalance()
-      const balance = res.data.data?.balance ?? 0
-      if (balance < total) {
-        warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
-        return
-      }
-    } catch { /* proceed, server will check */ }
-  }
+  // 余额预检（服务端仍会二次校验）
+  try {
+    const res = await pointsApi.getMyBalance()
+    const balance = res.data.data?.balance ?? 0
+    if (balance < total) {
+      warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
+      return
+    }
+  } catch { /* proceed, server will check */ }
 
   const prompt = buildFullPrompt()
   // 模特脸图（所有任务共用）：循环外解析为 OSS URL 一次，避免重复上传
@@ -284,7 +281,7 @@ onMounted(() => {
         <!-- API Key warning -->
         <el-alert
           v-if="serverStatus.loaded && !serverStatus.canGenerate"
-          title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
+          title="暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型"
           type="warning"
           show-icon
           :closable="false"
@@ -357,11 +354,11 @@ onMounted(() => {
             <el-select v-model="selectedChannelModelId" style="width: 100%" @change="handleModelChange">
               <template v-if="modelCatalog.loaded">
                 <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
-                  <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                  <el-option-group :label="group.providerName">
                     <el-option
                       v-for="m in group.models"
                       :key="m.id"
-                      :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                      :label="m.displayName"
                       :value="m.id"
                     />
                   </el-option-group>
@@ -401,7 +398,7 @@ onMounted(() => {
           style="width: 100%"
           @click="handleGenerate"
         >
-          批量生成 · {{ taskCount }} 个任务 · {{ formatCredits(totalCost) }}{{ isPersonalChannel ? ' · 个人渠道' : '' }}
+          批量生成 · {{ taskCount }} 个任务 · {{ formatCredits(totalCost) }}
         </el-button>
       </div>
     </div>

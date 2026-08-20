@@ -3,12 +3,10 @@ import { computed } from 'vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 /**
- * 服务状态 store（ai-provider 重构后瘦身）。
+ * 服务状态 store（fixed-channels 后瘦身）。
  *
- * 旧「平台积分 / 个人 Key」全局开关已退役（S4）：是否可生图由模型目录决定
- * （平台渠道或我的渠道任一可用即可）；费用模式随所选模型自动判定
- * （我的渠道模型 = 不扣积分，见 modelCatalog.isMineModel）。
- * 个人渠道余额展示移至「我的渠道」页（仅 toapis 协议渠道）。
+ * 渠道全部为平台渠道（管理员配置）：是否可生图由模型目录决定（任一可用生图模型即可），
+ * 费用统一按平台定价扣积分（见 modelCatalog.priceFor）。
  */
 export const useServerStatusStore = defineStore('serverStatus', () => {
   const catalog = useModelCatalogStore()

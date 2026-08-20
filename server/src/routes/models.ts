@@ -4,18 +4,17 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { getChannelModelCapabilities } from '../utils/channelModel.js'
 
 /**
- * 模型目录（前端唯一模型真源，ai-provider §5.1）。
+ * 模型目录（前端唯一模型真源，ai-provider §5.1；fixed-channels 后仅平台渠道）。
  *
  * GET /api/models/catalog?kind=image|text
- * 返回 { platform: [渠道组...], mine: [渠道组...] }，每组含渠道信息与渠道模型列表
- * （生效能力 / 定价 / 逻辑模型 code）。仅返回 active 渠道/模型；用户未建渠道时 mine=[]。
+ * 返回 { platform: [渠道组...] }，每组含渠道信息与渠道模型列表
+ * （生效能力 / 定价 / 逻辑模型 code）。仅返回 active 渠道/模型。
  */
 
 export const modelsRouter = Router()
 modelsRouter.use(authMiddleware)
 
-function buildGroups(ownerUserId: number | null, userId: number, kind: 'image' | 'text') {
-  const isMine = ownerUserId !== null
+function buildGroups(kind: 'image' | 'text') {
   const rows = db.prepare(`
     SELECT m.id, m.model_id, m.display_name, m.logical_model_id, m.param_overrides, m.pricing,
            m.supports_vision, m.supports_image_gen, m.supports_chat,
@@ -23,10 +22,9 @@ function buildGroups(ownerUserId: number | null, userId: number, kind: 'image' |
     FROM ai_models m
     JOIN api_providers p ON p.id = m.provider_id
     WHERE p.status = 'active' AND m.status = 'active'
-      AND p.owner_user_id ${isMine ? '= ?' : 'IS NULL'}
       AND ${kind === 'image' ? 'm.supports_image_gen = 1' : 'm.supports_chat = 1'}
     ORDER BY p.id ASC, m.id ASC
-  `).all(...(isMine ? [ownerUserId] : [])) as any[]
+  `).all() as any[]
 
   const groups: Array<Record<string, unknown>> = []
   const groupByProvider = new Map<number, Record<string, unknown>>()
@@ -58,7 +56,7 @@ function buildGroups(ownerUserId: number | null, userId: number, kind: 'image' |
     }
 
     let pricing: Record<string, number> | null = null
-    if (!isMine && r.pricing) {
+    if (r.pricing) {
       try { pricing = JSON.parse(r.pricing) } catch { pricing = null }
     }
 
@@ -74,7 +72,7 @@ function buildGroups(ownerUserId: number | null, userId: number, kind: 'image' |
         maxReferenceImages: capabilities.maxReferenceImages ?? 14,
         maxPromptChars: capabilities.maxPromptChars ?? 32000,
       } : null,
-      pricing: isMine ? null : pricing, // 我的渠道恒 null（不扣积分，D8）
+      pricing,
       kind,
     })
   }
@@ -83,12 +81,10 @@ function buildGroups(ownerUserId: number | null, userId: number, kind: 'image' |
 
 modelsRouter.get('/catalog', (req: AuthRequest, res) => {
   const kind = req.query.kind === 'text' ? 'text' : 'image'
-  const userId = req.user!.userId
   res.json({
     success: true,
     data: {
-      platform: buildGroups(null, userId, kind),
-      mine: buildGroups(userId, userId, kind),
+      platform: buildGroups(kind),
     },
   })
 })

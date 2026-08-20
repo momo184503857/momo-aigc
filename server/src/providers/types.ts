@@ -8,13 +8,15 @@
  *   2. 协议有差异 → 新建 volcengine.ts 这样的独立文件实现接口，注册即可。
  */
 
-/** 运行时配置：DB 行 + 解密后的 API Key（主 Key） */
+/** 运行时配置：DB 行 + 选中 Key 的明文（Key 池按优先级选取） */
 export interface ProviderRuntimeConfig {
   providerId: number
   code: string
   name: string
   baseUrl: string
   apiKey: string
+  /** 本次调用选中的 api_provider_keys.id，仅供编排层回传标记（欠费切换耗尽该 Key），适配器不感知 */
+  keyId?: number
   /** 同一渠道配置可同时用于识图与生图时，标记本次调用职责 */
   providerTaskKind?: 'image' | 'chat'
 }

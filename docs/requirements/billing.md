@@ -1,21 +1,23 @@
 # 积分与 Key 计费体系
 
-最后更新：2026-08-19（AI 接入体系重构后口径）  
-状态：已实现·后端已验证（API 级验收 55 项 PASS + 真实生图 e2e）
+最后更新：2026-08-21（fixed-channels 渠道固定化后口径）  
+状态：已实现·后端已验证（fixed-channels 单元 20/20 + 接口/集成 36/36 PASS + 真实生图 e2e）
 
-> 本文档反映当前实现。**2026-08 AI 接入体系重构（ai-provider）后，计费模式随所选模型自动判定，
-> 旧「平台积分 / 个人 Key」全局开关已退役**；下文已按新体系修订。
+> 本文档反映当前实现。**2026-08-21 fixed-channels 重构后：用户自建渠道（我的渠道）整体下线，
+> 渠道收敛为管理员配置的平台渠道 + 一渠道多 Key 优先级轮换（欠费自动切换）；计费单轨——
+> 所有模型按平台定价扣积分**。下文已按新体系修订。
 
 ---
 
 ## 1. 概述
 
-生图经多渠道体系（平台渠道 + 用户自建「我的渠道」）。**计费模式由所选渠道模型决定**（不再有全局开关）：
+生图统一经**平台渠道**（管理员在「配置」页维护，一渠道配多把 Key 按 `priority ASC, id ASC` 轮换）：
 
 | 模式 | 渠道模型来源 | 计费 |
 |------|--------------|------|
-| **平台积分**（默认） | 平台渠道（管理员在「配置」页维护），模型下拉的平台分组 | 按 `ai_models.pricing[分辨率] × n` 预扣**新积分** |
-| **个人渠道**（可选） | 用户在 `/my-channels` 自建渠道下的模型（下拉「我的渠道」分组，带"个人"标签） | **不扣积分**，费用由用户与上游渠道直接结算 |
+| **平台积分**（唯一） | 平台渠道模型（管理员配置），模型下拉按渠道分组 | 按 `ai_models.pricing[分辨率] × n` 预扣**新积分** |
+
+上游欠费自动切换：某 Key 被上游判定欠费/额度耗尽（HTTP 402，或 400/403/429 且文案含「余额不足/欠费/insufficient/quota/balance」）→ 服务端标记该 Key `exhausted` → 立即换下一个可用 Key 重试本次请求，用户无感；渠道所有 Key 耗尽/停用 → 任务 failed（错误码 `ALL_KEYS_EXHAUSTED`）+ 全额退款。耗尽 Key 仅管理员在管理端「重新启用」后恢复参与轮换。
 
 计费主单位为**新积分**：`1 新积分 = ¥0.035`（人民币）。所有展示处同时显示新积分与折合人民币（括号）。
 
@@ -23,27 +25,26 @@
 
 积分定价**只在管理后台「配置」页配置一处**：`ai_models.pricing`（JSON：`{"1K":3,"2K":4,...}`，按渠道×模型×分辨率）。
 前后端共用同一真源（前端经 `GET /api/models/catalog` 读取；「计费说明」页动态渲染）。
-原 `server/src/utils/pricing.ts` 硬编码与前端 `MODELS[].pricing` 常量已删除。平台生图模型保存时定价必填且必须覆盖全部生效分辨率。
+原 `server/src/utils/pricing.ts` 硬编码与前端 `MODELS[].pricing` 常量已删除。生图模型保存时定价必填且必须覆盖全部生效分辨率（fixed-channels 后无用户渠道豁免）。
 
 ### 扣费/退款时序（服务端编排）
 
 1. **预扣**：`POST /api/generations` 事务内按 `单价×n` 预扣（`users.points` - `points_transactions(reason=generation)` ×n 条，任务各记 `points_cost`/`points_balance_after`）；积分不足 402，任务不创建。
-2. **退款**：任务进入 failed（提交失败/上游失败/超时/启动清扫）自动全额退款（`refund` 流水，`points_cost` 清零）；completed 后不再退（防套退）。
+2. **退款**：任务进入 failed（提交失败/上游失败/全部 Key 耗尽/超时/启动清扫）自动全额退款（`refund` 流水，`points_cost` 清零）；completed 后不再退（防套退）。
 3. 生成数量 n 的费用 = 单价 × n（每条任务各扣一次，沿用原口径）。
 
 ---
 
 ## 2. 角色与权限
 
-- **普通用户**：在 `/my-channels` 自建渠道（协议 + Base URL + Key + 测试连通 + 启停；toapis 协议支持余额查询）；在 `/my-quota` 查看平台余额/流水与「我的渠道」入口。旧「平台/个人 Key」开关与个人 Key 弹窗已移除。
-- **管理员**：在 `/admin/ai-config`（配置页）维护平台渠道/逻辑模型/渠道模型与定价/主 Key；在 `/admin/users` 为用户充值/扣减新积分；`/admin/ai-config` 底部可只读查看用户自建渠道。旧 `/admin/toapis-key` 已迁移提示（共享 Key = toapis 平台渠道主 Key）。
-- 计费模式随所选模型自动判定；选中「我的渠道」模型即等价于原个人 Key 模式（S4/D9）。
+- **普通用户**：只能使用平台渠道模型生图（按积分计费）；在 `/my-quota` 查看平台余额与流水。无任何 Key/渠道配置入口（fixed-channels 后「我的渠道」页、侧边栏 Key 余额行均已删除）。
+- **管理员**：在 `/admin/ai-config`（配置页）维护平台渠道/逻辑模型/渠道模型与定价/**Key 池**（多 Key、优先级、启停、耗尽态查看与重新启用、明文复制、单 Key/渠道级测试连通）；在 `/admin/users` 为用户充值/扣减新积分。
 
 ---
 
 ## 3. 数据模型
 
-- **用户渠道**：`api_providers.owner_user_id = 用户`（T4 迁移自 `user_toapis_keys`，密文原样搬移；余额轮询间隔存 `api_providers.balance_check_interval_sec`）；Key 存 `api_provider_keys`（AES-256-GCM、每渠道一把主 Key、仅脱敏 hint 回显）。旧表 `user_toapis_keys` 保留只读待退役。
+- **渠道与 Key 池**：`api_providers`（全部平台渠道；`owner_user_id` 为休眠死列，全表恒 NULL）；Key 存 `api_provider_keys`（明文存储、一渠道多 Key、`priority` 小者优先、`status` 含服务端写入的 `exhausted`）。旧表 `user_toapis_keys` 已 DROP（T7）。
 - `users.points`（REAL）—— **新积分**余额。
 - `points_transactions`：`amount`（带符号，新积分）/ `balance_after` / `reason`（`generation` 生图扣费 / `admin_recharge` 管理员充值 / `admin_deduct` 管理员扣减 / `refund` 失败退款）。退款行 `reference_type='generation_task'`、`reference_id` 指向被退的任务。
 - `generation_tasks.points_cost` / `points_balance_after` —— 新积分。**净消耗口径**：失败任务退款后 `points_cost` 清零（=0），故 `SUM(points_cost)` 天然只算「成功/进行中」的消耗，**统计消耗时不要再加 `WHERE status='completed'`**（会漏掉进行中已扣的），也不要把失败算进去。
@@ -54,21 +55,16 @@
 
 ## 4. 业务流程
 
-1. 生图时 `resolveUserApiKey(userId)` 解析当前应使用的 Key：`use_personal_key=1` 且能解密 → 个人 Key（mode `personal`）；否则共享 Key（mode `shared`）。
-2. `POST /api/toapis/create-task` / `/task-status/:id` / `/upload` 用解析到的 Key 调 ToAPIs。
-3. `POST /api/tasks` 扣费（仅共享模式）：
-   - 计算 `cost = calculateCost(model, resolution, n)`（新积分）。
-   - 余额不足 → 402。
-   - 扣减 `users.points`、写 `generation_tasks`（含 `points_cost` / `points_balance_after`）、写 `points_transactions`（`reason='generation'`）。
-   - **个人模式**：`cost=0`，跳过余额校验/扣减/流水，但仍写 `generation_tasks`（`points_cost=0`）。
-4. **失败退款**（`PATCH /api/tasks/:id`）：任务从非终态（`submitted`/`queued`/`in_progress`）转为 `failed` 且 `points_cost>0` 时，**同一事务内**退 `users.points`、写 `points_transactions`（`reason='refund'`、`amount=+points_cost`）、清零该任务 `points_cost`。**不退 `completed→failed`**（防「拿图后标失败」套退）。清零 `points_cost` 兼顾幂等（已退则 `=0` 跳过）与统计正确。个人 Key 任务 `points_cost=0`，无退款发生。
+1. 生图提交统一走 `POST /api/generations`（服务端编排）：校验能力 → 按 `pricing[分辨率]×n` 预扣 → 落库 → 派发（`withKeyFailover` 按优先级取 Key，欠费自动切换）。
+2. 异步渠道（toapis）提交任务号回填 `provider_task_id`，轮询 `GET /api/generations/:id/status` 推进终态并转存 OSS；同步渠道（openai_image / volcengine_image）后台执行 `runSyncTask`（同样接入 Key 轮换）。
+3. **失败退款**：任务从非终态转 `failed` 且 `points_cost>0` 时，同一事务内退 `users.points`、写 `points_transactions`（`reason='refund'`、`amount=+points_cost`）、清零该任务 `points_cost`。**不退 `completed→failed`**（防「拿图后标失败」套退）。渠道全部 Key 耗尽（`ALL_KEYS_EXHAUSTED`）同样走该退款路径。
 
 ---
 
 ## 5. 默认值
 
 - 换算：`YUAN_PER_CREDIT = 0.035`，`CREDITS_PER_YUAN = 200/7`。
-- 定价（每张，新积分）：
+- 定价（每张，新积分，随 `ai_models.pricing` 配置实时生效）：
 
   | 模型 | 单价 |
   |------|------|
@@ -77,24 +73,18 @@
   | gemini-3.1-flash-image-preview | 512:5 / 1K:6 / 2K:8 / 4K:12 |
   | gemini-2.5-flash-image-preview | 1K:2.4 |
 
-- 个人 Key 加密：优先 env `ENCRYPTION_KEY`（32B hex）；缺失时从 `JWT_SECRET` 用 HKDF-SHA256 派生兜底（启动告警；补配后旧密文需用户重存）。
-- 个人模式默认关闭；保存 Key **不**自动切换模式（尊重「自由选择」）；但若用户当前已选「个人 Key」模式（本地态），保存 Key 时会一并激活。
-- 个人 Key 余额轮询间隔默认 **60 秒**；快捷项 1 分钟(60) / 30 分钟(1800) / 1 小时(3600) / 1 天(86400) / 不查询(0)；亦可手动输入 0~604800 之间的秒数。
+- 新增 Key 默认优先级 = 该渠道现有最大 + 1（首个为 1）；Key 全部明文存储（`key_iv` 置空）。
 
 ---
 
 ## 6. 业务规则与边界
 
-- 个人 Key 生图**不扣积分**；任务记录仍写入（`points_cost=0`），保证任务列表可见。
-- **失败不扣费**（2026-06-20 起，推翻旧「失败不退款」）：计费在任务创建时**预扣**（`POST /api/tasks`），任务失败时**自动退款**（`PATCH /api/tasks/:id` 转 `failed` 时退余额+写 `refund` 流水+清零 `points_cost`）。详见 §4 与决策日志 2026-06-20。历史已扣未退的失败任务由启动迁移 `refund_failed_v1` 一次性补退（幂等）。
+- **计费单轨**（F5）：所有渠道模型按平台定价预扣积分；「用户渠道 cost=0 / 跳过余额预检」分支已废止。历史定价缺口由迁移保证：T7 删除了全部用户渠道，平台生图模型定价必填校验（无豁免）保证不存在无定价可提交模型。
+- **欠费切换判定**（F3）：HTTP 402 无条件；400/403/429 且错误文案匹配 `/余额不足|欠费|insufficient|quota|balance/i`；401/5xx/网络错误不切换（防误判）。轮询与转存路径不接入切换（S3）。
+- **失败不扣费**：计费在任务创建时**预扣**，任务失败时**自动退款**（含全部耗尽）。详见 §4。历史已扣未退的失败任务由启动迁移 `refund_failed_v1` 一次性补退（幂等）。
 - **消耗统计口径**：消耗金额 = `SUM(generation_tasks.points_cost)`（净，失败退款后已清零）。统计/列表**不要再加 `status='completed'` 过滤**（会漏进行中已扣），失败也无需排除（已为 0）。「累计充值」只算 `admin_recharge`（**不含失败退款**，退款不是充值）。
-- **个人 Key 消耗**：平台不记录其真实 ToAPIs 花费（费用在用户自己的 ToAPIs 账户）。统计中「个人 Key 消耗」按**平台单价 `calculateCost` 折算**（平台等价值，非真实 ToAPIs 扣费），仅用于横向对比生图量级；真实花费以用户 ToAPIs 账户为准。
-- **Key 的「积分」= ToAPIs token-balance 接口（`GET /v1/balance`）返回的 `credits`（remain_credits）字段**，直接读取，不换算。`fetchKeyCredits(apiKey)` 即此实现。「余额」= 积分 × 0.035（`creditsToYuan`）。**不**用 `remain_balance`（CNY 账户余额），**绝不** ÷0.035 反推积分（积分是源、余额是派生）。
-- ToAPIs 的 `remain_balance`（账户/令牌余额的 CNY 值）与展示用的「余额」不是同一个数——展示余额恒为 `积分 × 0.035`。
-- `canvas-ai` 文字模型 **Key 与图像共用**（`resolveUserApiKey`，个人模式用个人 Key），但**不扣积分**（两模式均不扣，阶段性决策；详见 `canvas.md` §3.2 与决策日志）。**[2026-06-17 更正：原「不接入个人 Key，保持共享 Key」已作废]**
-- 清空个人 Key → 删除整行 → 自动回退共享模式。
-- **首次配置流程**：允许在未保存个人 Key 时选中「个人 Key」模式（前端本地态）——此时仅显示「配置个人 Key」入口与「未启用」余额提示；后端 `use_personal_key` 仍为 0、`canGenerate=false`，**保存 Key 前禁止生图**。保存 Key 时若当前处于个人模式则一并激活。后端 `PATCH /key-mode` 在无 key 时仍返回 400，仅作为激活前置校验（前端不再依赖它阻止选择）。
-- **个人 Key 余额轮询为全局行为**：在前端 `serverStatus` store 中按用户配置的间隔轮询 `GET /me/toapis/balance`，头像与「我的额度」共享同一份数据。进入个人模式立即拉一次基线值；间隔 >0 按间隔轮询；间隔 =0（不查询）仅手动刷新。「不消耗平台积分」的提示只保留一处（顶部模式标签 + 计费说明页），不在「我的额度」个人分支内重复。
+- `canvas-ai` 文字模型调用**不扣积分**（沿用阶段性决策），Key 走渠道 Key 池（同样接入欠费切换）。
+- Key 明文仅管理端可见；用户侧任何接口不回显 Key。
 
 ---
 
@@ -102,8 +92,8 @@
 
 - 所有显示积分处统一 `X 积分 (¥Y)`，`Y = X × 0.035`，统一调用 `formatCredits()`（`src/types/adapter.ts`），**禁止手写 `×0.035`**。
 - 余额类：积分取整、¥ 保留 2 位；单价类：积分保留 1 位、¥ 保留 3 位。
-- 个人 Key 模式下，所有生成入口（工作台 / AI摄影 / 工具箱批量 / 买家秀）的按钮与确认弹窗**显示本次实际消耗** `formatCredits(成本)`（自带「积分 + ¥人民币」），并追加「· 个人 Key」标记（如「生成图片 · 3 积分 (¥0.11) · 个人 Key」）。计费逻辑不变（仍不消耗平台积分、仍跳过余额预校验）。
-- **左下角头像上方的积分按当前 Key 模式显示**：共享模式 → 平台积分（`users.points`）；个人模式 → 该 Key 的积分（token-balance `credits`）。两者余额均为 `积分 × 0.035`。个人模式下头像余额由全局轮询按用户配置间隔刷新（不再仅模式切换时拉一次）。
+- 所有生成入口（工作台 / 自由生图 / AI摄影 / 工具箱批量 / 买家秀）的按钮与确认弹窗显示本次消耗 `生成图片 · X 积分 (¥Y)`（×张数，取自 `modelCatalog.priceFor`，无「个人渠道」字样）。
+- **左下角头像上方的积分**：始终显示平台积分（`users.points`，`X 积分 (¥Y)`）。旧「Key 余额」行已随个人渠道下线删除。
 - 头像下拉入口（顺序）：我的额度、我的消耗、计费说明、个人设置、退出登录。
 
 ---
@@ -112,37 +102,47 @@
 
 | 页面 | 路径 | 说明 |
 |------|------|------|
-| 个人设置 | `/settings` | **占位页**：Key/额度管理已迁至 `/my-quota`，仅留「前往我的额度」入口与「更多账户设置即将推出」占位 |
-| 我的额度 | `/my-quota` | 顶部「平台积分 / 个人 Key」模式开关；**平台分支**=平台余额 + 最近 10 条流水；**个人分支**=个人 Key 余额卡 +「配置个人 Key」按钮（弹窗内：Key 输入/测试/清空 + 余额查询间隔设置） |
-| 我的消耗 | `/my-consumption` | 个人消耗统计：KPI（余额/累计消费/累计充值）+ **消耗趋势（平台 Key 与个人 Key 双线）** + 充值趋势 + 明细表；支持 日/周/月 切换 + 日期范围；从头像菜单进入 |
-| 计费说明 | `/pricing` | 本地定价表（每个模型 × 分辨率 → 新积分 + ¥），无外部链接 |
-| 共享 Key 管理 | `/admin/toapis-key` | 管理员配置共享 Key、查 ToAPIs 余额（标注 credits） |
+| 个人设置 | `/settings` | **占位页**：仅留「前往我的额度」入口 |
+| 我的额度 | `/my-quota` | 平台积分余额卡 + 最近 10 条流水 |
+| 我的消耗 | `/my-consumption` | 个人消耗统计：KPI（余额/累计消费/累计充值）+ 消耗趋势 + 充值趋势 + 明细表；支持 日/周/月 切换 + 日期范围 |
+| 计费说明 | `/pricing` | 动态定价表（目录真源渲染：渠道 × 模型 × 分辨率 → 新积分 + ¥） |
+| 渠道与 Key 池管理 | `/admin/ai-config` | 管理员维护平台渠道、逻辑模型、渠道模型与定价、Key 池（优先级/耗尽/重新启用/明文复制/测试） |
 
 端点：
-- 用户 Key：`/api/me/toapis/*`（`GET /key-config`、`PUT /key`、`PATCH /key-mode`、`PATCH /balance-interval`、`DELETE /key`、`POST /test`、`GET /balance`）。`GET /key-config` 与 `GET /api/toapis/health` 均返回 `balanceCheckIntervalSec`；`PUT /key` 可附带 `balanceCheckIntervalSec`，`PATCH /balance-interval { intervalSec }` 单独更新（0~604800，无 key → 400）。
-- 我的额度：`GET /api/me/quota`。
+- 旧用户 Key 端点 `/api/me/toapis/*` 与「我的渠道」`/api/my/*` 全组已删除（404）；`GET /api/me/quota` 仅返回 `{ platform, recentTransactions }`。
 - 余额/流水：`GET /api/points/me` → `{ balance, total_spent, total_recharged, total_consumed }`（`total_recharged` 仅 `admin_recharge`、**不含退款**；`total_consumed` = `SUM(points_cost)` 净消耗）；`GET /api/points/me/transactions`。
-- 我的消耗趋势：`GET /api/points/me/daily?granularity=day|week|month&start_date&end_date` → 每周期 `{ date, spent(平台净), personal(个人 Key 按平台单价折算), recharged(admin_recharge), count }`。
-- 管理端统一活动日志：`GET /api/admin/activity`（`generation_tasks` 与非生成计费流水 `UNION ALL`，生成计费流水去重；按 类型/状态/用户/日期 筛选 + 分页）；管理端统计 `GET /api/admin/stats/{users,daily,summary}` 均支持日期 + 用户过滤，`/daily` 支持 `granularity=day|week|month`。
+- 我的消耗趋势：`GET /api/points/me/daily?granularity=day|week|month&start_date&end_date` → 每周期 `{ date, spent(净), recharged(admin_recharge), count }`。
+- 管理端统一活动日志：`GET /api/admin/activity`；管理端统计 `GET /api/admin/stats/{users,daily,summary}` 均支持日期 + 用户过滤，`/daily` 支持 `granularity=day|week|month`。
 - 管理员调账：`POST /api/admin/users/:id/points`（amount 为新积分）。
-- 健康状态：`GET /api/toapis/health` → `{ sharedKeyConfigured, personalKeyConfigured, personalKeyActive, balanceCheckIntervalSec }`。
 
 ---
 
 ## 9. 验收标准
 
-- 共享模式：生 1 张 gpt-image-2 1K 扣 3 新积分（¥0.105），`points_cost=3`、流水 `-3`；余额不足返回 402 `需要 3 积分`。
-- 个人模式：生图 `points_cost=0`、无新流水、积分不变、任务记录仍在；生成按钮显示实际消耗（如「3 积分 (¥0.11) · 个人 Key」）。
-- 失败退款：共享模式任务转 `failed` 后，余额恢复 = 原扣分、多一条 `refund` 流水、任务 `points_cost=0`；`completed→failed` 不退（防套退）；个人 Key 任务失败本就 `points_cost=0`，无退款。
-- 消耗统计：`/my-consumption` 与 `/admin/dashboard` 的消耗金额 = `SUM(points_cost)`（失败任务贡献 0），「累计充值」不含失败退款；`/my-consumption` 消耗趋势平台/个人双线随 日/周/月 + 日期范围联动。
-- 未存 Key 时可选「个人 Key」模式（显示配置入口、禁止生图）；保存 Key 后激活；清空 Key 自动回退共享。
-- 头像与「我的额度」个人 Key 余额按配置间隔刷新；选「不查询」时不自动刷新，「刷新」按钮可手动拉取。
-- 所有积分展示处为 `X 积分 (¥Y)` 双显；`/my-quota` 顶部模式开关 + 按模式切换的平台/个人内容；`/pricing` 渲染四模型定价表。
-- 个人 Key 加密存取正常；`/api/toapis/health` 反映正确的 key 模式并返回 `balanceCheckIntervalSec`。
+- 生 1 张 gpt-image-2 1K 扣 3 新积分（¥0.105），`points_cost=3`、流水 `-3`；余额不足返回 402 `需要 3 积分`。
+- 失败退款：任务转 `failed` 后，余额恢复 = 原扣分、多一条 `refund` 流水、任务 `points_cost=0`；`completed→failed` 不退（防套退）。
+- 欠费切换：渠道 K1 欠费 K2 可用 → 本次任务成功（出站先 K1 后 K2），K1 标记 exhausted（含时间戳）；管理员重新启用后 K1 恢复参与轮换。
+- 全部 Key 耗尽/停用 → 任务 failed（`ALL_KEYS_EXHAUSTED`）+ 全额退款。
+- 消耗统计：`/my-consumption` 与 `/admin/dashboard` 的消耗金额 = `SUM(points_cost)`（失败任务贡献 0），「累计充值」不含失败退款。
+- 所有积分展示处为 `X 积分 (¥Y)` 双显；`/pricing` 按目录真源渲染定价表；模型下拉仅平台渠道分组、按钮文案统一无「个人渠道」字样。
 
 ---
 
 ## 需求变更记录
+
+### 2026-08-21 — fixed-channels：渠道固定化 + Key 池轮换 + 计费单轨
+
+- **用户自建渠道（我的渠道）整体下线**：页面/菜单/侧边栏 Key 余额行/入口卡片全删；`/api/my/*` 与 `/api/me/toapis/*` 返回 404；`user_toapis_keys` 表 DROP（T7）；`resolveUserApiKey`/`personalKeyCredits`/`channelBalance` store/`estimatePriceFor`/`isMineModel` 等随之下线。
+- **计费单轨（F5）**：废止「用户渠道 cost=0 / 跳过余额预检」双轨——所有渠道模型按 `ai_models.pricing[分辨率] × n` 预扣积分、失败退款；生图模型定价必填无豁免。
+- **Key 池与欠费切换（F2/F3/F4）**：一渠道多 Key，`priority ASC, id ASC` 取第一个可用；上游欠费（402 或 400/403/429×关键词）→ 标记 `exhausted` → 换 Key 重试本次请求；全部耗尽 → 任务 failed（`ALL_KEYS_EXHAUSTED`）+ 全额退款；耗尽恢复仅管理员手动「重新启用」。
+- **目录瘦身**：`GET /api/models/catalog` 仅 `{ platform }`；模型下拉只按平台渠道分组，按钮/价格文案统一（无「个人渠道」字样）；默认模型 = 目录第一个可用模型。
+- 详见 `docs/requirements/fixed-channels.md`（功能方案）与 `docs/design/fixed-channels-tech.md`（技术方案）。
+
+### 2026-08-20 — 个人渠道优先展示：目录置顶 + 左下角 Key 余额 + 按钮预计消耗
+
+- **模型目录置顶**：`stores/modelCatalog` 归一化顺序由「平台组在前」改为「我的渠道组在前、平台组在后」，默认模型同步优先首个「我的渠道」模型（用户配置了自有 Key 即优先使用；无个人渠道时行为不变）。
+- **左下角 Key 余额**：新增 `stores/channelBalance.ts`，用户存在 active 的 toapis 协议渠道时，侧边栏底部平台积分行下方显示「Key 余额 X 积分 (¥Y)」（口径不变：token-balance `credits`，余额 = 积分 × 0.035）；按渠道 `balanceCheckIntervalSec` 轮询（0 = 仅手动），点击行手动刷新。多渠道时取首个。
+- **按钮显示预计消耗**：新增 `modelCatalog.estimatePriceFor()` —— 个人渠道模型按**同逻辑模型的平台定价**折算参考价（与消耗统计折算口径一致，真实费用仍由用户与上游结算）。所有生成入口（工作台 / 自由生图 / AI摄影 / 工具箱批量 / 买家秀）的按钮与确认弹窗显示 `预计 X 积分 (¥Y)`（×张数）并保留「· 个人渠道」标记；无参考价（纯自定义模型）时回退「个人渠道 · 不扣积分」。平台模型按钮由显示单价改为显示**总价**（单价 × 张数）。
 
 ### 2026-06-15 — 新增「积分与 Key 计费体系」业务域（合并两轮改动）
 

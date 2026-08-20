@@ -13,9 +13,11 @@ import { CANONICAL_LOGICAL_MODELS } from './logicalModels.js'
  * T4 个人 ToAPIs Key → 用户渠道（每用户一条渠道 + Key + 4 生图模型）
  * T5 历史任务回填（provider_code / provider_task_id / channel_* / task_no）
  * T6 平台渠道 Key 密文 → 明文（后台可查看/复制；无标记，按 key_iv 为空幂等）
+ * T7 fixed-channels 收尾：api_provider_keys 加 priority/exhausted_at、拆主 Key 约束、
+ *    删除全部用户渠道（历史任务外键置空）、DROP user_toapis_keys
  *
  * 幂等标记（system_config）：seed_ai_provider_v1（T1-T3）、migrate_user_keys_v1（T4）、
- * migrate_tasks_v1（T5）。T5 支持断点续跑（按 task_no IS NULL）。
+ * migrate_tasks_v1（T5）、migrate_fixed_channels_v1（T7）。T5 支持断点续跑（按 task_no IS NULL）。
  * 迁移前自动备份（VACUUM INTO），备份失败中止启动。
  * MIGRATION_DRY_RUN=1 时仅输出影响行数与抽样，不写库。
  */
@@ -166,6 +168,15 @@ function seedAiProvider(): void {
 
 function migrateUserKeys(): void {
   if (flag('migrate_user_keys_v1') === 'done') return
+
+  // fixed-channels 后基线不再创建 user_toapis_keys（新库）：无表即无个人 Key 可迁，直接置标记
+  const tableExists = !!db.prepare(`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_toapis_keys'
+  `).get()
+  if (!tableExists) {
+    if (!DRY_RUN) setFlag('migrate_user_keys_v1')
+    return
+  }
 
   const rows = db.prepare(`
     SELECT k.user_id, k.encrypted_key, k.key_iv, k.key_tag, k.key_hint, k.use_personal_key, k.balance_check_interval_sec
@@ -334,17 +345,84 @@ function migratePlatformKeysToPlain(): void {
   console.log(`[DB] T6 平台渠道 Key 明文化 done（${ok}/${rows.length}）`)
 }
 
+// ── T7：fixed-channels 收尾（Key 池列 + 拆主 Key 约束 + 删用户渠道 + DROP 遗留表）──
+
+function migrateFixedChannels(): void {
+  // T7.1 Key 池列（try/catch 幂等；置于标记守卫之外，确保任何路径进来列都已就位）
+  try { db.exec(`ALTER TABLE api_provider_keys ADD COLUMN priority INTEGER NOT NULL DEFAULT 100`) } catch { /* column exists */ }
+  try { db.exec(`ALTER TABLE api_provider_keys ADD COLUMN exhausted_at TIMESTAMP NULL`) } catch { /* column exists */ }
+  if (flag('migrate_fixed_channels_v1') === 'done') return
+
+  const isPrimaryColExists = !!db.prepare(`
+    SELECT name FROM pragma_table_info('api_provider_keys') WHERE name = 'is_primary'
+  `).get()
+
+  const userProviders = db.prepare(`
+    SELECT id, code, name, owner_user_id FROM api_providers WHERE owner_user_id IS NOT NULL ORDER BY id ASC
+  `).all() as Array<{ id: number; code: string; name: string; owner_user_id: number }>
+  const tasksToNull = userProviders.length
+    ? (db.prepare(`
+        SELECT COUNT(*) AS c FROM generation_tasks
+        WHERE channel_provider_id IN (${userProviders.map(() => '?').join(',')})
+      `).get(...userProviders.map((p) => p.id)) as { c: number }).c
+    : 0
+  const primaryKeys = isPrimaryColExists
+    ? (db.prepare(`SELECT COUNT(*) AS c FROM api_provider_keys WHERE is_primary = 1`).get() as { c: number }).c
+    : 0
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] T7 fixed-channels：待删用户渠道 ${userProviders.length} 个、待置空历史任务 ${tasksToNull} 条、待回填 priority=1 的 Key ${primaryKeys} 行`)
+    for (const p of userProviders.slice(0, 5)) console.log(`  渠道 #${p.id} ${p.name}（owner=${p.owner_user_id}）`)
+    return
+  }
+
+  // T7 含删除性操作（用户渠道/主 Key 约束/遗留表）：已在 initAiProviderMigration 入口
+  // 备份（backupBeforeMigration，失败中止启动），此处直接执行
+  const tx = db.transaction(() => {
+    // T7.2 回填：原主 Key → priority 1；其余保持 DEFAULT 100（选取序与原「删主 Key 按 id 提升」语义一致）
+    if (isPrimaryColExists) {
+      db.prepare(`UPDATE api_provider_keys SET priority = 1 WHERE is_primary = 1`).run()
+    }
+
+    // T7.3 拆除主 Key 约束（DROP COLUMN 依赖 SQLite ≥ 3.35，失败保留死列，代码零引用）
+    db.exec(`DROP INDEX IF EXISTS idx_api_provider_keys_primary`)
+    if (isPrimaryColExists) {
+      try { db.exec(`ALTER TABLE api_provider_keys DROP COLUMN is_primary`) } catch (e: any) {
+        console.warn('[DB] T7 DROP COLUMN is_primary 失败（旧 SQLite 保留死列，无引用）：', e.message)
+      }
+    }
+
+    // T7.4 删除全部用户渠道：历史任务外键先置空（任务记录与展示不受影响），再整链删除
+    if (userProviders.length > 0) {
+      db.prepare(`
+        UPDATE generation_tasks SET channel_model_id = NULL, channel_provider_id = NULL
+        WHERE channel_provider_id IN (${userProviders.map(() => '?').join(',')})
+      `).run(...userProviders.map((p) => p.id))
+      console.log(`[DB] T7 删除用户渠道：${userProviders.map((p) => `#${p.id} ${p.name}(owner=${p.owner_user_id})`).join('、')}`)
+      db.prepare(`DELETE FROM api_providers WHERE owner_user_id IS NOT NULL`).run()
+    }
+
+    // T7.5 遗留个人 Key 表（T4 数据已随用户渠道删除，无二次利用价值）
+    db.exec(`DROP TABLE IF EXISTS user_toapis_keys`)
+
+    setFlag('migrate_fixed_channels_v1')
+  })
+  tx()
+  console.log(`[DB] migrate_fixed_channels_v1 done（用户渠道删除 ${userProviders.length} 个、历史任务置空 ${tasksToNull} 条、主 Key 回填 ${primaryKeys} 行）`)
+}
+
 // ── 入口 ──
 
 export function initAiProviderMigration(): void {
   const needSeed = flag('seed_ai_provider_v1') !== 'done'
   const needUserKeys = flag('migrate_user_keys_v1') !== 'done'
   const needTasks = flag('migrate_tasks_v1') !== 'done'
+  const needFixedChannels = flag('migrate_fixed_channels_v1') !== 'done'
 
   if (DRY_RUN) {
     console.log('[DB] MIGRATION_DRY_RUN=1：ai-provider 迁移 dry-run 模式，不写库')
     // DDL 仍执行（IF NOT EXISTS 幂等且不破坏数据），种子与回填仅输出
-  } else if (needSeed || needUserKeys || needTasks) {
+  } else if (needSeed || needUserKeys || needTasks || needFixedChannels) {
     backupBeforeMigration()
   }
 
@@ -353,6 +431,7 @@ export function initAiProviderMigration(): void {
   migrateUserKeys()
   migrateTasks()
   migratePlatformKeysToPlain()
+  migrateFixedChannels()
 
   if (!DRY_RUN) {
     // 兜底：即使所有标记已完成，也确保唯一索引存在（如历史中断）

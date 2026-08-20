@@ -228,26 +228,8 @@ export function initSchema(): void {
                 ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
   }
 
-  // 用户个人 ToAPIs Key（AES-256-GCM 加密存储，每用户至多一行）
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS user_toapis_keys (
-      user_id            INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-      encrypted_key      TEXT NOT NULL,
-      key_iv             TEXT NOT NULL,
-      key_tag            TEXT NOT NULL,
-      key_hint           TEXT NOT NULL DEFAULT '',
-      use_personal_key   INTEGER NOT NULL DEFAULT 0,
-      encryption_version TEXT NOT NULL DEFAULT 'v1',
-      balance_check_interval_sec INTEGER NOT NULL DEFAULT 60,
-      created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-  `)
-
-  // Migration: add balance_check_interval_sec to user_toapis_keys (个人 Key 余额轮询间隔，默认 60s)
-  try {
-    db.exec(`ALTER TABLE user_toapis_keys ADD COLUMN balance_check_interval_sec INTEGER NOT NULL DEFAULT 60`)
-  } catch { /* column already exists */ }
+  // 旧表 user_toapis_keys（个人 ToAPIs Key）已随 fixed-channels 重构退役：
+  // 基线不再创建，T7 迁移对存量库 DROP（见 migrateAiProvider.ts T7.5）
 
   // Seed feature prompts for all feature × model combinations
   const featureIds = [
@@ -813,11 +795,12 @@ export function initSchema(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_prompt_card_likes_card ON prompt_card_likes(card_id);`)
 
   // ────────────────────────────────────────────────────────────
-  //  AI 服务商配置
+  //  AI 服务商配置（fixed-channels：全部为管理员配置的平台渠道）
   //
   //  api_providers       服务商（火山引擎 / ToAPIs / DeepSeek ...）
   //  ai_models           模型（provider 1:N model）
-  //  api_provider_keys   密钥（provider 1:N key，每服务商唯一一把主 Key，连接用主 Key）
+  //  api_provider_keys   Key 池（provider 1:N key；正整数优先级小者优先，
+  //                      选取序 priority ASC, id ASC；状态 active/disabled/exhausted）
   //  adapter 列指向 providers/ 目录下的适配器实现（协议与调用方式的解耦点）
   // ────────────────────────────────────────────────────────────
   db.exec(`
@@ -860,8 +843,9 @@ export function initSchema(): void {
       key_iv          TEXT NOT NULL,
       key_tag         TEXT NOT NULL,
       key_hint        TEXT NOT NULL DEFAULT '',
-      is_primary      INTEGER NOT NULL DEFAULT 0,
+      priority        INTEGER NOT NULL DEFAULT 100,
       status          VARCHAR(20) NOT NULL DEFAULT 'active',
+      exhausted_at    TIMESTAMP NULL,
       last_checked_at TIMESTAMP NULL,
       last_check_ok   INTEGER NULL,
       created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -869,9 +853,6 @@ export function initSchema(): void {
     );
   `)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_api_provider_keys_provider ON api_provider_keys(provider_id);`)
-  // 每个服务商至多一把主 Key（部分唯一索引：仅 is_primary=1 的行参与）
-  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_api_provider_keys_primary
-           ON api_provider_keys(provider_id) WHERE is_primary = 1;`)
 
   // 种子数据：火山引擎 + 主 Key + doubao-seed-2.1-turbo
   initApiProviders()

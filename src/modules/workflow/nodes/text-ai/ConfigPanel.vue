@@ -25,11 +25,11 @@ function boolVal(key: string): boolean {
     <el-select :model-value="val('modelName')" placeholder="选择文字模型" style="width: 100%" @update:model-value="emit('update', { modelName: $event })">
       <template v-if="modelCatalog.loaded">
         <template v-for="group in modelCatalog.textGroups" :key="group.providerId">
-          <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+          <el-option-group :label="group.providerName">
             <el-option
               v-for="m in group.models"
               :key="m.id"
-              :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+              :label="m.displayName"
               :value="m.modelId"
             />
           </el-option-group>

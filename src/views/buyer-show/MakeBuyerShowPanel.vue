@@ -75,7 +75,6 @@ const aspectRatio = ref('9:16')
 const countN = ref(1)
 
 const selectedModel = computed(() => modelCatalog.getModel(selectedChannelModelId.value))
-const isPersonalChannel = computed(() => !!selectedModel.value?.mine)
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
@@ -396,7 +395,7 @@ async function handleGenerate() {
   const count = submittableCount.value
   const total = estimateCost.value
   try {
-    const costText = `预计消耗：${formatCredits(total)}${isPersonalChannel ? '（个人渠道）' : ''}`
+    const costText = `预计消耗：${formatCredits(total)}`
     await ElMessageBox.confirm(
       `选中待生成：${count} 个 × ${countN.value} 张\n${costText}`,
       '确认生成',
@@ -404,17 +403,15 @@ async function handleGenerate() {
     )
   } catch { return }
 
-  // Check balance（个人渠道不扣积分，跳过校验）
-  if (!isPersonalChannel.value) {
-    try {
-      const res = await pointsApi.getMyBalance()
-      const balance = res.data.data?.balance ?? 0
-      if (balance < total) {
-        warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
-        return
-      }
-    } catch { /* proceed */ }
-  }
+  // 余额预检（服务端仍会二次校验）
+  try {
+    const res = await pointsApi.getMyBalance()
+    const balance = res.data.data?.balance ?? 0
+    if (balance < total) {
+      warning(`积分不足，需要 ${formatCredits(total)}，当前余额 ${formatCredits(balance)}`)
+      return
+    }
+  } catch { /* proceed */ }
 
   const toSubmit = [...submittableRows.value]
   isGenerating.value = true
@@ -677,7 +674,7 @@ onUnmounted(() => {
   <div class="bs-panel">
     <el-alert
       v-if="serverStatus.loaded && !serverStatus.canGenerate"
-      title="暂无可用模型（平台渠道未配置或已停用），请联系管理员或前往「我的渠道」配置个人渠道"
+      title="暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型"
       type="warning" show-icon :closable="false" class="bs-alert"
     />
 
@@ -707,11 +704,11 @@ onUnmounted(() => {
             <el-select v-model="selectedChannelModelId" style="width: 200px" @change="handleModelChange">
               <template v-if="modelCatalog.loaded">
                 <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
-                  <el-option-group :label="group.mine ? `我的渠道 · ${group.providerName}` : group.providerName">
+                  <el-option-group :label="group.providerName">
                     <el-option
                       v-for="m in group.models"
                       :key="m.id"
-                      :label="group.mine ? `${m.displayName}（个人）` : m.displayName"
+                      :label="m.displayName"
                       :value="m.id"
                     />
                   </el-option-group>
@@ -740,7 +737,7 @@ onUnmounted(() => {
         </div>
 
         <div class="bs-submit">
-          <span v-if="submittableCount > 0" class="bs-cost">预计 {{ formatCredits(estimateCost) }}{{ isPersonalChannel ? ' · 个人渠道' : '' }}</span>
+          <span v-if="submittableCount > 0" class="bs-cost">预计 {{ formatCredits(estimateCost) }}</span>
           <el-button
             type="primary" :icon="MagicStick" :loading="isGenerating"
             :disabled="submittableCount === 0" @click="handleGenerate"

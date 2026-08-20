@@ -271,21 +271,15 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 
 > 计费主单位为「新积分」，`1 新积分 = ¥0.035`。详见 `docs/requirements/billing.md`。
 
-### 用户个人 Key `/api/me/toapis`（任意登录用户）
+### 用户个人 Key `/api/me/toapis`（已下线）
 
-- `GET /key-config` → `{ hasPersonalKey, keyHint, usePersonalKey, sharedKeyConfigured, balanceCheckIntervalSec }`（`balanceCheckIntervalSec` 默认 60）
-- `PUT /key` body `{ apiKey, balanceCheckIntervalSec? }` → 加密存储（**不**自动切换模式；可附带轮询间隔，省略则保留原值/默认 60）
-- `PATCH /key-mode` body `{ usePersonalKey }` → 切换模式；`true` 但无 key → 400
-- `PATCH /balance-interval` body `{ intervalSec }` → 单独更新余额轮询间隔（0~604800 秒，`0`=不查询）；无 key → 400。返回 `{ balanceCheckIntervalSec }`
-- `DELETE /key` → 删除个人 Key，自动回退共享模式
-- `POST /test` body `{ apiKey }` → `{ ok }`（用传入 key 调 ToAPIs `/v1/models`）
-- `GET /balance` → 用个人 key 查 ToAPIs token-balance `{ balance, credits, currency }`；`credits`（remain_credits）即该 Key 的「积分」，展示余额 = credits × 0.035（不用 `balance`）。
+fixed-channels 重构后整组端点删除（`/api/me/toapis/key-config|key|key-mode|balance-interval|test|balance` 均返回 404）；渠道由管理员统一配置，Key 归平台所有，`user_toapis_keys` 表已 DROP。
 
 ### 我的额度 `GET /api/me/quota`（任意登录用户）
 
-聚合返回：`{ platform: { credits, yuan }, recentTransactions: [...最近10条], personalKeyCredits: { credits: number|null, currency } | null }`。
-- `platform`：平台积分余额（共享模式消耗），`yuan = credits × 0.035`。
-- `personalKeyCredits`：仅个人 Key 模式返回；`credits` 为该 Key 的积分（取自 ToAPIs token-balance `remain_credits`），`null` 表示获取失败/Key 无效。共享模式下为 `null`。
+聚合返回：`{ platform: { credits, yuan }, recentTransactions: [...最近10条] }`。
+- `platform`：平台积分余额，`yuan = credits × 0.035`。
+- 旧 `personalKeyCredits` 字段已随个人渠道下线移除。
 
 ### 健康状态 `GET /api/toapis/health`（任意登录用户）
 
@@ -315,9 +309,10 @@ body `{ amount, note }`，`amount` 为**新积分**（正充值、负扣减）�
 #### POST `/api/generations`
 提交生图任务（服务端编排：校验→计价预扣→落库→派发）。需登录。
 - Body：`{ channelModelId, prompt, userPrompt?, systemPrompt?, aspectRatio, resolution, n?, refImageUrls?, templateImageIds?, featureId?, supplementaryImages?, promptSegments?, negativePrompt?, suiteId?, pointIndex?, clientBusinessId? }`
-- 平台渠道按 `pricing[resolution] × n` 预扣积分（不足 402，任务不创建）；用户渠道（我的渠道）cost=0。
+- 全部渠道模型按 `pricing[resolution] × n` 预扣积分（fixed-channels 后计费单轨；不足 402，任务不创建）。
+- 派发接入 Key 池轮换（`withKeyFailover`）：上游欠费（402 或 400/403/429×关键词）→ 标记该 Key 耗尽 → 换下一个可用 Key 重试本次请求；全部耗尽 → 任务 failed（`ALL_KEYS_EXHAUSTED`）+ 全额退款。
 - Response：`data: { tasks: [{ id, taskNo, status }], inputImageUrls }`（n>1 多条）
-- 错误：400 参数/能力/定价缺失；402 积分不足；403 越权渠道
+- 错误：400 参数/能力/定价缺失；402 积分不足；404 渠道模型不存在
 
 #### GET `/api/generations/:id/status`
 单次任务状态查询（服务端查上游 + 转存 OSS + 失败退款）。仅任务 owner。
@@ -333,29 +328,24 @@ body `{ amount, note }`，`amount` 为**新积分**（正充值、负扣减）�
 ### 模型目录 `/api/models`
 
 #### GET `/api/models/catalog?kind=image|text`
-前端唯一模型真源。Response：`data: { platform: [渠道组], mine: [渠道组] }`，
+前端唯一模型真源。Response：`data: { platform: [渠道组] }`（fixed-channels 后仅平台渠道，`mine` 字段已删除），
 每组 `{ providerId, providerName, adapter, models: [{ id(=channelModelId), modelId, displayName, logicalCode, capabilities, pricing, kind }] }`。
-仅返回 active 渠道/模型；我的渠道模型 `pricing` 恒 null（不扣积分）。
+仅返回 active 渠道/模型。
 
-### 我的渠道 `/api/my`
+### 我的渠道 `/api/my`（已下线）
 
-| 端点 | 说明 |
-|------|------|
-| GET/POST `/api/my/channels` | 用户渠道列表 / 新建（协议白名单 + base_url SSRF 校验：仅 http/https、拒绝私网/环回） |
-| PATCH/DELETE `/api/my/channels/:id` | 改名/baseUrl/启停 / 删除（历史任务保留快照） |
-| PUT `/api/my/channels/:id/key` | 录入/轮换主 Key（AES-256-GCM，仅脱敏 hint 回显） |
-| POST `/api/my/channels/:id/test` | 测试连通（服务端出站） |
-| GET `/api/my/channels/:id/balance` | 余额查询（仅 supportsBalance 协议 toapis；其余 400） |
-| GET/POST/PATCH/DELETE `/api/my/channels/:id/models[/:modelId]` | 渠道模型 CRUD（引用逻辑模型或完全自定义能力；pricing 恒空） |
-| GET `/api/my/meta` | 协议清单 + 逻辑模型清单（引用模板用） |
+fixed-channels 重构后路由整体卸载：`/api/my/channels*`、`/api/my/meta` 等全组端点返回 404，无业务副作用。渠道（含 Key 池）只由管理员在 `/api/admin/ai-config` 配置。
 
 ### 管理端扩展 `/api/admin/ai-config`
 
 - `GET /logical-models`：逻辑模型列表；`PATCH /logical-models/:id`：仅接受 `name`（显示名；其余字段 400）；`POST` / `DELETE` 已下线（410）——逻辑模型由平台代码定义（`server/src/db/logicalModels.ts`，启动时幂等同步进库）
-- 模型创建/编辑新增入参：`logical_model_id`（平台生图必填）、`param_overrides`（只收窄校验）、`pricing`（平台生图必填且覆盖全部生效分辨率，S6）、`supports_chat`
-- Key 管理：平台渠道 Key 明文存储，`GET /providers` 及 Key 增改响应回传完整 `key` 字段（后台可查看/复制；历史密文解密失败时为 null，重新保存该 Key 即可）
-- `GET /user-providers`：用户自建渠道只读列表（S1，无 Key 明文）
-- 服务商 base_url 建/改均过 SSRF 校验；用户渠道模型不可在管理端编辑（403）
+- 模型创建/编辑新增入参：`logical_model_id`（生图必填）、`param_overrides`（只收窄校验）、`pricing`（生图必填且覆盖全部生效分辨率，S6，无用户渠道豁免）、`supports_chat`
+- Key 池管理（fixed-channels）：`POST /keys` 入参 `{ provider_id, name, key, priority? }`（缺省 = 该渠道 MAX+1，首个为 1）；`PATCH /keys/:id` 支持 `name/key(轮换)/priority(≥1 整数；exhausted 态拒绝)/status`（状态机 active↔disabled、exhausted→active=重新启用清 `exhausted_at`、exhausted→disabled 400；手动置 exhausted 400——耗尽仅服务端欠费切换写入）；Key 明文存储，响应回传完整 `key` 字段（后台可查看/复制）
+- Key 序列化字段：`{ id, provider_id, name, key, key_hint, priority, status('active'|'disabled'|'exhausted'), exhausted_at, last_checked_at, last_check_ok, created_at }`
+- `GET /providers`：keys 按 `priority ASC, id ASC` 排序；响应含 `first_key_hint`（首个可用 Key hint）与 `has_active_key`（无可用 Key 警示用），无 `primary_key_hint`
+- `POST /providers/:id/test` 与 `POST /chat`（调试）使用优先级最高的可用 Key
+- 旧 `GET /user-providers` 已删除（用户渠道下线）
+- 服务商 base_url 建/改均过 SSRF 校验
 
 ### 退役端点（410）
 

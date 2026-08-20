@@ -3,6 +3,7 @@
 > 业务域代号：`ai-provider`。本文档是「多渠道 AI 接入体系重构」的产品需求方案。
 > 核心内容：生图/文字模型的多渠道（Provider）接入、平台渠道积分计价配置化、用户自建渠道、任务体系与服务端编排改造。
 > 配套文档：技术方案 `docs/design/ai-provider-tech.md`，验收标准 `docs/requirements/ai-provider-acceptance.md`，迁移与上线 `docs/design/ai-provider-migration.md`。
+> **修订提示（2026-08-20）**：用户自建渠道体系将由《固定渠道与多 Key 轮换》方案（`docs/requirements/fixed-channels.md`，规划中）整体取代——本文的 FR5（我的渠道）、D7/D8/D9、S1/S3 届时废止；渠道 Key 管理由「唯一主 Key」升级为「多 Key 优先级池 + 欠费自动切换」。在该方案实施前，本文仍为现行架构的规格来源。
 
 ---
 
