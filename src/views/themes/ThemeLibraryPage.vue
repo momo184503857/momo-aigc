@@ -17,7 +17,7 @@ import { useImageRetry } from '@/composables/useImageRetry'
 import { buildPointDetails, type ThemePointDetail } from '@/utils/themePoints'
 import {
   Search, Refresh, Upload, UploadFilled, Star, StarFilled,
-  View, Hide, Delete, Picture, Loading, Close, MagicStick, EditPen, MoreFilled,
+  View, Hide, Delete, Picture, Loading, Close, MagicStick, EditPen, MoreFilled, CopyDocument,
 } from '@element-plus/icons-vue'
 
 defineOptions({ name: 'ThemeLibraryPage' })
@@ -149,21 +149,66 @@ async function removeTheme(theme: ThemeItem) {
 // ── 详情预览 ──
 const detailVisible = ref(false)
 const detailTheme = ref<ThemeItem | null>(null)
-const detailImageIndex = ref(0)
-/** 左侧选中的点位下标；右侧只显示该点位的提示词 */
+/** 三方联动的选中点位下标：图片 / 点位列表 / 提示词共用，点任一处其余两处同步 */
 const selectedPoint = ref(0)
+/** 主图跟随选中点位（图片数少于点位数时取最后一张） */
+const detailImageIndex = computed(() => {
+  const n = detailTheme.value?.images.length ?? 0
+  if (!n) return 0
+  return Math.min(selectedPoint.value, n - 1)
+})
 
 function openDetail(theme: ThemeItem) {
   detailTheme.value = theme
-  detailImageIndex.value = 0
   selectedPoint.value = 0
   detailVisible.value = true
 }
 
-const currentPoint = computed<ThemePointDetail | null>(() => {
+/** 折叠态点位摘要：取四字段里第一个非空值 */
+function pointSummary(d: ThemePointDetail): string {
+  return d.scene || d.pose || d.camera || d.name || '—'
+}
+
+/** 单个点位提示词文本（字段标签与成套提示词页的存储三字段格式一致） */
+function pointPromptText(d: ThemePointDetail, i: number, total: number): string {
+  return [
+    d.name ? `【本张点位 ${i + 1}/${total}】${d.name}` : '',
+    d.scene ? `【本张场景锁定·必须严格遵守】${d.scene}` : '',
+    d.pose ? `【人物姿势】${d.pose}` : '',
+    d.camera ? `【机位构图】${d.camera}` : '',
+  ].filter(Boolean).join('\n')
+}
+
+async function copyToClipboard(text: string, okMsg: string) {
+  if (!text.trim()) {
+    warning('该点位暂无提示词内容')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(text)
+    success(okMsg)
+  } catch {
+    error(new Error('复制失败'), '复制失败，请手动选择复制')
+  }
+}
+
+/** 复制单个点位提示词（点击同时会选中该点位） */
+function copyPointPrompt(i: number) {
   const list = detailTheme.value?.point_details || []
-  return list[selectedPoint.value] || list[0] || null
-})
+  const d = list[i]
+  if (!d) return
+  void copyToClipboard(pointPromptText(d, i, list.length), `已复制 P${i + 1} 提示词`)
+}
+
+/** 一键复制全部点位提示词（【点位N】分段，空行分隔） */
+function copyAllPointPrompts() {
+  const list = detailTheme.value?.point_details || []
+  if (!list.length) return
+  const text = list
+    .map((d, i) => `【点位${i + 1}】\n${pointPromptText(d, i, list.length)}`)
+    .join('\n\n')
+  void copyToClipboard(text, `已复制全部 ${list.length} 个提示词`)
+}
 
 /** 「更多」下拉指令分发（仅自己的主题） */
 function onMoreCommand(cmd: string, theme: ThemeItem) {
@@ -453,7 +498,13 @@ onMounted(() => {
   </PageLayout>
 
   <!-- 详情预览弹窗 -->
-  <el-dialog v-model="detailVisible" :title="detailTheme?.name || '主题详情'" width="720px">
+  <el-dialog
+    v-model="detailVisible"
+    :title="detailTheme?.name || '主题详情'"
+    width="80%"
+    align-center
+    class="theme-detail-dialog"
+  >
     <div v-if="detailTheme" class="detail-body">
       <div class="detail-gallery">
         <el-image
@@ -468,17 +519,18 @@ onMounted(() => {
         <div v-else class="detail-main-img cover-placeholder">
           <el-icon size="40"><Picture /></el-icon>
         </div>
+        <!-- 缩略图与点位联动：点缩略图即选中对应点位，主图/提示词同步 -->
         <div v-if="detailTheme.images.length > 1" class="detail-thumbs">
           <img
             v-for="(img, idx) in detailTheme.images"
             :key="idx"
             :src="img"
             :class="{ active: idx === detailImageIndex }"
-            @click="detailImageIndex = idx"
+            @click="selectedPoint = idx"
           />
         </div>
 
-        <!-- 点位选择器：选中哪个点位，右侧就显示哪个点位的提示词 -->
+        <!-- 点位选择器：与图片/提示词联动，选中哪个点位其余两处同步 -->
         <div v-if="detailTheme.point_details?.length" class="point-picker">
           <div class="pp-title">点位（{{ detailTheme.point_details.length }}）</div>
           <button
@@ -524,15 +576,39 @@ onMounted(() => {
         </div>
         <div v-if="detailTheme.point_details?.length" class="meta-row">
           <span class="meta-label">点位提示词</span>
-          <div v-if="currentPoint" class="meta-points-detail">
-            <div class="point-detail-item">
-              <span class="pd-idx">P{{ selectedPoint + 1 }}/{{ detailTheme.point_details.length }}</span>
+          <div class="meta-points-detail">
+            <div class="pd-toolbar">
+              <span class="pd-tip">点击行选中点位</span>
+              <el-button size="small" :icon="CopyDocument" @click="copyAllPointPrompts">
+                复制全部 {{ detailTheme.point_details.length }} 个
+              </el-button>
+            </div>
+            <!-- 提示词行可点击选中点位，与图片/点位列表联动；未选中折叠为单行摘要 -->
+            <div
+              v-for="(d, i) in detailTheme.point_details"
+              :key="i"
+              class="point-detail-item"
+              :class="{ active: i === selectedPoint }"
+              @click="selectedPoint = i"
+            >
+              <span class="pd-idx">P{{ i + 1 }}</span>
               <div class="pd-body">
-                <div v-if="currentPoint.name" class="pd-line"><span class="pd-k">点位名</span><span class="pd-v">{{ currentPoint.name }}</span></div>
-                <div v-if="currentPoint.scene" class="pd-line"><span class="pd-k">场景锁定</span><span class="pd-v">{{ currentPoint.scene }}</span></div>
-                <div v-if="currentPoint.pose" class="pd-line"><span class="pd-k">人物姿势</span><span class="pd-v">{{ currentPoint.pose }}</span></div>
-                <div v-if="currentPoint.camera" class="pd-line"><span class="pd-k">机位构图</span><span class="pd-v">{{ currentPoint.camera }}</span></div>
+                <div v-if="i !== selectedPoint" class="pd-summary">{{ pointSummary(d) }}</div>
+                <template v-else>
+                  <div v-if="d.name" class="pd-line"><span class="pd-k">点位名</span><span class="pd-v" :title="d.name">{{ d.name }}</span></div>
+                  <div v-if="d.scene" class="pd-line"><span class="pd-k">场景锁定</span><span class="pd-v" :title="d.scene">{{ d.scene }}</span></div>
+                  <div v-if="d.pose" class="pd-line"><span class="pd-k">人物姿势</span><span class="pd-v" :title="d.pose">{{ d.pose }}</span></div>
+                  <div v-if="d.camera" class="pd-line"><span class="pd-k">机位构图</span><span class="pd-v" :title="d.camera">{{ d.camera }}</span></div>
+                </template>
               </div>
+              <el-button
+                class="pd-copy"
+                link
+                size="small"
+                :icon="CopyDocument"
+                title="复制本条提示词"
+                @click="copyPointPrompt(i)"
+              >复制</el-button>
             </div>
           </div>
         </div>
@@ -971,7 +1047,7 @@ onMounted(() => {
   color: var(--momo-color-text-secondary);
 }
 
-/* ── 详情弹窗 · 选中点位提示词（右栏，只显示当前点位） ── */
+/* ── 详情弹窗 · 点位提示词（右栏，与图片/点位三方联动的可点击列表） ── */
 .meta-points-detail {
   display: flex;
   flex-direction: column;
@@ -983,12 +1059,50 @@ onMounted(() => {
   display: flex;
   gap: var(--momo-space-2);
   align-items: flex-start;
+  cursor: pointer;
+  padding: var(--momo-space-1) var(--momo-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--momo-radius-sm);
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.point-detail-item:hover {
+  background: var(--el-fill-color-light);
+}
+.point-detail-item.active {
+  background: var(--momo-color-brand-subtle);
+  border-color: var(--momo-color-brand-border);
+}
+.pd-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--momo-space-2);
+}
+.pd-tip {
+  font-size: var(--momo-font-size-xs);
+  color: var(--momo-color-text-tertiary);
+}
+.pd-copy {
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: var(--momo-space-1);
+}
+.pd-summary {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--momo-color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pd-idx {
   flex-shrink: 0;
   min-width: 44px;
   font-weight: 600;
   color: var(--momo-color-text);
+}
+.point-detail-item.active .pd-idx {
+  color: var(--momo-color-brand);
 }
 .pd-body {
   display: flex;
@@ -1015,6 +1129,11 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
   white-space: pre-line;
+  /* 每字段最多显示 2 行，超出省略号；完整内容看悬停提示或走复制 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 /* ── 上传 / 编辑弹窗 ── */
@@ -1109,5 +1228,20 @@ onMounted(() => {
 }
 .upload-tip {
   opacity: 0.7;
+}
+</style>
+
+<style>
+/* 详情大弹窗（约 80% × 80vh）：el-dialog 被传送出 scoped 树，尺寸规则需全局声明；
+   高度写死在 .el-dialog 上，body 区自适应高度并内部滚动 */
+.theme-detail-dialog {
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.theme-detail-dialog .el-dialog__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 </style>

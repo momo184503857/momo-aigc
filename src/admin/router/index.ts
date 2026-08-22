@@ -1,6 +1,11 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+/**
+ * admin.html 独立入口的路由表。
+ * AdminSidebar 的菜单路径带 /admin 前缀（与用户端 App.vue 内嵌 AdminApp 时的路由一致），
+ * 因此每条路由同时挂 /admin/* alias，两个入口共用同一份侧边栏都能导航。
+ */
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
@@ -13,55 +18,82 @@ const routes: RouteRecordRaw[] = [
     redirect: '/users',
   },
   {
+    path: '/admin',
+    redirect: '/admin/users',
+  },
+  {
     path: '/users',
+    alias: '/admin/users',
     name: 'AdminUsers',
     component: () => import('@/views/admin/AdminUsers.vue'),
     meta: { title: '用户管理' },
   },
   {
     path: '/dashboard',
+    alias: '/admin/dashboard',
     name: 'AdminDashboard',
     component: () => import('@/views/admin/AdminDashboard.vue'),
     meta: { title: '生图日志' },
   },
   {
     path: '/templates',
+    alias: '/admin/templates',
     name: 'AdminTemplates',
     component: () => import('@/views/admin/AdminTemplates.vue'),
     meta: { title: '模板管理' },
   },
   {
     path: '/feature-prompts',
+    alias: '/admin/feature-prompts',
     name: 'AdminFeaturePrompts',
     component: () => import('@/views/admin/AdminFeaturePrompts.vue'),
     meta: { title: '功能提示词' },
   },
   {
     path: '/photography',
+    alias: '/admin/photography',
     name: 'AdminPhotography',
     component: () => import('@/views/admin/AdminPhotography.vue'),
     meta: { title: 'AI摄影配置' },
   },
   {
     path: '/works',
+    alias: '/admin/works',
     name: 'AdminWorks',
     component: () => import('@/views/admin/AdminWorks.vue'),
     meta: { title: '作品库管理' },
   },
   {
     path: '/prompt-cases',
+    alias: '/admin/prompt-cases',
     name: 'AdminPromptCases',
     component: () => import('@/views/admin/AdminPromptCases.vue'),
     meta: { title: '提示词案例' },
   },
   {
     path: '/prompt-modules',
+    alias: '/admin/prompt-modules',
     name: 'AdminPromptModules',
     component: () => import('@/views/admin/AdminPromptModules.vue'),
     meta: { title: '提示词模块' },
   },
   {
+    path: '/sg-assets',
+    alias: '/admin/sg-assets',
+    name: 'AdminSgAssets',
+    component: () => import('@/views/admin/AdminSuiteAssets.vue'),
+    meta: { title: '成套生图资产' },
+  },
+  {
+    path: '/ai-config',
+    alias: '/admin/ai-config',
+    name: 'AdminAiConfig',
+    component: () => import('@/views/admin/AdminAiConfig.vue'),
+    meta: { title: '配置' },
+  },
+  {
     path: '/toapis-key',
+    alias: '/admin/toapis-key',
     name: 'AdminToApisKey',
     component: () => import('@/views/admin/AdminToApisKey.vue'),
     meta: { title: 'API Key 管理' },

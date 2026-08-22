@@ -87,6 +87,8 @@
               v-if="f.images"
               v-model="editForm[f.key]"
               :max="f.max || 5"
+              :sortable="f.sortable || false"
+              :caption-prefix="f.captionPrefix"
             />
             <PointDetailsField
               v-else-if="f.pointDetails"
@@ -151,6 +153,10 @@ interface FieldDef {
   images?: boolean
   /** images 上限 */
   max?: number
+  /** 图片可拖拽排序（顺序即点位顺序） */
+  sortable?: boolean
+  /** 图片下方序号说明前缀（如「点位」→ 点位1/点位2…） */
+  captionPrefix?: string
   /** 点位编辑器（固定 5 点位 Tab，四字段；值为 point_details 数组，管理端附 JSON 模式） */
   pointDetails?: boolean
 }
@@ -203,7 +209,7 @@ const TYPE_TABS: TypeTab[] = [
       { key: 'styles', label: '适合风格', options: THEME_STYLES, multiple: true },
       { key: 'path', label: '动线', placeholder: '院外 → 中庭 → 池塘边 → 廊桥 → 茶室' },
       { key: 'point_details', label: '点位四字段', pointDetails: true },
-      { key: 'images', label: '图片', images: true, max: 5 },
+      { key: 'images', label: '图片', images: true, max: 5, sortable: true, captionPrefix: '点位' },
     ],
     required: ['name'],
   },
