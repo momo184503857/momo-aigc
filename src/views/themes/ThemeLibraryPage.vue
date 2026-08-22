@@ -13,6 +13,7 @@ import PointDetailsField from '@/components/PointDetailsField.vue'
 import { themeLibraryApi, type ThemeItem, type ThemeListParams } from '@/services/themeLibraryApi'
 import { ossApi } from '@/services/ossApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { useClipboard } from '@/composables/useClipboard'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { buildPointDetails, type ThemePointDetail } from '@/utils/themePoints'
 import {
@@ -25,6 +26,7 @@ defineOptions({ name: 'ThemeLibraryPage' })
 const router = useRouter()
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
+const clipboard = useClipboard()
 const { retryOnError } = useImageRetry()
 
 // ── 列表状态 ──
@@ -179,17 +181,13 @@ function pointPromptText(d: ThemePointDetail, i: number, total: number): string 
   ].filter(Boolean).join('\n')
 }
 
-async function copyToClipboard(text: string, okMsg: string) {
+/** 复制统一走 useClipboard：HTTP 非安全上下文（生产 IP 直访）下自动降级 execCommand */
+function copyToClipboard(text: string, okMsg: string) {
   if (!text.trim()) {
     warning('该点位暂无提示词内容')
     return
   }
-  try {
-    await navigator.clipboard.writeText(text)
-    success(okMsg)
-  } catch {
-    error(new Error('复制失败'), '复制失败，请手动选择复制')
-  }
+  clipboard.copy(text, { successMsg: okMsg })
 }
 
 /** 复制单个点位提示词（点击同时会选中该点位） */

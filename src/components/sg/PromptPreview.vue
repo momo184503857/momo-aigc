@@ -60,7 +60,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { AssembleResult, LockSelection, PromptEntry } from '@/utils/promptEngine'
-import { useUiFeedback } from '@/composables/useUiFeedback'
+import { useClipboard } from '@/composables/useClipboard'
 
 defineOptions({ name: 'SgPromptPreview' })
 
@@ -82,7 +82,7 @@ const includeCommonModel = computed({
   set: (v: boolean) => emit('update:includeCommon', v),
 })
 
-const ui = useUiFeedback()
+const clipboard = useClipboard()
 const editingKey = ref<string | null>(null)
 const activePoint = ref('0')
 
@@ -134,17 +134,14 @@ function startEdit(e: PromptEntry) {
   editingKey.value = editingKey.value === e.key ? null : e.key
 }
 
-async function copyFull() {
+function copyFull() {
   const text = props.result.fullTexts[parseInt(activePoint.value)] || ''
-  try {
-    await navigator.clipboard.writeText(text)
-    ui.success('已复制到剪贴板')
-  } catch {
-    ui.error(new Error('复制失败'), '复制失败，请手动选择复制')
-  }
+  if (!text.trim()) return
+  // HTTP 非安全上下文（生产 IP 直访）下 useClipboard 自动降级 execCommand
+  clipboard.copy(text, { successMsg: '已复制到剪贴板' })
 }
 
-async function copyAll() {
+function copyAll() {
   const { commonText, pointTexts } = props.result
   if (!pointTexts.length) return
   // 公共部分只带一份，随后依次拼接各点位差异文本（公共开关关闭时不带公共段）
@@ -153,13 +150,7 @@ async function copyAll() {
   pointTexts.forEach((t, i) => {
     if (t.trim()) parts.push(`【点位${i + 1}】\n${t.trim()}`)
   })
-  const text = parts.join('\n\n')
-  try {
-    await navigator.clipboard.writeText(text)
-    ui.success(`已复制全部 ${pointTexts.length} 张提示词`)
-  } catch {
-    ui.error(new Error('复制失败'), '复制失败，请手动选择复制')
-  }
+  clipboard.copy(parts.join('\n\n'), { successMsg: `已复制全部 ${pointTexts.length} 张提示词` })
 }
 </script>
 

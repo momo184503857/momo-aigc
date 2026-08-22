@@ -30,9 +30,14 @@ export function useClipboard() {
     if (!text) return
     const msg = opts?.successMsg || '已复制'
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text)
+      navigator.clipboard
+        .writeText(text)
         .then(() => success(msg))
-        .catch(() => fallbackCopy(text, msg))
+        .catch((e) => {
+          // 留诊断痕迹：剪贴板权限拒绝等问题在 UI 提示之外可见于控制台
+          console.warn('[clipboard] Clipboard API 失败，降级 execCommand:', e)
+          fallbackCopy(text, msg)
+        })
     } else {
       fallbackCopy(text, msg)
     }
