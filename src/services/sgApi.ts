@@ -1,5 +1,5 @@
 /**
- * suite-gen API：资产（六类通用）+ 套系。
+ * suite-gen API：资产（五类通用）+ 套系。
  * 与后端 server/src/routes/sgAssets.ts / sgSuites.ts 一一对应。
  */
 import http from './http'
@@ -7,7 +7,7 @@ import type { PromptEntry } from '@/utils/promptEngine'
 import type { AssembleContext } from '@/utils/promptEngine'
 
 export type SgAssetType =
-  | 'themes' | 'tracks' | 'personas' | 'lock-templates' | 'garment-features' | 'knowledge'
+  | 'themes' | 'personas' | 'lock-templates' | 'garment-features' | 'knowledge'
 
 export interface SgAssetBase {
   id: number
@@ -20,30 +20,16 @@ export interface SgAssetBase {
 
 export interface SgTheme extends SgAssetBase {
   name: string
-  track_key: string
   /** 中文季节数组（春/夏/秋/冬）；空数组 = 全季 */
   season: string[]
   /** 适合风格（新中式国风/文艺风/…） */
   styles: string[]
   /** 主题图片 URL（≤5 张） */
   images: string[]
-  level: string
   path: string
   points: string[]
-  /** 点位三字段：点位名 / 场景锁定 / 机位构图（数据源，points 由其派生） */
-  point_details?: Array<{ name: string; scene: string; camera: string }>
-  sort_order: number
-}
-
-export interface SgTrack extends SgAssetBase {
-  key: string
-  name: string
-  emoji: string
-  mood: string
-  hair: string
-  light: string
-  acc: string
-  hand: string
+  /** 点位字段：点位名 / 场景锁定 / 人物姿势 / 机位构图（数据源，points 由其派生） */
+  point_details?: Array<{ name: string; scene: string; pose: string; camera: string }>
   sort_order: number
 }
 
@@ -88,7 +74,6 @@ export interface SgSuite {
   track_snapshot: Record<string, unknown>
   theme_snapshot: {
     name: string
-    track_key?: string
     season?: string | string[]
     path: string
     points: string[]
@@ -163,7 +148,6 @@ export const sgApi = {
     page?: number
     pageSize?: number
     season?: string
-    track_key?: string
     grp?: string
     kind?: string
     field?: string

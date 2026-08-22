@@ -1,5 +1,5 @@
 /**
- * 资产库通用组合式函数：六类资产（主题/赛道/人设/模板/特征/知识）共用。
+ * 资产库通用组合式函数：五类资产（主题/人设/模板/特征/知识）共用。
  *
  * useAssetLibrary<T>('themes') → { list, loading, scope, setScope, load, create, update, remove, copyGlobal, reportUse }
  * 模块级缓存（stale-while-revalidate）：同类型多组件共享一次加载。

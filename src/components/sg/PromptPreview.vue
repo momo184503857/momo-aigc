@@ -2,7 +2,13 @@
   <div class="sg-prompt-preview">
     <div class="pp-main">
       <div class="pp-col common">
-        <div class="pp-col-title">公共锁定部分（5 张共用）</div>
+        <div class="pp-col-title common-title">
+          <span>公共锁定部分（5 张共用）</span>
+          <div class="common-switch">
+            <el-switch v-model="includeCommonModel" size="small" />
+            <span class="common-switch-text">{{ includeCommon ? '加入最终提示词' : '不加入最终提示词' }}</span>
+          </div>
+        </div>
         <el-collapse>
           <el-collapse-item v-for="g in groupedCommon" :key="g.name" :name="g.name">
             <template #title>
@@ -61,11 +67,20 @@ defineOptions({ name: 'SgPromptPreview' })
 const props = defineProps<{
   result: AssembleResult
   locks: LockSelection[]
+  /** 公共提示词是否拼入最终提示词（false = 完整 Prompt 仅差异部分） */
+  includeCommon: boolean
 }>()
 
 const emit = defineEmits<{
   'update:locks': [locks: LockSelection[]]
+  'update:includeCommon': [v: boolean]
 }>()
+
+/** 开关受控值：写入走 emit，父组件状态是唯一数据源 */
+const includeCommonModel = computed({
+  get: () => props.includeCommon,
+  set: (v: boolean) => emit('update:includeCommon', v),
+})
 
 const ui = useUiFeedback()
 const editingKey = ref<string | null>(null)
@@ -132,9 +147,9 @@ async function copyFull() {
 async function copyAll() {
   const { commonText, pointTexts } = props.result
   if (!pointTexts.length) return
-  // 公共部分只带一份，随后依次拼接各点位差异文本
+  // 公共部分只带一份，随后依次拼接各点位差异文本（公共开关关闭时不带公共段）
   const parts: string[] = []
-  if (commonText.trim()) parts.push(`【公共部分】\n${commonText.trim()}`)
+  if (props.includeCommon && commonText.trim()) parts.push(`【公共部分】\n${commonText.trim()}`)
   pointTexts.forEach((t, i) => {
     if (t.trim()) parts.push(`【点位${i + 1}】\n${t.trim()}`)
   })
@@ -155,6 +170,9 @@ async function copyAll() {
   font-weight: var(--momo-font-weight-semibold); font-size: var(--momo-font-size-sm);
   margin-bottom: var(--momo-space-2); display: flex; align-items: center; gap: var(--momo-space-2);
 }
+.common-title { justify-content: space-between; }
+.common-switch { display: flex; align-items: center; gap: var(--momo-space-1); }
+.common-switch-text { font-size: var(--momo-font-size-xs); font-weight: normal; color: var(--momo-color-text-tertiary); }
 .grp-title { font-size: var(--momo-font-size-sm); }
 .grp-count { color: var(--momo-color-text-tertiary); font-size: var(--momo-font-size-xs); }
 .entry { display: flex; flex-direction: column; gap: var(--momo-space-1); padding: var(--momo-space-2) 0; border-bottom: 1px dashed var(--momo-color-border-soft); }

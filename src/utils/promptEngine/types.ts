@@ -38,20 +38,8 @@ export interface PersonaSnapshot {
   fingerprint?: string[]
 }
 
-export interface TrackSnapshot {
-  key: string
-  name: string
-  emoji?: string
-  mood: string
-  hair: string
-  light: string
-  acc: string
-  hand: string
-}
-
 export interface ThemeSnapshot {
   name: string
-  track_key: string
   /** 中文季节数组（春/夏/秋/冬）；空数组 = 全季 */
   season: string[]
   path: string
@@ -74,7 +62,6 @@ export interface GarmentInfo {
 
 export interface AssembleContext {
   persona?: PersonaSnapshot
-  track: TrackSnapshot
   theme?: ThemeSnapshot
   /** 0..4；undefined = 单张模式（专家玩法） */
   pointIndex?: number

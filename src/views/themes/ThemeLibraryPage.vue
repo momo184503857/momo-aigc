@@ -3,20 +3,21 @@
  * ThemeLibraryPage - 主题库。
  * 浏览管理员配置的官方主题（sg_themes 全局行）与自己上传的主题；
  * 支持筛选搜索、排序、收藏；自己上传的主题可编辑、可删除、可切换公开/私有。
- * 卡片 hover 出现操作按钮：收藏 / 预览 / 成套提示词 / 编辑（我的）/ 公开切换（我的）/ 删除（我的）。
+ * 点击封面图片进入主题详情；卡片底部常驻操作按钮：收藏 / 成套提示词 / 更多（我的，
+ * 下拉：编辑 / 公开切换 / 删除），样式对齐作品库卡片操作行。
  */
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import PageLayout from '@/components/PageLayout.vue'
+import PointDetailsField from '@/components/PointDetailsField.vue'
 import { themeLibraryApi, type ThemeItem, type ThemeListParams } from '@/services/themeLibraryApi'
-import { sgApi, type SgTrack } from '@/services/sgApi'
 import { ossApi } from '@/services/ossApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
-import { buildPointDetails, emptyPointDetail, type ThemePointDetail } from '@/utils/themePoints'
+import { buildPointDetails, type ThemePointDetail } from '@/utils/themePoints'
 import {
-  Search, Refresh, Upload, UploadFilled, Star, StarFilled, ZoomIn,
-  View, Hide, Delete, Picture, Loading, Close, MagicStick, EditPen, Plus,
+  Search, Refresh, Upload, UploadFilled, Star, StarFilled,
+  View, Hide, Delete, Picture, Loading, Close, MagicStick, EditPen, MoreFilled,
 } from '@element-plus/icons-vue'
 
 defineOptions({ name: 'ThemeLibraryPage' })
@@ -36,10 +37,8 @@ const pageSize = ref(24)
 // ── 筛选 / 搜索 / 排序 ──
 const keyword = ref('')
 const scope = ref<'all' | 'official' | 'mine' | 'favorites'>('all')
-const trackKey = ref('')
 const season = ref('')
 const style = ref('')
-const level = ref('')
 const sort = ref<'default' | 'latest' | 'hot' | 'favorite'>('default')
 
 const scopeOptions = [
@@ -59,19 +58,12 @@ const styleOptions = [
   '新中式国风', '文艺风', '休闲', '极简', '法式', '度假',
   '优雅', '职场', '运动', '喜婆婆', '小香风',
 ]
-const levelOptions = [
-  { value: 'L', label: 'L' },
-  { value: 'M', label: 'M' },
-  { value: 'H', label: 'H' },
-]
 const sortOptions = [
   { value: 'default', label: '默认' },
   { value: 'latest', label: '最新' },
   { value: 'hot', label: '最热' },
   { value: 'favorite', label: '收藏最多' },
 ]
-
-const tracks = ref<SgTrack[]>([])
 
 async function loadThemes() {
   loading.value = true
@@ -83,10 +75,8 @@ async function loadThemes() {
       sort: sort.value,
     }
     if (keyword.value.trim()) params.keyword = keyword.value.trim()
-    if (trackKey.value) params.track_key = trackKey.value
     if (season.value) params.season = season.value
     if (style.value) params.style = style.value
-    if (level.value) params.level = level.value
 
     const res = await themeLibraryApi.list(params)
     themes.value = res.data.data?.records || []
@@ -106,13 +96,6 @@ function applyFilters() {
 function onPageChange(p: number) {
   page.value = p
   loadThemes()
-}
-
-async function loadTracks() {
-  try {
-    const res = await sgApi.listAssets<SgTrack>('tracks', { scope: 'global', pageSize: 100 })
-    tracks.value = res.data.data?.records || []
-  } catch { /* 筛选下拉降级为空，不影响列表 */ }
 }
 
 function seasonText(t: ThemeItem): string {
@@ -167,11 +150,26 @@ async function removeTheme(theme: ThemeItem) {
 const detailVisible = ref(false)
 const detailTheme = ref<ThemeItem | null>(null)
 const detailImageIndex = ref(0)
+/** 左侧选中的点位下标；右侧只显示该点位的提示词 */
+const selectedPoint = ref(0)
 
 function openDetail(theme: ThemeItem) {
   detailTheme.value = theme
   detailImageIndex.value = 0
+  selectedPoint.value = 0
   detailVisible.value = true
+}
+
+const currentPoint = computed<ThemePointDetail | null>(() => {
+  const list = detailTheme.value?.point_details || []
+  return list[selectedPoint.value] || list[0] || null
+})
+
+/** 「更多」下拉指令分发（仅自己的主题） */
+function onMoreCommand(cmd: string, theme: ThemeItem) {
+  if (cmd === 'edit') openEdit(theme)
+  else if (cmd === 'public') togglePublic(theme)
+  else if (cmd === 'delete') removeTheme(theme)
 }
 
 // ── 成套提示词：带入主题跳转 /suite-prompt ──
@@ -184,15 +182,12 @@ function goSuitePrompt(theme: ThemeItem) {
 const uploadVisible = ref(false)
 const submitting = ref(false)
 const MAX_IMAGES = 5
-const MAX_POINTS = 10
 const editingTheme = ref<ThemeItem | null>(null)
 
 const form = ref({
   name: '',
-  track_key: '',
   season: [] as string[],
   styles: [] as string[],
-  level: 'M',
   path: '',
   points: [] as ThemePointDetail[],
   is_public: false,
@@ -206,16 +201,14 @@ function openUpload() {
   uploadVisible.value = true
 }
 
-/** 编辑已有主题：预填全部字段；无三字段的旧主题按旧生成逻辑预填点位 */
+/** 编辑已有主题：预填全部字段；无点位字段的旧主题按旧生成逻辑预填点位 */
 function openEdit(theme: ThemeItem) {
   detailVisible.value = false
   editingTheme.value = theme
   form.value = {
     name: theme.name,
-    track_key: theme.track_key,
     season: [...theme.season],
     styles: [...theme.styles],
-    level: theme.level || 'M',
     path: theme.path,
     points: theme.point_details?.length
       ? theme.point_details.map((d) => ({ ...d }))
@@ -229,22 +222,10 @@ function openEdit(theme: ThemeItem) {
 function resetForm() {
   editingTheme.value = null
   form.value = {
-    name: '', track_key: '', season: [], styles: [],
-    level: 'M', path: '', points: [], is_public: false,
+    name: '', season: [], styles: [],
+    path: '', points: [], is_public: false,
   }
   formImages.value = []
-}
-
-function addPoint() {
-  if (form.value.points.length >= MAX_POINTS) {
-    warning(`最多 ${MAX_POINTS} 个点位`)
-    return
-  }
-  form.value.points.push(emptyPointDetail())
-}
-
-function removePoint(idx: number) {
-  form.value.points.splice(idx, 1)
 }
 
 function triggerUpload() {
@@ -305,11 +286,9 @@ async function submitForm() {
   try {
     const payload = {
       name: form.value.name.trim(),
-      track_key: form.value.track_key,
       season: form.value.season,
       styles: form.value.styles,
       images: formImages.value.map((i) => i.url),
-      level: form.value.level,
       path: form.value.path.trim(),
       point_details: form.value.points,
       is_public: form.value.is_public,
@@ -336,7 +315,6 @@ async function submitForm() {
 }
 
 onMounted(() => {
-  loadTracks()
   loadThemes()
 })
 </script>
@@ -364,17 +342,11 @@ onMounted(() => {
       <el-select v-model="scope" @change="applyFilters" class="filter-select">
         <el-option v-for="s in scopeOptions" :key="s.value" :label="s.label" :value="s.value" />
       </el-select>
-      <el-select v-model="trackKey" placeholder="全部赛道" clearable @change="applyFilters" class="filter-select">
-        <el-option v-for="t in tracks" :key="t.key" :label="`${t.emoji || ''} ${t.name}`.trim()" :value="t.key" />
-      </el-select>
       <el-select v-model="season" placeholder="全部季节" clearable @change="applyFilters" class="filter-select filter-select-sm">
         <el-option v-for="s in seasonOptions" :key="s.value" :label="s.label" :value="s.value" />
       </el-select>
       <el-select v-model="style" placeholder="全部风格" clearable filterable @change="applyFilters" class="filter-select">
         <el-option v-for="s in styleOptions" :key="s" :label="s" :value="s" />
-      </el-select>
-      <el-select v-model="level" placeholder="复杂度" clearable @change="applyFilters" class="filter-select filter-select-xs">
-        <el-option v-for="l in levelOptions" :key="l.value" :label="l.label" :value="l.value" />
       </el-select>
       <el-button :icon="Refresh" @click="loadThemes" circle size="small" />
     </div>
@@ -394,8 +366,8 @@ onMounted(() => {
         <el-empty :description="scope === 'favorites' ? '暂无收藏的主题' : scope === 'mine' ? '你还没有上传过主题' : '暂无主题'" />
       </div>
       <div v-else class="themes-grid">
-        <div v-for="t in themes" :key="t.id" class="theme-card" @click="openDetail(t)">
-          <div class="theme-cover">
+        <div v-for="t in themes" :key="t.id" class="theme-card">
+          <div class="theme-cover" title="查看主题详情" @click="openDetail(t)">
             <img
               v-if="t.cover_url"
               :src="t.cover_url"
@@ -414,39 +386,7 @@ onMounted(() => {
                 :type="t.is_public ? 'success' : 'info'"
                 size="small"
                 effect="plain"
-              >{{ t.is_public ? '公开' : '私有' }}</el-tag>
-            </div>
-
-            <!-- hover 操作按钮 -->
-            <div class="cover-actions" @click.stop>
-              <button
-                class="hover-btn"
-                :class="{ 'is-active': t.is_favorited }"
-                :title="t.is_favorited ? '取消收藏' : '收藏'"
-                @click="toggleFavorite(t)"
-              >
-                <el-icon size="16"><StarFilled v-if="t.is_favorited" /><Star v-else /></el-icon>
-              </button>
-              <button class="hover-btn" title="预览详情" @click="openDetail(t)">
-                <el-icon size="16"><ZoomIn /></el-icon>
-              </button>
-              <button class="hover-btn" title="生成成套提示词" @click="goSuitePrompt(t)">
-                <el-icon size="16"><MagicStick /></el-icon>
-              </button>
-              <button v-if="t.is_mine" class="hover-btn" title="编辑主题" @click="openEdit(t)">
-                <el-icon size="16"><EditPen /></el-icon>
-              </button>
-              <button
-                v-if="t.is_mine"
-                class="hover-btn"
-                :title="t.is_public ? '设为私有' : '公开给其他用户'"
-                @click="togglePublic(t)"
-              >
-                <el-icon size="16"><Hide v-if="t.is_public" /><View v-else /></el-icon>
-              </button>
-              <button v-if="t.is_mine" class="hover-btn is-danger" title="删除" @click="removeTheme(t)">
-                <el-icon size="16"><Delete /></el-icon>
-              </button>
+                >{{ t.is_public ? '公开' : '私有' }}</el-tag>
             </div>
 
             <div v-if="t.favorite_count > 0 || t.use_count > 0" class="cover-stats">
@@ -458,14 +398,41 @@ onMounted(() => {
           <div class="theme-info">
             <div class="theme-name" :title="t.name">{{ t.name }}</div>
             <div class="theme-meta">
-              <span v-if="t.track_name">{{ t.track_name }}</span>
               <span>{{ seasonText(t) }}</span>
-              <span v-if="t.level">复杂度 {{ t.level }}</span>
             </div>
             <div v-if="t.styles.length" class="theme-styles">
               <el-tag v-for="s in t.styles.slice(0, 2)" :key="s" size="small" effect="plain">{{ s }}</el-tag>
               <span v-if="t.styles.length > 2" class="styles-more">+{{ t.styles.length - 2 }}</span>
             </div>
+          </div>
+
+          <!-- 卡片底部常驻操作行（不依赖 hover） -->
+          <div class="card-actions">
+            <button
+              class="action-btn"
+              :class="{ 'is-active': t.is_favorited }"
+              :title="t.is_favorited ? '取消收藏' : '收藏'"
+              @click.stop="toggleFavorite(t)"
+            >
+              <span class="action-top"><el-icon size="15"><StarFilled v-if="t.is_favorited" /><Star v-else /></el-icon><span>收藏</span></span>
+            </button>
+            <button class="action-btn" title="生成成套提示词" @click.stop="goSuitePrompt(t)">
+              <span class="action-top"><el-icon size="15"><MagicStick /></el-icon><span>成套提示词</span></span>
+            </button>
+            <el-dropdown v-if="t.is_mine" trigger="click" @command="(cmd: string) => onMoreCommand(cmd, t)">
+              <button class="action-btn" title="更多操作" @click.stop>
+                <span class="action-top"><el-icon size="15"><MoreFilled /></el-icon><span>更多</span></span>
+              </button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="edit" :icon="EditPen">编辑主题</el-dropdown-item>
+                  <el-dropdown-item command="public" :icon="t.is_public ? Hide : View">
+                    {{ t.is_public ? '设为私有' : '公开给其他用户' }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" :icon="Delete" divided>删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
         </div>
       </div>
@@ -510,6 +477,22 @@ onMounted(() => {
             @click="detailImageIndex = idx"
           />
         </div>
+
+        <!-- 点位选择器：选中哪个点位，右侧就显示哪个点位的提示词 -->
+        <div v-if="detailTheme.point_details?.length" class="point-picker">
+          <div class="pp-title">点位（{{ detailTheme.point_details.length }}）</div>
+          <button
+            v-for="(d, i) in detailTheme.point_details"
+            :key="i"
+            class="pp-item"
+            :class="{ active: i === selectedPoint }"
+            :title="d.name || `点位 ${i + 1}`"
+            @click="selectedPoint = i"
+          >
+            <span class="pp-idx">P{{ i + 1 }}</span>
+            <span class="pp-name">{{ d.name || '未命名点位' }}</span>
+          </button>
+        </div>
       </div>
 
       <div class="detail-meta">
@@ -525,10 +508,6 @@ onMounted(() => {
             </template>
           </span>
         </div>
-        <div v-if="detailTheme.track_name" class="meta-row">
-          <span class="meta-label">赛道</span>
-          <span>{{ detailTheme.track_name }}</span>
-        </div>
         <div class="meta-row">
           <span class="meta-label">季节</span>
           <span>{{ seasonText(detailTheme) }}</span>
@@ -539,23 +518,20 @@ onMounted(() => {
             <el-tag v-for="s in detailTheme.styles" :key="s" size="small" effect="plain" class="meta-tag">{{ s }}</el-tag>
           </span>
         </div>
-        <div v-if="detailTheme.level" class="meta-row">
-          <span class="meta-label">复杂度</span>
-          <span>{{ detailTheme.level }}</span>
-        </div>
         <div v-if="detailTheme.path" class="meta-row">
           <span class="meta-label">动线</span>
           <span>{{ detailTheme.path }}</span>
         </div>
         <div v-if="detailTheme.point_details?.length" class="meta-row">
           <span class="meta-label">点位提示词</span>
-          <div class="meta-points-detail">
-            <div v-for="(d, i) in detailTheme.point_details" :key="i" class="point-detail-item">
-              <span class="pd-idx">P{{ i + 1 }}</span>
+          <div v-if="currentPoint" class="meta-points-detail">
+            <div class="point-detail-item">
+              <span class="pd-idx">P{{ selectedPoint + 1 }}/{{ detailTheme.point_details.length }}</span>
               <div class="pd-body">
-                <div v-if="d.name" class="pd-line"><span class="pd-k">点位名</span>{{ d.name }}</div>
-                <div v-if="d.scene" class="pd-line"><span class="pd-k">场景锁定</span>{{ d.scene }}</div>
-                <div v-if="d.camera" class="pd-line"><span class="pd-k">机位构图</span>{{ d.camera }}</div>
+                <div v-if="currentPoint.name" class="pd-line"><span class="pd-k">点位名</span><span class="pd-v">{{ currentPoint.name }}</span></div>
+                <div v-if="currentPoint.scene" class="pd-line"><span class="pd-k">场景锁定</span><span class="pd-v">{{ currentPoint.scene }}</span></div>
+                <div v-if="currentPoint.pose" class="pd-line"><span class="pd-k">人物姿势</span><span class="pd-v">{{ currentPoint.pose }}</span></div>
+                <div v-if="currentPoint.camera" class="pd-line"><span class="pd-k">机位构图</span><span class="pd-v">{{ currentPoint.camera }}</span></div>
               </div>
             </div>
           </div>
@@ -611,19 +587,6 @@ onMounted(() => {
         <el-input v-model="form.name" placeholder="如：中式园林庭院" maxlength="50" show-word-limit />
       </el-form-item>
 
-      <div class="form-row">
-        <el-form-item label="赛道">
-          <el-select v-model="form.track_key" placeholder="选择赛道（可选）" style="width: 100%">
-            <el-option v-for="t in tracks" :key="t.key" :label="`${t.emoji || ''} ${t.name}`.trim()" :value="t.key" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="复杂度">
-          <el-radio-group v-model="form.level">
-            <el-radio-button v-for="l in levelOptions" :key="l.value" :value="l.value">{{ l.label }}</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-      </div>
-
       <el-form-item label="季节（不选 = 全季）">
         <el-checkbox-group v-model="form.season">
           <el-checkbox v-for="s in ['春', '夏', '秋', '冬']" :key="s" :value="s">{{ s }}</el-checkbox>
@@ -640,33 +603,8 @@ onMounted(() => {
         <el-input v-model="form.path" placeholder="如：院外 → 中庭 → 池塘边 → 廊桥 → 茶室" maxlength="255" />
       </el-form-item>
 
-      <el-form-item label="点位提示词（每个点位三字段，成套提示词按此生成）">
-        <div class="points-editor">
-          <div v-for="(p, i) in form.points" :key="i" class="point-block">
-            <div class="point-block-head">
-              <span class="point-idx">点位 {{ i + 1 }}</span>
-              <el-button link type="danger" size="small" @click="removePoint(i)">删除</el-button>
-            </div>
-            <el-input v-model="p.name" placeholder="点位名，如：中式园林庭院 · 院外" maxlength="100" />
-            <el-input
-              v-model="p.scene"
-              type="textarea"
-              :rows="2"
-              placeholder="场景锁定，如：木质露台入口，盆栽雏菊、老木构件，模特站立。姿态自然松弛…"
-              maxlength="600"
-              resize="none"
-            />
-            <el-input
-              v-model="p.camera"
-              type="textarea"
-              :rows="2"
-              placeholder="机位构图，如：全景，35mm 环境人像，人物占画面 1/3…。3:4 画幅内保留竖版全身机位…"
-              maxlength="600"
-              resize="none"
-            />
-          </div>
-          <el-button v-if="form.points.length < MAX_POINTS" :icon="Plus" @click="addPoint">添加点位</el-button>
-        </div>
+      <el-form-item label="点位提示词（固定 5 个点位，成套提示词按此生成）">
+        <PointDetailsField v-model="form.points" />
       </el-form-item>
 
       <el-form-item required label="主题图片（1~5 张，首图为封面）">
@@ -735,9 +673,6 @@ onMounted(() => {
 .filter-select-sm {
   width: 110px;
 }
-.filter-select-xs {
-  width: 96px;
-}
 
 .sort-bar {
   display: flex;
@@ -778,11 +713,12 @@ onMounted(() => {
 
 /* ── 主题卡片 ── */
 .theme-card {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--momo-radius-md);
   overflow: hidden;
   background: var(--el-bg-color);
-  cursor: pointer;
   transition: box-shadow 0.2s, transform 0.2s;
 }
 .theme-card:hover {
@@ -795,6 +731,7 @@ onMounted(() => {
   aspect-ratio: 4 / 5;
   background: var(--el-fill-color);
   overflow: hidden;
+  cursor: pointer;
 }
 .theme-cover img {
   width: 100%;
@@ -818,43 +755,41 @@ onMounted(() => {
   gap: 6px;
 }
 
-/* hover 操作按钮（需求：每个主题有 hover 按钮） */
-.cover-actions {
-  position: absolute;
-  inset: 0;
+/* 卡片底部常驻操作行（样式对齐作品库卡片） */
+.card-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.4);
-  opacity: 0;
-  transition: opacity 0.15s;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
-.theme-cover:hover .cover-actions {
-  opacity: 1;
-}
-.hover-btn {
-  width: 34px;
-  height: 34px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--el-text-color-primary);
+.action-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--momo-radius-sm);
+  background: var(--el-bg-color);
+  color: var(--el-text-color-regular);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, transform 0.15s;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.hover-btn:hover {
-  background: var(--el-color-white);
-  transform: scale(1.08);
+.action-btn:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
 }
-.hover-btn.is-active {
-  color: var(--el-color-warning);
+.action-btn.is-active {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
-.hover-btn.is-danger:hover {
-  color: var(--el-color-danger);
+.action-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--momo-font-size-sm);
 }
 
 .cover-stats {
@@ -874,6 +809,7 @@ onMounted(() => {
 }
 
 .theme-info {
+  flex: 1;
   padding: 10px 12px;
 }
 .theme-name {
@@ -954,6 +890,10 @@ onMounted(() => {
 .detail-meta {
   flex: 1;
   min-width: 0;
+  /* 点位多时内容在列内滚动，弹窗整体不超过一屏 */
+  max-height: 64vh;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 .meta-row {
   display: flex;
@@ -979,7 +919,59 @@ onMounted(() => {
   margin-bottom: 2px;
 }
 
-/* ── 详情弹窗 · 点位三字段 ── */
+/* ── 详情弹窗 · 点位选择器（左栏，选中项同步右侧提示词） ── */
+.point-picker {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.pp-title {
+  font-size: var(--momo-font-size-xs);
+  color: var(--el-text-color-secondary);
+}
+.pp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--momo-radius-sm);
+  background: var(--el-bg-color);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pp-item:hover {
+  border-color: var(--el-color-primary);
+}
+.pp-item.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+.pp-item.active .pp-idx,
+.pp-item.active .pp-name {
+  color: var(--el-color-primary);
+}
+.pp-idx {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: var(--momo-font-size-xs);
+  color: var(--momo-color-text);
+}
+.pp-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--momo-font-size-sm);
+  color: var(--momo-color-text-secondary);
+}
+
+/* ── 详情弹窗 · 选中点位提示词（右栏，只显示当前点位） ── */
 .meta-points-detail {
   display: flex;
   flex-direction: column;
@@ -994,7 +986,7 @@ onMounted(() => {
 }
 .pd-idx {
   flex-shrink: 0;
-  min-width: 28px;
+  min-width: 44px;
   font-weight: 600;
   color: var(--momo-color-text);
 }
@@ -1003,6 +995,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
 }
 .pd-line {
   display: flex;
@@ -1018,40 +1011,13 @@ onMounted(() => {
 .pd-k::after {
   content: '：';
 }
+.pd-v {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-line;
+}
 
 /* ── 上传 / 编辑弹窗 ── */
-.points-editor {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: var(--momo-space-3);
-}
-.point-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--momo-space-2);
-  padding: var(--momo-space-3);
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-md);
-  background: var(--momo-color-bg-soft);
-}
-.point-block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.point-idx {
-  font-weight: 600;
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text);
-}
-.form-row {
-  display: flex;
-  gap: 16px;
-}
-.form-row .el-form-item {
-  flex: 1;
-}
 .public-switch-row {
   display: flex;
   align-items: center;

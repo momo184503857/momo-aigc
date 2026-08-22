@@ -1,13 +1,14 @@
 /**
- * 主题元数据推导：按「主题名称关键词 + 赛道」推导适合风格（styles）与差异化季节（season），
- * 以及主题点位三字段（point_details）的清洗 / 派生 / 回填构建。
+ * 主题元数据推导：按「主题名称关键词」推导适合风格（styles）与差异化季节（season），
+ * 以及主题点位字段（point_details：点位名/场景锁定/人物姿势/机位构图）的清洗 / 派生 / 回填构建。
  * 纯函数、无 DB 依赖；种子初始化（seedSuiteGen）与存量回填共用，规则调整后重跑结果确定。
  */
 
-/** 主题点位三字段：点位名 / 场景锁定 / 机位构图（存储于 sg_themes.point_details） */
+/** 主题点位字段：点位名 / 场景锁定 / 人物姿势 / 机位构图（存储于 sg_themes.point_details） */
 export interface ThemePointDetail {
   name: string
   scene: string
+  pose: string
   camera: string
 }
 
@@ -21,13 +22,14 @@ export function sanitizePointDetails(v: unknown): ThemePointDetail[] {
       return {
         name: String(o.name ?? '').trim(),
         scene: String(o.scene ?? '').trim(),
+        pose: String(o.pose ?? '').trim(),
         camera: String(o.camera ?? '').trim(),
       }
     })
-    .filter((d) => d.name || d.scene || d.camera)
+    .filter((d) => d.name || d.scene || d.pose || d.camera)
 }
 
-/** 三字段 → 旧点位描述数组（scene 首句，兜底点位名），保持 points 字段与展示同步 */
+/** 点位字段 → 旧点位描述数组（scene 首句，兜底点位名），保持 points 字段与展示同步 */
 export function derivePointsFromDetails(details: ThemePointDetail[]): string[] {
   return details
     .map((d) => d.scene.split('。')[0]?.trim() || d.name)
@@ -45,9 +47,23 @@ const POINT_SHOT_PROGRESSION = [
 const SCENE_LOCK_TAIL = '姿态自然松弛，生活化抓拍感；严禁跳跃、奔跑、大幅扭身等夸张动作。'
 const CAMERA_TAIL = '3:4 画幅内保留竖版全身机位：人物纵向主体、上下不裁切、背景简洁留白、突出服装主体。'
 
+/** 姿势递进表（与前端 src/utils/themePoints.ts 的 POSE_PROGRESSION 保持同源） */
+const POSE_PROGRESSION = [
+  '自然直立，双手自然垂放，目光平视镜头',
+  '缓步行走中抓拍，双臂自然摆动，侧身回望',
+  '侧身轻靠环境物（栏杆/墙面/廊柱），单手轻搭',
+  '端庄坐姿或站姿，手持道具自然互动',
+  '微侧回头，肩颈放松，微笑看向镜头',
+]
+
+/** 按点位下标取默认姿势（姿势字段上线前的存量回填共用；超出范围循环） */
+export function defaultPoseAt(i: number): string {
+  return POSE_PROGRESSION[i % POSE_PROGRESSION.length]
+}
+
 /**
- * 按旧动态生成逻辑从主题数据构建点位三字段。
- * 存量回填与前端编辑预填共用；三字段写入后即为主题数据源，不再动态拼装。
+ * 按旧动态生成逻辑从主题数据构建点位字段。
+ * 存量回填与前端编辑预填共用；字段写入后即为主题数据源，不再动态拼装。
  */
 export function buildPointDetails(themeName: string, path: string, points: string[]): ThemePointDetail[] {
   const segs = String(path || '').split('→').map((s) => s.trim()).filter(Boolean)
@@ -59,6 +75,7 @@ export function buildPointDetails(themeName: string, path: string, points: strin
     return {
       name: seg ? `${themeName} · ${seg}` : themeName,
       scene: base ? `${base}。${SCENE_LOCK_TAIL}` : SCENE_LOCK_TAIL,
+      pose: defaultPoseAt(i),
       camera: `${POINT_SHOT_PROGRESSION[i] || POINT_SHOT_PROGRESSION[0]}。${CAMERA_TAIL}`,
     }
   })
@@ -69,17 +86,6 @@ export const THEME_STYLE_OPTIONS = [
   '新中式国风', '文艺风', '休闲', '极简', '法式', '度假',
   '优雅', '职场', '运动', '喜婆婆', '小香风',
 ]
-
-/** 赛道 → 基础风格（赛道基调决定的默认标签） */
-const TRACK_BASE_STYLES: Record<string, string[]> = {
-  A: ['新中式国风'],
-  B: ['文艺风', '度假'],
-  C: ['休闲'],
-  D: ['极简'],
-  E: ['法式'],
-  F: ['优雅'],
-  G: ['职场'],
-}
 
 /** 名称关键词 → 附加风格（按序叠加、去重，至多 3 个） */
 const STYLE_RULES: Array<[RegExp, string[]]> = [
@@ -110,9 +116,9 @@ function hashOf(name: string): number {
   return [...name].reduce((a, c) => a + c.charCodeAt(0), 0)
 }
 
-/** 名称 + 赛道 → 适合风格（1~3 个） */
-export function themeStylesFor(name: string, trackKey: string): string[] {
-  const out: string[] = [...(TRACK_BASE_STYLES[trackKey] || [])]
+/** 名称 → 适合风格（1~3 个） */
+export function themeStylesFor(name: string): string[] {
+  const out: string[] = []
   for (const [re, styles] of STYLE_RULES) {
     if (re.test(name)) {
       for (const s of styles) if (!out.includes(s)) out.push(s)

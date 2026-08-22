@@ -1,5 +1,5 @@
 <template>
-  <PageLayout title="成套生图资产管理" subtitle="管理员维护全局资产（全员可用）：主题库 / 赛道库 / 模特人设 / 锁定模板 / 服装特征 / 拆解知识">
+  <PageLayout title="成套生图资产管理" subtitle="管理员维护全局资产（全员可用）：主题库 / 模特人设 / 锁定模板 / 服装特征 / 拆解知识">
     <div class="sg-admin">
       <el-tabs v-model="activeType" type="border-card" @tab-change="load">
         <el-tab-pane v-for="t in TYPE_TABS" :key="t.type" :label="t.label" :name="t.type" />
@@ -88,6 +88,12 @@
               v-model="editForm[f.key]"
               :max="f.max || 5"
             />
+            <PointDetailsField
+              v-else-if="f.pointDetails"
+              :key="editingId ?? 'new'"
+              v-model="editForm[f.key]"
+              allow-json
+            />
             <el-select
               v-else-if="f.options"
               v-model="editForm[f.key]"
@@ -120,12 +126,13 @@
 <script setup lang="ts">
 /**
  * AdminSuiteAssets — 成套生图资产管理（全局资产 CRUD）。
- * 六类资产走统一工厂路由（/api/admin/sg/:type），本页只做表格 + 弹窗的配置化渲染。
+ * 五类资产走统一工厂路由（/api/admin/sg/:type），本页只做表格 + 弹窗的配置化渲染。
  */
 defineOptions({ name: 'AdminSuiteAssets' })
 import { computed, onMounted, ref } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import MultiImageUpload from '@/components/admin/MultiImageUpload.vue'
+import PointDetailsField from '@/components/PointDetailsField.vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { sgApi, type SgAssetType } from '@/services/sgApi'
 
@@ -144,6 +151,8 @@ interface FieldDef {
   images?: boolean
   /** images 上限 */
   max?: number
+  /** 点位编辑器（固定 5 点位 Tab，四字段；值为 point_details 数组，管理端附 JSON 模式） */
+  pointDetails?: boolean
 }
 
 interface TypeTab {
@@ -182,7 +191,6 @@ const TYPE_TABS: TypeTab[] = [
     type: 'themes', label: '主题库',
     columns: [
       { key: 'name', label: '名称', width: 160 },
-      { key: 'track_key', label: '赛道', width: 60 },
       { key: 'season', label: '季节', width: 90, render: (row) => seasonText(row.season) },
       { key: 'styles', label: '适合风格', width: 150, render: (row) => arrayText(row.styles) || '—' },
       { key: 'point_details', label: '点位' },
@@ -191,37 +199,13 @@ const TYPE_TABS: TypeTab[] = [
     ],
     fields: [
       { key: 'name', label: '名称', placeholder: '如：中式园林庭院' },
-      { key: 'track_key', label: '赛道', options: ['A', 'B', 'C', 'D', 'E', 'F', 'G'] },
       { key: 'season', label: '季节', options: ['春', '夏', '秋', '冬'], multiple: true },
       { key: 'styles', label: '适合风格', options: THEME_STYLES, multiple: true },
-      { key: 'level', label: '复杂度', options: ['L', 'M', 'H'] },
       { key: 'path', label: '动线', placeholder: '院外 → 中庭 → 池塘边 → 廊桥 → 茶室' },
-      {
-        key: 'point_details', label: '点位三字段', textarea: true, rows: 10,
-        placeholder: 'JSON 数组，如 [{"name":"主题 · 院外","scene":"场景锁定文案","camera":"机位构图文案"}]；保存后点位描述自动同步',
-      },
+      { key: 'point_details', label: '点位四字段', pointDetails: true },
       { key: 'images', label: '图片', images: true, max: 5 },
     ],
     required: ['name'],
-  },
-  {
-    type: 'tracks', label: '赛道库',
-    columns: [
-      { key: 'key', label: 'Key', width: 60 },
-      { key: 'name', label: '名称', width: 120 },
-      { key: 'mood', label: '基调' },
-    ],
-    fields: [
-      { key: 'key', label: 'Key', placeholder: 'A / B / C …' },
-      { key: 'name', label: '名称' },
-      { key: 'emoji', label: 'Emoji' },
-      { key: 'mood', label: '基调', textarea: true, rows: 3 },
-      { key: 'hair', label: '默认发型妆造', textarea: true, rows: 2 },
-      { key: 'light', label: '默认光影', textarea: true, rows: 2 },
-      { key: 'acc', label: '配饰方向', textarea: true, rows: 2 },
-      { key: 'hand', label: '手部姿态', textarea: true, rows: 2 },
-    ],
-    required: ['key', 'name'],
   },
   {
     type: 'personas', label: '模特人设',
@@ -253,7 +237,7 @@ const TYPE_TABS: TypeTab[] = [
       { key: 'name', label: '名称' },
       { key: 'grp', label: '分组', options: ['identity', 'garment', 'scene', 'light', 'pose', 'camera', 'quality', 'negative', 'fusion', 'fidelity'] },
       { key: 'order_no', label: '排序（≥1000 为点位差异）' },
-      { key: 'content', label: '内容', textarea: true, rows: 8, placeholder: '支持 {{persona.dna}} {{track.light}} {{theme.point}} 等占位符' },
+      { key: 'content', label: '内容', textarea: true, rows: 8, placeholder: '支持 {{persona.dna}} {{theme.point}} 等占位符' },
       { key: 'cond_kind', label: '启用条件', options: ['none', 'outdoor', 'fingerprint', 'refimg'] },
       { key: 'models', label: '适用模型 JSON', placeholder: '[] 为全部，如 ["gpt-image-2"]' },
       { key: 'scope', label: '适用功能 JSON', placeholder: '["suite"] / ["fusion","swap"]' },
@@ -319,9 +303,9 @@ async function load() {
   }
 }
 
-/** 数组类字段（多选/图片）在表单中保持数组，其余按文本编辑 */
+/** 数组类字段（多选/图片/点位结构化编辑）在表单中保持数组，其余按文本编辑 */
 function isArrayField(f: FieldDef): boolean {
-  return Boolean(f.multiple || f.images)
+  return Boolean(f.multiple || f.images || f.pointDetails)
 }
 
 function openCreate() {

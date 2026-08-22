@@ -1,7 +1,7 @@
 /**
  * suite-gen 资产通用 CRUD 工厂。
  *
- * 六类资产（themes/tracks/personas/lock-templates/garment-features/knowledge）
+ * 五类资产（themes/personas/lock-templates/garment-features/knowledge）
  * 共用一套路由实现；新增资产类型只需在 ASSET_TYPES 增加一行配置。
  *
  * 双轨权限：owner_user_id NULL = 全局（仅管理员可写，全员可读）；
@@ -36,24 +36,14 @@ interface AssetTypeConfig {
 const ASSET_TYPES: Record<string, AssetTypeConfig> = {
   themes: {
     table: 'sg_themes',
-    fields: ['name', 'track_key', 'season', 'styles', 'images', 'level', 'path', 'points', 'point_details', 'status', 'sort_order'],
+    fields: ['name', 'season', 'styles', 'images', 'path', 'points', 'point_details', 'status', 'sort_order'],
     required: ['name'],
     jsonFields: ['points', 'point_details', 'season', 'styles', 'images'],
     numberFields: ['sort_order'],
     orderBy: 'ORDER BY sort_order ASC, id ASC',
     searchFields: ['name', 'path'],
-    filterFields: ['track_key', 'status'],
-    jsonContainsFilters: ['season'],
-  },
-  tracks: {
-    table: 'sg_tracks',
-    fields: ['key', 'name', 'emoji', 'mood', 'hair', 'light', 'acc', 'hand', 'status', 'sort_order'],
-    required: ['key', 'name'],
-    jsonFields: [],
-    numberFields: ['sort_order'],
-    orderBy: 'ORDER BY sort_order ASC, id ASC',
-    searchFields: ['name', 'key'],
     filterFields: ['status'],
+    jsonContainsFilters: ['season'],
   },
   personas: {
     table: 'sg_personas',

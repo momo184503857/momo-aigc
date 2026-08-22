@@ -181,9 +181,8 @@ const activeTab = ref('decompose')
 // ── 知识库 ──
 const knowledgeLib = useAssetLibrary<SgKnowledge>('knowledge')
 const locksLib = useAssetLibrary<import('@/services/sgApi').SgLockTemplate>('lock-templates')
-const tracksLib = useAssetLibrary<import('@/services/sgApi').SgTrack>('tracks')
 onMounted(async () => {
-  await Promise.all([knowledgeLib.load(), locksLib.load(), tracksLib.load()])
+  await Promise.all([knowledgeLib.load(), locksLib.load()])
 })
 
 const fieldOptions = computed<Record<string, unknown[]>>(() => {
@@ -379,14 +378,9 @@ async function sysPromptOf(featureId: string): Promise<string> {
   return sysPromptCache.value[cacheKey]
 }
 
-const defaultTrack = computed(() => tracksLib.list.value[0] || {
-  key: 'A', name: '默认', mood: '商业女装电商摄影风格', hair: '', light: '', acc: '', hand: '',
-})
-
 function expertContext(feature: 'fusion' | 'swap', extra: string): AssembleContext {
   return {
     persona: undefined,
-    track: defaultTrack.value as AssembleContext['track'],
     theme: undefined,
     garment: {
       mainUrl: 'ref',
@@ -485,7 +479,7 @@ const derivedPreview = computed(() => {
   })
   return {
     id: -1, isGlobal: false, status: 'active',
-    name: deriveTheme.name, track_key: '', season: [], styles: [], images: [], level: 'M',
+    name: deriveTheme.name, season: [], styles: [], images: [],
     path: pathSegs.join(' → '), points, sort_order: 0,
     use_count: 0,
   }
@@ -496,7 +490,7 @@ async function saveDerivedTheme() {
   if (!p) { ui.warning('请先填写主题名与空间动线'); return }
   try {
     await sgApi.createAsset('themes', {
-      name: p.name, track_key: '', season: [], level: 'M', path: p.path, points: p.points,
+      name: p.name, season: [], path: p.path, points: p.points,
     })
     ui.success('已存入我的主题库')
   } catch (err) {

@@ -33,10 +33,6 @@
             </el-tag>
           </div>
           <div class="sp-meta-row">
-            <span class="sp-meta-label">赛道</span>
-            <span>{{ selectedTrack.name }}{{ theme.track_name && theme.track_name !== selectedTrack.name ? `（主题原赛道：${theme.track_name}）` : '' }}</span>
-          </div>
-          <div class="sp-meta-row">
             <span class="sp-meta-label">季节</span>
             <span>{{ seasonText }}</span>
           </div>
@@ -58,7 +54,9 @@
         v-if="assetsReady"
         :result="assembleResult!"
         :locks="lockSelections"
+        :include-common="includeCommon"
         @update:locks="lockSelections = $event"
+        @update:include-common="includeCommon = $event"
       />
     </el-card>
   </PageLayout>
@@ -67,7 +65,7 @@
 <script setup lang="ts">
 /**
  * SuitePromptPage - 成套提示词（成套生图·轻量版）。
- * 从主题库选择主题后进入：自动按主题点位/动线 + 赛道氛围组装 5 张画面的提示词，
+ * 从主题库选择主题后进入：自动按主题点位/动线组装 5 张画面的提示词，
  * 支持逐条开关/改文、复制单张或全部；无上传、无生成流程。
  * 主题经 sessionStorage['sp_theme_handoff'] 传入（主题库页面写入）。
  */
@@ -78,9 +76,9 @@ import PageLayout from '@/components/PageLayout.vue'
 import PromptPreview from '@/components/sg/PromptPreview.vue'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { useImageRetry } from '@/composables/useImageRetry'
-import { sgApi, toPromptEntry, type SgTrack, type SgLockTemplate } from '@/services/sgApi'
+import { sgApi, toPromptEntry, type SgLockTemplate } from '@/services/sgApi'
 import type { ThemeItem } from '@/services/themeLibraryApi'
-import type { AssembleContext, AssembleResult, LockSelection, TrackSnapshot } from '@/utils/promptEngine'
+import type { AssembleContext, AssembleResult, LockSelection } from '@/utils/promptEngine'
 import { assemble } from '@/utils/promptEngine'
 
 defineOptions({ name: 'SuitePromptPage' })
@@ -107,14 +105,16 @@ function initialLocks(hasDetails: boolean): LockSelection[] {
 
 const lockSelections = ref<LockSelection[]>(initialLocks(false))
 
-const tracksLib = useAssetLibrary<SgTrack>('tracks')
+/** 公共提示词是否拼入最终提示词（默认关 = 每张完整提示词只保留差异部分） */
+const includeCommon = ref(false)
+
 const locksLib = useAssetLibrary<SgLockTemplate>('lock-templates')
 const assetsReady = ref(false)
 
 function consumeHandoff() {
   const raw = sessionStorage.getItem(HANDOFF_KEY)
   if (!raw) return
-  sessionStorage.removeItem(HANDOFF_KEY)
+  // handoff 保留不清除：刷新页面后仍能恢复当前主题，直到从主题库带入新主题被覆盖
   try {
     const t = JSON.parse(raw) as ThemeItem
     if (t && t.id && t.name) {
@@ -127,35 +127,26 @@ function consumeHandoff() {
 
 onMounted(async () => {
   consumeHandoff()
-  await Promise.all([tracksLib.load(), locksLib.load()])
+  await locksLib.load()
   assetsReady.value = true
 })
 // 页面被 keep-alive 缓存时，再次从主题库进入靠 onActivated 消费新 handoff
 onActivated(consumeHandoff)
 
-// ── 赛道解析：主题自带赛道 → 首个赛道 → 兜底空赛道 ──
-const FALLBACK_TRACK: TrackSnapshot = { key: 'A', name: '默认', mood: '', hair: '', light: '', acc: '', hand: '' }
-const selectedTrack = computed<TrackSnapshot>(() =>
-  tracksLib.list.value.find((t) => t.key === theme.value?.track_key)
-  || tracksLib.list.value[0]
-  || FALLBACK_TRACK)
-
 const seasonText = computed(() => (theme.value?.season.length ? theme.value.season.join(' ') : '全季'))
 const pointDetails = computed(() =>
-  (theme.value?.point_details || []).filter((d) => d.name || d.scene || d.camera))
+  (theme.value?.point_details || []).filter((d) => d.name || d.scene || d.pose || d.camera))
 const pointCount = computed(() => pointDetails.value.length || theme.value?.points.length || 5)
 
-// ── 组装：无 persona / 无服装上传数据，仅主题 + 赛道插值 ──
-// 有存储三字段时点位部分逐张用存储值（不再动态填充）；无三字段（专家页衍生等）走动态兜底
+// ── 组装：无 persona / 无服装上传数据，仅主题插值 ──
+// 有存储点位字段时点位部分逐张用存储值（不再动态填充）；无字段（专家页衍生等）走动态兜底
 const assembleResult = computed<AssembleResult | null>(() => {
   const t = theme.value
   if (!t) return null
   const details = pointDetails.value
   const ctx: AssembleContext = {
-    track: selectedTrack.value,
     theme: {
       name: t.name,
-      track_key: t.track_key,
       season: t.season,
       path: t.path,
       points: t.points,
@@ -170,7 +161,10 @@ const assembleResult = computed<AssembleResult | null>(() => {
     ctx,
     details.length || t.points.length || 5,
   )
-  if (!details.length) return base
+  if (!details.length) {
+    // 无存储点位：走引擎动态兜底；公共开关关闭时最终提示词仅保留差异部分
+    return includeCommon.value ? base : { ...base, fullTexts: [...base.pointTexts] }
+  }
 
   // 存储三字段模式：以主题数据为准渲染点位差异，隐藏内置动态点位条目
   const hidden = new Set(BUILTIN_POINT_KEYS)
@@ -178,10 +172,12 @@ const assembleResult = computed<AssembleResult | null>(() => {
   const pointTexts = details.map((d, i) => [
     d.name ? `【本张点位 ${i + 1}/${details.length}】${d.name}` : '',
     d.scene ? `【本张场景锁定·必须严格遵守】${d.scene}` : '',
+    d.pose ? `【人物姿势】${d.pose}` : '',
     d.camera ? `【机位构图】${d.camera}` : '',
     base.pointTexts[i] || '',
   ].filter(Boolean).join('\n'))
-  const fullTexts = pointTexts.map((p) => [base.commonText, p].filter(Boolean).join('\n'))
+  const fullTexts = pointTexts.map((p) =>
+    [includeCommon.value ? base.commonText : '', p].filter(Boolean).join('\n'))
   return { ...base, pointTexts, fullTexts, usedEntries }
 })
 </script>

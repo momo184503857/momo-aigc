@@ -18,7 +18,6 @@ themeLibraryRouter.use(authMiddleware)
 
 const MAX_IMAGES = 5
 const VALID_SEASONS = ['春', '夏', '秋', '冬']
-const VALID_LEVELS = ['L', 'M', 'H']
 
 function parseJsonArray(text: unknown): string[] {
   try {
@@ -55,13 +54,7 @@ function idNum(v: string | string[]): number {
   return parseInt(Array.isArray(v) ? v[0] : v)
 }
 
-function getTrackName(key: string): string {
-  if (!key) return ''
-  const row = db.prepare(`SELECT name FROM sg_tracks WHERE key = ? AND owner_user_id IS NULL`).get(key) as any
-  return row?.name || key
-}
-
-/** DB 行 → 前端对象（解析 JSON 列、附带赛道名/作者/归属/收藏状态） */
+/** DB 行 → 前端对象（解析 JSON 列、附带作者/归属/收藏状态） */
 function decorate(row: any, userId: number): any {
   const isGlobal = row.owner_user_id === null || row.owner_user_id === undefined
   const images = parseJsonArray(row.images)
@@ -75,13 +68,10 @@ function decorate(row: any, userId: number): any {
   return {
     id: row.id,
     name: row.name,
-    track_key: row.track_key,
-    track_name: getTrackName(row.track_key),
     season: parseJsonArray(row.season),
     styles: parseJsonArray(row.styles),
     images,
     cover_url: images[0] || '',
-    level: row.level,
     path: row.path,
     points: parseJsonArray(row.points),
     point_details: parsePointDetails(row.point_details),
@@ -106,10 +96,8 @@ themeLibraryRouter.get('/', (req: AuthRequest, res) => {
     const scope = (req.query.scope as string) || 'all'
     const sort = (req.query.sort as string) || 'default'
     const keyword = ((req.query.keyword as string) || '').trim()
-    const trackKey = (req.query.track_key as string) || ''
     const season = (req.query.season as string) || ''
     const style = (req.query.style as string) || ''
-    const level = (req.query.level as string) || ''
 
     const params: any[] = []
     const conditions: string[] = [`t.status = 'active'`]
@@ -133,10 +121,6 @@ themeLibraryRouter.get('/', (req: AuthRequest, res) => {
       conditions.push('(t.name LIKE ? OR t.path LIKE ?)')
       params.push(`%${keyword}%`, `%${keyword}%`)
     }
-    if (trackKey) {
-      conditions.push('t.track_key = ?')
-      params.push(trackKey)
-    }
     if (season === 'none') {
       conditions.push(`t.season = '[]'`) // 全季主题
     } else if (season) {
@@ -147,10 +131,6 @@ themeLibraryRouter.get('/', (req: AuthRequest, res) => {
     if (style) {
       conditions.push('t.styles LIKE ?')
       params.push(`%"${style}"%`)
-    }
-    if (level) {
-      conditions.push('t.level = ?')
-      params.push(level)
     }
 
     const whereSql = 'WHERE ' + conditions.join(' AND ')
@@ -202,19 +182,18 @@ themeLibraryRouter.post('/', (req: AuthRequest, res) => {
     }
     const season = sanitizeStringArray(body.season, 4).filter((s) => VALID_SEASONS.includes(s))
     const styles = sanitizeStringArray(body.styles, 3)
-    const level = VALID_LEVELS.includes(body.level) ? body.level : 'M'
-    // 点位三字段为数据源；提供时 points 由其派生（旧点位描述保持同步），未提供则兼容旧 points 入参
+    // 点位字段为数据源；提供时 points 由其派生（旧点位描述保持同步），未提供则兼容旧 points 入参
     const pointDetails = sanitizePointDetails(body.point_details)
     const points = pointDetails.length > 0 ? derivePointsFromDetails(pointDetails) : sanitizeStringArray(body.points, 10)
     const isPublic = body.is_public === true || body.is_public === 1 ? 1 : 0
 
     const result = db.prepare(`
-      INSERT INTO sg_themes (owner_user_id, name, track_key, season, styles, images, level, path, points, point_details, status, sort_order, source, is_public)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 0, 'user', ?)
+      INSERT INTO sg_themes (owner_user_id, name, season, styles, images, path, points, point_details, status, sort_order, source, is_public)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', 0, 'user', ?)
     `).run(
-      req.user!.userId, name, String(body.track_key ?? '').trim(),
+      req.user!.userId, name,
       JSON.stringify(season), JSON.stringify(styles), JSON.stringify(images),
-      level, String(body.path ?? '').trim(), JSON.stringify(points), JSON.stringify(pointDetails), isPublic,
+      String(body.path ?? '').trim(), JSON.stringify(points), JSON.stringify(pointDetails), isPublic,
     )
 
     res.json({ success: true, data: decorate(getTheme(Number(result.lastInsertRowid)), req.user!.userId) })
@@ -249,7 +228,6 @@ themeLibraryRouter.patch('/:id', (req: AuthRequest, res) => {
       }
       sets.push('name = ?'); vals.push(name)
     }
-    if (body.track_key !== undefined) { sets.push('track_key = ?'); vals.push(String(body.track_key).trim()) }
     if (body.season !== undefined) {
       sets.push('season = ?')
       vals.push(JSON.stringify(sanitizeStringArray(body.season, 4).filter((s) => VALID_SEASONS.includes(s))))
@@ -265,10 +243,9 @@ themeLibraryRouter.patch('/:id', (req: AuthRequest, res) => {
       }
       sets.push('images = ?'); vals.push(JSON.stringify(images))
     }
-    if (body.level !== undefined && VALID_LEVELS.includes(body.level)) { sets.push('level = ?'); vals.push(body.level) }
     if (body.path !== undefined) { sets.push('path = ?'); vals.push(String(body.path).trim()) }
     if (body.point_details !== undefined) {
-      // 三字段为数据源，points 随之派生同步
+      // 点位字段为数据源，points 随之派生同步
       const pointDetails = sanitizePointDetails(body.point_details)
       sets.push('point_details = ?'); vals.push(JSON.stringify(pointDetails))
       sets.push('points = ?'); vals.push(JSON.stringify(derivePointsFromDetails(pointDetails)))

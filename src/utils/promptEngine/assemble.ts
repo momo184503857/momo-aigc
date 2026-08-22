@@ -50,11 +50,10 @@ function interpolate(text: string, ctx: AssembleContext, pointIndex?: number): s
   const vars: Record<string, unknown> = {
     persona: {
       name: persona?.name,
-      // 无 persona 时 dna 留空（相关条目已由 cond 剔除），hair 回退赛道妆发
+      // 无 persona 时 dna 留空（相关条目已由 cond 剔除）
       dna: persona ? (persona.dna || '（未指定）') : undefined,
-      hair: persona?.hair_default || ctx.track.hair,
+      hair: persona?.hair_default,
     },
-    track: ctx.track,
     theme: ctx.theme ? {
       name: ctx.theme.name,
       path: ctx.theme.path,

@@ -10,10 +10,11 @@ export interface ThemeAuthor {
   nickname: string | null
 }
 
-/** 主题点位三字段（数据源；points 由其派生同步） */
+/** 主题点位字段（数据源；points 由其派生同步） */
 export interface ThemePointDetail {
   name: string
   scene: string
+  pose: string
   camera: string
 }
 
@@ -21,8 +22,6 @@ export interface ThemePointDetail {
 export interface ThemeItem {
   id: number
   name: string
-  track_key: string
-  track_name: string
   /** 中文季节数组（春/夏/秋/冬）；空数组 = 全季 */
   season: string[]
   /** 适合风格（新中式国风/文艺风/…，至多 3 个） */
@@ -30,13 +29,11 @@ export interface ThemeItem {
   /** 主题图片 URL（≤5 张） */
   images: string[]
   cover_url: string
-  /** 复杂度 L / M / H */
-  level: string
   /** 动线路径 */
   path: string
   /** 点位描述（由 point_details 派生；兼容旧数据） */
   points: string[]
-  /** 点位三字段：点位名 / 场景锁定 / 机位构图 */
+  /** 点位字段：点位名 / 场景锁定 / 人物姿势 / 机位构图 */
   point_details: ThemePointDetail[]
   use_count: number
   favorite_count: number
@@ -57,20 +54,16 @@ export interface ThemeListParams {
   scope?: 'all' | 'official' | 'mine' | 'favorites'
   sort?: 'default' | 'latest' | 'hot' | 'favorite'
   keyword?: string
-  track_key?: string
   /** 春/夏/秋/冬；'none' = 仅看全季主题 */
   season?: string
   style?: string
-  level?: string
 }
 
 export interface ThemeUpsertData {
   name: string
-  track_key?: string
   season?: string[]
   styles?: string[]
   images: string[]
-  level?: string
   path?: string
   points?: string[]
   point_details?: ThemePointDetail[]

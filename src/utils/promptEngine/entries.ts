@@ -1,6 +1,6 @@
 /**
  * 内置兜底条目（与数据库种子同源；DB 模板资产缺失时保证引擎可用）。
- * 这些条目依赖上下文占位符（{{track.mood}} 等），不适合做成静态资产，
+ * 这些条目依赖上下文占位符（{{persona.dna}} 等），不适合做成静态资产，
  * 因此固定内置；同 key 的 DB 资产可覆盖其 content。
  */
 import type { PromptEntry } from './types'
@@ -22,28 +22,8 @@ export const BUILT_IN_ENTRIES: PromptEntry[] = [
     condKind: 'garment-detail', scope: ['suite', 'fusion', 'swap'], origin: 'built-in',
   },
   {
-    key: 'scene.mood', name: '赛道氛围', grp: 'scene', order: 300,
-    content: '【赛道氛围】{{track.mood}}',
-    scope: ['suite', 'fusion', 'swap'], origin: 'built-in',
-  },
-  {
     key: 'identity.makeup', name: '妆发统一锁定', grp: 'identity', order: 330,
     content: '【妆发·全套统一锁定】{{persona.hair}}。全套图片发型与妆容必须完全一致，禁止每张图发型/妆容不同。',
-    scope: ['suite'], origin: 'built-in',
-  },
-  {
-    key: 'light.main', name: '光影统一锁定', grp: 'light', order: 340,
-    content: '【光影·全套统一锁定】{{track.light}}。全套图片光源方向/色温/曝光必须完全一致，禁止光线漂移。',
-    scope: ['suite'], origin: 'built-in',
-  },
-  {
-    key: 'garment.acc', name: '配饰方向', grp: 'garment', order: 350,
-    content: '【配饰方向】{{track.acc}}',
-    scope: ['suite'], origin: 'built-in',
-  },
-  {
-    key: 'pose.hand', name: '手部姿态', grp: 'pose', order: 360,
-    content: '【手部姿态】{{track.hand}}',
     scope: ['suite'], origin: 'built-in',
   },
   {
