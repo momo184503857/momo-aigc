@@ -38,8 +38,8 @@ export function derivePointsFromDetails(details: ThemePointDetail[]): string[] {
 
 /** 景别递进表（与前端 src/utils/promptEngine/entries.ts 的 POINT_PROGRESSION 保持同源） */
 const POINT_SHOT_PROGRESSION = [
-  '全景，35mm 环境人像，人物占画面 1/3，站位于右 1/3 线，自然直立',
-  '中全景，50mm 标准人像，人物占画面 1/2，站位于左 1/3 线，微侧身站立',
+  '全景，35mm 环境人像，人物占画面 1/3，站位画面中间，自然直立',
+  '中全景，50mm 标准人像，人物占画面 1/2，站位画面中间，微侧身站立',
   '中景，85mm 人像，膝上构图，居中偏右站位，轻靠环境物（栏杆/墙面）',
   '中近景，85mm 人像，腰上构图，居中站位，端庄姿态或轻互动道具',
   '近景特写，85-135mm，胸以上构图，居中偏左站位，正面直立突出服装上身细节',

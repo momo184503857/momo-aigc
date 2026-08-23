@@ -227,6 +227,38 @@ export function initSuiteGen(): void {
     if (filled > 0) console.log(`[DB] Backfilled point pose for ${filled} themes`)
   }
 
+  // ── 机位站位调整：点位机位中的「站位于左/右 1/3 线」统一改为「站位画面中间」 ──
+  // 精确替换旧模板文案（主题 point_details、锁定模板 pose.progress 的位置递进、
+  // 存量套系 prompt_points 快照），已改写为其他措辞的内容不受影响；
+  // 幂等守卫：seed_sg_theme_camera_center_v1。
+  const camCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'seed_sg_theme_camera_center_v1'`).get() as { value: string } | undefined
+  if (camCfg?.value !== 'done') {
+    const updTheme = db.prepare(`
+      UPDATE sg_themes
+      SET point_details = replace(replace(point_details, '站位于右 1/3 线', '站位画面中间'), '站位于左 1/3 线', '站位画面中间'),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE point_details LIKE '%1/3 线%'`)
+    const updLock = db.prepare(`
+      UPDATE sg_lock_templates
+      SET content = replace(content, '右1/3→左1/3', '画面中间→画面中间'), updated_at = CURRENT_TIMESTAMP
+      WHERE content LIKE '%右1/3→左1/3%'`)
+    const updSuite = db.prepare(`
+      UPDATE sg_suites
+      SET prompt_points = replace(replace(prompt_points, '站位于右 1/3 线', '站位画面中间'), '站位于左 1/3 线', '站位画面中间'),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE prompt_points LIKE '%1/3 线%'`)
+    db.transaction(() => {
+      const themes = updTheme.run().changes
+      const locks = updLock.run().changes
+      const suites = updSuite.run().changes
+      db.prepare(`INSERT INTO system_config (key, value) VALUES ('seed_sg_theme_camera_center_v1', 'done')
+                  ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+      if (themes > 0 || locks > 0 || suites > 0) {
+        console.log(`[DB] Centered camera stance: updated ${themes} themes, ${locks} lock templates, ${suites} suites`)
+      }
+    })()
+  }
+
   // ── 赛道功能下线：清理引用 {{track.*}} 占位符的锁定模板（占位符已失效，保留会输出空标签） ──
   db.exec(`DELETE FROM sg_lock_templates WHERE content LIKE '%{{track.%'`)
 
