@@ -45,7 +45,7 @@ const POINT_SHOT_PROGRESSION = [
   '近景特写，85-135mm，胸以上构图，居中偏左站位，正面直立突出服装上身细节',
 ]
 const SCENE_LOCK_TAIL = '姿态自然松弛，生活化抓拍感；严禁跳跃、奔跑、大幅扭身等夸张动作。'
-const CAMERA_TAIL = '3:4 画幅内保留竖版全身机位：人物纵向主体、上下不裁切、背景简洁留白、突出服装主体。'
+const CAMERA_TAIL = '人物纵向主体、上下不裁切、背景简洁留白、突出服装主体。'
 
 /** 姿势递进表（与前端 src/utils/themePoints.ts 的 POSE_PROGRESSION 保持同源） */
 const POSE_PROGRESSION = [

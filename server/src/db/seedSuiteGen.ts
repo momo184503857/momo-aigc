@@ -259,6 +259,30 @@ export function initSuiteGen(): void {
     })()
   }
 
+  // ── 机位画幅指令移除：点位机位尾句「3:4 画幅内保留竖版全身机位：」删除 ──
+  // 输出画幅由生图时的比例参数决定，不再写死进提示词；其后的人物主体构图指引保留。
+  // 精确替换旧模板文案（主题 point_details、存量套系 prompt_points 快照）；幂等守卫：seed_sg_theme_camera_tail_v2。
+  const tailCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'seed_sg_theme_camera_tail_v2'`).get() as { value: string } | undefined
+  if (tailCfg?.value !== 'done') {
+    const updTheme = db.prepare(`
+      UPDATE sg_themes
+      SET point_details = replace(point_details, '3:4 画幅内保留竖版全身机位：', ''), updated_at = CURRENT_TIMESTAMP
+      WHERE point_details LIKE '%3:4 画幅%'`)
+    const updSuite = db.prepare(`
+      UPDATE sg_suites
+      SET prompt_points = replace(prompt_points, '3:4 画幅内保留竖版全身机位：', ''), updated_at = CURRENT_TIMESTAMP
+      WHERE prompt_points LIKE '%3:4 画幅%'`)
+    db.transaction(() => {
+      const themes = updTheme.run().changes
+      const suites = updSuite.run().changes
+      db.prepare(`INSERT INTO system_config (key, value) VALUES ('seed_sg_theme_camera_tail_v2', 'done')
+                  ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+      if (themes > 0 || suites > 0) {
+        console.log(`[DB] Removed camera framing tail: updated ${themes} themes, ${suites} suites`)
+      }
+    })()
+  }
+
   // ── 赛道功能下线：清理引用 {{track.*}} 占位符的锁定模板（占位符已失效，保留会输出空标签） ──
   db.exec(`DELETE FROM sg_lock_templates WHERE content LIKE '%{{track.%'`)
 

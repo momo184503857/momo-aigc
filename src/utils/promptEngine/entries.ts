@@ -38,7 +38,7 @@ export const BUILT_IN_ENTRIES: PromptEntry[] = [
   },
   {
     key: 'camera.shot', name: '本张机位景别', grp: 'camera', order: 1020,
-    content: '【机位构图】{{point.shot}}。3:4 画幅内保留竖版全身机位：人物纵向主体、上下不裁切、背景简洁留白、突出服装主体。',
+    content: '【机位构图】{{point.shot}}。人物纵向主体、上下不裁切、背景简洁留白、突出服装主体。',
     scope: ['suite'], origin: 'built-in',
   },
 ]
