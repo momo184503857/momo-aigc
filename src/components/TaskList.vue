@@ -11,8 +11,10 @@ import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 export interface TaskItem {
   id: number
-  /** 业务任务号（gen-xxxxxxxx，展示/复制/下载命名） */
+  /** 系统任务号（gen-YYYYMMDDHHRRRR，展示/复制/下载命名） */
   task_no?: string
+  /** 渠道侧任务号（异步渠道如 toapis 才有；同步渠道为空） */
+  provider_task_id?: string | null
   toapis_task_id?: string
   model: ModelId
   prompt: string
@@ -231,12 +233,6 @@ function handleImageDragStart(e: DragEvent, url: string) {
           </div>
         </div>
         <div class="task-body">
-          <!-- Task ID at top -->
-          <div v-if="task.task_no || task.toapis_task_id" class="task-id">
-            <span class="task-id-label">任务ID：</span>
-            <span class="task-id-text">{{ task.task_no || task.toapis_task_id }}</span>
-            <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.task_no || task.toapis_task_id || '')" title="复制任务ID" />
-          </div>
           <!-- Status + duration + model + params + time -->
           <div class="task-header">
             <span class="task-status-group">
@@ -269,7 +265,6 @@ function handleImageDragStart(e: DragEvent, url: string) {
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)"><el-icon><View /></el-icon>详情</el-dropdown-item>
                 <el-dropdown-item v-if="task.status === 'completed' && task.result_image_urls?.[0]" @click="emit('publish', task)"><el-icon><Share /></el-icon>发布到作品库</el-dropdown-item>
-                <el-dropdown-item @click="copyToClipboard(task.task_no || task.toapis_task_id || '')"><el-icon><CopyDocument /></el-icon>复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)"><el-icon><Delete /></el-icon>删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -356,7 +351,6 @@ function handleImageDragStart(e: DragEvent, url: string) {
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('viewDetail', task)">详情</el-dropdown-item>
                 <el-dropdown-item v-if="task.status === 'completed' && task.result_image_urls?.[0]" @click="emit('publish', task)">发布到作品库</el-dropdown-item>
-                <el-dropdown-item @click="copyToClipboard(task.task_no || task.toapis_task_id || '')">复制ID</el-dropdown-item>
                 <el-dropdown-item @click="emit('delete', task)">删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -426,21 +420,6 @@ function handleImageDragStart(e: DragEvent, url: string) {
 }
 
 .task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-
-/* Task ID at top */
-.task-id {
-  display: flex; align-items: center; gap: 4px;
-  height: 20px; overflow: hidden; flex-shrink: 0;
-}
-.task-id-label {
-  font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary);
-  white-space: nowrap;
-}
-.task-id-text {
-  font-family: monospace; font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 
 /* Header row */
 .task-header { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; height: 22px; overflow: hidden; flex-shrink: 0; }
@@ -543,6 +522,9 @@ function handleImageDragStart(e: DragEvent, url: string) {
   border-radius: var(--momo-radius-sm);
   border: 1px solid var(--el-border-color-lighter);
 }
+
+/* 并排卡片：无 ID 行后放大参考图，使中间三行总高恰等于左侧结果图 140px（22 状态 + 20 提示词 + 4+86 参考图 + 8 间距） */
+.task-input-thumbs .input-thumb-img { width: 86px; height: 86px; }
 
 .spin { animation: spin-anim 1s linear infinite; }
 @keyframes spin-anim { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

@@ -11,6 +11,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 双栈监听：默认 localhost 在部分 Windows 上仅绑 IPv6 [::1]，IPv4 浏览器打不开
+    host: true,
     proxy: {
       '/api': {
         target: 'http://localhost:3000',

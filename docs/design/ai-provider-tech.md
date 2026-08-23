@@ -137,7 +137,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_task_no ON generation_tasks(task_no)
 CREATE INDEX IF NOT EXISTS idx_tasks_provider_task ON generation_tasks(provider_task_id);
 ```
 
-- `task_no` 格式：`gen-{id 左补零 8 位}`（如 `gen-00012345`）。INSERT 后同事务 UPDATE 回填，天然唯一、可读、可排序。
+- `task_no` 格式：`gen-YYYYMMDDHHRRRR`（北京时间年月日时 + 4 位随机数，如 `gen-20260823143847`）。INSERT 前生成并查重（task_no 唯一索引，撞号重试），不再依赖自增 id。
 - 旧列 `toapis_task_id`：迁移时数据复制到 `provider_task_id`，之后**停止写入**；列保留一个版本后清理（见迁移手册退役时间线）。
 - 现有 `model` 列保留（渠道模型名字符串快照），报表/过滤兼容。
 - `buyer_show_batch_items.toapis_task_id` 冗余列停止写入，恢复轮询改用 `task_id`（generation_tasks 自增 id，列已存在）。

@@ -19,7 +19,7 @@ import type { TaskItem } from '@/components/TaskList.vue'
  *  - 提交走服务端编排（imageGeneration.submitTask → POST /api/generations）；
  *  - 轮询走 GET /api/generations/:id/status（按内部任务 id，不再用 toapis 任务号）；
  *  - 结果转存/失败退款全部由服务端完成，前端只读状态；
- *  - 任务号展示/复制/下载命名使用 task_no（gen-xxxxxxxx）。
+ *  - 任务号展示/复制/下载命名使用 task_no（gen-YYYYMMDDHHRRRR）。
  */
 
 // ─── Module-level singleton state ───
@@ -242,6 +242,7 @@ export function useTaskManager() {
       const newTask = reactive<TaskItem>({
         id: 0,
         task_no: '',
+        provider_task_id: '',
         toapis_task_id: '',
         model: '',
         prompt: params.prompt,
@@ -334,6 +335,7 @@ export function useTaskManager() {
 
       task.status = result.status
       task.progress = result.progress ?? 0
+      if (result.providerTaskId) task.provider_task_id = result.providerTaskId
       if (result.status === 'completed') {
         task.completed_at = result.completedAt ?? new Date().toISOString()
         task.result_image_urls = result.resultUrls ?? []

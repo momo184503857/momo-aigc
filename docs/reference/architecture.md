@@ -42,7 +42,7 @@ Vue 表单（模型下拉按渠道分组，能力/价格来自 GET /api/models/c
 | `failed` | 提交失败/上游失败/重启清扫；已扣费自动全额退款 | 编排层 |
 
 - 前端 `ACTIVE_STATUSES = ['submitted','queued','in_progress','importing']`。
-- 业务主键 = `task_no`（gen-00012345，展示/搜索/下载命名）；`provider_task_id` 仅异步渠道轮询用；旧列 `toapis_task_id` 已停写（迁移一个版本后删除）。
+- 业务主键 = `task_no`（gen-YYYYMMDDHHRRRR，北京时间年月日时+4位随机数，展示/搜索/下载命名）；`provider_task_id` 为渠道侧任务号（异步渠道才有，随任务返回供展示/排查）；旧列 `toapis_task_id` 已停写（迁移一个版本后删除）。
 - 重启清扫（`sweepOrphanTasks()`）：`importing` 复位可重入；`submitted` 无 `provider_task_id` 标 failed + 退款；异步在途任务凭 `provider_task_id` 由轮询自然恢复。
 - Key 解析：`resolveUserApiKey()` 已通用化为 `resolveProviderContext(userId, providerId)`（平台渠道读渠道主 Key；用户渠道校验 owner）。
 

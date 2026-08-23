@@ -376,7 +376,7 @@ onMounted(() => {
       <el-input
         v-model="keyword"
         :prefix-icon="Search"
-        placeholder="搜索主题名称 / 动线"
+        placeholder="搜索主题名称 / 点位"
         clearable
         class="filter-search"
         @keyup.enter="applyFilters"
@@ -569,7 +569,7 @@ onMounted(() => {
           </span>
         </div>
         <div v-if="detailTheme.path" class="meta-row">
-          <span class="meta-label">动线</span>
+          <span class="meta-label">点位</span>
           <span>{{ detailTheme.path }}</span>
         </div>
         <div v-if="detailTheme.point_details?.length" class="meta-row">
@@ -673,7 +673,7 @@ onMounted(() => {
         </el-select>
       </el-form-item>
 
-      <el-form-item label="动线路径（可选）">
+      <el-form-item label="点位路径（可选）">
         <el-input v-model="form.path" placeholder="如：院外 → 中庭 → 池塘边 → 廊桥 → 茶室" maxlength="255" />
       </el-form-item>
 

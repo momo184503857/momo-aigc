@@ -41,6 +41,8 @@ export interface GenerationStatus {
   errorCode?: string
   expiresAt?: string
   taskNo?: string
+  /** 渠道侧任务号（异步渠道如 toapis 才有） */
+  providerTaskId?: string | null
   completedAt?: string
 }
 
@@ -48,6 +50,8 @@ export interface GenerationTaskRecord {
   id: number
   task_no?: string
   taskNo?: string
+  /** 渠道侧任务号（异步渠道如 toapis 才有） */
+  provider_task_id?: string | null
   model: string
   prompt: string
   resolution?: string | null

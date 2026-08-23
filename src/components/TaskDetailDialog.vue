@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Download } from '@element-plus/icons-vue'
+import { CopyDocument, Download } from '@element-plus/icons-vue'
 import type { TaskItem } from './TaskList.vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { getFeatureLabel } from '@/configs/featureConfig'
-import { useUiFeedback } from '@/composables/useUiFeedback'
+import { useClipboard } from '@/composables/useClipboard'
 import { downloadUrl } from '@/utils/download'
 import { useImageRetry } from '@/composables/useImageRetry'
-const { success, info, warning, error } = useUiFeedback()
+const { copy } = useClipboard()
 const { retryOnError } = useImageRetry()
 
 const modelCatalog = useModelCatalogStore()
@@ -26,10 +26,6 @@ function modelDisplayName(modelId: string): string {
   return modelCatalog.displayNameFor(modelId)
 }
 
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(() => success('已复制'))
-}
-
 function openImage(url: string) {
   window.open(url, '_blank')
 }
@@ -42,6 +38,11 @@ const statusMap: Record<string, string> = {
   submitted: '已提交', queued: '排队中', in_progress: '生成中',
   importing: '下载中', completed: '已完成', failed: '生成失败', unknown: '状态未知',
 }
+
+/** 渠道任务号：现取 provider_task_id，老数据回退 toapis_task_id；同步渠道无则为空 */
+function channelTaskId(task: NonNullable<typeof props.task>): string {
+  return task.provider_task_id || task.toapis_task_id || ''
+}
 </script>
 
 <template>
@@ -53,7 +54,14 @@ const statusMap: Record<string, string> = {
   >
     <div v-if="task" class="detail-content">
       <el-descriptions :column="2" border size="small">
-        <el-descriptions-item label="任务号">{{ task.task_no || task.toapis_task_id }}</el-descriptions-item>
+        <el-descriptions-item label="任务ID">
+          <span class="id-value">{{ task.task_no || '-' }}</span>
+          <el-button v-if="task.task_no" :icon="CopyDocument" size="small" text type="primary" title="复制任务ID" @click="copy(task.task_no || '')" />
+        </el-descriptions-item>
+        <el-descriptions-item label="渠道任务ID">
+          <span class="id-value">{{ channelTaskId(task) || '-' }}</span>
+          <el-button v-if="channelTaskId(task)" :icon="CopyDocument" size="small" text type="primary" title="复制渠道任务ID" @click="copy(channelTaskId(task))" />
+        </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="task.status === 'completed' ? 'success' : task.status === 'failed' ? 'danger' : 'info'" size="small">
             {{ statusMap[task.status] || task.status }}
@@ -114,6 +122,8 @@ const statusMap: Record<string, string> = {
 
 <style scoped>
 .detail-content { max-height: 70vh; overflow-y: auto; }
+
+.id-value { font-family: monospace; margin-right: 2px; word-break: break-all; }
 
 .prompt-block {
   white-space: pre-wrap; word-break: break-all;

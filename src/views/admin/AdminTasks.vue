@@ -14,6 +14,7 @@ interface TaskRow {
   username: string
   user_id: number
   task_no: string | null
+  provider_task_id?: string | null
   toapis_task_id?: string
   model: string
   prompt: string
@@ -85,9 +86,14 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
     <el-table :data="tasks" v-loading="loading" stripe>
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="username" label="用户" width="100" />
-      <el-table-column prop="task_no" label="任务号" width="160" show-overflow-tooltip>
+      <el-table-column prop="task_no" label="任务ID" width="170" show-overflow-tooltip>
         <template #default="{ row }">
-          <span class="task-no">{{ row.task_no || row.toapis_task_id || '-' }}</span>
+          <span class="task-no">{{ row.task_no || '-' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="渠道任务ID" width="180" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="task-no">{{ row.provider_task_id || row.toapis_task_id || '-' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="模型" width="150">

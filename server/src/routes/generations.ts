@@ -21,7 +21,8 @@ import {
  * POST /api/generations/:id/reimport  已完成任务重跑转存
  * GET  /api/generations          任务列表（替代旧 /api/tasks，字段兼容 + taskNo/渠道信息）
  *
- * 业务主键 = 内部任务号 task_no（gen-00012345）；provider_task_id 仅异步渠道轮询用。
+ * 业务主键 = 内部任务号 task_no（gen-YYYYMMDDHHRRRR，北京时间年月日时+4位随机数）；
+ * provider_task_id = 渠道侧任务号（仅异步渠道如 toapis 有，随任务返回供展示/排查）。
  * 扣退事务口径与原 tasks.ts 一致（预扣 generation / 失败 refund / completed 不回退）。
  */
 
@@ -82,8 +83,22 @@ function loadChannelModel(channelModelId: number) {
   `).get(channelModelId) as any
 }
 
-function taskNoOf(id: number | bigint): string {
-  return `gen-${String(id).padStart(8, '0')}`
+/**
+ * 系统任务号：gen-YYYYMMDDHHRRRR（北京时间年月日时 + 4 位随机数，如 gen-20260823143847）。
+ * 同小时随机空间仅 10000 个，task_no 上有唯一索引，生成前查重、撞号重试；
+ * better-sqlite3 同步执行且插入在事务内，查重-写入不会被并发打断。
+ */
+function generateTaskNo(): string {
+  const bj = new Date(Date.now() + 8 * 3600 * 1000)
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const stamp = `${bj.getUTCFullYear()}${p2(bj.getUTCMonth() + 1)}${p2(bj.getUTCDate())}${p2(bj.getUTCHours())}`
+  const exists = db.prepare(`SELECT 1 FROM generation_tasks WHERE task_no = ?`)
+  for (let i = 0; i < 100; i++) {
+    const no = `gen-${stamp}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
+    if (!exists.get(no)) return no
+  }
+  // 理论极端兜底：同小时号段耗尽，追加时间戳尾数保证唯一
+  return `gen-${stamp}${String(Date.now()).slice(-6)}`
 }
 
 /** 失败退款：非终态 → failed 且已扣费则全额退款（completed 不回退，防套退） */
@@ -341,13 +356,12 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
 
       const insert = db.prepare(`
         INSERT INTO generation_tasks (
-          user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n,
+          task_no, user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n,
           template_image_ids, input_image_urls, status, progress, feature_id, user_prompt,
           points_cost, points_balance_after, supplementary_images, prompt_segments, negative_prompt,
           suite_id, point_index, provider_code, channel_model_id, channel_provider_id
-        ) VALUES (?, '', ?, ?, ?, ?, ?, ?, 1, ?, ?, 'submitted', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, 1, ?, ?, 'submitted', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
-      const updateNo = db.prepare(`UPDATE generation_tasks SET task_no = ? WHERE id = ?`)
       const deduct = db.prepare(`UPDATE users SET points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       const txnLog = db.prepare(`
         INSERT INTO points_transactions (user_id, amount, balance_after, reason, reference_type, reference_id, note, created_at)
@@ -359,8 +373,9 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
       for (let i = 0; i < count; i++) {
         const cost = unitPrice
         balance = Math.round((balance - cost) * 1000) / 1000
+        const no = generateTaskNo()
         const r = insert.run(
-          userId, clientBusinessId || null, cm.model_id, finalPrompt, effRatio, effResolution, effRatio,
+          no, userId, clientBusinessId || null, cm.model_id, finalPrompt, effRatio, effResolution, effRatio,
           templateImageIds ? JSON.stringify(templateImageIds) : null,
           JSON.stringify(refUrls),
           featureId || null, userPrompt || '',
@@ -373,8 +388,6 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
           cm.p_code, cm.id, cm.p_id,
         )
         const id = Number(r.lastInsertRowid)
-        const no = taskNoOf(id)
-        updateNo.run(no, id)
         if (cost > 0) {
           deduct.run(balance, userId)
           txnLog.run(userId, -cost, balance, id)
@@ -459,6 +472,7 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
         errorCode: row.error_code || undefined,
         expiresAt: row.expires_at || undefined,
         taskNo: row.task_no,
+        providerTaskId: row.provider_task_id || undefined,
         completedAt: row.completed_at || undefined,
       },
     })

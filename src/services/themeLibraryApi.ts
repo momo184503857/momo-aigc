@@ -29,7 +29,7 @@ export interface ThemeItem {
   /** 主题图片 URL（≤5 张） */
   images: string[]
   cover_url: string
-  /** 动线路径 */
+  /** 点位路径（点位序列「A → B → C → D → E」概述） */
   path: string
   /** 点位描述（由 point_details 派生；兼容旧数据） */
   points: string[]
