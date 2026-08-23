@@ -90,12 +90,13 @@
               :sortable="f.sortable || false"
               :caption-prefix="f.captionPrefix"
             />
-            <PointDetailsField
-              v-else-if="f.pointDetails"
-              :key="editingId ?? 'new'"
-              v-model="editForm[f.key]"
-              allow-json
-            />
+            <div v-else-if="f.pointDetails" class="points-block">
+              <div class="points-toolbar">
+                <el-button size="small" @click="openThemeJson">JSON 导入</el-button>
+                <span class="points-tip">粘贴整包 JSON（套图名字 + 提示词列表），确认后一键填充本弹窗</span>
+              </div>
+              <PointDetailsField :key="editingId ?? 'new'" v-model="editForm[f.key]" />
+            </div>
             <el-select
               v-else-if="f.options"
               v-model="editForm[f.key]"
@@ -119,6 +120,28 @@
         <template #footer>
           <el-button @click="editVisible = false">取消</el-button>
           <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- 主题库 JSON 导入弹窗：套图名字 + 提示词列表（中文字段名），确认后填充到新建/编辑弹窗 -->
+      <el-dialog v-model="themeJsonVisible" title="JSON 导入 · 主题库" width="720px" append-to-body>
+        <div class="json-tip">
+          格式：顶层为「套图名字」+「提示词列表」，每个点位含 名字 / 场景 / 姿势 / 构图 四个字段。
+          确认后填充到表单（名称 + 点位四字段，超过 5 个点位自动截取前 5 个），
+          点位路径自动按「点位1名 → 点位2名 → …」生成。
+        </div>
+        <el-input
+          v-model="themeJsonText"
+          type="textarea"
+          :rows="16"
+          class="json-input"
+          spellcheck="false"
+          placeholder='{"套图名字":"灰墙棚拍","提示词列表":[{"名字":"坐姿","场景":"…","姿势":"…","构图":"…"}]}'
+        />
+        <div v-if="themeJsonError" class="json-error">{{ themeJsonError }}</div>
+        <template #footer>
+          <el-button @click="themeJsonVisible = false">取消</el-button>
+          <el-button type="primary" @click="applyThemeJson">确认填充</el-button>
         </template>
       </el-dialog>
     </div>
@@ -157,7 +180,7 @@ interface FieldDef {
   sortable?: boolean
   /** 图片下方序号说明前缀（如「点位」→ 点位1/点位2…） */
   captionPrefix?: string
-  /** 点位编辑器（固定 5 点位 Tab，四字段；值为 point_details 数组，管理端附 JSON 模式） */
+  /** 点位编辑器（固定 5 点位 Tab，四字段；值为 point_details 数组，管理端上方附「JSON 导入」按钮） */
   pointDetails?: boolean
 }
 
@@ -339,6 +362,69 @@ function openEdit(row: any) {
   editVisible.value = true
 }
 
+// ── 主题库 JSON 导入（套图名字 + 提示词列表，点位字段用中文名） ──
+const THEME_POINT_LIMIT = 5
+const themeJsonVisible = ref(false)
+const themeJsonText = ref('')
+const themeJsonError = ref('')
+
+/** 打开 JSON 弹窗时按目标格式预填当前表单值（名称 + 点位），便于增量编辑 */
+function openThemeJson() {
+  const src = Array.isArray(editForm.value.point_details) ? editForm.value.point_details : []
+  const list: Array<Record<string, string>> = []
+  for (let i = 0; i < THEME_POINT_LIMIT; i++) {
+    const p = (src[i] && typeof src[i] === 'object' ? src[i] : {}) as Record<string, any>
+    list.push({ 名字: p.name ?? '', 场景: p.scene ?? '', 姿势: p.pose ?? '', 构图: p.camera ?? '' })
+  }
+  themeJsonText.value = JSON.stringify({ 套图名字: String(editForm.value.name ?? ''), 提示词列表: list }, null, 2)
+  themeJsonError.value = ''
+  themeJsonVisible.value = true
+}
+
+/** 单个点位：中文键为主，兼容旧英文键（name/scene/pose/camera） */
+function extractPoint(o: Record<string, unknown>): { name: string; scene: string; pose: string; camera: string } {
+  return {
+    name: String(o['名字'] ?? o.name ?? ''),
+    scene: String(o['场景'] ?? o.scene ?? ''),
+    pose: String(o['姿势'] ?? o.pose ?? ''),
+    camera: String(o['构图'] ?? o.camera ?? ''),
+  }
+}
+
+/** 校验并填充：名称（JSON 中有值才覆盖）+ 点位四字段（截取前 5 个，不足由点位编辑器自动补空）+ 点位路径（点位名依次连接） */
+function applyThemeJson() {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(themeJsonText.value)
+  } catch {
+    themeJsonError.value = 'JSON 格式错误，请检查引号 / 逗号是否完整'
+    return
+  }
+  const root = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : null
+  if (!root || !Array.isArray(root['提示词列表'])) {
+    themeJsonError.value = '顶层需为 JSON 对象，且包含「套图名字」与「提示词列表」（数组）两个字段'
+    return
+  }
+  const list = root['提示词列表'] as unknown[]
+  if (!list.length) {
+    themeJsonError.value = '「提示词列表」不能为空'
+    return
+  }
+  const name = String(root['套图名字'] ?? '').trim()
+  if (name) editForm.value.name = name
+  const truncated = list.length > THEME_POINT_LIMIT
+  const points = list
+    .map((x) => extractPoint(x && typeof x === 'object' ? (x as Record<string, unknown>) : {}))
+    .slice(0, THEME_POINT_LIMIT)
+  editForm.value.point_details = points
+  const names = points.map((p) => p.name.trim()).filter(Boolean)
+  if (names.length) editForm.value.path = names.join(' → ')
+  themeJsonVisible.value = false
+  ui.success(truncated ? `已填充（点位超过 ${THEME_POINT_LIMIT} 个，已截取前 ${THEME_POINT_LIMIT} 个）` : 'JSON 已填充到表单')
+}
+
 /** 表单值 → API 值：JSON 字段反序列化、点位按行拆分 */
 function toApiPayload(): Record<string, unknown> {
   const payload: Record<string, any> = {}
@@ -426,4 +512,10 @@ onMounted(load)
 .toolbar { display: flex; gap: var(--momo-space-2); align-items: center; }
 .col-thumb { width: 36px; height: 36px; border-radius: var(--momo-radius-sm); vertical-align: middle; }
 .col-muted { color: var(--momo-color-text-tertiary); }
+.points-block { width: 100%; display: flex; flex-direction: column; gap: var(--momo-space-2); }
+.points-toolbar { display: flex; align-items: center; gap: var(--momo-space-2); }
+.points-tip { font-size: var(--momo-font-size-xs); color: var(--momo-color-text-tertiary); }
+.json-tip { margin-bottom: var(--momo-space-2); font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); line-height: 1.6; }
+.json-input :deep(textarea) { font-family: var(--momo-font-mono); }
+.json-error { margin-top: var(--momo-space-1); font-size: var(--momo-font-size-xs); color: var(--momo-color-danger); }
 </style>
