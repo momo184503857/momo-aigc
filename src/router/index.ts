@@ -271,6 +271,13 @@ const router = createRouter({
   ],
 })
 
+const APP_TITLE = '墨墨 AI 生图'
+const ADMIN_TITLE = '墨墨AI生图管理员后台'
+
+router.afterEach((to) => {
+  document.title = to.path.startsWith('/admin/') || to.path === '/admin' ? ADMIN_TITLE : APP_TITLE
+})
+
 router.beforeEach(async (to, _from, next) => {
   const auth = useAuthStore()
 
