@@ -36,7 +36,7 @@ export async function postJson(
 /** 拼接 base_url 与路径，容忍 base 结尾有无斜杠 */
 export function joinUrl(base: string, path: string): string {
   const b = base.replace(/\/+$/, '')
-  // base 已以 /v1 结尾（如 https://toapis.com/v1）而 path 也以 /v1/ 开头时去重，
+  // base 已以 /v1 结尾（如 https://toapis.xyz/v1）而 path 也以 /v1/ 开头时去重，
   // 避免拼出 /v1/v1/...（toapis 渠道地址固定带 /v1，与存量不带 /v1 的写法并存）
   if (/\/v1$/i.test(b) && path.startsWith('/v1/')) return b + path.slice(3)
   return b + path

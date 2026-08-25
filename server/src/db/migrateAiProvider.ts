@@ -123,7 +123,7 @@ function seedAiProvider(): void {
     // T2 toapis 平台渠道（幂等：code 唯一）
     db.prepare(`
       INSERT OR IGNORE INTO api_providers (code, name, base_url, adapter, remark, status, created_at, updated_at)
-      VALUES ('toapis', 'ToAPIs', 'https://toapis.com', 'toapis', '平台主渠道（迁移自共享 Key 体系）', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      VALUES ('toapis', 'ToAPIs', 'https://toapis.xyz', 'toapis', '平台主渠道（迁移自共享 Key 体系）', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).run()
     const channel = db.prepare(`SELECT id FROM api_providers WHERE code = 'toapis' AND owner_user_id IS NULL`).get() as { id: number }
 
@@ -213,7 +213,7 @@ function migrateUserKeys(): void {
   const tx = db.transaction(() => {
     const insertProvider = db.prepare(`
       INSERT INTO api_providers (code, name, base_url, adapter, remark, status, owner_user_id, balance_check_interval_sec, created_at, updated_at)
-      VALUES (?, 'ToAPIs（迁移）', 'https://toapis.com', 'toapis', '迁移自个人 ToAPIs Key', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      VALUES (?, 'ToAPIs（迁移）', 'https://toapis.xyz', 'toapis', '迁移自个人 ToAPIs Key', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `)
     const insertKey = db.prepare(`
       INSERT INTO api_provider_keys (provider_id, name, encrypted_key, key_iv, key_tag, key_hint, is_primary, status, created_at, updated_at)

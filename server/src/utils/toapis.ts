@@ -1,6 +1,6 @@
 import { db } from '../db/index.js'
 
-const BASE_URL = 'https://toapis.com'
+const BASE_URL = 'https://toapis.xyz'
 
 export function getKey(): string {
   const row = db.prepare(`SELECT value FROM system_config WHERE key = 'toapis_api_key'`).get() as { value: string } | undefined
