@@ -207,7 +207,7 @@ pm2 startup
 浏览器访问 `http://<公网IP>/`，使用默认管理员账号登录：
 
 - 用户名：`admin`
-- 密码：`admin123`
+- 密码：`<初始管理员密码>`（首次登录后必须修改）
 
 管理后台独立入口：访问 `http://<公网IP>/admin.html`，同一套账号登录（普通用户登录会被拒绝）。两端共享登录态，无需重复登录。
 
@@ -544,7 +544,7 @@ pm2 restart momo-aigc --update-env   # 仅后端改动时需要
 2. **编译缓存不能提交**：`.gitignore` 已配置 `*.tsbuildinfo`，TypeScript 增量编译缓存不应进入仓库。
 3. **不要提交 .env 文件**：`.gitignore` 已配置忽略 `.env`，敏感信息（AccessKey 等）不要提交到仓库。
 4. **AccessKey 安全**：如果 AccessKey 曾经泄露在聊天或代码中，去阿里云 RAM 控制台及时更换。
-5. **首次登录后修改密码**：默认账号 `admin / admin123` 在正式使用时应修改。
+5. **首次登录后修改密码**：默认管理员账号在正式使用前必须修改密码。
 6. **SSL 证书**：如果后续有域名，建议配置 Let's Encrypt 免费 SSL（或阿里云免费 SSL），将 HTTP 升级为 HTTPS。
 7. **`server/data/` 目录**：应用启动时会自动创建，不需要手动 `mkdir`。但如果手动删库重来，确保目录存在或重启应用。
 8. **每次 pushes 之前本地跑一下构建**：`npm run build && npm run build:server`，确保类型检查和编译都通过，问题 7 那种情况就不会推到服务器上。

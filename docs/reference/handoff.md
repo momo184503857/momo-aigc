@@ -76,7 +76,7 @@ momoAigc/
 │       ├── db/
 │       │   ├── index.ts          # better-sqlite3 连接 + WAL模式 + 外键
 │       │   ├── schema.ts         # 建表（users, template_images, generation_tasks）
-│       │   └── seed.ts           # 初始化 admin/admin123 账号
+│       │   └── seed.ts           # 初始化管理员账号
 │       ├── middleware/
 │       │   ├── auth.ts           # JWT Bearer token 校验 → req.user
 │       │   └── admin.ts          # role === 'admin' 校验
@@ -329,7 +329,7 @@ npm run dev:server
 npm run dev
 
 # 5. 访问 http://localhost:5173
-#    默认管理员：admin / admin123
+#    默认管理员：admin（初始密码见 seed 逻辑，上线后必须修改）
 ```
 
 **⚠️ OSS 上传功能需要真实凭证**：在 `.env` 中填写 `OSS_ENDPOINT`、`OSS_BUCKET`、`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`
