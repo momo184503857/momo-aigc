@@ -206,7 +206,7 @@ CLAUDE.md 要求所有样式使用 `--momo-*` CSS 变量。新增组件（如 `I
 
 ### 生产环境 HTTPS
 
-当前生产服务器使用 HTTP（`http://REDACTED-SERVER-IP`）。下载优化后 blob URL 会提示 "loaded over an insecure connection"。功能不受影响，但上 HTTPS 后警告会消失。
+当前生产服务器使用 HTTP（`http://<生产服务器IP>`）。下载优化后 blob URL 会提示 "loaded over an insecure connection"。功能不受影响，但上 HTTPS 后警告会消失。
 
 ### RAM AccessKey 轮换
 

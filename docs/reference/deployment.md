@@ -4,12 +4,12 @@
 
 - **服务器**：阿里云 ECS
 - **操作系统**：Ubuntu 26.04 LTS (64位)
-- **域名/IP**：`http://REDACTED-SERVER-IP`
+- **域名/IP**：`http://<生产服务器IP>`
 
-> **2026-08-08 迁移记录**：生产服务器已从 `REDACTED-OLD-SERVER-IP` 整机迁移至 `REDACTED-SERVER-IP`（应用、PM2、Nginx、SQLite 数据均在迁移范围内）。下方文档中涉及服务器 IP 的命令均应使用新地址。历史地址已废弃，请勿再连接。
+> **2026-08-08 迁移记录**：生产服务器已从 `<旧服务器IP>` 整机迁移至 `<生产服务器IP>`（应用、PM2、Nginx、SQLite 数据均在迁移范围内）。下方文档中涉及服务器 IP 的命令均应使用新地址。历史地址已废弃，请勿再连接。
 >
 > 迁移当日一并完成的运维配置（后续部署依赖，勿回退）：
-> - **SSH 免密登录**：开发机 Mac 的 `~/.ssh/id_ed25519.pub` 已加入服务器 root 授权列表，可直接 `ssh root@REDACTED-SERVER-IP`。
+> - **SSH 免密登录**：开发机 Mac 的 `~/.ssh/id_ed25519.pub` 已加入服务器 root 授权列表，可直接 `ssh root@<生产服务器IP>`。
 > - **Gitee SSH remote**：服务器仓库 remote 从 HTTPS 改为 `git@gitee.com:hellolihaoran/momo-aigc.git`，并配置了 Gitee 专用密钥 `~/.ssh/id_ed25519_gitee`（见服务器 `~/.ssh/config`）。`git pull` 不再需要 Gitee 账号密码。
 - **代码仓库**：`https://gitee.com/hellolihaoran/momo-aigc`
 
@@ -89,7 +89,7 @@ OSS_ACCESS_KEY_SECRET=<你的 AccessKey Secret>
 
 # OSS Result Import Worker (阿里云函数计算)
 OSS_RESULT_IMPORT_WORKER_URL=https://oss-rest-worker-ykaraoaubf.cn-hangzhou.fcapp.run
-OSS_RESULT_IMPORT_WORKER_SECRET=REDACTED-WORKER-SECRET
+OSS_RESULT_IMPORT_WORKER_SECRET=<与 FC Worker 侧一致的长随机串>
 
 # ToAPIs Base URL
 TOAPIS_BASE_URL=https://toapis.com
@@ -473,7 +473,7 @@ git diff --stat <服务器当前 HEAD>..origin/master
 
 ```bash
 # 仅前端改动的最常见情况
-ssh root@REDACTED-SERVER-IP 'cd ~/momo-aigc && git pull origin master && npm run build'
+ssh root@<生产服务器IP> 'cd ~/momo-aigc && git pull origin master && npm run build'
 ```
 
 > 注意：`npm run build` 包含 `vue-tsc -b` 类型检查，类型错误会中断构建。提交前最好本地跑一次 `npm run build`。
@@ -482,21 +482,21 @@ ssh root@REDACTED-SERVER-IP 'cd ~/momo-aigc && git pull origin master && npm run
 
 ```bash
 # 服务可用性
-ssh root@REDACTED-SERVER-IP 'curl -s -o /dev/null -w "首页: %{http_code}\n" http://localhost/'
+ssh root@<生产服务器IP> 'curl -s -o /dev/null -w "首页: %{http_code}\n" http://localhost/'
 # 期望输出: 首页: 200
 
 # PM2 状态
-ssh root@REDACTED-SERVER-IP 'pm2 status'
+ssh root@<生产服务器IP> 'pm2 status'
 ```
 
-浏览器打开 `http://REDACTED-SERVER-IP/`，**强制刷新**（Cmd+Shift+R）验收新功能。
+浏览器打开 `http://<生产服务器IP>/`，**强制刷新**（Cmd+Shift+R）验收新功能。
 
 ### 回滚
 
 每次部署前，服务器会自动把上一个 HEAD 写入 `~/.momo-aigc-last-deploy-head`。需要回滚时：
 
 ```bash
-ssh root@REDACTED-SERVER-IP 'cd ~/momo-aigc && git reset --hard $(cat ~/.momo-aigc-last-deploy-head) && npm run build && npm run build:server && pm2 restart momo-aigc --update-env'
+ssh root@<生产服务器IP> 'cd ~/momo-aigc && git reset --hard $(cat ~/.momo-aigc-last-deploy-head) && npm run build && npm run build:server && pm2 restart momo-aigc --update-env'
 ```
 
 > 若只回滚前端，去掉 `build:server` 和 `pm2 restart` 即可。
@@ -506,7 +506,7 @@ ssh root@REDACTED-SERVER-IP 'cd ~/momo-aigc && git reset --hard $(cat ~/.momo-ai
 仍可用，适合不确定改动范围时交互式排查：
 
 ```bash
-ssh root@REDACTED-SERVER-IP
+ssh root@<生产服务器IP>
 cd ~/momo-aigc
 git pull origin master
 npm run build           # 前端有改动时

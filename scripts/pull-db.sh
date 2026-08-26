@@ -10,7 +10,7 @@
 #
 # 配置优先级：shell 环境变量 > 项目根 .env > 脚本内默认值
 #   REMOTE_USER  默认 root
-#   REMOTE_HOST  默认 REDACTED-SERVER-IP
+#   REMOTE_HOST  必填（生产服务器 IP，无默认值）
 #   REMOTE_PORT  默认 22
 #   REMOTE_PATH  默认 ~/momo-aigc
 #
@@ -39,7 +39,7 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
 fi
 
 REMOTE_USER="${REMOTE_USER:-root}"
-REMOTE_HOST="${REMOTE_HOST:-REDACTED-SERVER-IP}"
+REMOTE_HOST="${REMOTE_HOST:-}"
 REMOTE_PORT="${REMOTE_PORT:-22}"
 REMOTE_PATH="${REMOTE_PATH:-~/momo-aigc}"
 
@@ -51,6 +51,12 @@ c_blue()  { printf '\033[1;34m%s\033[0m\n' "$*"; }
 c_green() { printf '\033[1;32m%s\033[0m\n' "$*"; }
 c_red()   { printf '\033[1;31m%s\033[0m\n' "$*"; }
 c_dim()   { printf '\033[2m%s\033[0m\n' "$*"; }
+
+if [[ -z "$REMOTE_HOST" ]]; then
+  c_red "✗ 未配置 REMOTE_HOST（生产服务器 IP）。"
+  c_red "  请在项目根 .env 或环境变量中设置 REMOTE_HOST，再重试。"
+  exit 1
+fi
 
 # rsync 远端不经过登录 shell，`~` 不会被展开。若路径以 ~ 开头，
 # 通过 ssh 解析成绝对路径（仅在首次连接时多一次往返）。

@@ -10,13 +10,13 @@
 
 | 项 | 值 |
 |----|----|
-| 服务器 | 阿里云 ECS，`REDACTED-SERVER-IP`（2026-08-08 由 `REDACTED-OLD-SERVER-IP` 迁移而来，旧地址已废弃） |
+| 服务器 | 阿里云 ECS，`<生产服务器IP>`（2026-08-08 由 `<旧服务器IP>` 迁移而来，旧地址已废弃） |
 | 系统 | Ubuntu 26.04 LTS |
 | 项目目录 | `/root/momo-aigc`（即 `~/momo-aigc`） |
 | 进程管理 | PM2，进程名 `momo-aigc` |
 | 反向代理 | Nginx，静态根目录 `/root/momo-aigc/dist` |
 | 数据库 | SQLite，`~/momo-aigc/server/data/momo.db`（WAL 模式） |
-| 访问入口 | `http://REDACTED-SERVER-IP/` |
+| 访问入口 | `http://<生产服务器IP>/` |
 | 代码仓库 | `git@gitee.com:hellolihaoran/momo-aigc.git`（服务器走 SSH，见下） |
 
 ---
@@ -28,7 +28,7 @@
 开发机（Mac）的 `~/.ssh/id_ed25519.pub` 已加入服务器 root 授权列表。直接：
 
 ```bash
-ssh root@REDACTED-SERVER-IP
+ssh root@<生产服务器IP>
 ```
 
 ### 服务器拉代码（Gitee SSH，已配置）
@@ -47,7 +47,7 @@ git pull origin master
 
 ## 常用运维命令
 
-所有命令均可在开发机用 `ssh root@REDACTED-SERVER-IP '<命令>'` 远程执行，无需登录服务器。
+所有命令均可在开发机用 `ssh root@<生产服务器IP> '<命令>'` 远程执行，无需登录服务器。
 
 ### PM2
 
@@ -88,7 +88,7 @@ sqlite3 ~/momo-aigc/server/data/momo.db "SELECT name FROM sqlite_master WHERE ty
   | xargs -I{} sh -c 'echo "{}: $(sqlite3 ~/momo-aigc/server/data/momo.db "SELECT COUNT(*) FROM {};")"'
 ```
 
-> 拉取生产数据库到本地调试，用 `bash scripts/pull-db.sh`（默认连 `REDACTED-SERVER-IP`）。
+> 拉取生产数据库到本地调试，用 `bash scripts/pull-db.sh`（默认连 `<生产服务器IP>`）。
 
 ---
 
@@ -98,7 +98,7 @@ sqlite3 ~/momo-aigc/server/data/momo.db "SELECT name FROM sqlite_master WHERE ty
 
 ```bash
 # 最常见：仅前端改动，从开发机一键远程部署
-ssh root@REDACTED-SERVER-IP 'cd ~/momo-aigc && git pull origin master && npm run build'
+ssh root@<生产服务器IP> 'cd ~/momo-aigc && git pull origin master && npm run build'
 ```
 
 - 改了 `src/` → `npm run build`（前端），**无需** 重启 PM2。

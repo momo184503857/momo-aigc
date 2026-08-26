@@ -325,14 +325,14 @@ s deploy -y
 **本地 `.env` 配置**：
 ```env
 OSS_RESULT_IMPORT_WORKER_URL=https://oss-rest-worker-ykaraoaubf.cn-hangzhou.fcapp.run
-OSS_RESULT_IMPORT_WORKER_SECRET=REDACTED-WORKER-SECRET
+OSS_RESULT_IMPORT_WORKER_SECRET=<与 FC Worker 侧一致的长随机串>
 ```
 
 > ⚠️ **重要**：服务器部署时必须把这两个变量也配到服务器 `.env` 中，否则 Worker 不会被调用，结果图会降级保留 ToAPIs URL。PM2 重启时加 `--update-env` 才能重新加载 `.env`：
 > ```bash
 > cat >> .env << 'EOF'
 > OSS_RESULT_IMPORT_WORKER_URL=https://oss-rest-worker-ykaraoaubf.cn-hangzhou.fcapp.run
-> OSS_RESULT_IMPORT_WORKER_SECRET=REDACTED-WORKER-SECRET
+> OSS_RESULT_IMPORT_WORKER_SECRET=<与 FC Worker 侧一致的长随机串>
 > EOF
 > pm2 restart momo-aigc --update-env
 > ```
