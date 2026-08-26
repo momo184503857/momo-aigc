@@ -6,7 +6,7 @@
 
 1. 后端已启动：`npm run dev:server`（端口 3000）
 2. 共享 API Key 已配置（管理员后台，`GET /api/toapis/health` 返回 `sharedKeyConfigured: true`）
-3. `admin / admin123` 可登录（默认种子账号）
+3. `admin` 可登录（默认种子账号，初始密码见 seed 逻辑）
 
 ## 运行
 

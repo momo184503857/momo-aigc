@@ -795,7 +795,7 @@ chmod -R o+rX /root/momo-aigc/docs
 本项目当前**没有** Playwright 依赖与测试账号体系，第二阶段开始时需要：
 
 - `npm install -D @playwright/test`
-- 准备专用测试账号（seed 只有 `admin / admin123`，是管理端账号；
+- 准备专用测试账号（seed 的管理员是 `admin`（初始密码见 seed 逻辑）；
   用户端功能截图需要一个普通测试用户）
 - 约定测试环境数据库，禁止对生产库截图
 

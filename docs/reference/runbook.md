@@ -182,7 +182,7 @@ sqlite3 ~/momo-aigc/server/data/momo.db "SELECT segment_key, keyword, image_url 
 
 ## 安全清单
 
-- [ ] 默认管理员 `admin / admin123` 已在生产环境修改
+- [ ] 默认管理员的初始密码（seed 生成）已在生产环境修改
 - [ ] `.env` 不在 git 跟踪中（`.gitignore` 已配置）
 - [ ] `server/data/momo.db*` 不在 git 跟踪中
 - [ ] 阿里云安全组仅开放必要端口（80 对外，22 限定来源 IP，3000 不对外）
