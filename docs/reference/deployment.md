@@ -10,7 +10,7 @@
 >
 > 迁移当日一并完成的运维配置（后续部署依赖，勿回退）：
 > - **SSH 免密登录**：开发机 Mac 的 `~/.ssh/id_ed25519.pub` 已加入服务器 root 授权列表，可直接 `ssh root@<生产服务器IP>`。
-> - **代码仓库已迁至 GitHub**：`https://github.com/momo184503857/momo-aigc`（gitee 仓库已弃用，不再推送）。存量服务器的 remote 从 gitee 切换到 GitHub 的一次性步骤见 `runbook.md`「服务器拉代码」。
+> - **代码仓库已迁至 GitHub**：`https://github.com/momo184503857/momo-aigc`（gitee 仓库已弃用，不再推送；服务器 remote 已指向 GitHub）。历史重写后旧克隆的对齐步骤见 `runbook.md`「服务器拉代码」。
 - **代码仓库**：`https://github.com/momo184503857/momo-aigc`
 
 ## 技术栈

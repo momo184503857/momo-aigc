@@ -33,25 +33,21 @@ ssh root@<生产服务器IP>
 
 ### 服务器拉代码（GitHub，gitee 已弃用）
 
-代码仓库以 GitHub 为准，gitee 不再推送更新。**存量服务器的 remote 仍指向 gitee，需做一次性切换**。注意：GitHub 历史已整体重写（脱敏），与服务器本地旧历史无共同祖先，不能直接 `git pull`，必须 fetch + reset；且旧克隆里 `.env`（及早期的 `server/data/`）是被追踪状态，reset 会把它们从工作区删掉，务必先备份：
+代码仓库以 GitHub 为准，gitee 不再推送更新。服务器 remote 已指向 `git@github.com:momo184503857/momo-aigc.git`（经 SSH 密钥认证拉取）。
+
+> **注意**：仓库历史经历过两次整体重写（删除 `.env`/`server/data/`，以及开源前脱敏），旧 hash 链已全部失效。停留在旧历史（如 `aa8ce2a`）的克隆与新历史无共同祖先，`git pull` 会报 unrelated histories，需一次性对齐。GitHub 历史的克隆里 `.env` 与 `server/data/` 均未被追踪（gitignore 覆盖），`reset --hard` 不会动它们，备份仅作保险：
 
 ```bash
-# 在服务器上执行（原 Gitee 专用密钥 ~/.ssh/id_ed25519_gitee 不再需要）
+# 在服务器上
 cd ~/momo-aigc
-cp .env /root/momo-env-backup                      # 关键：reset 前备份 .env
-cp -r server/data /root/momo-server-data-backup    # 关键：备份数据库目录
-git remote set-url origin https://github.com/momo184503857/momo-aigc.git
+cp .env /root/momo-env-backup        # 保险
 git fetch origin
 git reset --hard origin/master
-cp /root/momo-env-backup .env                      # 恢复 .env
-ls server/data/momo.db >/dev/null 2>&1 || cp -r /root/momo-server-data-backup/. server/data/   # 数据库若被 reset 删除则恢复
 npm install && npm run build && npm run build:server
 pm2 restart momo-aigc --update-env
 ```
 
-切换后即一次性补齐 gitee 上没有的全部提交（含 ToAPIs 域名切换与开源脱敏）。日常更新流程不变：`git pull origin master` + 按改动范围 build / `pm2 restart --update-env`。
-
-> 仓库开源（公开）后 HTTPS 拉取免认证；若仓库仍为私有，先在 GitHub 仓库 Settings → Deploy keys 添加服务器公钥（只读，不勾选 write），remote 改用 `git@github.com:momo184503857/momo-aigc.git`，或等开源后再切。
+对齐后日常更新流程不变：`git pull origin master` + 按改动范围 build / `pm2 restart --update-env`。仓库开源后 HTTPS 亦可免认证拉取。
 
 ---
 
