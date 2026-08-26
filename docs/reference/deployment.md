@@ -10,8 +10,8 @@
 >
 > 迁移当日一并完成的运维配置（后续部署依赖，勿回退）：
 > - **SSH 免密登录**：开发机 Mac 的 `~/.ssh/id_ed25519.pub` 已加入服务器 root 授权列表，可直接 `ssh root@<生产服务器IP>`。
-> - **Gitee SSH remote**：服务器仓库 remote 从 HTTPS 改为 `git@gitee.com:hellolihaoran/momo-aigc.git`，并配置了 Gitee 专用密钥 `~/.ssh/id_ed25519_gitee`（见服务器 `~/.ssh/config`）。`git pull` 不再需要 Gitee 账号密码。
-- **代码仓库**：`https://gitee.com/hellolihaoran/momo-aigc`
+> - **代码仓库已迁至 GitHub**：`https://github.com/momo184503857/momo-aigc`（gitee 仓库已弃用，不再推送）。存量服务器的 remote 从 gitee 切换到 GitHub 的一次性步骤见 `runbook.md`「服务器拉代码」。
+- **代码仓库**：`https://github.com/momo184503857/momo-aigc`
 
 ## 技术栈
 
@@ -57,7 +57,7 @@ npm -v     # 应输出 10.x.x
 
 ```bash
 cd ~
-git clone https://gitee.com/hellolihaoran/momo-aigc.git
+git clone https://github.com/momo184503857/momo-aigc.git
 cd momo-aigc
 ```
 

@@ -17,7 +17,7 @@
 | 反向代理 | Nginx，静态根目录 `/root/momo-aigc/dist` |
 | 数据库 | SQLite，`~/momo-aigc/server/data/momo.db`（WAL 模式） |
 | 访问入口 | `http://<生产服务器IP>/` |
-| 代码仓库 | `git@gitee.com:hellolihaoran/momo-aigc.git`（服务器走 SSH，见下） |
+| 代码仓库 | `https://github.com/momo184503857/momo-aigc`（GitHub 为准，gitee 已弃用；服务器拉取见下） |
 
 ---
 
@@ -31,17 +31,27 @@
 ssh root@<生产服务器IP>
 ```
 
-### 服务器拉代码（Gitee SSH，已配置）
+### 服务器拉代码（GitHub，gitee 已弃用）
 
-服务器仓库 remote 为 SSH 协议，使用专用密钥 `~/.ssh/id_ed25519_gitee`（通过 `~/.ssh/config` 的 `Host gitee.com` 段指定，`IdentitiesOnly yes`）。`git pull` 不需要 Gitee 账号密码。
+代码仓库以 GitHub 为准，gitee 不再推送更新。**存量服务器的 remote 仍指向 gitee，需做一次性切换**。注意：GitHub 历史已整体重写（脱敏），与服务器本地旧历史无共同祖先，不能直接 `git pull`，必须 fetch + reset；且旧克隆里 `.env`（及早期的 `server/data/`）是被追踪状态，reset 会把它们从工作区删掉，务必先备份：
 
 ```bash
-# 在服务器上
+# 在服务器上执行（原 Gitee 专用密钥 ~/.ssh/id_ed25519_gitee 不再需要）
 cd ~/momo-aigc
-git pull origin master
+cp .env /root/momo-env-backup                      # 关键：reset 前备份 .env
+cp -r server/data /root/momo-server-data-backup    # 关键：备份数据库目录
+git remote set-url origin https://github.com/momo184503857/momo-aigc.git
+git fetch origin
+git reset --hard origin/master
+cp /root/momo-env-backup .env                      # 恢复 .env
+ls server/data/momo.db >/dev/null 2>&1 || cp -r /root/momo-server-data-backup/. server/data/   # 数据库若被 reset 删除则恢复
+npm install && npm run build && npm run build:server
+pm2 restart momo-aigc --update-env
 ```
 
-> 若 Gitee 密钥失效（拉代码报 `Permission denied (publickey)`），重新生成密钥并把公钥加到 Gitee 个人设置 → SSH 公钥。详见 `deployment.md` 的 2026-08-08 迁移记录。
+切换后即一次性补齐 gitee 上没有的全部提交（含 ToAPIs 域名切换与开源脱敏）。日常更新流程不变：`git pull origin master` + 按改动范围 build / `pm2 restart --update-env`。
+
+> 仓库开源（公开）后 HTTPS 拉取免认证；若仓库仍为私有，先在 GitHub 仓库 Settings → Deploy keys 添加服务器公钥（只读，不勾选 write），remote 改用 `git@github.com:momo184503857/momo-aigc.git`，或等开源后再切。
 
 ---
 
@@ -138,15 +148,11 @@ cat /etc/nginx/sites-enabled/momo-aigc   # 确认反代配置存在
 nginx -t && systemctl reload nginx
 ```
 
-### 现象：`git pull` 报 `could not read Username for 'https://gitee.com'`
+### 现象：`git pull` 报 `could not read Username for 'https://github.com'`
 
-**原因**：仓库 remote 退化成了 HTTPS（或新克隆的机器没配 SSH）。
+**原因**：仓库还是私有状态，HTTPS 拉取需要认证（开源后不会再出现）。
 
-**修复**：
-```bash
-git remote set-url origin git@gitee.com:hellolihaoran/momo-aigc.git
-```
-若仍报 `Permission denied (publickey)`，按上文「SSH 访问」重新配置 Gitee 密钥。
+**修复**：按上文「服务器拉代码」配置 GitHub 只读 deploy key，或等仓库开源后直接用 HTTPS 拉取。
 
 ### 现象：`git pull` 报本地修改冲突（通常是 `server/data/momo.db*`）
 
