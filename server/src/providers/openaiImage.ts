@@ -32,7 +32,7 @@ export const openaiImageAdapter: ImageProviderAdapter = {
   code: 'openai_image',
   label: 'OpenAI 兼容生图（同步）',
   description:
-    'OpenAI 兼容生图标准协议（提交后直接返回图片）。无参考图走 POST /v1/images/generations（文生图）；带参考图自动改走 POST /v1/images/edits（图生图），要求上游支持 edits 端点且能访问图片 URL',
+    'OpenAI 兼容生图（同步返回图片；带参考图自动走 /v1/images/edits 图生图）',
 
   async chat(req: ChatRequest, ctx: ProviderRuntimeConfig): Promise<ChatResult> {
     return chatAdapter.chat(req, ctx)

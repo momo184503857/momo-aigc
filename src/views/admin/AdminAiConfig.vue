@@ -66,12 +66,12 @@ async function loadAdapters() {
 // ── 服务商弹窗 ──
 const providerDialog = ref(false)
 const providerEditing = ref<ProviderRow | null>(null)
-const providerForm = ref({ name: '', code: '', base_url: '', adapter: 'openai_compat', remark: '' })
+const providerForm = ref({ name: '', code: '', base_url: '', adapter: 'openai_image', remark: '' })
 const providerSubmitting = ref(false)
 
 function openProviderCreate() {
   providerEditing.value = null
-  providerForm.value = { name: '', code: '', base_url: '', adapter: 'openai_compat', remark: '' }
+  providerForm.value = { name: '', code: '', base_url: '', adapter: 'openai_image', remark: '' }
   providerDialog.value = true
 }
 
@@ -1088,20 +1088,21 @@ onMounted(() => {
           <div class="form-hint">机器用的唯一英文标识（任务记录溯源用），不影响协议与调用；创建后不可改。</div>
         </el-form-item>
         <el-form-item label="连接方式" required>
-          <el-select v-model="providerForm.adapter" style="width: 100%">
+          <el-select v-model="providerForm.adapter" style="width: 100%" popper-class="adapter-select-popper">
             <el-option v-for="a in adapters" :key="a.code" :value="a.code" :label="a.label">
               <div class="adapter-option">
-                <span>{{ a.label }}</span>
+                <span class="adapter-label">{{ a.label }}</span>
                 <span class="adapter-desc">{{ a.description }}</span>
               </div>
             </el-option>
           </el-select>
           <div class="form-hint">
-            {{ adapters.find((a) => a.code === providerForm.adapter)?.description || '连接方式由后端适配器实现，协议兼容 OpenAI 的服务商直接选「OpenAI 兼容」' }}
+            {{ adapters.find((a) => a.code === providerForm.adapter)?.description || '协议兼容 OpenAI 的服务商直接选「OpenAI 兼容生图」' }}
           </div>
         </el-form-item>
         <el-form-item label="Base URL" required>
-          <el-input v-model="providerForm.base_url" placeholder="https://ark.cn-beijing.volces.com/api/coding/v3" />
+          <el-input v-model="providerForm.base_url" placeholder="https://your-api.example.com" />
+          <div class="form-hint">填站点根地址即可，一般无需带 /v1（带 /v1 也能自动兼容）。</div>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="providerForm.remark" type="textarea" :rows="2" placeholder="选填" />
@@ -1560,13 +1561,20 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  max-width: 100%;
+}
+.adapter-label {
+  flex-shrink: 0;
 }
 .adapter-desc {
-  font-size: var(--momo-font-size-xs);
+  flex: 1;
+  min-width: 0;
+  font-size: var(--momo-font-size-xs, 12px);
   color: var(--el-text-color-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: right;
 }
 
 /* 调试面板 */
@@ -1635,5 +1643,17 @@ onMounted(() => {
   line-height: 1.6;
   white-space: pre-wrap;
   color: var(--el-text-color-secondary);
+}
+</style>
+
+<!-- 下拉 popper 挂载在 body 下，scoped 样式够不到，须用全局样式约束宽度 -->
+<style>
+.adapter-select-popper {
+  max-width: 480px;
+}
+.adapter-select-popper .el-select-dropdown__item {
+  height: auto;
+  line-height: 1.5;
+  padding: 8px 12px;
 }
 </style>
