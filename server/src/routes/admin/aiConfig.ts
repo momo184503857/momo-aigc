@@ -161,7 +161,7 @@ adminAiConfigRouter.post('/providers', async (req: AuthRequest, res) => {
     const trimmedCode = String(code || '').trim().toLowerCase()
     const adapterCode = String(adapter || 'openai_compat').trim()
     if (!trimmedName) { res.status(400).json({ success: false, error: '服务商名称不能为空' }); return }
-    if (!/^[a-z0-9_-]{2,50}$/.test(trimmedCode)) {
+    if (trimmedCode && !/^[a-z0-9_-]{2,50}$/.test(trimmedCode)) {
       res.status(400).json({ success: false, error: '服务商标识仅限小写字母/数字/中划线/下划线（2~50 位）' }); return
     }
     try { getAdapter(adapterCode) } catch (e: any) {
@@ -170,12 +170,20 @@ adminAiConfigRouter.post('/providers', async (req: AuthRequest, res) => {
     // SSRF 防护：平台渠道与用户渠道同样校验（M1-11）
     const urlCheck = await validateProviderBaseUrl(String(base_url || ''))
     if (!urlCheck.ok) { res.status(400).json({ success: false, error: urlCheck.error }); return }
-    if (db.prepare(`SELECT id FROM api_providers WHERE code = ?`).get(trimmedCode)) {
-      res.status(409).json({ success: false, error: `服务商标识「${trimmedCode}」已存在` }); return
+    // 标识选填：留空自动生成 provider / provider-2 / ...；填写则查重
+    let finalCode = trimmedCode
+    if (!finalCode) {
+      let seq = 2
+      finalCode = 'provider'
+      while (db.prepare(`SELECT id FROM api_providers WHERE code = ?`).get(finalCode)) {
+        finalCode = `provider-${seq++}`
+      }
+    } else if (db.prepare(`SELECT id FROM api_providers WHERE code = ?`).get(finalCode)) {
+      res.status(409).json({ success: false, error: `服务商标识「${finalCode}」已存在` }); return
     }
     const result = db.prepare(`
       INSERT INTO api_providers (code, name, base_url, adapter, remark) VALUES (?, ?, ?, ?, ?)
-    `).run(trimmedCode, trimmedName, urlCheck.normalized, adapterCode, String(remark || ''))
+    `).run(finalCode, trimmedName, urlCheck.normalized, adapterCode, String(remark || ''))
     res.json({ success: true, data: serializeProvider(loadProvider(result.lastInsertRowid)) })
   } catch (err: any) {
     console.error('[admin/ai-config] Create provider error:', err.message)

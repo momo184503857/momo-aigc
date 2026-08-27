@@ -19,7 +19,6 @@ import { adminStatsRouter } from './routes/admin/stats.js'
 import { featurePromptsRouter, adminFeaturePromptsRouter } from './routes/featurePrompts.js'
 import { proxyRouter } from './routes/proxy.js'
 import { toapisProxyRouter } from './routes/toapis-proxy.js'
-import { adminToapisKeyRouter } from './routes/admin/toapis-key.js'
 import { pointsRouter } from './routes/points.js'
 import { canvasRouter } from './routes/canvas.js'
 import { canvasAiRouter } from './routes/canvas-ai.js'
@@ -81,7 +80,6 @@ app.use('/api/feature-prompts', featurePromptsRouter)
 app.use('/api/admin/feature-prompts', adminFeaturePromptsRouter)
 app.use('/api/proxy', proxyRouter)
 app.use('/api/toapis', toapisProxyRouter)
-app.use('/api/admin/toapis', adminToapisKeyRouter)
 app.use('/api/points', pointsRouter)
 app.use('/api/canvas', canvasRouter)
 app.use('/api/canvas-ai', canvasAiRouter)

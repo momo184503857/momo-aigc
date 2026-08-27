@@ -90,7 +90,8 @@ export interface ProviderRow {
 
 export interface ProviderPayload {
   name: string
-  code: string
+  /** 机器唯一标识；选填，留空由后端自动生成（provider / provider-2 / ...） */
+  code?: string
   base_url: string
   adapter: string
   remark?: string

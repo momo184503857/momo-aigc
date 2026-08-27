@@ -92,13 +92,6 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '配置' },
   },
   {
-    path: '/toapis-key',
-    alias: '/admin/toapis-key',
-    name: 'AdminToApisKey',
-    component: () => import('@/views/admin/AdminToApisKey.vue'),
-    meta: { title: 'API Key 管理' },
-  },
-  {
     path: '/:pathMatch(.*)*',
     redirect: '/users',
   },

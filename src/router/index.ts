@@ -258,12 +258,6 @@ const router = createRouter({
       meta: { title: '配置', requiresAuth: true, requiresAdmin: true },
     },
     {
-      path: '/admin/toapis-key',
-      name: 'AdminToApisKey',
-      component: () => import('@/views/admin/AdminToApisKey.vue'),
-      meta: { title: 'API Key 管理', requiresAuth: true, requiresAdmin: true },
-    },
-    {
       path: '/admin/points',
       redirect: '/admin/users',
       meta: { requiresAuth: true, requiresAdmin: true },

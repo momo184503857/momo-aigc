@@ -83,8 +83,8 @@ function openProviderEdit(row: ProviderRow) {
 
 async function submitProvider() {
   const f = providerForm.value
-  if (!f.name.trim() || !f.code.trim() || !f.base_url.trim()) {
-    warning('名称、标识、Base URL 均不能为空')
+  if (!f.name.trim() || !f.base_url.trim()) {
+    warning('名称、Base URL 均不能为空')
     return
   }
   providerSubmitting.value = true
@@ -1080,11 +1080,12 @@ onMounted(() => {
         <el-form-item label="名称" required>
           <el-input v-model="providerForm.name" placeholder="如：火山引擎" maxlength="100" />
         </el-form-item>
-        <el-form-item label="标识" required>
+        <el-form-item label="标识">
           <el-input
-            v-model="providerForm.code" placeholder="小写字母/数字/中划线，如 volcengine"
+            v-model="providerForm.code" placeholder="选填，留空自动生成；小写字母/数字/中划线，如 volcengine"
             :disabled="!!providerEditing" maxlength="50"
           />
+          <div class="form-hint">机器用的唯一英文标识（任务记录溯源用），不影响协议与调用；创建后不可改。</div>
         </el-form-item>
         <el-form-item label="连接方式" required>
           <el-select v-model="providerForm.adapter" style="width: 100%">

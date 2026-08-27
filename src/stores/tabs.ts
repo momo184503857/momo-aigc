@@ -8,7 +8,6 @@ import {
   Collection,
   UserFilled,
   EditPen,
-  Key,
   DataBoard,
   Share,
   Trophy,
@@ -42,7 +41,6 @@ const ROUTE_META_MAP: Record<string, { title: string; icon: Component; component
   '/admin/feature-prompts': { title: '功能提示词', icon: EditPen, componentName: 'AdminFeaturePrompts' },
   '/admin/works': { title: '作品库管理', icon: Trophy, componentName: 'AdminWorks' },
   '/admin/prompt-cases': { title: '提示词案例', icon: Picture, componentName: 'AdminPromptCases' },
-  '/admin/toapis-key': { title: 'API Key 管理', icon: Key, componentName: 'AdminToApisKey' },
   '/canvas-projects': { title: 'AI画布', icon: Share, componentName: 'CanvasProjects' },
   '/works': { title: '作品库', icon: Trophy, componentName: 'WorksGalleryPage' },
 }

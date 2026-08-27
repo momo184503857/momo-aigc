@@ -10,7 +10,6 @@ import {
   Trophy,
   Picture,
   Grid,
-  Key,
   Coin,
   Setting,
   ArrowDown,
@@ -43,7 +42,6 @@ const menuItems: MenuItem[] = [
   { path: '/admin/prompt-modules', title: '提示词模块', icon: Grid },
   { path: '/admin/sg-assets', title: '成套生图资产', icon: Grid },
   { path: '/admin/ai-config', title: '配置', icon: Setting },
-  { path: '/admin/toapis-key', title: 'API Key 管理', icon: Key },
 ]
 
 const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0, { creditDigits: 0, yuanDigits: 2 }))
