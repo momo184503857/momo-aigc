@@ -93,14 +93,14 @@ export const openaiImageAdapter: ImageProviderAdapter = {
 
     let result = await postJson(joinUrl(ctx.baseUrl, path), {
       authorization: `Bearer ${ctx.apiKey}`,
-    }, body, 300_000)
+    }, body, 600_000)
 
     if (result.status === 400 || result.status === 422) {
       // response_format=url 不被支持时回退 b64_json 重试一次
       const retryBody = { ...body, response_format: 'b64_json' }
       result = await postJson(joinUrl(ctx.baseUrl, path), {
         authorization: `Bearer ${ctx.apiKey}`,
-      }, retryBody, 300_000)
+      }, retryBody, 600_000)
     }
 
     if (result.status !== 200) {

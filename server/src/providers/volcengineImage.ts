@@ -87,7 +87,7 @@ export const volcengineImageAdapter: ImageProviderAdapter = {
     for (const path of ARK_IMAGE_PATHS) {
       const result = await postJson(joinUrl(ctx.baseUrl, path), {
         authorization: `Bearer ${ctx.apiKey}`,
-      }, body, 300_000)
+      }, body, 600_000)
       if (result.status === 404) {
         lastError = new ProviderCallError(extractErrorMessage(result, '生图端点不存在'), 404, result.json)
         continue
