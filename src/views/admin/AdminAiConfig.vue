@@ -188,7 +188,7 @@ function openModelCreate() {
   if (!selected.value) return
   modelEditing.value = null
   modelForm.value = {
-    model_id: '', display_name: '', supports_vision: false, supports_image_gen: false, supports_chat: false,
+    model_id: '', display_name: '', supports_vision: false, supports_image_gen: true, supports_chat: false,
     logical_model_id: null as number | null,
     overrideResolutions: [], overrideRatios: [],
     overrideMaxRef: null as number | null, overrideMaxPromptChars: null as number | null,
