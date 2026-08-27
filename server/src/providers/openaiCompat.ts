@@ -97,7 +97,20 @@ export function createOpenAiCompatAdapter(options: OpenAiCompatOptions): Provide
     async testConnection(ctx, testModel): Promise<ConnectionTestResult> {
       const model = testModel || options.defaultTestModel
       if (!model) {
-        return { ok: false, message: '该服务商下没有可用模型，请先添加模型或指定测试模型' }
+        // 渠道下还没有任何模型：退化为 GET /v1/models 探测，至少验证连通性与 Key 有效性
+        const started = Date.now()
+        try {
+          const res = await fetch(joinUrl(ctx.baseUrl, '/v1/models'), {
+            headers: { Authorization: `Bearer ${ctx.apiKey}` },
+            signal: AbortSignal.timeout(20_000),
+          })
+          if (res.ok) {
+            return { ok: true, message: `Key 有效（/v1/models 探测，${Date.now() - started}ms）；该渠道尚未添加模型，请到「模型管理」添加后再测对话`, latencyMs: Date.now() - started }
+          }
+          return { ok: false, message: `Key 校验失败（HTTP ${res.status}），请检查 Key 是否有效` }
+        } catch (err: any) {
+          return { ok: false, message: err?.message || String(err) }
+        }
       }
       const started = Date.now()
       try {
