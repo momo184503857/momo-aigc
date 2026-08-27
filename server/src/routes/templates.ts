@@ -127,8 +127,9 @@ templatesRouter.post('/', (req: AuthRequest, res) => {
     tagIds,
   } = req.body
 
-  if (!oss_bucket || !oss_object_key || !public_url) {
-    res.status(400).json({ success: false, error: '缺少 OSS 文件信息' })
+  // oss_bucket/oss_object_key 在直接传模式下为哨兵值（'local'），仅 public_url 必填
+  if (!public_url) {
+    res.status(400).json({ success: false, error: '缺少图片地址' })
     return
   }
 
@@ -136,7 +137,7 @@ templatesRouter.post('/', (req: AuthRequest, res) => {
     INSERT INTO template_images (user_id, name, oss_bucket, oss_object_key, public_url, original_filename, mime_type, size_bytes, width, height)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    req.user!.userId, name || null, oss_bucket, oss_object_key, public_url,
+    req.user!.userId, name || null, oss_bucket || '', oss_object_key || '', public_url,
     original_filename || null, mime_type || null, size_bytes || null, width || null, height || null
   )
 

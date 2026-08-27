@@ -1,13 +1,23 @@
 import crypto from 'crypto'
-import { config } from '../config.js'
+import { getStorageConfig, type OssSettings } from './storageConfig.js'
 
-export function generateOssUploadToken(opts: {
-  userId: number
-  filename: string
-  mimeType: string
-  sizeBytes: number
-  scope?: 'inputs' | 'templates' | 'results' | 'materials'
-}) {
+/** 签名用 OSS 参数：默认取当前存储配置（后台可改、env 兜底），测试连接时传待验证的新值 */
+function ossSettings(overrides?: Partial<OssSettings>): OssSettings {
+  if (overrides) return { ...getStorageConfig().oss, ...overrides }
+  return getStorageConfig().oss
+}
+
+export function generateOssUploadToken(
+  opts: {
+    userId: number
+    filename: string
+    mimeType: string
+    sizeBytes: number
+    scope?: 'inputs' | 'templates' | 'results' | 'materials'
+  },
+  overrides?: Partial<OssSettings>,
+) {
+  const s = ossSettings(overrides)
   const now = new Date()
   const yyyy = now.getFullYear()
   const mm = String(now.getMonth() + 1).padStart(2, '0')
@@ -16,7 +26,7 @@ export function generateOssUploadToken(opts: {
 
   const scope = opts.scope || 'inputs'
   const objectKey = `${scope}/${opts.userId}/${yyyy}/${mm}/${uuid}.${ext}`
-  const publicUrl = `https://${config.oss.bucket}.${config.oss.endpoint}/${objectKey}`
+  const publicUrl = `https://${s.bucket}.${s.endpoint}/${objectKey}`
 
   // OSS PostObject policy expires in 1 hour
   const expiration = new Date(Date.now() + 3600 * 1000).toISOString()
@@ -25,7 +35,7 @@ export function generateOssUploadToken(opts: {
     JSON.stringify({
       expiration,
       conditions: [
-        { bucket: config.oss.bucket },
+        { bucket: s.bucket },
         ['starts-with', '$key', `${scope}/${opts.userId}/`],
         ['content-length-range', 1, opts.sizeBytes || 10485760],
         ['eq', '$success_action_status', '200'],
@@ -34,19 +44,19 @@ export function generateOssUploadToken(opts: {
   ).toString('base64')
 
   const signature = crypto
-    .createHmac('sha1', config.oss.accessKeySecret)
+    .createHmac('sha1', s.accessKeySecret)
     .update(policy)
     .digest('base64')
 
   return {
-    uploadUrl: `https://${config.oss.bucket}.${config.oss.endpoint}`,
+    uploadUrl: `https://${s.bucket}.${s.endpoint}`,
     objectKey,
     publicUrl,
-    ossBucket: config.oss.bucket,
+    ossBucket: s.bucket,
     fields: {
       policy,
       signature,
-      OSSAccessKeyId: config.oss.accessKeyId,
+      OSSAccessKeyId: s.accessKeyId,
       key: objectKey,
       success_action_status: '200',
     },
@@ -62,20 +72,24 @@ export function generateResultObjectKey(userId: number, sourceUrl: string): stri
     try { return new URL(sourceUrl).pathname } catch { return '' }
   })()
   const extMatch = pathname.match(/\.([a-zA-Z0-9]+)$/)
-  const ext = extMatch?.[1]?.toLowerCase() || 'png'
+  const ext = extMatch?.[1].toLowerCase() || 'png'
   return `results/${userId}/${yyyy}/${mm}/${uuid}.${ext}`
 }
 
 export function getOssPublicUrl(objectKey: string): string {
-  return `https://${config.oss.bucket}.${config.oss.endpoint}/${objectKey}`
+  const s = ossSettings()
+  return `https://${s.bucket}.${s.endpoint}/${objectKey}`
 }
 
-export async function importResultToOss(opts: {
-  userId: number
-  taskId: string
-  sourceUrl: string
-  targetObjectKey?: string
-}): Promise<{
+export async function importResultToOss(
+  opts: {
+    userId: number
+    taskId: string
+    sourceUrl: string
+    targetObjectKey?: string
+  },
+  overrides?: Partial<OssSettings>,
+): Promise<{
   objectKey: string
   publicUrl: string
   contentType?: string
@@ -83,13 +97,13 @@ export async function importResultToOss(opts: {
   sourceConnectedMs?: number
   totalMs?: number
 }> {
-  const { resultImportWorkerUrl, resultImportWorkerSecret } = config.oss
-  if (!resultImportWorkerUrl) {
+  const s = ossSettings(overrides)
+  if (!s.resultImportWorkerUrl) {
     throw new Error('OSS_RESULT_IMPORT_WORKER_URL is not configured')
   }
 
   const targetObjectKey = opts.targetObjectKey || generateResultObjectKey(opts.userId, opts.sourceUrl)
-  const resp = await fetch(resultImportWorkerUrl, {
+  const resp = await fetch(s.resultImportWorkerUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(125000),
@@ -108,7 +122,7 @@ export async function importResultToOss(opts: {
 
   return {
     objectKey: data.objectKey || targetObjectKey,
-    publicUrl: data.publicUrl || getOssPublicUrl(targetObjectKey),
+    publicUrl: data.publicUrl || `https://${s.bucket}.${s.endpoint}/${targetObjectKey}`,
     contentType: data.contentType,
     sizeBytes: data.sizeBytes,
     sourceConnectedMs: data.sourceConnectedMs,
@@ -120,9 +134,10 @@ export async function importResultToOss(opts: {
 export async function uploadToOss(
   buffer: Buffer,
   objectKey: string,
-  mimeType: string
+  mimeType: string,
+  overrides?: Partial<OssSettings>,
 ): Promise<string> {
-  const { bucket, endpoint, accessKeyId, accessKeySecret } = config.oss
+  const { bucket, endpoint, accessKeyId, accessKeySecret } = ossSettings(overrides)
   const host = `${bucket}.${endpoint}`
   const expires = Math.floor(Date.now() / 1000) + 3600 // 1 hour
 
@@ -149,4 +164,22 @@ export async function uploadToOss(
   }
 
   return `https://${host}/${objectKey}`
+}
+
+/** 签名 DELETE（存储配置「测试连接」清理测试对象用） */
+export async function deleteFromOss(objectKey: string, overrides?: Partial<OssSettings>): Promise<void> {
+  const { bucket, endpoint, accessKeyId, accessKeySecret } = ossSettings(overrides)
+  const host = `${bucket}.${endpoint}`
+  const expires = Math.floor(Date.now() / 1000) + 600
+
+  const stringToSign = `DELETE\n\n\n${expires}\n/${bucket}/${objectKey}`
+  const signature = crypto.createHmac('sha1', accessKeySecret).update(stringToSign).digest('base64')
+  const url = `https://${host}/${objectKey}?OSSAccessKeyId=${accessKeyId}&Expires=${expires}&Signature=${encodeURIComponent(signature)}`
+
+  const resp = await fetch(url, { method: 'DELETE' })
+  // 204 成功；404 视为已删除（幂等）
+  if (resp.status !== 204 && resp.status !== 404 && resp.status !== 200) {
+    const text = await resp.text()
+    throw new Error(`OSS delete failed: HTTP ${resp.status} - ${text}`)
+  }
 }

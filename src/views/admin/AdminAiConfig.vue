@@ -586,11 +586,98 @@ function logicalCapabilitySummary(row: LogicalModelRow): string {
   return parts.join(' · ') || '—'
 }
 
+// ── 存储配置（直接传 / 阿里云 OSS）──
+const storageForm = ref<{
+  mode: 'direct' | 'oss'
+  endpoint: string
+  bucket: string
+  accessKeyId: string
+  accessKeySecret: string
+  resultImportWorkerUrl: string
+}>({
+  mode: 'direct',
+  endpoint: '',
+  bucket: '',
+  accessKeyId: '',
+  accessKeySecret: '',
+  resultImportWorkerUrl: '',
+})
+const storageLoading = ref(false)
+const storageSaving = ref(false)
+const storageTesting = ref(false)
+const storageTestResult = ref<{ ok: boolean; message: string } | null>(null)
+
+async function loadStorageConfig() {
+  storageLoading.value = true
+  try {
+    const res = await aiConfigApi.getStorageConfig()
+    const d = res.data.data
+    storageForm.value = {
+      mode: d.mode,
+      endpoint: d.oss.endpoint,
+      bucket: d.oss.bucket,
+      accessKeyId: d.oss.accessKeyId,
+      accessKeySecret: d.oss.accessKeySecret,
+      resultImportWorkerUrl: d.oss.resultImportWorkerUrl,
+    }
+  } catch (e) {
+    error(e, '加载存储配置失败')
+  } finally {
+    storageLoading.value = false
+  }
+}
+
+async function saveStorageConfig() {
+  if (storageSaving.value) return
+  storageSaving.value = true
+  try {
+    const f = storageForm.value
+    await aiConfigApi.saveStorageConfig({
+      mode: f.mode,
+      oss: {
+        endpoint: f.endpoint.trim(),
+        bucket: f.bucket.trim(),
+        accessKeyId: f.accessKeyId.trim(),
+        accessKeySecret: f.accessKeySecret.trim(),
+        resultImportWorkerUrl: f.resultImportWorkerUrl.trim(),
+      },
+    })
+    success(f.mode === 'oss' ? '已切换为阿里云 OSS 存储' : '已切换为直接传模式（本机磁盘）')
+    storageTestResult.value = null
+    await loadStorageConfig()
+  } catch (e: any) {
+    error(e?.response?.data?.error || e, '保存存储配置失败')
+  } finally {
+    storageSaving.value = false
+  }
+}
+
+async function testStorageConfig() {
+  if (storageTesting.value) return
+  storageTesting.value = true
+  storageTestResult.value = null
+  try {
+    const f = storageForm.value
+    const res = await aiConfigApi.testStorageConfig({
+      endpoint: f.endpoint.trim(),
+      bucket: f.bucket.trim(),
+      accessKeyId: f.accessKeyId.trim(),
+      accessKeySecret: f.accessKeySecret.trim(),
+    })
+    storageTestResult.value = res.data.data
+  } catch (e: any) {
+    storageTestResult.value = { ok: false, message: e?.response?.data?.error || '请求失败' }
+  } finally {
+    storageTesting.value = false
+  }
+}
+
 onMounted(() => {
   loadAll()
   loadAdapters()
   loadDefaultVision()
   loadAllLogicalModels()
+  loadStorageConfig()
 })
 </script>
 
@@ -923,6 +1010,64 @@ onMounted(() => {
           </el-table>
         </section>
       </el-tab-pane>
+
+      <!-- ═══ Tab 3：存储（直接传 / 阿里云 OSS）═══ -->
+      <el-tab-pane label="存储" name="storage">
+        <section v-loading="storageLoading" class="logical-section storage-section">
+          <div class="section-head">
+            <h3 class="section-title">图片存储模式</h3>
+            <span class="section-hint">参考图、结果图与素材库存放位置。配置仅存数据库（不入代码仓库），切换后立即生效、无需重启。</span>
+          </div>
+
+          <el-radio-group v-model="storageForm.mode" class="storage-mode-group">
+            <el-radio-button value="direct">直接传（默认）</el-radio-button>
+            <el-radio-button value="oss">阿里云 OSS</el-radio-button>
+          </el-radio-group>
+          <p class="storage-mode-desc">
+            {{ storageForm.mode === 'direct'
+              ? '图片保存在本机磁盘（server/data/uploads/），由本站 /api/files/ 提供访问；参考图提交时直传 AI 渠道（ToAPIs 走官方上传接口，OpenAI 兼容/火山走 base64）。无需任何云存储与 CORS 配置，适合自部署与开源开箱即用。'
+              : '浏览器直传 OSS bucket（需 bucket 允许跨域 POST），结果图经转存 Worker 流式入桶。适合已有阿里云 OSS 的部署，图片走 CDN 公网分发。' }}
+          </p>
+
+          <template v-if="storageForm.mode === 'oss'">
+            <div class="storage-form">
+              <div class="storage-field">
+                <label class="field-label">Endpoint</label>
+                <el-input v-model="storageForm.endpoint" placeholder="oss-cn-hangzhou.aliyuncs.com" maxlength="120" />
+                <span class="field-help">OSS 地域域名，不含 bucket 名</span>
+              </div>
+              <div class="storage-field">
+                <label class="field-label">Bucket <i class="required">*</i></label>
+                <el-input v-model="storageForm.bucket" placeholder="your-bucket-name" maxlength="120" />
+                <span class="field-help">需开启公共读（图片 URL 直接展示）并配置 CORS 允许 POST</span>
+              </div>
+              <div class="storage-field">
+                <label class="field-label">AccessKey ID <i class="required">*</i></label>
+                <el-input v-model="storageForm.accessKeyId" maxlength="120" />
+              </div>
+              <div class="storage-field">
+                <label class="field-label">AccessKey Secret <i class="required">*</i></label>
+                <el-input v-model="storageForm.accessKeySecret" type="password" show-password maxlength="120" />
+                <span class="field-help">仅存本站数据库，不会写入代码仓库</span>
+              </div>
+              <div class="storage-field">
+                <label class="field-label">结果转存 Worker URL</label>
+                <el-input v-model="storageForm.resultImportWorkerUrl" placeholder="选填；不配则结果转存改由服务端直接下载上传" maxlength="300" />
+                <span class="field-help">流式转存函数（FC Worker）地址；直接传模式下不需要</span>
+              </div>
+            </div>
+          </template>
+
+          <div v-if="storageTestResult" class="storage-test-result" :class="storageTestResult.ok ? 'ok' : 'fail'">
+            {{ storageTestResult.ok ? '✓ ' : '✕ ' }}{{ storageTestResult.message }}
+          </div>
+
+          <div class="toolbar-actions storage-actions">
+            <el-button v-if="storageForm.mode === 'oss'" :loading="storageTesting" @click="testStorageConfig">测试连接</el-button>
+            <el-button type="primary" :loading="storageSaving" @click="saveStorageConfig">保存</el-button>
+          </div>
+        </section>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 服务商弹窗 -->
@@ -1113,6 +1258,61 @@ onMounted(() => {
   flex: 1;
   font-size: var(--momo-font-size-xs, 12px);
   color: var(--el-text-color-secondary);
+}
+
+/* ── 存储配置页签 ── */
+.storage-section {
+  max-width: 640px;
+}
+.storage-mode-group {
+  margin-bottom: 8px;
+}
+.storage-mode-desc {
+  margin: 0 0 16px;
+  font-size: var(--momo-font-size-xs, 12px);
+  line-height: 1.7;
+  color: var(--el-text-color-secondary);
+}
+.storage-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.storage-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-label {
+  font-size: var(--momo-font-size-xs, 12px);
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+}
+.field-label .required {
+  color: var(--el-color-danger);
+  font-style: normal;
+}
+.field-help {
+  font-size: var(--momo-font-size-xs, 12px);
+  color: var(--el-text-color-secondary);
+}
+.storage-test-result {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: var(--momo-radius-sm, 6px);
+  font-size: var(--momo-font-size-xs, 12px);
+}
+.storage-test-result.ok {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+.storage-test-result.fail {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+.storage-actions {
+  justify-content: flex-end;
 }
 .name-cell {
   display: flex;

@@ -10,6 +10,7 @@ import type {
 } from './types.js'
 import { postJson, joinUrl, extractErrorMessage, ProviderCallError } from './http.js'
 import { createOpenAiCompatAdapter } from './openaiCompat.js'
+import { resolveUpstreamImageUrls } from '../utils/upstreamImages.js'
 
 /**
  * ToAPIs 生图适配器（异步任务式）。
@@ -98,10 +99,12 @@ export const toapisImageAdapter: ImageProviderAdapter = {
 
   async submitImageTask(req: ImageGenRequest, ctx: ProviderRuntimeConfig): Promise<ImageGenSubmitResult> {
     if (!ctx.apiKey) throw new ProviderCallError('未配置 API Key（请先在该渠道下设置主 Key）')
+    // 直接传模式：本地参考图先经 /v1/uploads/images 换渠道托管 URL（消耗 Key，参与轮换）
+    const imageUrls = await resolveUpstreamImageUrls('toapis', req.imageUrls, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey })
     const result = await postJson(
       joinUrl(ctx.baseUrl, '/v1/images/generations'),
       { authorization: `Bearer ${ctx.apiKey}` },
-      buildCreateBody(req),
+      buildCreateBody({ ...req, imageUrls }),
       120_000,
     )
     if (result.status !== 200) {

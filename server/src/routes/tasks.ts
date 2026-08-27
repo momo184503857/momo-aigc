@@ -2,15 +2,7 @@ import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { bjDateRangeClause } from '../utils/datetime.js'
-
-function isOssResultUrl(url: unknown): url is string {
-  if (typeof url !== 'string') return false
-  try {
-    return new URL(url).hostname.endsWith('.aliyuncs.com')
-  } catch {
-    return false
-  }
-}
+import { isStoredUrl } from '../utils/storage.js'
 
 function parseRow(row: any): any {
   if (!row) return row
@@ -39,7 +31,7 @@ function parseRow(row: any): any {
     delete parsed.supplementary_images
   }
   if (Array.isArray(parsed.result_image_urls)) {
-    parsed.result_image_urls = parsed.result_image_urls.filter(isOssResultUrl)
+    parsed.result_image_urls = parsed.result_image_urls.filter(isStoredUrl)
   }
   return parsed
 }

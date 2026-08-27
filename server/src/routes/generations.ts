@@ -3,7 +3,7 @@ import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { getImageAdapter } from '../providers/index.js'
 import type { ImageGenRequest, GeneratedImage } from '../providers/types.js'
-import { importResultToOss, generateResultObjectKey, uploadToOss } from '../utils/oss.js'
+import { saveImage, importResultFromUrl, isStoredUrl } from '../utils/storage.js'
 import { bjDateRangeClause } from '../utils/datetime.js'
 import {
   getChannelModelCapabilities,
@@ -37,15 +37,6 @@ const SYNC_PER_USER_LIMIT = 5
 
 // ── 工具 ──
 
-function isOssResultUrl(url: unknown): url is string {
-  if (typeof url !== 'string') return false
-  try {
-    return new URL(url).hostname.endsWith('.aliyuncs.com')
-  } catch {
-    return false
-  }
-}
-
 function parseTaskRow(row: any): any {
   if (!row) return row
   const parsed = { ...row }
@@ -61,9 +52,9 @@ function parseTaskRow(row: any): any {
     parsed.supplementaryImages = parsed.supplementary_images
     delete parsed.supplementary_images
   }
-  // 展示层仅暴露已转存的 OSS 永久 URL；未转存的原始上游 URL 不外泄（S5：提示重新加载）
+  // 展示层仅暴露已持久化的 URL（OSS 公网地址或本站 /api/files/ 本地地址）；未转存的原始上游 URL 不外泄（S5：提示重新加载）
   if (Array.isArray(parsed.result_image_urls)) {
-    parsed.result_image_urls = parsed.result_image_urls.filter(isOssResultUrl)
+    parsed.result_image_urls = parsed.result_image_urls.filter(isStoredUrl)
   }
   return parsed
 }
@@ -135,7 +126,7 @@ function failTaskAndRefund(taskId: number | string, errorCode: string, errorMess
   console.log(`[generations] 任务 ${task.task_no || task.id} 失败${refund > 0 ? `，退款 ${refund} 积分` : ''}：${errorMessage}`)
 }
 
-// ── 转存（服务端统一执行，D12）──
+// ── 转存（服务端统一执行，D12；direct=落本机磁盘，oss=经 Worker，见 utils/storage.ts）──
 
 async function importImages(
   task: any,
@@ -146,25 +137,29 @@ async function importImages(
   for (const img of images) {
     if (img.url) {
       rawUrls.push(img.url)
-      if (isOssResultUrl(img.url)) {
-        // 上游直接给了 OSS 地址（如渠道回环配置）——直接可用
+      if (isStoredUrl(img.url)) {
+        // 上游直接给了已持久化地址（如渠道回环配置）——直接可用
         imported.push(img.url)
         continue
       }
       try {
-        const res = await importResultToOss({ userId: task.user_id, taskId: task.task_no, sourceUrl: img.url })
-        imported.push(res.publicUrl)
+        const res = await importResultFromUrl({ userId: task.user_id, taskNo: task.task_no, sourceUrl: img.url })
+        imported.push(res.url)
       } catch (e: any) {
         console.warn(`[generations] 转存失败（任务 ${task.task_no}）：${img.url} → ${e.message}`)
       }
     } else if (img.base64) {
       try {
-        const objectKey = generateResultObjectKey(task.user_id, `x.${img.mimeType === 'image/jpeg' ? 'jpg' : 'png'}`)
         const buffer = Buffer.from(img.base64, 'base64')
-        const url = await uploadToOss(buffer, objectKey, img.mimeType || 'image/png')
-        imported.push(url)
+        const stored = await saveImage({
+          scope: 'results',
+          userId: task.user_id,
+          buffer,
+          mimeType: img.mimeType || 'image/png',
+        })
+        imported.push(stored.url)
       } catch (e: any) {
-        console.warn(`[generations] base64 结果上传失败（任务 ${task.task_no}）：${e.message}`)
+        console.warn(`[generations] base64 结果保存失败（任务 ${task.task_no}）：${e.message}`)
       }
     }
   }
@@ -184,7 +179,7 @@ function commitImportResult(task: any, imported: string[], rawUrls: string[]): v
   } else {
     db.prepare(`
       UPDATE generation_tasks SET status = 'completed', progress = 100,
-        result_image_urls = ?, error_message = '结果转存 OSS 失败，请点击重新加载',
+        result_image_urls = ?, error_message = '结果转存失败，请点击重新加载',
         completed_at = COALESCE(completed_at, ?), updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(JSON.stringify(rawUrls), now, task.id)
@@ -581,13 +576,13 @@ generationsRouter.post('/:id/reimport', async (req: AuthRequest, res) => {
     return
   }
   const existing: string[] = parseJsonArray(task.result_image_urls)
-  if (existing.filter(isOssResultUrl).length > 0) {
-    res.json({ success: true, data: { resultUrls: existing.filter(isOssResultUrl) } })
+  if (existing.filter(isStoredUrl).length > 0) {
+    res.json({ success: true, data: { resultUrls: existing.filter(isStoredUrl) } })
     return
   }
 
   // 优先用库里的原始 URL 重试；没有则查上游（异步渠道）
-  const rawUrls = existing.filter((u) => !isOssResultUrl(u))
+  const rawUrls = existing.filter((u) => !isStoredUrl(u))
   let images: GeneratedImage[] = rawUrls.map((url) => ({ url }))
 
   if (images.length === 0 && task.provider_task_id && task.channel_model_id) {

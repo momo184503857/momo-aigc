@@ -137,6 +137,18 @@ export interface DefaultVisionSetting {
   modelId: string
 }
 
+/** 存储配置：direct=直接传（图片存本机磁盘、参考图直传渠道，默认）/ oss=阿里云 OSS */
+export interface StorageConfig {
+  mode: 'direct' | 'oss'
+  oss: {
+    endpoint: string
+    bucket: string
+    accessKeyId: string
+    accessKeySecret: string
+    resultImportWorkerUrl: string
+  }
+}
+
 export const aiConfigApi = {
   listAdapters: () => http.get<{ data: AdapterInfo[] }>('/admin/ai-config/adapters'),
   listProviders: () => http.get<{ data: ProviderRow[] }>('/admin/ai-config/providers'),
@@ -168,4 +180,11 @@ export const aiConfigApi = {
   /** 逻辑模型管理（FR2） */
   listLogicalModels: () => http.get<{ data: LogicalModelRow[] }>('/admin/ai-config/logical-models'),
   updateLogicalModel: (id: number, payload: { name: string }) => http.patch<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}`, payload),
+
+  /** 存储配置（直接传 / 阿里云 OSS，含 OSS 密钥——存 DB 不入 git） */
+  getStorageConfig: () => http.get<{ data: StorageConfig }>('/admin/ai-config/storage'),
+  saveStorageConfig: (payload: { mode: 'direct' | 'oss'; oss?: Partial<StorageConfig['oss']> }) =>
+    http.put<{ data: StorageConfig }>('/admin/ai-config/storage', payload),
+  testStorageConfig: (oss?: Partial<StorageConfig['oss']>) =>
+    http.post<{ data: TestResult }>('/admin/ai-config/storage/test', { oss: oss ?? {} }, { timeout: 60_000 }),
 }

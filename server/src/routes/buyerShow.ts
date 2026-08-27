@@ -157,11 +157,11 @@ adminBuyerShowRouter.post('/batch', (req: AuthRequest, res) => {
     return
   }
 
-  // 校验
+  // 校验（oss_* 在直接传模式下为哨兵值，仅 public_url 必填）
   for (let i = 0; i < items.length; i++) {
     const it = items[i] || {}
-    if (!it.oss_bucket || !it.oss_object_key || !it.public_url) {
-      res.status(400).json({ success: false, error: `第 ${i + 1} 条缺少 OSS 文件信息` })
+    if (!it.public_url) {
+      res.status(400).json({ success: false, error: `第 ${i + 1} 条缺少图片地址` })
       return
     }
     if (!it.prompt || !String(it.prompt).trim()) {
@@ -183,8 +183,8 @@ adminBuyerShowRouter.post('/batch', (req: AuthRequest, res) => {
     const ids: number[] = []
     for (const it of items) {
       const r = insertMaterial.run(
-        it.oss_bucket,
-        it.oss_object_key,
+        it.oss_bucket || '',
+        it.oss_object_key || '',
         it.public_url,
         String(it.prompt).trim(),
         it.original_filename || null,
@@ -239,7 +239,7 @@ adminBuyerShowRouter.patch('/:id', (req: AuthRequest, res) => {
 
   if (image && typeof image === 'object' && image.public_url) {
     fields.push('oss_bucket = ?', 'oss_object_key = ?', 'public_url = ?')
-    params.push(image.oss_bucket, image.oss_object_key, image.public_url)
+    params.push(image.oss_bucket || '', image.oss_object_key || '', image.public_url)
     if (image.original_filename !== undefined) { fields.push('original_filename = ?'); params.push(image.original_filename || null) }
     if (image.mime_type !== undefined) { fields.push('mime_type = ?'); params.push(image.mime_type || null) }
     if (image.size_bytes !== undefined) { fields.push('size_bytes = ?'); params.push(image.size_bytes || null) }

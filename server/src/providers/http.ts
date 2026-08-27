@@ -33,6 +33,31 @@ export async function postJson(
   }
 }
 
+/** multipart 表单 POST（不设 content-type，由 fetch 自动带 boundary）；响应解析与 postJson 一致 */
+export async function postForm(
+  url: string,
+  headers: Record<string, string>,
+  form: FormData,
+  timeoutMs = 120_000,
+): Promise<PostJsonResult> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { ...headers },
+      body: form,
+      signal: controller.signal,
+    })
+    const text = await res.text()
+    let json: any = null
+    try { json = text ? JSON.parse(text) : null } catch { /* 非 JSON 响应 */ }
+    return { status: res.status, json, text }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** 拼接 base_url 与路径，容忍 base 结尾有无斜杠 */
 export function joinUrl(base: string, path: string): string {
   const b = base.replace(/\/+$/, '')

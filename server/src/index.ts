@@ -9,6 +9,7 @@ import { meRouter } from './routes/me.js'
 import { tasksRouter } from './routes/tasks.js'
 import { templatesRouter } from './routes/templates.js'
 import { ossRouter } from './routes/oss.js'
+import { UPLOADS_ROOT } from './utils/storage.js'
 import { promptsRouter } from './routes/prompts.js'
 import { adminUsersRouter } from './routes/admin/users.js'
 import { adminTasksRouter } from './routes/admin/tasks.js'
@@ -51,6 +52,10 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }))
 // 只暴露 docs/help/，docs/ 下其余目录为内部文档
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 app.use('/docs', express.static(path.resolve(__dirname, '../../docs/help')))
+
+// 直接传模式的本地图片服务（server/data/uploads/）：UUID 文件名可长缓存；
+// 与 OSS 公共读对等，不做鉴权（express.static 自带路径穿越防护）
+app.use('/api/files', express.static(UPLOADS_ROOT, { maxAge: '365d', immutable: true }))
 
 // Initialize database
 seed()

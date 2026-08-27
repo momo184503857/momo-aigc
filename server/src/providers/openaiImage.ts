@@ -11,6 +11,7 @@ import type {
 import { postJson, joinUrl, extractErrorMessage, ProviderCallError } from './http.js'
 import { createOpenAiCompatAdapter } from './openaiCompat.js'
 import { toPixelSize } from '../utils/imageSize.js'
+import { resolveUpstreamImageUrls } from '../utils/upstreamImages.js'
 
 /**
  * 通用 OpenAI 兼容生图适配器（同步）：POST {base}/v1/images/generations。
@@ -73,6 +74,8 @@ export const openaiImageAdapter: ImageProviderAdapter = {
   async submitImageTask(req: ImageGenRequest, ctx: ProviderRuntimeConfig): Promise<ImageGenSubmitResult> {
     if (!ctx.apiKey) throw new ProviderCallError('未配置 API Key（请先在该渠道下设置主 Key）')
     const size = toPixelSize(req.aspectRatio, req.resolution)
+    // 直接传模式：本地参考图转 base64 data URL（上游可直读，无需公网地址）
+    const imageUrls = await resolveUpstreamImageUrls('openai_image', req.imageUrls, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey })
     const body: Record<string, unknown> = {
       model: req.model,
       prompt: req.prompt,
@@ -82,11 +85,11 @@ export const openaiImageAdapter: ImageProviderAdapter = {
     }
     if (req.negativePrompt) body.negative_prompt = req.negativePrompt
     // 参考图走图生图端点（OpenAI 语义：generations=文生图，edits=图生图），
-    // image 字段以 URL 数组透传，由上游自行下载
-    if (req.imageUrls.length > 0) {
-      body.image = req.imageUrls
+    // image 字段以 URL/data-URL 数组透传，由上游自行下载或解码
+    if (imageUrls.length > 0) {
+      body.image = imageUrls
     }
-    const path = req.imageUrls.length > 0 ? '/v1/images/edits' : '/v1/images/generations'
+    const path = imageUrls.length > 0 ? '/v1/images/edits' : '/v1/images/generations'
 
     let result = await postJson(joinUrl(ctx.baseUrl, path), {
       authorization: `Bearer ${ctx.apiKey}`,

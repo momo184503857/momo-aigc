@@ -57,8 +57,8 @@ if (!final) { console.error('超时未到终态'); process.exit(1) }
 console.log(`\n终态：${final.status}`)
 if (final.status === 'completed') {
   console.log(`结果图：${JSON.stringify(final.resultUrls, null, 1)}`)
-  const isOss = (final.resultUrls || []).every((u) => u.includes('aliyuncs.com'))
-  console.log(`M2-01（OSS 永久 URL）：${isOss ? 'PASS' : 'FAIL（非 OSS URL）'}`)
+  const isStored = (final.resultUrls || []).every((u) => u.includes('aliyuncs.com') || String(u).startsWith('/api/files/'))
+  console.log(`M2-01（持久化存储 URL）：${isStored ? 'PASS' : 'FAIL（非持久化 URL）'}`)
 } else {
   console.error(`失败：${final.errorMessage} (${final.errorCode})`)
   // M2-03：失败自动退款

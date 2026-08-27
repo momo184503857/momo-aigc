@@ -11,6 +11,7 @@ import type {
 import { postJson, joinUrl, extractErrorMessage, ProviderCallError } from './http.js'
 import { createOpenAiCompatAdapter } from './openaiCompat.js'
 import { toPixelSize } from '../utils/imageSize.js'
+import { resolveUpstreamImageUrls } from '../utils/upstreamImages.js'
 
 /**
  * 火山引擎 Ark 生图适配器（同步，豆包 Seedream 系列）。
@@ -72,13 +73,15 @@ export const volcengineImageAdapter: ImageProviderAdapter = {
   async submitImageTask(req: ImageGenRequest, ctx: ProviderRuntimeConfig): Promise<ImageGenSubmitResult> {
     if (!ctx.apiKey) throw new ProviderCallError('未配置 API Key（请先在该渠道下设置主 Key）')
     const size = toPixelSize(req.aspectRatio, req.resolution)
+    // 直接传模式：本地参考图转 base64 data URL（Ark image 数组官方支持）
+    const imageUrls = await resolveUpstreamImageUrls('volcengine_image', req.imageUrls, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey })
     const body: Record<string, unknown> = {
       model: req.model,
       prompt: req.prompt,
       size,
       response_format: 'url',
     }
-    if (req.imageUrls.length > 0) body.image = req.imageUrls
+    if (imageUrls.length > 0) body.image = imageUrls
 
     let lastError: ProviderCallError | null = null
     for (const path of ARK_IMAGE_PATHS) {

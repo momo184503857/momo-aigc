@@ -641,7 +641,7 @@ async function downloadZip() {
   try {
     const ok = await downloadRowsAsZip(rows, '买家秀')
     if (ok === 0) {
-      error('下载失败，结果可能尚未转存到 OSS')
+      error('下载失败，结果可能尚未转存完成')
       return
     }
     success(`已打包 ${ok} 张图片`)

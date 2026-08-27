@@ -106,7 +106,7 @@ async function freeGen() {
   assert(result.pollResult?.status === 'completed', '轮询应完成 (completed)')
   assert((result.resultUrls?.length ?? 0) > 0, `应返回结果图（实际 ${result.resultUrls?.length} 张）`)
   assert(result.inputImageUrls.length === 2, `输入图应为 2 张（实际 ${result.inputImageUrls.length}）`)
-  assert(result.inputImageUrls.every(u => u.includes('aliyuncs.com')), '输入图应全部转存为 OSS URL')
+  assert(result.inputImageUrls.every(u => u.includes('aliyuncs.com') || u.startsWith('/api/files/')), '输入图应全部转存为本站存储 URL')
 
   const dbTask = (await taskApi.get(result.dbTaskId)).data.data
   assert(dbTask.status === 'completed', `DB 任务应为 completed（实际 ${dbTask.status}）`)

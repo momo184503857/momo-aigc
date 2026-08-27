@@ -95,14 +95,20 @@ export interface GenerateImageResult extends SubmitTaskResult {
 
 // ─── Helper Functions ───
 
+/** 已存到本站存储的 URL（direct 模式 /api/files/ 本地地址，或 oss 模式 bucket 域名）直接透传，不重复上传 */
+function isOwnStoredUrl(url: string, ossHost: string): boolean {
+  if (url.startsWith('/api/files/')) return true
+  return !!ossHost && url.includes(ossHost)
+}
+
 /**
- * 处理单个 URL：OSS URL 直接加入，非 OSS URL 下载后上传，data URL 转 File 上传
+ * 处理单个 URL：已存本站存储的直接加入，其余（data URL / 外部 http URL）下载后转存到本站存储
  */
-async function processUrl(url: string, allImageUrls: string[]): Promise<void> {
-  if (url.includes('oss-cn-hangzhou.aliyuncs.com')) {
+async function processUrl(url: string, allImageUrls: string[], ossHost: string): Promise<void> {
+  if (isOwnStoredUrl(url, ossHost)) {
     allImageUrls.push(url)
   } else if (url.startsWith('data:')) {
-    // data URL（base64）→ 转 File 后上传到 OSS
+    // data URL（base64）→ 转 File 后上传到本站存储
     try {
       const resp = await fetch(url)
       const blob = await resp.blob()
@@ -122,7 +128,7 @@ async function processUrl(url: string, allImageUrls: string[]): Promise<void> {
       const uploaded = await ossApi.upload(file, 'inputs')
       allImageUrls.push(uploaded.publicUrl)
     } catch (err) {
-      console.warn('[ImageGen] Failed to re-upload non-OSS URL, using original:', url, err)
+      console.warn('[ImageGen] Failed to re-upload external URL, using original:', url, err)
       allImageUrls.push(url)
     }
   } else {
@@ -131,7 +137,7 @@ async function processUrl(url: string, allImageUrls: string[]): Promise<void> {
 }
 
 /**
- * 上传本地文件到 OSS
+ * 上传本地文件到本站存储（direct=后端落盘 / oss=浏览器直传 bucket）
  */
 async function processFile(file: File, allImageUrls: string[]): Promise<void> {
   const uploaded = await ossApi.upload(file, 'inputs')
@@ -182,9 +188,11 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
   // ─── 上传参考图 ───
   const allImageUrls: string[] = []
   if (refImages && refImages.length > 0) {
+    // 一次取存储模式（识别已存 URL 的透传依据），多张参考图共用
+    const { ossHost } = await ossApi.getMode()
     for (const ref of refImages) {
       if (ref.url) {
-        await processUrl(ref.url, allImageUrls)
+        await processUrl(ref.url, allImageUrls, ossHost)
       } else if (ref.file) {
         await processFile(ref.file, allImageUrls)
       }

@@ -220,7 +220,7 @@ async function downloadBatchZip(b: BuyerShowBatch) {
     }
     const ok = await downloadRowsAsZip(rows, batchDisplayName(b))
     if (ok === 0) {
-      error('下载失败，结果可能尚未转存到 OSS')
+      error('下载失败，结果可能尚未转存完成')
       return
     }
     success(`已打包 ${ok} 张图片`)
@@ -244,7 +244,7 @@ async function downloadDetailZip() {
   try {
     const ok = await downloadRowsAsZip(rows, batchDisplayName(selectedBatch.value))
     if (ok === 0) {
-      error('下载失败，结果可能尚未转存到 OSS')
+      error('下载失败，结果可能尚未转存完成')
       return
     }
     success(`已打包 ${ok} 张图片`)

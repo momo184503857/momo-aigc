@@ -19,7 +19,9 @@ function triggerSave(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
 }
 
+/** 可下载的结果图 URL：OSS 公网地址，或直接传模式的本站 /api/files/ 本地地址 */
 export function isOssImageUrl(url: string): boolean {
+  if (url.startsWith('/api/files/')) return true
   try {
     return new URL(url, window.location.href).hostname.endsWith('.aliyuncs.com')
   } catch {
@@ -76,7 +78,7 @@ async function getImageBlobFromDom(url: string): Promise<Blob | null> {
 
 export async function downloadUrl(url: string, filename: string): Promise<void> {
   if (!isOssImageUrl(url)) {
-    throw new Error('结果图片尚未转存到 OSS，无法下载')
+    throw new Error('结果图片尚未转存完成，无法下载')
   }
 
   // ── 1) Extract from already-loaded <img> in the DOM ──

@@ -96,6 +96,17 @@ sqlite3 ~/momo-aigc/server/data/momo.db "SELECT name FROM sqlite_master WHERE ty
 
 > 拉取生产数据库到本地调试，用 `bash scripts/pull-db.sh`（默认连 `<生产服务器IP>`）。
 
+### 图片存储（双模式）
+
+存储模式由管理后台「配置 → 存储」页签控制（存 `system_config` 表 `storage_config`，`.env` 的 `OSS_*` 仅作兜底预填），切换即时生效、无需重启：
+
+- **直接传（默认）**：图片存本机磁盘 `server/data/uploads/`，由 `/api/files/` 静态服务；参考图提交时直传 AI 渠道。注意：
+  - 磁盘随使用增长，可定期清理无引用旧文件（`du -sh ~/momo-aigc/server/data/uploads` 查看体积）
+  - 多实例/负载均衡部署需共享该目录（NFS/共享盘），否则图片只存在于接收上传的那台机器
+- **阿里云 OSS**：浏览器直传 bucket，结果图经 FC Worker 转存。需要 bucket 公共读 + CORS 允许 POST，Worker 地址在存储配置中填写。
+
+当前生效模式与配置可查：`sqlite3 ~/momo-aigc/server/data/momo.db "SELECT value FROM system_config WHERE key='storage_config';"`（无该行 = 默认直接传）。
+
 ---
 
 ## 部署
@@ -130,7 +141,7 @@ pm2 logs momo-aigc --lines 50       # 看崩溃原因
 ```
 
 **常见崩溃原因**：
-- `.env` 缺变量（如 `OSS_ACCESS_KEY_ID`）→ 补全后 `pm2 restart momo-aigc --update-env`
+- `.env` 缺变量 → 补全后 `pm2 restart momo-aigc --update-env`（OSS 变量已非必需——存储默认走直接传模式，可在后台配置）
 - `server/data/` 目录被删 → 应用启动时会自动重建，若仍报 `directory does not exist`，手动 `mkdir -p ~/momo-aigc/server/data && pm2 restart momo-aigc`
 - 端口 3000 被占用 → `lsof -i:3000` 查占用，kill 或换端口
 

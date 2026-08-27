@@ -341,8 +341,8 @@ export function useTaskManager() {
         task.result_image_urls = result.resultUrls ?? []
         if ((result.resultUrls ?? []).length === 0) {
           // 转存失败：服务端保留原始 URL，提示重新加载（S5）
-          task.error_message = '结果转存 OSS 失败，请点击重新加载'
-        } else if (task.error_message === '结果转存 OSS 失败，请点击重新加载') {
+          task.error_message = '结果转存失败，请点击重新加载'
+        } else if (task.error_message === '结果转存失败，请点击重新加载') {
           task.error_message = ''
         }
       } else if (result.status === 'failed') {

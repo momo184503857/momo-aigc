@@ -13,7 +13,7 @@
 - **管理后台**：用户与积分、AI 渠道与模型定价、模板 / 主题 / 套系管理
 - **多渠道 AI 接入**：ToAPIs（异步任务式）、火山方舟 Seedream、任意 OpenAI 兼容渠道；渠道内 Key 池优先级轮换、耗尽自动故障转移
 - **积分计费**：按「模型 × 分辨率 × 张数」预扣、失败全额自动退还，定价存于数据库不硬编码
-- **对象存储**：结果图服务端自动转存阿里云 OSS，不向前端暴露上游 URL
+- **存储双模式**：默认「直接传」——图片存本机磁盘、参考图直传 AI 渠道（ToAPIs 官方上传接口 / OpenAI 兼容与火山走 base64），零云存储依赖；可在管理后台一键切换为阿里云 OSS（浏览器直传 bucket + 结果转存 Worker），不向前端暴露上游 URL
 
 ## 技术栈
 
@@ -21,7 +21,7 @@
 |----|------|
 | 前端 | Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router |
 | 后端 | Express + TypeScript + better-sqlite3（SQLite WAL）+ JWT |
-| 存储 | 阿里云 OSS |
+| 存储 | 本机磁盘（默认，直接传）/ 阿里云 OSS（管理后台可切换） |
 | AI 适配 | toapis / openai_image / volcengine_image / openai_compat / volcengine |
 
 ## 快速开始
@@ -33,13 +33,21 @@ git clone https://github.com/momo184503857/momo-aigc.git
 cd momo-aigc
 npm install
 
-cp .env.example .env    # 按注释填写 OSS / SMTP / 渠道等配置
+cp .env.example .env    # 改 JWT_SECRET 即可跑通（无需配置对象存储）
 
 npm run dev:server      # 后端：Express，端口 3000，热重载
 npm run dev             # 前端：Vite，端口 5173，/api 代理到 3000
 ```
 
 后端必须在运行，前端才能正常工作（Vite 将 `/api` 代理至 `http://localhost:3000`）。
+
+默认管理员账号 `admin / admin123`（登录后请立即修改）。
+
+### 图片存储说明
+
+开箱默认「直接传」模式：上传图片保存在 `server/data/uploads/`（由 `/api/files/` 提供访问），提交生图时参考图直传 AI 渠道——**无需阿里云 OSS、无需 CORS 配置**。
+
+如需改用阿里云 OSS：管理后台 → 配置 → 存储，切换为 OSS 并填写 Bucket 与 AccessKey（支持「测试连接」，密钥存数据库不进代码仓库；亦可用 `.env` 中 `OSS_*` 变量兜底）。切换即时生效，历史图片 URL 不受影响。
 
 ## 常用命令
 

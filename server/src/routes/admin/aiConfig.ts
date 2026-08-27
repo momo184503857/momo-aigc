@@ -10,6 +10,8 @@ import { validateProviderBaseUrl } from '../../utils/ssrf.js'
 import {
   parseParams, validateCapabilityParams, validateOverridesNarrowing, effectiveParams,
 } from '../../utils/channelModel.js'
+import { getStorageConfig, saveStorageConfig, type OssSettings } from '../../utils/storageConfig.js'
+import { uploadToOss, deleteFromOss } from '../../utils/oss.js'
 
 /** 校验能力覆盖相对逻辑模型只收窄（M1-23）；返回错误信息或 null */
 function validateOverridesAgainstLogical(logicalModelId: number | null | undefined, overridesJson: string | null): string | null {
@@ -649,6 +651,51 @@ adminAiConfigRouter.put('/default-vision-model', (req: AuthRequest, res) => {
   } catch (err: any) {
     console.error('[admin/ai-config] Set default vision model error:', err.message)
     res.status(500).json({ success: false, error: '保存默认识图模型失败' })
+  }
+})
+
+// ── 存储配置：直接传（本机磁盘）vs 阿里云 OSS，含 OSS 密钥（存 DB 不入 git）──
+
+// GET /api/admin/ai-config/storage —— 回传完整配置（admin-only，与 Key 池明文回显先例一致）
+adminAiConfigRouter.get('/storage', (_req, res) => {
+  res.json({ success: true, data: getStorageConfig() })
+})
+
+// PUT /api/admin/ai-config/storage  { mode: 'direct'|'oss', oss?: { endpoint, bucket, accessKeyId, accessKeySecret, resultImportWorkerUrl } }
+adminAiConfigRouter.put('/storage', (req: AuthRequest, res) => {
+  try {
+    const { mode, oss } = req.body || {}
+    const saved = saveStorageConfig({ mode, oss })
+    res.json({ success: true, data: saved })
+  } catch (err: any) {
+    console.error('[admin/ai-config] Save storage config error:', err.message)
+    res.status(400).json({ success: false, error: err.message || '保存存储配置失败' })
+  }
+})
+
+// POST /api/admin/ai-config/storage/test —— 用表单当前值（未保存也可测）上传+删除测试对象
+adminAiConfigRouter.post('/storage/test', async (req: AuthRequest, res) => {
+  const current = getStorageConfig()
+  const input = (req.body?.oss || {}) as Partial<OssSettings>
+  const overrides: Partial<OssSettings> = {}
+  for (const key of Object.keys(current.oss) as (keyof OssSettings)[]) {
+    const v = input[key]
+    if (typeof v === 'string' && v !== '') overrides[key] = v
+  }
+  const merged = { ...current.oss, ...overrides }
+  if (!merged.bucket || !merged.accessKeyId || !merged.accessKeySecret) {
+    res.json({ success: true, data: { ok: false, message: '请先填写完整的 Bucket 与 AccessKey 配置' } })
+    return
+  }
+
+  const testKey = `__storage_test__/${Date.now()}.txt`
+  const started = Date.now()
+  try {
+    await uploadToOss(Buffer.from('momo-aigc storage config test'), testKey, 'text/plain', merged)
+    await deleteFromOss(testKey, merged)
+    res.json({ success: true, data: { ok: true, message: `连接成功（${Date.now() - started}ms）：已验证写入与删除权限` } })
+  } catch (err: any) {
+    res.json({ success: true, data: { ok: false, message: `连接失败：${err.message}` } })
   }
 })
 

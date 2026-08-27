@@ -74,28 +74,34 @@ cp .env.example .env
 nano .env
 ```
 
-填入以下内容：
+最小配置（直接传模式，无需任何云存储）：
 
 ```env
 # Server
 JWT_SECRET=<随机字符串，用 openssl rand -hex 32 生成>
 PORT=3000
 
-# Alibaba Cloud OSS
+# ToAPIs Base URL
+TOAPIS_BASE_URL=https://toapis.xyz
+```
+
+直接传模式下：上传图片保存在 `server/data/uploads/`（由 `/api/files/` 静态服务），生图参考图提交时直传 AI 渠道（ToAPIs 走 `/v1/uploads/images` 官方上传接口，OpenAI 兼容 / 火山走 base64），结果图由服务端直接下载落盘。**无需 OSS、无需 CORS 配置。**
+
+可选：改用阿里云 OSS 存储。推荐在管理后台「配置 → 存储」页签切换并填写（支持测试连接，密钥存数据库 `system_config`，不进代码仓库）；也可用 `.env` 兜底：
+
+```env
+# Alibaba Cloud OSS（可选；后台配置优先）
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 OSS_BUCKET=momo-aigc
 OSS_ACCESS_KEY_ID=<你的 AccessKey ID>
 OSS_ACCESS_KEY_SECRET=<你的 AccessKey Secret>
 
-# OSS Result Import Worker (阿里云函数计算)
-OSS_RESULT_IMPORT_WORKER_URL=https://oss-rest-worker-ykaraoaubf.cn-hangzhou.fcapp.run
+# OSS Result Import Worker (阿里云函数计算；仅 OSS 模式需要，直接传模式无需配置)
+OSS_RESULT_IMPORT_WORKER_URL=https://oss-rest-worker-xxx.cn-hangzhou.fcapp.run
 OSS_RESULT_IMPORT_WORKER_SECRET=<与 FC Worker 侧一致的长随机串>
-
-# ToAPIs Base URL
-TOAPIS_BASE_URL=https://toapis.com
 ```
 
-> `OSS_RESULT_IMPORT_WORKER_*` 变量必须配置。结果图只有成功转存到 OSS 后才会展示和下载，不会向浏览器暴露 ToAPIs URL。
+> OSS 模式说明：浏览器直传 bucket（需 bucket 开公共读 + CORS 允许 POST），结果图经 FC Worker 流式转存后才展示和下载，不向浏览器暴露上游 URL。切换模式即时生效（无需重启），历史图片 URL 不受影响。
 
 ### 6. 构建项目
 
