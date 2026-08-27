@@ -331,7 +331,7 @@ build: { rollupOptions: { input: {
 }}}
 ```
 
-`npm run build` 同时产出 `dist/index.html` + `dist/admin.html`（各自独立的入口 chunk）。`/api` proxy 配置两端共用，dev server 单端口（5173）同时服务两个入口。
+`npm run build` 同时产出 `dist/index.html` + `dist/admin.html`（各自独立的入口 chunk）。`/api` proxy 配置两端共用，dev server 单端口（5273）同时服务两个入口。
 
 ### 管理后台应用骨架（`src/admin/`）
 

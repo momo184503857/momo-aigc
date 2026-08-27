@@ -325,7 +325,7 @@ cp .env.example .env
 # 3. 启动后端（端口 3000）
 npm run dev:server
 
-# 4. 启动前端（端口 5173，自动代理 /api → 3000）
+# 4. 启动前端（端口 5273，自动代理 /api → 3000）
 npm run dev
 
 # 5. 访问 http://localhost:5173

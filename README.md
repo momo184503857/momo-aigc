@@ -36,7 +36,7 @@ npm install
 cp .env.example .env    # 改 JWT_SECRET 即可跑通（无需配置对象存储）
 
 npm run dev:server      # 后端：Express，端口 3000，热重载
-npm run dev             # 前端：Vite，端口 5173，/api 代理到 3000
+npm run dev             # 前端：Vite，端口 5273，/api 代理到 3000
 ```
 
 后端必须在运行，前端才能正常工作（Vite 将 `/api` 代理至 `http://localhost:3000`）。
@@ -53,7 +53,7 @@ npm run dev             # 前端：Vite，端口 5173，/api 代理到 3000
 
 | 命令 | 说明 |
 |------|------|
-| `npm run dev` | 前端开发服务器（Vite，5173） |
+| `npm run dev` | 前端开发服务器（Vite，5273） |
 | `npm run dev:server` | 后端开发服务器（Express，3000，tsx 热重载） |
 | `npm run build` | 前端类型检查 + 生产构建 |
 | `npm run build:server` | 编译后端 TypeScript |
