@@ -29,7 +29,7 @@ import { resolveUpstreamImageUrls } from '../utils/upstreamImages.js'
  * 主入口取渠道 base_url（DB 配置），网络层失败时按序切换下一个；
  * 跨境链路抖动时 undici 内置 10s 连接超时先于业务超时触发（fetch failed），换线路通常即可恢复。
  */
-const TOAPIS_FALLBACK_BASES = ['https://toapis.cn', 'https://toapis.com']
+const TOAPIS_FALLBACK_BASES = ['https://toapis.xyz', 'https://toapis.com']
 
 function candidateBases(primary: string | undefined): string[] {
   const list = [primary, ...TOAPIS_FALLBACK_BASES]
