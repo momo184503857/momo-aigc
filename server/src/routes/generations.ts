@@ -205,7 +205,7 @@ async function runSyncTask(taskId: number): Promise<void> {
     if (!cm || cm.p_status !== 'active' || cm.model_status !== 'active') throw new Error('渠道或模型已停用/删除')
     const adapter = getImageAdapter(cm.p_adapter)
 
-    // 同步渠道执行同样接入 Key 轮换：欠费 → 标记耗尽 → 换 Key 重试本次请求（F3）
+    // 同步渠道执行同样接入 Key 轮换：配额/欠费报错 → 仅本次请求换下一个 Key 重试，报错原样透传（F3）
     const images = await withKeyFailover(cm.p_id, 'image', (config) =>
       adapter.submitImageTask(buildImageGenRequest(task, cm), config))
     if (!images.images || images.images.length === 0) throw new Error('上游未返回任何图片')
@@ -222,9 +222,10 @@ async function runSyncTask(taskId: number): Promise<void> {
     commitImportResult(fresh, imported, rawUrls)
   } catch (e: any) {
     if (e instanceof ProviderContextError) {
-      // 无可用 Key（通常为全部耗尽/停用；含首轮渠道无 Key）
+      // 渠道配置层面无可用 Key（全部停用/未配置/历史耗尽标记）
       failTaskAndRefund(task.id, 'ALL_KEYS_EXHAUSTED', e.message)
     } else {
+      // 上游报错原样透传给用户（项目不拦截/不停用用户的 Key），任务失败 + 全额退款
       failTaskAndRefund(task.id, 'UPSTREAM_ERROR', e.message || String(e))
     }
   }
@@ -405,7 +406,7 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
     const adapter = getImageAdapter(cm.p_adapter)
     for (const t of created) {
       try {
-        // 异步提交接入 Key 轮换：欠费 → 标记耗尽 → 换 Key 重试本次请求（F3）
+        // 异步提交接入 Key 轮换：配额/欠费报错 → 仅本次请求换下一个 Key 重试，报错原样透传（F3）
         const submit = await withKeyFailover(cm.p_id, 'image', (config) =>
           adapter.submitImageTask(
             { model: cm.model_id, logicalCode: logicalCodeOf(cm), prompt: finalPrompt, negativePrompt: negativePrompt || undefined, aspectRatio: effRatio, resolution: effResolution, n: 1, imageUrls: refUrls },
@@ -415,9 +416,10 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
           .run(submit.providerTaskId ?? null, t.id)
       } catch (e: any) {
         if (e instanceof ProviderContextError) {
-          // 无可用 Key（渠道全部耗尽/停用，或首轮即无 Key）：任务失败 + 全额退款
+          // 渠道配置层面无可用 Key（全部停用/未配置/历史耗尽标记）：任务失败 + 全额退款
           failTaskAndRefund(t.id, 'ALL_KEYS_EXHAUSTED', e.message)
         } else {
+          // 上游报错原样透传给用户（项目不拦截/不停用用户的 Key），任务失败 + 全额退款
           failTaskAndRefund(t.id, 'SUBMIT_FAILED', e.message || String(e))
         }
       }

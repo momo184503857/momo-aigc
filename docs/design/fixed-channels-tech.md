@@ -148,43 +148,29 @@ export function resolveProviderContext(
 
 `ProviderRuntimeConfig`（`providers/types.ts`）增加可选字段 `keyId?: number`——适配器不感知它，仅供编排层回传标记。
 
-### 3.2 欠费判定：isKeyExhaustionError
+### 3.2 配额/欠费判定：isQuotaRotateSignal
+
+> **2026-08 修订（取代旧版 isKeyExhaustionError 与第一版 classifyUpstreamQuotaError）**：
+> 渠道为用户自配 API，项目无权因上游报错停用（拦截）用户的 Key。判定结果**只用于「本次请求」内换下一个 Key 重试**，
+> 不落库、不冷却、不影响后续请求。旧版「命中信号 → markKeyExhausted 写库」机制已整体移除。
 
 ```ts
-const EXHAUST_KEYWORDS = /余额不足|欠费|insufficient|quota|balance/i
+const QUOTA_SIGNAL_RE = /余额|欠费|欠款|balance|arrear|billing|rate.?limit|too\s+many\s+requests|请求过于频繁|访问频繁|频繁|限流|限速|每[日天小时分]|daily|per\s*(day|hour|minute)|quota|额度|配额|次数|exceeded|exhaust|用完|耗尽|上限|limit/i
 
-export function isKeyExhaustionError(e: unknown): boolean {
+export function isQuotaRotateSignal(e: unknown): boolean {
   if (!(e instanceof ProviderCallError)) return false
-  if (e.status === 402) return true                 // Payment Required：无条件视为耗尽
-  if (e.status === 400 || e.status === 403 || e.status === 429) {
-    return EXHAUST_KEYWORDS.test(e.message || '')
-  }
-  return false                                       // 401 鉴权失败 / 5xx / 网络错误：不切换
+  if (e.status === 402 || e.status === 429) return true      // 402 欠费 / 429 限流（每日额度、频率等）
+  if (e.status === 400 || e.status === 403) return QUOTA_SIGNAL_RE.test(e.message || '')
+  return false                                               // 401 鉴权失败 / 5xx / 网络错误：不轮换
 }
 ```
 
 设计要点：
 - 只认 `ProviderCallError`（所有适配器出站错误统一形态，带 HTTP status）；普通 `Error`/`ProviderContextError` 不触发。
-- 402 无条件命中（上游欠费的标准码）；400/403/429 需文案佐证（有些中转站把欠费报成 400「insufficient quota」或 429「quota exceeded」）。
-- 401 主动排除：Key 失效是另一种故障（F3 非目标），误切换会把好 Key 也绕开。
+- 402/429 无条件命中；400/403 需文案佐证（部分中转站把配额用完报成 400「insufficient quota」）。
+- 401 主动排除：Key 失效是另一种故障，误轮换会把好 Key 也绕开。
 
-### 3.3 耗尽标记：markKeyExhausted
-
-```ts
-export function markKeyExhausted(keyId: number, reason: string): boolean {
-  // 条件更新天然幂等 + 并发安全：仅 active 才置 exhausted，
-  // 双请求同时耗尽同一 Key 时第二个 UPDATE changes=0，无副作用
-  const r = db.prepare(`
-    UPDATE api_provider_keys
-    SET status = 'exhausted', exhausted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND status = 'active'
-  `).run(keyId)
-  if (r.changes > 0) log(`[key-pool] key ${keyId} exhausted: ${reason.slice(0, 200)}`)
-  return r.changes > 0
-}
-```
-
-### 3.4 切换循环：withKeyFailover
+### 3.3 轮换循环：withKeyFailover（原「耗尽标记 markKeyExhausted」已移除）
 
 ```ts
 export async function withKeyFailover<T>(
@@ -192,26 +178,33 @@ export async function withKeyFailover<T>(
   kind: 'image' | 'chat',
   fn: (ctx: ProviderRuntimeConfig) => Promise<T>,
 ): Promise<T> {
+  const tried = new Set<number>()
+  let lastQuotaError: unknown = null
   for (;;) {
-    const { config } = resolveProviderContext(providerId, kind)  // 每轮重取：上一轮已标记耗尽，本轮自然取下一个
+    let config
+    try {
+      ({ config } = resolveProviderContext(providerId, kind, { excludeKeyIds: tried }))
+    } catch (e) {
+      // 本请求已试遍全部 Key → 透传上游最后一次的原始报错（而非笼统的「无可用 Key」）
+      if (e instanceof ProviderContextError && e.code === 'ALL_TRIED' && lastQuotaError !== null) throw lastQuotaError
+      throw e
+    }
     try {
       return await fn(config)
     } catch (e) {
-      if (isKeyExhaustionError(e) && markKeyExhausted(config.keyId!, e.message)) {
-        continue                                                    // 立即用下一个 Key 重试本次请求
-      }
-      throw e                                                       // 非欠费错误 / 标记未生效：原样抛出
+      if (config.keyId === undefined || !isQuotaRotateSignal(e)) throw e
+      tried.add(config.keyId)                                // 仅本请求内跳过；不写库、不冷却
+      lastQuotaError = e
     }
   }
-  // 循环出口：resolveProviderContext 抛「该渠道没有可用 Key」
-  // → 调用方将其转译为业务错误（生图 = ALL_KEYS_EXHAUSTED）
 }
 ```
 
 性质说明：
-- **重试的是本次请求**（F3），不是排队重发；循环上限 = 渠道可用 Key 数，无指数退避（欠费不是瞬时故障）。
-- `markKeyExhausted` 返回 false（已被并发请求标记）时**仍 continue** 还是 throw？——标记失败说明该 Key 刚被别人耗尽，`resolveProviderContext` 下一轮自然取别的 Key，应 continue。实现时以 `isKeyExhaustionError(e)` 为准直接 continue，`changes=0` 只影响日志。
-- 无内存锁、无定时器：全部状态在 DB，服务重启后 exhausted 状态保留（这正是 F4 手动恢复的语义）。
+- **重试的是本次请求**（F3），不是排队重发；循环上限 = 渠道可用 Key 数，无指数退避。
+- **零写库**：任何上游报错都不改变 Key 状态。多 Key 渠道中某个 Key 长期配额不足时，后续请求仍会先试它再轮换（每次多一次上游调用的代价，换取「不拦截用户 Key」的原则）。
+- **报错透传**：试遍全部 Key 后抛出的是上游最后一次的 `ProviderCallError` 原文——生图任务失败（`UPSTREAM_ERROR`/`SUBMIT_FAILED`）+ 全额退款，用户在任务面板看到自己 API 的原始错误信息。
+- `exhausted` 状态仅为历史遗留（服务端不再写入）；管理端「重新启用」保留用于清理存量。
 
 ### 3.5 admin 侧：getFirstApiKey
 

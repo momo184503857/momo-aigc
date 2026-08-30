@@ -229,7 +229,12 @@ export interface ResolvedProviderContext {
 }
 
 export class ProviderContextError extends Error {
-  constructor(message: string, public readonly status: number = 400) {
+  /** NO_KEY=渠道无可用 Key（全部停用/未配置/历史耗尽标记）；ALL_TRIED=本轮请求已试遍全部 Key（内部控制流信号） */
+  constructor(
+    message: string,
+    public readonly status: number = 400,
+    public readonly code: 'NO_KEY' | 'ALL_TRIED' = 'NO_KEY',
+  ) {
     super(message)
     this.name = 'ProviderContextError'
   }
@@ -237,22 +242,33 @@ export class ProviderContextError extends Error {
 
 /**
  * 解析渠道运行时配置：校验渠道状态，按 `priority ASC, id ASC` 取第一个可用 Key
- * （明文存储，见 resolveKeyPlain）。config.keyId 供欠费切换路径标记耗尽用。
+ * （明文存储，见 resolveKeyPlain）。
+ *
+ * opts.excludeKeyIds 仅供 withKeyFailover 的轮换使用（跳过本次请求已试过的 Key）；
+ * 轮询/转存等直连路径不传 opts，行为保持「取优先级最高的 active Key」。
  */
-export function resolveProviderContext(providerId: number, kind: 'image' | 'chat' = 'image'): ResolvedProviderContext {
+export function resolveProviderContext(
+  providerId: number,
+  kind: 'image' | 'chat' = 'image',
+  opts: { excludeKeyIds?: ReadonlySet<number> } = {},
+): ResolvedProviderContext {
   const provider = db.prepare(`
     SELECT id, code, name, base_url, adapter, status FROM api_providers WHERE id = ?
   `).get(providerId) as ProviderRow | undefined
   if (!provider) throw new ProviderContextError('渠道不存在', 404)
   if (provider.status !== 'active') throw new ProviderContextError('渠道已停用', 400)
 
-  const keyRow = db.prepare(`
+  const keyRows = db.prepare(`
     SELECT id AS key_id, encrypted_key, key_iv, key_tag FROM api_provider_keys
     WHERE provider_id = ? AND status = 'active'
     ORDER BY priority ASC, id ASC
-    LIMIT 1
-  `).get(providerId) as { key_id: number; encrypted_key: string; key_iv: string; key_tag: string } | undefined
-  if (!keyRow) throw new ProviderContextError('该渠道没有可用 Key（可能所有 Key 已耗尽或停用）', 400)
+  `).all(providerId) as Array<{ key_id: number; encrypted_key: string; key_iv: string; key_tag: string }>
+  if (keyRows.length === 0) {
+    throw new ProviderContextError('该渠道没有可用 Key（可能所有 Key 已停用，或为历史遗留的耗尽标记，请在 Key 管理中重新启用）', 400)
+  }
+
+  const keyRow = keyRows.find((k) => !opts.excludeKeyIds?.has(k.key_id))
+  if (!keyRow) throw new ProviderContextError('本轮请求已试遍该渠道全部可用 Key', 400, 'ALL_TRIED')
 
   let apiKey: string
   try {
@@ -275,62 +291,64 @@ export function resolveProviderContext(providerId: number, kind: 'image' | 'chat
   }
 }
 
-// ── Key 欠费自动切换（F3：欠费判定 → 标记耗尽 → 换 Key 重试本次请求）──
-
-const EXHAUST_KEYWORDS = /余额不足|欠费|insufficient|quota|balance/i
+// ── Key 轮换（仅“本次请求”内换 Key 重试；项目无权因上游报错停用/拦截用户的 Key）──
 
 /**
- * 欠费信号判定：HTTP 402 无条件视为耗尽；400/403/429 需错误文案佐证
- * （部分中转站把欠费报成 400「insufficient quota」或 429「quota exceeded」）。
- * 401（Key 失效）/ 5xx / 网络错误不切换——避免把临时性故障误判为永久耗尽。
+ * 配额/欠费类错误判定：仅用于决定**本次请求**是否换下一个 Key 重试。
+ *
+ * 判定结果不落库、不冷却、不限制后续请求——每个新请求始终从优先级最高的可用 Key 开始。
+ * 渠道只有一个 Key 时轮换自然退化为：把上游原始报错透传给用户（任务失败 + 全额退款），
+ * 由用户根据报错自行处理（等额度恢复 / 充值 / 换 Key）。
+ *
+ * 信号（状态码为主，400/403 需文案佐证）：
+ * - HTTP 402（欠费）/ 429（限流：每日额度、频率限制等）；
+ * - 400/403 且文案含 余额/欠费/quota/额度/次数/rate limit/频繁/用完 等
+ *   （部分中转站把配额用完报成 400「insufficient quota」）。
+ * 401（Key 失效）/ 5xx / 网络错误不轮换——换 Key 大概率无济于事，避免误判。
  */
-export function isKeyExhaustionError(e: unknown): boolean {
+const QUOTA_SIGNAL_RE = /余额|欠费|欠款|balance|arrear|billing|rate.?limit|too\s+many\s+requests|请求过于频繁|访问频繁|频繁|限流|限速|每[日天小时分]|daily|per\s*(day|hour|minute)|quota|额度|配额|次数|exceeded|exhaust|用完|耗尽|上限|limit/i
+
+export function isQuotaRotateSignal(e: unknown): boolean {
   if (!(e instanceof ProviderCallError)) return false
-  if (e.status === 402) return true
-  if (e.status === 400 || e.status === 403 || e.status === 429) {
-    return EXHAUST_KEYWORDS.test(e.message || '')
-  }
+  if (e.status === 402 || e.status === 429) return true
+  if (e.status === 400 || e.status === 403) return QUOTA_SIGNAL_RE.test(e.message || '')
   return false
 }
 
 /**
- * 标记 Key 耗尽（仅服务端欠费切换路径写入）。条件更新天然幂等 + 并发安全：
- * 多请求同时耗尽同一 Key 时，仅第一个 UPDATE 生效（changes=1），后续 changes=0 无副作用。
- */
-export function markKeyExhausted(keyId: number, reason: string): boolean {
-  const r = db.prepare(`
-    UPDATE api_provider_keys
-    SET status = 'exhausted', exhausted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND status = 'active'
-  `).run(keyId)
-  if (r.changes > 0) {
-    console.log(`[key-pool] key ${keyId} exhausted: ${reason.slice(0, 200)}`)
-  }
-  return r.changes > 0
-}
-
-/**
- * 带 Key 轮换的调用包装：命中欠费信号 → 标记当前 Key 耗尽 → 立即取下一个可用 Key
- * 重试**本次请求**（无退避；循环上限 = 渠道可用 Key 数）。非欠费错误原样抛出；
- * 渠道无可用 Key 时由 resolveProviderContext 抛 ProviderContextError（调用方转译为
- * 业务错误，生图 = ALL_KEYS_EXHAUSTED）。
+ * 带 Key 轮换的调用包装：命中配额/欠费信号 → **仅本次请求**换下一个可用 Key 重试
+ * （无退避；循环上限 = 渠道可用 Key 数）。不写库、不停用、不冷却任何 Key。
+ *
+ * 试遍全部 Key 仍失败时，把**上游最后一次的原始报错**原样抛给调用方（而非笼统的
+ * 「无可用 Key」）——用户看到的就是自己 API 返回的错误信息。非配额类错误原样抛出；
+ * 渠道本就没有可用 Key 时由 resolveProviderContext 抛 ProviderContextError（NO_KEY，
+ * 生图转译为 ALL_KEYS_EXHAUSTED）。
  */
 export async function withKeyFailover<T>(
   providerId: number,
   kind: 'image' | 'chat',
   fn: (ctx: ProviderRuntimeConfig) => Promise<T>,
 ): Promise<T> {
+  const tried = new Set<number>()
+  let lastQuotaError: unknown = null
   for (;;) {
-    const { config } = resolveProviderContext(providerId, kind) // 每轮重取：上一轮已标记耗尽，本轮自然取下一个
+    let config: ProviderRuntimeConfig
+    try {
+      ({ config } = resolveProviderContext(providerId, kind, { excludeKeyIds: tried }))
+    } catch (e) {
+      // 本请求已试遍全部 Key → 透传上游最后一次的原始报错；首轮即无 Key 则抛配置错误
+      if (e instanceof ProviderContextError && e.code === 'ALL_TRIED' && lastQuotaError !== null) {
+        throw lastQuotaError
+      }
+      throw e
+    }
     try {
       return await fn(config)
     } catch (e) {
-      if (isKeyExhaustionError(e)) {
-        // 标记失败（已被并发请求标记）也无妨：下一轮 resolve 自然取别的 Key
-        if (config.keyId !== undefined) markKeyExhausted(config.keyId, (e as Error).message)
-        continue
-      }
-      throw e
+      if (config.keyId === undefined || !isQuotaRotateSignal(e)) throw e
+      tried.add(config.keyId)
+      lastQuotaError = e
+      // continue：本轮换下一个 Key 重试（单 Key 渠道下一轮即透传本错误）
     }
   }
 }

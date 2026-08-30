@@ -15,7 +15,7 @@ export interface ProviderRuntimeConfig {
   name: string
   baseUrl: string
   apiKey: string
-  /** 本次调用选中的 api_provider_keys.id，仅供编排层回传标记（欠费切换耗尽该 Key），适配器不感知 */
+  /** 本次调用选中的 api_provider_keys.id，仅供编排层做“本次请求”内换 Key 轮换，适配器不感知 */
   keyId?: number
   /** 同一渠道配置可同时用于识图与生图时，标记本次调用职责 */
   providerTaskKind?: 'image' | 'chat'

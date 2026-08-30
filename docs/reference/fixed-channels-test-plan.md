@@ -50,34 +50,39 @@
 
 ## 3. 测试分层与用例
 
-### 3.1 单元测试（`isKeyExhaustionError` / `markKeyExhausted` / `withKeyFailover`）
+### 3.1 单元测试（`isQuotaRotateSignal` / `withKeyFailover`）
 
 以临时 tsx 脚本或正式单测文件执行（不留业务副作用，DB 用例走事务回滚）。
 
-**U-01 判定真值表**（`isKeyExhaustionError`）：
+**U-01 判定真值表**（`isQuotaRotateSignal`；2026-08 修订：命中仅表示「本次请求换下一个 Key 重试」，**不写库、不停用**；不命中 → 原样抛出）：
 
 | 输入 | 预期 |
 |------|------|
-| `ProviderCallError(任何消息, 402)` | true |
-| `ProviderCallError('余额不足', 400)` | true |
-| `ProviderCallError('Insufficient quota', 429)` | true |
-| `ProviderCallError('your balance is not enough', 403)` | true |
+| `ProviderCallError(任何消息, 402)` | true（欠费） |
+| `ProviderCallError('You exceeded your current quota', 429)` | true（免费 API 每日限额） |
+| `ProviderCallError('今日额度已用完', 429)` | true |
+| `ProviderCallError('rate limit reached', 429)` | true |
+| `ProviderCallError('Insufficient quota', 400)` | true（文案佐证） |
+| `ProviderCallError('余额不足，请充值', 403)` | true（文案佐证） |
 | `ProviderCallError('Invalid key', 401)` | **false** |
 | `ProviderCallError('upstream error', 500)` | false |
 | `ProviderCallError('余额不足', 500)` | **false**（状态码不在白名单，文案不算数） |
+| `ProviderCallError('invalid request body', 400)` | false（400 且无限流/欠费文案） |
 | `new Error('余额不足')`（非 ProviderCallError） | false |
 | `ProviderContextError(...)` | false |
 
-**U-02 markKeyExhausted**：active Key → 置 exhausted 且 `exhausted_at` 非空；对已 exhausted 的 Key 重复调用 → changes=0、时间戳不变（幂等）。
+**U-02（已移除）**：markKeyExhausted 随「自动标记耗尽」机制一并移除（2026-08：项目无权停用用户 Key，任何上游报错零写库）。
 
 **U-03 withKeyFailover**（fn 为注入的 stub）：
 
 | 场景 | stub 行为 | 预期 |
 |------|----------|------|
 | a. 一次成功 | 第一轮即返回 | 不标记任何 Key；返回值透传 |
-| b. 切换后成功 | key1 抛 402，key2 成功 | key1 → exhausted；fn 收到 key2 的 config；调用方拿到成功结果 |
-| c. 全部耗尽 | 所有 Key 均抛 402 | 全部 → exhausted；最终抛 `ProviderContextError`（无可用 Key） |
-| d. 非欠费不切换 | key1 抛 401 | key1 状态仍 active；原错误透传给调用方 |
+| b. 轮换后成功 | key1 抛 402/429 配额类错误，key2 成功 | fn 收到 key2 的 config；调用方拿到成功结果；**两个 Key 状态均不变（零写库）** |
+| b2. 轮换不留痕 | 承接 b，紧接着发起全新请求 | 仍从 key1 开始（无冷却、无排除——项目不拦截用户 Key） |
+| c. 单 Key 报错透传 | 单 Key 渠道抛 429「You exceeded your current quota」 | 原样抛出该 `ProviderCallError`（消息逐字透传，生图=UPSTREAM_ERROR+全额退款）；Key 仍 active，额度恢复后无需操作即可再用 |
+| c2. 多 Key 全部报错 | 所有 Key 均抛 402「余额不足」 | 全部 Key 状态不变；抛出**最后一次**上游原始报错（非「无可用 Key」笼统文案） |
+| d. 非配额错误不轮换 | key1 抛 401 | 原错误透传给调用方，不尝试 key2 |
 | e. 并发耗尽 | 两协程同时以 key1 抛 402 | 仅一次 UPDATE 生效（exhausted_at 唯一）；两协程均在 key2 成功 |
 
 **U-04 优先级选取**：同渠道插入 priority 2(id 小)/1(id 大)/1(id 小)/disabled(0) 四个 Key → 选取序为 `1(id 小) → 1(id 大) → 2`，disabled 永不被选。

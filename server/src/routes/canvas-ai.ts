@@ -8,7 +8,7 @@ import { withKeyFailover, ProviderContextError } from '../utils/channelModel.js'
  * 画布文字 AI 节点代理（ai-provider §8 文字模型迁移；fixed-channels 后仅平台渠道）。
  *
  * 请求体携带 channelModelId（渠道模型），服务端按渠道模型解析渠道 → 适配器 chat()。
- * chat 调用接入 Key 轮换：欠费 → 标记耗尽 → 换 Key 重试本次请求（F3）。
+ * chat 调用接入 Key 轮换：配额/欠费报错 → 仅本次请求换下一个 Key 重试（不停用任何 Key，F3）。
  * 兼容旧画布存量节点：仅传模型名字符串时，按「渠道模型名全局查一次」兜底。
  * 计费维持现状（不计积分）。
  */

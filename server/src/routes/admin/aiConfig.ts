@@ -30,7 +30,7 @@ function validateOverridesAgainstLogical(logicalModelId: number | null | undefin
 //  关系：api_providers 1─N ai_models、api_providers 1─N api_provider_keys。
 //  全部为平台渠道（fixed-channels：用户自建渠道已下线）。
 //  Key 池：一渠道多 Key，正整数优先级小者优先（priority ASC, id ASC 取第一个可用）；
-//  状态 active/disabled/exhausted，耗尽由服务端欠费切换写入、仅管理员可重新启用。
+//  状态 active/disabled/exhausted。exhausted 仅为历史遗留状态（服务端已不再自动写入，项目无权停用用户 Key），仅可通过 active 重新启用。
 //  Key 明文存储（key_iv 置空），接口回传完整 Key 供后台查看/复制。
 //  实际调用走 providers/ 适配器层，与协议细节解耦。
 // ────────────────────────────────────────────────────────────
