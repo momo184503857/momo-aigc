@@ -33,9 +33,8 @@ function rowsOf(pricing: Record<string, number> | null, resolutions: string[]): 
     <template #header><h2>计费说明</h2></template>
 
     <p class="desc">
-      本平台以「积分」计费，<b>1 积分 = ¥0.035</b>。模型按「渠道 × 模型 × 分辨率」定价，
-      同一模型在不同渠道价格可能不同；扣费以积分为准（括号内为折合人民币）。
-      价格由管理后台统一配置，如下表实时生效。
+      本平台以「积分」计费，<b>1 积分 = ¥1</b>。模型按「渠道 × 模型 × 分辨率」定价，
+      同一模型在不同渠道价格可能不同。价格由管理后台统一配置，如下表实时生效。
     </p>
 
     <div v-if="!modelCatalog.loaded" v-loading="true" class="loading-block" />

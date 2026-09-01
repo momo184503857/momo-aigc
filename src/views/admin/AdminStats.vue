@@ -192,14 +192,14 @@ onMounted(() => loadAll())
         </el-table-column>
         <el-table-column label="积分" width="170">
           <template #default="{ row }">
-            <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'inherit' }">{{ formatCredits(row.points, { creditDigits: 0, yuanDigits: 2 }) }}</span>
+            <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'inherit' }">{{ formatCredits(row.points, { creditDigits: 2 }) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="提交" prop="submitted_count" sortable width="80" />
         <el-table-column label="成功" prop="completed_count" sortable width="80" />
         <el-table-column label="失败" prop="failed_count" sortable width="80" />
         <el-table-column label="积分消耗" sortable width="170">
-          <template #default="{ row }">{{ formatCredits(row.total_cost, { creditDigits: 0, yuanDigits: 2 }) }}</template>
+          <template #default="{ row }">{{ formatCredits(row.total_cost, { creditDigits: 2 }) }}</template>
         </el-table-column>
         <el-table-column label="最近提交" width="140">
           <template #default="{ row }">{{ toBJMinute(row.last_submitted_at) }}</template>

@@ -63,7 +63,7 @@ onMounted(async () => {
             <el-icon size="18" color="var(--el-color-warning)"><Coin /></el-icon>
             <span>平台积分余额</span>
           </div>
-          <div v-if="quota" class="qc-value">{{ formatCredits(quota.platform.credits, { creditDigits: 0, yuanDigits: 2 }) }}</div>
+          <div v-if="quota" class="qc-value">{{ formatCredits(quota.platform.credits, { creditDigits: 2 }) }}</div>
           <div class="qc-hint">模型生图消耗此余额；生成失败自动全额退款</div>
         </div>
       </div>
@@ -77,12 +77,12 @@ onMounted(async () => {
           <el-table-column label="变动" width="180">
             <template #default="{ row }">
               <span :style="{ color: row.amount >= 0 ? 'var(--el-color-success)' : 'var(--el-color-danger)', fontWeight: 600 }">
-                {{ row.amount >= 0 ? '+' : '' }}{{ formatCredits(row.amount, { creditsOnly: true }) }}
+                {{ row.amount >= 0 ? '+' : '' }}{{ formatCredits(row.amount, { creditDigits: 2 }) }}
               </span>
             </template>
           </el-table-column>
           <el-table-column label="变动后余额" width="180">
-            <template #default="{ row }">{{ formatCredits(row.balance_after, { creditDigits: 0, yuanDigits: 2 }) }}</template>
+            <template #default="{ row }">{{ formatCredits(row.balance_after, { creditDigits: 2 }) }}</template>
           </el-table-column>
           <el-table-column label="说明">
             <template #default="{ row }">{{ reasonLabel[row.reason] || row.reason }}{{ row.note ? ' · ' + row.note : '' }}</template>

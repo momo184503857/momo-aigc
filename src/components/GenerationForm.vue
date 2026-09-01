@@ -115,7 +115,7 @@ const maxReferenceImages = computed(() => selectedModel.value?.capabilities?.max
 const maxPromptChars = computed(() => selectedModel.value?.capabilities?.maxPromptChars ?? 32000)
 const promptExceeded = computed(() => prompt.value.length > maxPromptChars.value)
 const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value))
-/** 按钮文案：显示本次预计消耗（积分+¥，×张数） */
+/** 按钮文案：显示本次预计消耗（积分，×张数） */
 const generateButtonLabel = computed(() => {
   return `生成图片 · ${formatCredits((currentPrice.value ?? 0) * count.value)}`
 })

@@ -5,7 +5,7 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import PageLayout from '@/components/PageLayout.vue'
-import { formatCredits, creditsToYuan } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 const modelCatalog = useModelCatalogStore()
@@ -179,24 +179,24 @@ const trendOption = computed(() => {
     axisLine: { lineStyle: { color: CHART_NEUTRALS.axisLine } },
   }
 
-  // 金额：消耗金额（¥）随时间
+  // 金额：消耗积分随时间
   if (statsMetric.value === 'cost') {
     return {
       color: [CHART_COLORS.orange],
       tooltip: { ...tooltipBase, formatter: (p: any) => {
         const credits = dailyStats.value[p[0].dataIndex]?.total_cost ?? 0
-        return `${p[0].axisValue}<br/>消耗 ${formatCredits(credits, { creditDigits: 1, yuanDigits: 2 })}`
+        return `${p[0].axisValue}<br/>消耗 ${formatCredits(credits, { creditDigits: 2 })}`
       } },
       grid,
       xAxis,
       yAxis: {
         type: 'value' as const,
-        axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: CHART_NEUTRALS.textTertiary },
+        axisLabel: { formatter: (v: number) => `${v}`, color: CHART_NEUTRALS.textTertiary },
         splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
       },
       series: [{
         name: '消耗金额', type: 'line',
-        data: dailyStats.value.map(d => creditsToYuan(d.total_cost)),
+        data: dailyStats.value.map(d => d.total_cost),
         smooth: true, symbol: 'circle', symbolSize: 6,
         lineStyle: { width: 3, shadowBlur: 8, shadowColor: withAlpha(CHART_COLORS.orange, 0.3) },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
@@ -285,14 +285,14 @@ const barOption = computed(() => {
   const grid = { left: '3%', right: '4%', bottom: '40px', top: '10px', containLabel: true }
   const axisLine = { lineStyle: { color: CHART_NEUTRALS.axisLine } }
 
-  // 金额：每个用户的消耗金额（¥），按消耗降序
+  // 金额：每个用户的消耗积分，按消耗降序
   if (statsMetric.value === 'cost') {
     const sorted = [...stats.value].sort((a, b) => b.total_cost - a.total_cost)
     return {
       color: [CHART_COLORS.orange],
       tooltip: { ...tooltipBase, formatter: (p: any) => {
         const credits = sorted[p[0].dataIndex]?.total_cost ?? 0
-        return `${p[0].name}<br/>消耗 ${formatCredits(credits, { creditDigits: 1, yuanDigits: 2 })}`
+        return `${p[0].name}<br/>消耗 ${formatCredits(credits, { creditDigits: 2 })}`
       } },
       grid,
       xAxis: {
@@ -301,12 +301,12 @@ const barOption = computed(() => {
       },
       yAxis: {
         type: 'value' as const,
-        axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: CHART_NEUTRALS.textTertiary },
+        axisLabel: { formatter: (v: number) => `${v}`, color: CHART_NEUTRALS.textTertiary },
         splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
       },
       series: [{
         name: '消耗金额', type: 'bar',
-        data: sorted.map(s => creditsToYuan(s.total_cost)),
+        data: sorted.map(s => s.total_cost),
         barWidth: '50%',
         itemStyle: { borderRadius: [4, 4, 0, 0] },
         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.15)' } },
@@ -468,13 +468,13 @@ onMounted(async () => {
           <el-table-column label="积分变动" width="120">
             <template #default="{ row }">
               <span :style="{ color: row.amount >= 0 ? 'var(--el-color-success)' : 'var(--el-color-danger)', fontWeight: 600 }">
-                {{ row.amount >= 0 ? '+' : '' }}{{ formatCredits(row.amount, { creditsOnly: true }) }}
+                {{ row.amount >= 0 ? '+' : '' }}{{ formatCredits(row.amount, { creditDigits: 2 }) }}
               </span>
             </template>
           </el-table-column>
           <el-table-column label="余额" width="150">
             <template #default="{ row }">
-              {{ row.balance_after == null ? '—' : formatCredits(row.balance_after, { creditDigits: 0, yuanDigits: 2 }) }}
+              {{ row.balance_after == null ? '—' : formatCredits(row.balance_after, { creditDigits: 2 }) }}
             </template>
           </el-table-column>
           <el-table-column label="操作人" width="100">
@@ -569,7 +569,7 @@ onMounted(async () => {
                   </div>
                   <div class="kpi-item">
                     <span class="kpi-label">积分消耗</span>
-                    <span class="kpi-value">{{ formatCredits(summary.total_points_consumed, { creditDigits: 0, yuanDigits: 2 }) }}</span>
+                    <span class="kpi-value">{{ formatCredits(summary.total_points_consumed, { creditDigits: 2 }) }}</span>
                   </div>
                 </div>
               </div>
@@ -593,13 +593,13 @@ onMounted(async () => {
                 </template>
               </el-table-column>
               <el-table-column label="积分" width="170">
-                <template #default="{ row }"><span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'inherit' }">{{ formatCredits(row.points, { creditDigits: 0, yuanDigits: 2 }) }}</span></template>
+                <template #default="{ row }"><span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'inherit' }">{{ formatCredits(row.points, { creditDigits: 2 }) }}</span></template>
               </el-table-column>
               <el-table-column label="提交" prop="submitted_count" sortable width="80" />
               <el-table-column label="成功" prop="completed_count" sortable width="80" />
               <el-table-column label="失败" prop="failed_count" sortable width="80" />
               <el-table-column label="积分消耗" sortable width="170">
-                <template #default="{ row }">{{ formatCredits(row.total_cost, { creditDigits: 0, yuanDigits: 2 }) }}</template>
+                <template #default="{ row }">{{ formatCredits(row.total_cost, { creditDigits: 2 }) }}</template>
               </el-table-column>
               <el-table-column label="最近提交" width="140">
                 <template #default="{ row }">{{ toBJMinute(row.last_submitted_at) }}</template>

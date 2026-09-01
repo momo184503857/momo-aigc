@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { toBJDate } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { pointsApi } from '@/services/pointsApi'
-import { formatCredits, creditsToYuan } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
 import PageLayout from '@/components/PageLayout.vue'
 import { CHART_COLORS, CHART_NEUTRALS, withAlpha } from '@/plugins/echartsPalette'
 
@@ -72,7 +72,7 @@ function makeTrendOption(hex: string, field: 'spent' | 'recharged', name: string
       textStyle: { color: CHART_NEUTRALS.textPrimary, fontSize: 13 },
       formatter: (p: any) => {
         const credits = daily.value[p[0].dataIndex]?.[field] ?? 0
-        return `${p[0].axisValue}<br/>${name} ${formatCredits(credits, { creditDigits: 1, yuanDigits: 2 })}`
+        return `${p[0].axisValue}<br/>${name} ${formatCredits(credits, { creditDigits: 2 })}`
       },
     },
     grid: { left: '3%', right: '4%', bottom: '40px', top: '20px', containLabel: true },
@@ -84,12 +84,12 @@ function makeTrendOption(hex: string, field: 'spent' | 'recharged', name: string
     },
     yAxis: {
       type: 'value' as const,
-      axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: CHART_NEUTRALS.textTertiary },
+      axisLabel: { formatter: (v: number) => `${v}`, color: CHART_NEUTRALS.textTertiary },
       splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
     },
     series: [{
       name, type: 'line',
-      data: daily.value.map(d => creditsToYuan(d[field])),
+      data: daily.value.map(d => d[field]),
       smooth: true, symbol: 'circle', symbolSize: 6,
       lineStyle: { width: 3, shadowBlur: 8, shadowColor: withAlpha(hex, 0.3) },
       areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
@@ -111,7 +111,7 @@ const consumptionOption = computed(() => ({
       if (!row) return ''
       const lines = params.map((s: any) => {
         const credits = s.seriesName === '平台 Key' ? row.spent : row.personal
-        return `${s.marker}${s.seriesName}：${formatCredits(credits, { creditDigits: 1, yuanDigits: 2 })}`
+        return `${s.marker}${s.seriesName}：${formatCredits(credits, { creditDigits: 2 })}`
       })
       return `${params[0].axisValue}<br/>${lines.join('<br/>')}`
     },
@@ -126,13 +126,13 @@ const consumptionOption = computed(() => ({
   },
   yAxis: {
     type: 'value' as const,
-    axisLabel: { formatter: (v: number) => `¥${v.toFixed(0)}`, color: CHART_NEUTRALS.textTertiary },
+    axisLabel: { formatter: (v: number) => `${v}`, color: CHART_NEUTRALS.textTertiary },
     splitLine: { lineStyle: { color: CHART_NEUTRALS.splitLine } },
   },
   series: [
     {
       name: '平台 Key', type: 'line',
-      data: daily.value.map(d => creditsToYuan(d.spent)),
+      data: daily.value.map(d => d.spent),
       smooth: true, symbol: 'circle', symbolSize: 6,
       lineStyle: { width: 3 },
       areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
@@ -140,7 +140,7 @@ const consumptionOption = computed(() => ({
     },
     {
       name: '个人 Key', type: 'line',
-      data: daily.value.map(d => creditsToYuan(d.personal)),
+      data: daily.value.map(d => d.personal),
       smooth: true, symbol: 'circle', symbolSize: 6,
       lineStyle: { width: 3 },
       areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
@@ -171,15 +171,15 @@ onMounted(() => {
     <div class="kpi-row">
       <div class="kpi-card primary">
         <div class="kpi-label">当前余额</div>
-        <div class="kpi-value">{{ formatCredits(summary.balance, { creditDigits: 0, yuanDigits: 2 }) }}</div>
+        <div class="kpi-value">{{ formatCredits(summary.balance, { creditDigits: 2 }) }}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">累计消费</div>
-        <div class="kpi-value">{{ formatCredits(summary.total_consumed, { creditDigits: 0, yuanDigits: 2 }) }}</div>
+        <div class="kpi-value">{{ formatCredits(summary.total_consumed, { creditDigits: 2 }) }}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">累计充值</div>
-        <div class="kpi-value">{{ formatCredits(summary.total_recharged, { creditDigits: 0, yuanDigits: 2 }) }}</div>
+        <div class="kpi-value">{{ formatCredits(summary.total_recharged, { creditDigits: 2 }) }}</div>
       </div>
     </div>
 
@@ -224,21 +224,21 @@ onMounted(() => {
         <el-table-column label="平台消耗" min-width="200">
           <template #default="{ row }">
             <span style="color: var(--el-color-danger); font-weight: 600">
-              {{ formatCredits(row.spent, { creditDigits: 1, yuanDigits: 2 }) }}
+              {{ formatCredits(row.spent, { creditDigits: 2 }) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="个人消耗" min-width="200">
           <template #default="{ row }">
             <span style="color: var(--el-color-primary); font-weight: 600">
-              {{ formatCredits(row.personal, { creditDigits: 1, yuanDigits: 2 }) }}
+              {{ formatCredits(row.personal, { creditDigits: 2 }) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="充值" min-width="200">
           <template #default="{ row }">
             <span style="color: var(--el-color-success); font-weight: 600">
-              {{ formatCredits(row.recharged, { creditDigits: 1, yuanDigits: 2 }) }}
+              {{ formatCredits(row.recharged, { creditDigits: 2 }) }}
             </span>
           </template>
         </el-table-column>

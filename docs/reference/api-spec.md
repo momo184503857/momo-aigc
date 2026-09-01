@@ -269,7 +269,7 @@ JWT 无状态登出，客户端删除 token 即可。Response：`{ success: true
 
 ## 积分与 Key 计费体系
 
-> 计费主单位为「新积分」，`1 新积分 = ¥0.035`。详见 `docs/requirements/billing.md`。
+> 计费主单位为「新积分」，`1 积分 = ¥1`（2026-09-01 起；历史 ¥0.035 已由 migration_credits_v2 换算）。详见 `docs/requirements/billing.md`。
 
 ### 用户个人 Key `/api/me/toapis`（已下线）
 
@@ -278,7 +278,7 @@ fixed-channels 重构后整组端点删除（`/api/me/toapis/key-config|key|key-
 ### 我的额度 `GET /api/me/quota`（任意登录用户）
 
 聚合返回：`{ platform: { credits, yuan }, recentTransactions: [...最近10条] }`。
-- `platform`：平台积分余额，`yuan = credits × 0.035`。
+- `platform`：平台积分余额，`yuan = credits`（1:1 恒等换算，字段保留兼容）。
 - 旧 `personalKeyCredits` 字段已随个人渠道下线移除。
 
 ### 健康状态 `GET /api/toapis/health`（任意登录用户）

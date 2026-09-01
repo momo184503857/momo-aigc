@@ -91,9 +91,9 @@ const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
   return modelCatalog.aspectRatiosFor(selectedModel.value, resolution.value)
 })
-/** 展示用单价（积分+¥/张） */
+/** 展示用单价（积分/张） */
 const currentPrice = computed(() => modelCatalog.priceFor(selectedModel.value, resolution.value))
-/** 按钮文案：显示本次预计消耗（积分+¥，×张数） */
+/** 按钮文案：显示本次预计消耗（积分，×张数） */
 const generateButtonLabel = computed(() => {
   return `生成图片 · ${formatCredits((currentPrice.value ?? 0) * count.value)}`
 })

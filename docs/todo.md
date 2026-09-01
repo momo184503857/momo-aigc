@@ -56,7 +56,7 @@
 
 ### Key 的「积分」数据源 **[已解决·留档]**
 
-`server/src/utils/credits.ts` 的 `fetchKeyCredits(apiKey)` 直接返回 ToAPIs token-balance 接口（`GET /v1/balance`）的 `credits`（remain_credits）字段作为 Key 的「积分」；「余额」= 积分 × 0.035。原先误以为需要单独的「获取新积分接口」并做了 `credits=null` 占位，现已修正为真实值。规则：**不**用 `remain_balance`、**绝不** ÷0.035 反推（积分是源，余额是派生）。
+`server/src/utils/credits.ts` 的 `fetchKeyCredits(apiKey)` 直接返回 ToAPIs token-balance 接口（`GET /v1/balance`）的 `credits`（remain_credits）字段作为 Key 的「积分」；「余额」= 积分 × 0.035（历史口径；2026-09-01 起平台积分已 1:1 化，见 billing.md）。原先误以为需要单独的「获取新积分接口」并做了 `credits=null` 占位，现已修正为真实值。规则：**不**用 `remain_balance`、**绝不** ÷0.035 反推（积分是源，余额是派生）。
 
 ### 计费失败退款 / 扣费时序 **[已解决·留档]**
 

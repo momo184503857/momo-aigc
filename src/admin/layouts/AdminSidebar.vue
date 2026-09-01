@@ -44,7 +44,7 @@ const menuItems: MenuItem[] = [
   { path: '/admin/ai-config', title: '配置', icon: Setting },
 ]
 
-const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0, { creditDigits: 0, yuanDigits: 2 }))
+const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0, { creditDigits: 0 }))
 
 function isActive(path: string): boolean {
   return route.path === path || route.path.startsWith(path + '/')

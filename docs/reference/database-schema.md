@@ -21,7 +21,7 @@
 | nickname | TEXT | 可修改的展示名；展示优先级 nickname > username > email |
 | role | VARCHAR(20) DEFAULT 'user' | `admin` / `user` |
 | status | VARCHAR(20) DEFAULT 'active' | `active` / `disabled` |
-| points | REAL DEFAULT 0 | 新积分余额，1 新积分 = ¥0.035 |
+| points | REAL DEFAULT 0 | 新积分余额，1 积分 = ¥1 |
 | tags | TEXT DEFAULT '[]' | 用户标签 JSON 数组（历史字段，标签映射另见 `user_tag_mappings`） |
 | last_login_at | TIMESTAMP NULL | UTC |
 | created_at | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | UTC |
@@ -418,11 +418,11 @@ AI摄影任务写入 `generation_tasks` 表，字段使用方式：
 
 用户自带的 ToAPIs 个人 Key 表已随 fixed-channels 重构（T7.5）删除：渠道收敛为管理员配置的平台渠道，个人 Key 体系整体退役。历史结构见 git 记录（AES-256-GCM 加密存储、每用户一行）。
 
-### users.points（语义：新积分）
+### users.points（语义：新积分，1 积分 = ¥1）
 
-`points`（REAL，默认 0）为用户**新积分**余额。`1 新积分 = ¥0.035`。
+`points`（REAL，默认 0）为用户**新积分**余额。`1 积分 = ¥1`（2026-09-01 起）。
 
-**历史迁移**：曾以「元（人民币）」为存储单位；一次性幂等迁移 `system_config.migration_credits_v1` 已将 `users.points`、`generation_tasks.{points_cost, points_balance_after}`、`points_transactions.{amount, balance_after}` 全部 `×(200/7)` 转为新积分（启动时执行，标志位守卫，已 done 则跳过）。`toapis_balance_history.balance`（ToAPIs CNY 快照）不迁移。
+**历史迁移**：①曾以「元（人民币）」为存储单位，`system_config.migration_credits_v1`（`×200/7`）转为旧积分（¥0.035/积分）；②2026-09-01 汇率 1:1 化，`system_config.migration_credits_v2`（`×0.035`，迁移前 `VACUUM INTO` 自动备份）将 `users.points`、`generation_tasks.{points_cost, points_balance_after}`、`points_transactions.{amount, balance_after}`、`ai_models.pricing`（逐行 JSON）全部换算，价值不变。两者均为启动时幂等迁移（标志位守卫，已 done 则跳过）。`toapis_balance_history.balance`（ToAPIs CNY 快照）不迁移。
 
 ### points_transactions
 

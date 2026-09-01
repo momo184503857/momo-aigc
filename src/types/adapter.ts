@@ -8,30 +8,23 @@
 /** 任务/作品里保存的模型名快照（渠道模型名字符串） */
 export type ModelId = string
 
-// ── 新积分展示格式化（所有展示点统一调用，禁止手写 ×0.035）──
-export const YUAN_PER_CREDIT = 0.035
+// ── 积分展示格式化（所有展示点统一调用，禁止散写换算）──
+// 2026-09-01 起汇率 1:1（1 积分 = ¥1），积分与人民币数值恒等，
+// 界面收敛为积分单显（不再双显 ¥ 括号）；存量金额已由后端 migration_credits_v2 换算。
+export const YUAN_PER_CREDIT = 1
 
-/** 新积分 → 元（保留 3 位小数，展示折算用） */
+/** 积分 → 元（保留 3 位小数；1:1 后为恒等换算，供需要 ¥ 口径的图表使用） */
 export function creditsToYuan(credits: number): number {
   return Math.round(credits * YUAN_PER_CREDIT * 1000) / 1000
 }
 
 export interface CreditFormatOptions {
-  /** 积分数值小数位（默认 1；余额/整数场景传 0） */
+  /** 积分数值小数位（默认 3；余额等大数场景传 0，明细场景传 2） */
   creditDigits?: number
-  /** ¥元 小数位（默认 3） */
-  yuanDigits?: number
-  /** 仅显示积分部分（默认 false） */
-  creditsOnly?: boolean
-  /** 仅显示 ¥元 部分（默认 false） */
-  yuanOnly?: boolean
 }
 
-/** 统一格式化：formatCredits(3) → "3.0 积分 (¥0.105)" */
+/** 统一格式化：formatCredits(0.105) → "0.105 积分" */
 export function formatCredits(credits: number, opts: CreditFormatOptions = {}): string {
-  const { creditDigits = 1, yuanDigits = 3, creditsOnly = false, yuanOnly = false } = opts
-  const yuan = creditsToYuan(credits)
-  if (yuanOnly) return `¥${yuan.toFixed(yuanDigits)}`
-  if (creditsOnly) return `${credits.toFixed(creditDigits)} 积分`
-  return `${credits.toFixed(creditDigits)} 积分 (¥${yuan.toFixed(yuanDigits)})`
+  const { creditDigits = 3 } = opts
+  return `${credits.toFixed(creditDigits)} 积分`
 }

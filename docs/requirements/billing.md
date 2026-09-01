@@ -1,11 +1,14 @@
 # 积分与 Key 计费体系
 
-最后更新：2026-08-21（fixed-channels 渠道固定化后口径）  
+最后更新：2026-09-01（积分汇率 1:1 调整后口径）  
 状态：已实现·后端已验证（fixed-channels 单元 20/20 + 接口/集成 36/36 PASS + 真实生图 e2e）
 
-> 本文档反映当前实现。**2026-08-21 fixed-channels 重构后：用户自建渠道（我的渠道）整体下线，
+> 本文档反映当前实现。**2026-09-01 起积分与人民币汇率 1:1（1 积分 = ¥1）**，
+> 存量金额与模型定价已由 `migration_credits_v2`（×0.035）一次性换算，价值不变；
+> 界面积分单显（不再双显 ¥ 括号）。
+> **2026-08-21 fixed-channels 重构后：用户自建渠道（我的渠道）整体下线，
 > 渠道收敛为管理员配置的平台渠道 + 一渠道多 Key 优先级轮换（欠费自动切换）；计费单轨——
-> 所有模型按平台定价扣积分**。下文已按新体系修订。
+> 所有模型按平台定价扣积分**。
 
 ---
 
@@ -19,11 +22,12 @@
 
 上游欠费自动切换：某 Key 被上游判定欠费/额度耗尽（HTTP 402，或 400/403/429 且文案含「余额不足/欠费/insufficient/quota/balance」）→ 服务端标记该 Key `exhausted` → 立即换下一个可用 Key 重试本次请求，用户无感；渠道所有 Key 耗尽/停用 → 任务 failed（错误码 `ALL_KEYS_EXHAUSTED`）+ 全额退款。耗尽 Key 仅管理员在管理端「重新启用」后恢复参与轮换。
 
-计费主单位为**新积分**：`1 新积分 = ¥0.035`（人民币）。所有展示处同时显示新积分与折合人民币（括号）。
+计费主单位为**新积分**：`1 新积分 = ¥1`（人民币，2026-09-01 起；历史曾为 ¥0.035）。
+积分与人民币数值恒等，界面统一积分单显。
 
 ### 定价真源（单一，D5/S6）
 
-积分定价**只在管理后台「配置」页配置一处**：`ai_models.pricing`（JSON：`{"1K":3,"2K":4,...}`，按渠道×模型×分辨率）。
+积分定价**只在管理后台「配置」页配置一处**：`ai_models.pricing`（JSON：`{"1K":0.105,"2K":0.14,...}`，按渠道×模型×分辨率，单位积分=元）。
 前后端共用同一真源（前端经 `GET /api/models/catalog` 读取；「计费说明」页动态渲染）。
 原 `server/src/utils/pricing.ts` 硬编码与前端 `MODELS[].pricing` 常量已删除。生图模型保存时定价必填且必须覆盖全部生效分辨率（fixed-channels 后无用户渠道豁免）。
 
@@ -45,11 +49,11 @@
 ## 3. 数据模型
 
 - **渠道与 Key 池**：`api_providers`（全部平台渠道；`owner_user_id` 为休眠死列，全表恒 NULL）；Key 存 `api_provider_keys`（明文存储、一渠道多 Key、`priority` 小者优先、`status` 含服务端写入的 `exhausted`）。旧表 `user_toapis_keys` 已 DROP（T7）。
-- `users.points`（REAL）—— **新积分**余额。
+- `users.points`（REAL）—— **新积分**余额（1:1 后即元值）。
 - `points_transactions`：`amount`（带符号，新积分）/ `balance_after` / `reason`（`generation` 生图扣费 / `admin_recharge` 管理员充值 / `admin_deduct` 管理员扣减 / `refund` 失败退款）。退款行 `reference_type='generation_task'`、`reference_id` 指向被退的任务。
 - `generation_tasks.points_cost` / `points_balance_after` —— 新积分。**净消耗口径**：失败任务退款后 `points_cost` 清零（=0），故 `SUM(points_cost)` 天然只算「成功/进行中」的消耗，**统计消耗时不要再加 `WHERE status='completed'`**（会漏掉进行中已扣的），也不要把失败算进去。
 - 定价：`ai_models.pricing`（DB 单一真源；详见上文「定价真源」）。
-- **历史迁移**：曾以「元」为存储单位；一次性幂等迁移 `migration_credits_v1`（`×200/7`）已将上述列转为新积分。`toapis_balance_history`（ToAPIs CNY 快照）不迁移。
+- **历史迁移**：①曾以「元」为存储单位，`migration_credits_v1`（`×200/7`）转为旧积分；②2026-09-01 汇率 1:1 化，`migration_credits_v2`（`×0.035`，迁移前 `VACUUM INTO` 自动备份）换算 users.points / generation_tasks.points_* / points_transactions.* / ai_models.pricing，账目价值不变。`toapis_balance_history`（ToAPIs CNY 快照）不迁移。
 
 ---
 
@@ -63,15 +67,16 @@
 
 ## 5. 默认值
 
-- 换算：`YUAN_PER_CREDIT = 0.035`，`CREDITS_PER_YUAN = 200/7`。
-- 定价（每张，新积分，随 `ai_models.pricing` 配置实时生效）：
+- 换算：`YUAN_PER_CREDIT = 1`，`CREDITS_PER_YUAN = 1`（历史：0.035 / 200÷7，v2 迁移已换算）。
+- 定价（每张，新积分 = 元，随 `ai_models.pricing` 配置实时生效；下表为 credits_v2 换算后的种子值）：
 
   | 模型 | 单价 |
   |------|------|
-  | gpt-image-2 | 1K:3 / 2K:4 / 4K:5 |
-  | gemini-3-pro-image-preview | 1K:10 / 2K:12 / 4K:16 |
-  | gemini-3.1-flash-image-preview | 512:5 / 1K:6 / 2K:8 / 4K:12 |
-  | gemini-2.5-flash-image-preview | 1K:2.4 |
+  | gpt-image-2（ToAPIs） | 1K:0.105 / 2K:0.14 / 4K:0.175 |
+  | gpt-image-2（易联） | 全档 0.14 |
+  | gemini-3-pro-image-preview | 1K:0.35 / 2K:0.42 / 4K:0.56 |
+  | gemini-3.1-flash-image-preview | 512:0.175 / 1K:0.21 / 2K:0.28 / 4K:0.42 |
+  | gemini-2.5-flash-image-preview | 1K:0.084 |
 
 - 新增 Key 默认优先级 = 该渠道现有最大 + 1（首个为 1）；Key 全部明文存储（`key_iv` 置空）。
 
@@ -90,10 +95,10 @@
 
 ## 7. 展示规则
 
-- 所有显示积分处统一 `X 积分 (¥Y)`，`Y = X × 0.035`，统一调用 `formatCredits()`（`src/types/adapter.ts`），**禁止手写 `×0.035`**。
-- 余额类：积分取整、¥ 保留 2 位；单价类：积分保留 1 位、¥ 保留 3 位。
-- 所有生成入口（工作台 / 自由生图 / AI摄影 / 工具箱批量 / 买家秀）的按钮与确认弹窗显示本次消耗 `生成图片 · X 积分 (¥Y)`（×张数，取自 `modelCatalog.priceFor`，无「个人渠道」字样）。
-- **左下角头像上方的积分**：始终显示平台积分（`users.points`，`X 积分 (¥Y)`）。旧「Key 余额」行已随个人渠道下线删除。
+- 所有显示积分处统一 `X 积分`（1:1 后积分即元值，不再双显 ¥ 括号），统一调用 `formatCredits()`（`src/types/adapter.ts`），**禁止散写换算**。
+- 小数位：单价/明细类保留 3 位（0.105 这类精确值），余额/汇总类 2 位，大数场景可取整。
+- 所有生成入口（工作台 / 自由生图 / AI摄影 / 工具箱批量 / 买家秀）的按钮与确认弹窗显示本次消耗 `生成图片 · X 积分`（×张数，取自 `modelCatalog.priceFor`，无「个人渠道」字样）。
+- **左下角头像上方的积分**：始终显示平台积分（`users.points`，`X 积分`）。旧「Key 余额」行已随个人渠道下线删除。
 - 头像下拉入口（顺序）：我的额度、我的消耗、计费说明、个人设置、退出登录。
 
 ---
@@ -119,16 +124,22 @@
 
 ## 9. 验收标准
 
-- 生 1 张 gpt-image-2 1K 扣 3 新积分（¥0.105），`points_cost=3`、流水 `-3`；余额不足返回 402 `需要 3 积分`。
+- 生 1 张 gpt-image-2 1K 扣 0.105 积分（=¥0.105），`points_cost=0.105`、流水 `-0.105`；余额不足返回 402 `积分不足，需要 0.105 积分`。
 - 失败退款：任务转 `failed` 后，余额恢复 = 原扣分、多一条 `refund` 流水、任务 `points_cost=0`；`completed→failed` 不退（防套退）。
 - 欠费切换：渠道 K1 欠费 K2 可用 → 本次任务成功（出站先 K1 后 K2），K1 标记 exhausted（含时间戳）；管理员重新启用后 K1 恢复参与轮换。
 - 全部 Key 耗尽/停用 → 任务 failed（`ALL_KEYS_EXHAUSTED`）+ 全额退款。
 - 消耗统计：`/my-consumption` 与 `/admin/dashboard` 的消耗金额 = `SUM(points_cost)`（失败任务贡献 0），「累计充值」不含失败退款。
-- 所有积分展示处为 `X 积分 (¥Y)` 双显；`/pricing` 按目录真源渲染定价表；模型下拉仅平台渠道分组、按钮文案统一无「个人渠道」字样。
+- 所有积分展示处为 `X 积分` 单显；`/pricing` 标明「1 积分 = ¥1」并按目录真源渲染定价表；模型下拉仅平台渠道分组、按钮文案统一无「个人渠道」字样。
 
 ---
 
 ## 需求变更记录
+
+### 2026-09-01 — 积分汇率 1:1（1 积分 = ¥1）
+
+- **汇率调整**：`YUAN_PER_CREDIT` 0.035 → 1（前后端两处常量）。存量金额与模型定价由幂等迁移 `migration_credits_v2` 统一 ×0.035（价值不变、账目连续；`ai_models.pricing` 逐行 JSON 换算），迁移前 `VACUUM INTO backup-pre-credits-v2-<ts>.db` 自动备份、失败中止启动。种子定价常量（T6/易联）保持旧单位，由 v2 在启动末尾统一换算；**此后新增种子须直接写新单位**。
+- **展示收敛**：`formatCredits()` 改积分单显（去 `X 积分 (¥Y)` 双显，两个数值 1:1 后恒等），默认 3 位小数；图表 ¥ 轴标签、充值弹窗「≈ ¥」折算、扣减确认 ¥ 提示全部移除；管理端充值输入小数位放宽至 2 位，定价输入精度 3 位（step 0.001）。
+- **配套**：`server/src/utils/pricing.ts` 硬编码表（仅剩个人 Key 历史折算在用）同步换算为新单位。表结构、API 字段、错误文案、「积分」措辞全部不变。
 
 ### 2026-08-21 — fixed-channels：渠道固定化 + Key 池轮换 + 计费单轨
 

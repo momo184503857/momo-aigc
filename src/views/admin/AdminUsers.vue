@@ -5,7 +5,7 @@ import { Search } from '@element-plus/icons-vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
-import { formatCredits, creditsToYuan } from '@/types/adapter'
+import { formatCredits } from '@/types/adapter'
 import { toBJMinute } from '@/utils/datetime'
 import PageLayout from '@/components/PageLayout.vue'
 
@@ -62,9 +62,6 @@ const pointsValue = computed(() => {
   const n = parseFloat(pointsAmount.value)
   return Number.isFinite(n) && n > 0 ? n : 0
 })
-
-// 参考金额：积分 × 0.035 元
-const pointsYuan = computed(() => creditsToYuan(pointsValue.value))
 
 async function loadUsers() {
   loading.value = true
@@ -162,7 +159,7 @@ function openPoints(user: UserItem) {
   pointsVisible.value = true
 }
 
-// 校验输入：正数，最多 1 位小数
+// 校验输入：正数，最多 2 位小数
 function validatePointsInput(): number | null {
   const raw = pointsAmount.value.trim()
   if (!raw) {
@@ -174,9 +171,9 @@ function validatePointsInput(): number | null {
     warning('积分数量必须为正数')
     return null
   }
-  // 最多 1 位小数
-  if (!/^\d+(\.\d)?$/.test(raw)) {
-    warning('积分数量最多保留 1 位小数')
+  // 最多 2 位小数
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) {
+    warning('积分数量最多保留 2 位小数')
     return null
   }
   return n
@@ -194,7 +191,7 @@ async function handleAdjustPoints() {
     try {
       await confirmDanger({
         title: '确认扣减积分',
-        message: `确定从用户 "${pointsUsername.value}" 扣减 ${amount} 积分（约 ¥${pointsYuan.value.toFixed(2)}）吗？`,
+        message: `确定从用户 "${pointsUsername.value}" 扣减 ${amount} 积分吗？`,
         confirmText: '确认扣减',
       })
     } catch {
@@ -277,18 +274,18 @@ onMounted(() => {
       <el-table-column label="积分" width="170" prop="points" sortable="custom">
         <template #default="{ row }">
           <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'var(--el-color-primary)', fontWeight: 600 }">
-            {{ formatCredits(row.points, { creditDigits: 0, yuanDigits: 2 }) }}
+            {{ formatCredits(row.points, { creditDigits: 2 }) }}
           </span>
         </template>
       </el-table-column>
       <el-table-column label="累计消耗" width="170" prop="total_spent" sortable="custom">
         <template #default="{ row }">
-          <span style="color:var(--el-color-danger)">-{{ formatCredits(Math.abs(row.total_spent || 0), { creditDigits: 0, yuanDigits: 2 }) }}</span>
+          <span style="color:var(--el-color-danger)">-{{ formatCredits(Math.abs(row.total_spent || 0), { creditDigits: 2 }) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="累计充值" width="170" prop="total_recharged" sortable="custom">
         <template #default="{ row }">
-          <span style="color:var(--el-color-success)">+{{ formatCredits(row.total_recharged || 0, { creditDigits: 0, yuanDigits: 2 }) }}</span>
+          <span style="color:var(--el-color-success)">+{{ formatCredits(row.total_recharged || 0, { creditDigits: 2 }) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="提交" width="70" prop="submitted_count" />
@@ -372,9 +369,6 @@ onMounted(() => {
               min="0"
               style="flex:1"
             />
-            <span class="points-yuan-hint">
-              ≈ ¥{{ pointsYuan.toFixed(2) }}
-            </span>
           </div>
         </el-form-item>
         <el-form-item label="备注">
@@ -401,12 +395,5 @@ onMounted(() => {
   font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-placeholder);
   margin-left: 4px;
-}
-
-.points-yuan-hint {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-  min-width: 72px;
 }
 </style>

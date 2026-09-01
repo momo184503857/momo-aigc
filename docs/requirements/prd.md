@@ -1161,7 +1161,7 @@ CREATE UNIQUE INDEX idx_users_email ON users(email) WHERE email IS NOT NULL;
 | nickname | 可修改的展示名；展示优先级 nickname > username > email |
 | role | `admin` / `user` |
 | status | `active` / `disabled` |
-| points | 新积分余额，1 新积分 = ¥0.035 |
+| points | 新积分余额，1 积分 = ¥1（2026-09-01 起） |
 | tags | 用户标签 JSON 数组 |
 | last_login_at | 最近登录时间 |
 | created_at | 创建时间 |

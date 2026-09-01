@@ -1,4 +1,6 @@
+import path from 'node:path'
 import { db } from './index.js'
+import { config } from '../config.js'
 import { initSuiteGen } from './seedSuiteGen.js'
 import { initApiProviders, seedYilianChannel } from './seedApiProviders.js'
 import { initAiProviderMigration } from './migrateAiProvider.js'
@@ -868,6 +870,58 @@ export function initSchema(): void {
 
   // 易联 API 渠道（依赖上面的逻辑模型 gpt-image-2 已同步）
   seedYilianChannel()
+
+  // ── 一次性数据迁移 credits_v2：积分与人民币汇率 1:1（旧 0.035，全部 ×0.035 精确换算）──
+  // 幂等守卫：仅当 system_config.migration_credits_v2 未标记 done 时执行。
+  // 须置于所有种子之后：新库冷启动时 T6/易联种子以旧单位插入，此处统一换算；
+  // 旧的 credits_v1（元→新积分 ×200/7）在其后执行，两者叠加即最终汇率。
+  // 注意：credits_v1 之后新增的金额种子请直接写新单位，且不得再依赖本迁移换算。
+  const creditsV2Cfg = db.prepare(`SELECT value FROM system_config WHERE key = 'migration_credits_v2'`).get() as { value: string } | undefined
+  if (creditsV2Cfg?.value !== 'done') {
+    // 迁移不可逆，先整库备份（与 migrateAiProvider.backupBeforeMigration 同策略：失败中止启动）
+    const backupDir = path.dirname(config.dbPath)
+    const backupTs = new Date().toISOString().replace(/[:.]/g, '-')
+    const backupPath = path.join(backupDir, `backup-pre-credits-v2-${backupTs}.db`)
+    try {
+      db.prepare(`VACUUM INTO ?`).run(backupPath)
+      console.log(`[DB] Pre-migration backup created: ${backupPath}`)
+    } catch (e: any) {
+      throw new Error(`credits_v2 迁移前备份失败，已中止启动：${e.message}`)
+    }
+
+    // 渠道模型定价逐行换算（pricing JSON：各分辨率单价 ×0.035，保留 3 位小数；NULL 跳过）
+    const modelRows = db.prepare(`SELECT id, pricing FROM ai_models WHERE pricing IS NOT NULL`).all() as { id: number; pricing: string }[]
+    const stmtUpdPricing = db.prepare(`UPDATE ai_models SET pricing = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    const convertedPricing = modelRows.map((row) => {
+      const pricing = JSON.parse(row.pricing) as Record<string, number>
+      const next: Record<string, number> = {}
+      for (const [res, price] of Object.entries(pricing)) {
+        next[res] = Math.round(price * 0.035 * 1000) / 1000
+      }
+      return { id: row.id, pricing: JSON.stringify(next) }
+    })
+
+    const creditsV2Txn = db.transaction(() => {
+      db.exec(`
+        UPDATE users
+          SET points = ROUND(points * 0.035, 3);
+        UPDATE generation_tasks
+          SET points_cost = ROUND(points_cost * 0.035, 3),
+              points_balance_after = CASE WHEN points_balance_after IS NULL THEN NULL
+                                          ELSE ROUND(points_balance_after * 0.035, 3) END;
+        UPDATE points_transactions
+          SET amount = ROUND(amount * 0.035, 3),
+              balance_after = ROUND(balance_after * 0.035, 3);
+      `)
+      for (const m of convertedPricing) {
+        stmtUpdPricing.run(m.pricing, m.id)
+      }
+      db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_credits_v2', 'done')
+                  ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+    })
+    creditsV2Txn()
+    console.log(`[DB] Migration credits_v2 done (rate 0.035 → 1, ×0.035; ${convertedPricing.length} 个渠道模型定价已换算)`)
+  }
 
   console.log('[DB] Schema initialized')
 }

@@ -3,6 +3,21 @@
 按时间倒序记录功能层面的变更。
 
 ---
+## 2026-09-01 — 积分汇率 1:1（1 积分 = ¥1）+ 界面收敛积分单显
+
+### 背景
+
+积分与人民币双轨换算（1 积分 = ¥0.035）带来持续的心智负担：所有展示都要「X 积分 (¥Y)」双显、管理端充值要折算、文档到处解释 0.035。调整为 **1 积分 = ¥1**，存量数据按 ×0.035 精确换算（价值不变、账目连续），积分体系本身（表结构/API/文案）不动。
+
+### 变更
+
+- **迁移 `migration_credits_v2`**（schema.ts，置于全部种子之后）：`users.points`、`generation_tasks.points_cost/points_balance_after`、`points_transactions.amount/balance_after` 统一 `ROUND(×0.035, 3)`；`ai_models.pricing` 逐行 JSON 换算（0.105/0.14/0.35…）。迁移前 `VACUUM INTO backup-pre-credits-v2-<ts>.db` 自动备份，失败中止启动；幂等守卫 `system_config.migration_credits_v2`。
+- **种子定价常量保持旧单位**（T6 `TOAPIS_CHANNEL_MODELS`、易联 `{"1K":4,...}`），由 v2 在启动末尾统一换算——新库冷启动与存量库两条路径都正确；此后新增种子须直接写新单位。
+- **常量**：前后端 `YUAN_PER_CREDIT` 0.035 → 1（`server/src/utils/credits.ts`、`src/types/adapter.ts`）；`server/src/utils/pricing.ts` 硬编码表（个人 Key 历史折算用）同步换算。
+- **展示收敛**：`formatCredits()` 改积分单显 `X 积分`（默认 3 位小数），去 `X 积分 (¥Y)` 双显与 `creditsOnly/yuanOnly/yuanDigits` 选项；趋势图 ¥ 轴标签、充值弹窗「≈ ¥」折算、扣减确认 ¥ 提示移除；管理端充值小数位放宽至 2 位、定价输入精度 3 位（step 0.001）。
+- **文档**：billing.md / database-schema.md / api-spec.md / prd.md / ai-provider.md / todo.md 同步 1:1 口径（历史记录保留原值）。
+
+---
 
 ## 2026-08-09 — 提示词工坊重构（结构化模块卡片社区库 + 拼接预览）
 
