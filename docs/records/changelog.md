@@ -3,6 +3,22 @@
 按时间倒序记录功能层面的变更。
 
 ---
+## 2026-09-01 — 积分精度全链路统一 2 位小数（展示向上取整）
+
+### 背景
+
+1:1 汇率上线后积分即元值，但计费仍沿用 3 位小数（0.105 这类单价），展示与账本存在两种精度。统一为货币式 2 位小数：账务存储与展示同精度，展示侧向上取整。
+
+### 变更
+
+- **账务 2 位**：新增 `roundCredits()`（`server/src/utils/credits.ts`），预扣 totalCost / 逐张扣费 / 失败退款 / 管理端充值扣减全部 2 位舍入入账；逐张成本由直接透传单价改为过 `roundCredits`（防 API 直写 3 位定价渗入流水）。
+- **迁移 `migration_credits_dp2`**（schema.ts，置于 credits_v2 之后，新库冷启动种子换算出的 3 位值一并取整）：`users.points` / `generation_tasks.points_*` / `points_transactions.*` 统一 `ROUND(x, 2)`，`ai_models.pricing` 逐档取整；迁移前 `VACUUM INTO backup-pre-credits-dp2-<ts>.db` 自动备份、失败中止启动；幂等守卫 `system_config.migration_credits_dp2`；每行取整差最多 ±0.005。
+- **展示 2 位向上取整**：`formatCredits()` 默认 2 位 + 新增 `ceilCreditValue()`（毫厘整数防浮点多进一分；0.105/0.101 → 0.11，0.10 不变）；任务面板余额 tag 整数改默认 2 位；模型选择器价格标签 `toFixed(3)` 散写消除。
+- **输入约束**：管理端定价输入 step 0.001 / precision 3 → step 0.01 / precision 2（充值输入本就限 2 位）。
+- **不动**：`server/src/utils/pricing.ts` 历史折算表保持 3 位口径。
+- **文档**：billing.md 展示规则与需求变更记录同步。
+
+---
 ## 2026-09-01 — 积分汇率 1:1（1 积分 = ¥1）+ 界面收敛积分单显
 
 ### 背景

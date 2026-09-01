@@ -96,7 +96,7 @@
 ## 7. 展示规则
 
 - 所有显示积分处统一 `X 积分`（1:1 后积分即元值，不再双显 ¥ 括号），统一调用 `formatCredits()`（`src/types/adapter.ts`），**禁止散写换算**。
-- 小数位：单价/明细类保留 3 位（0.105 这类精确值），余额/汇总类 2 位，大数场景可取整。
+- 小数位：全链路统一 2 位（账务存储与展示同精度，存量 3 位值已由 `migration_credits_dp2` 取整）；展示**向上取整**（0.105 → 0.11），大数场景可取整。
 - 所有生成入口（工作台 / 自由生图 / AI摄影 / 工具箱批量 / 买家秀）的按钮与确认弹窗显示本次消耗 `生成图片 · X 积分`（×张数，取自 `modelCatalog.priceFor`，无「个人渠道」字样）。
 - **左下角头像上方的积分**：始终显示平台积分（`users.points`，`X 积分`）。旧「Key 余额」行已随个人渠道下线删除。
 - 头像下拉入口（顺序）：我的额度、我的消耗、计费说明、个人设置、退出登录。
@@ -134,6 +134,13 @@
 ---
 
 ## 需求变更记录
+
+### 2026-09-01 — 积分精度全链路统一 2 位小数（展示向上取整）
+
+- **精度规则**：积分计费与存储从 3 位小数统一为 2 位（与人民币分位对齐）：预扣 / 逐张扣费 / 失败退款 / 管理端充值扣减一律经 `roundCredits()`（`server/src/utils/credits.ts`）2 位舍入入账；管理端定价输入精度收窄为 2 位（step 0.01）。
+- **迁移 `migration_credits_dp2`**：`users.points`、`generation_tasks.points_cost/points_balance_after`、`points_transactions.amount/balance_after` 统一 `ROUND(x, 2)`，`ai_models.pricing` 逐档取整；迁移前 `VACUUM INTO` 自动备份、失败中止启动；幂等守卫 `system_config.migration_credits_dp2`；取整差每行最多 ±0.005。
+- **展示**：`formatCredits()` 默认 2 位小数且**向上取整**（`ceilCreditValue()`：先对齐毫厘整数再进位，消除浮点 dust）；任务面板余额 tag 由整数改 2 位，模型选择器价格标签同步 2 位。
+- **历史折算口径不变**：`server/src/utils/pricing.ts`（个人 Key 历史折算）保持 3 位，不影响现行计费。
 
 ### 2026-09-01 — 积分汇率 1:1（1 积分 = ¥1）
 

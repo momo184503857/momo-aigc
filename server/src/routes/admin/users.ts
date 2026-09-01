@@ -3,6 +3,7 @@ import { db } from '../../db/index.js'
 import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
 import { hashPassword } from '../../utils/password.js'
+import { roundCredits } from '../../utils/credits.js'
 
 export const adminUsersRouter = Router()
 
@@ -132,7 +133,7 @@ adminUsersRouter.post('/:id/points', (req: AuthRequest, res) => {
   }
 
   const numericAmount = Number(amount)
-  const newBalance = Math.round((user.points + numericAmount) * 1000) / 1000
+  const newBalance = roundCredits(user.points + numericAmount)
 
   if (newBalance < 0) {
     res.status(400).json({ success: false, error: '积分不足，扣减后余额不能为负' })

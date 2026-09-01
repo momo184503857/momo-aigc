@@ -138,7 +138,7 @@ const panelStyle = computed(() => ({
       <div class="task-panel-header">
         <div class="task-panel-header-left">
           <span class="task-panel-title">任务列表</span>
-          <el-tag type="info" size="small">积分: {{ formatCredits(tm.userPoints.value, { creditDigits: 0 }) }}</el-tag>
+          <el-tag type="info" size="small">积分: {{ formatCredits(tm.userPoints.value) }}</el-tag>
           <el-tag v-if="tm.hasActiveJobs.value" type="warning" size="small">生成中...</el-tag>
         </div>
         <div class="task-panel-header-right">

@@ -1184,7 +1184,7 @@ onMounted(() => {
               <el-input-number
                 :model-value="modelForm.pricing[r]"
                 @update:model-value="(v: any) => modelForm.pricing[r] = v"
-                :min="0" :step="0.001" :precision="3" size="small" style="width: 140px"
+                :min="0" :step="0.01" :precision="2" size="small" style="width: 140px"
                 placeholder="积分"
               />
               <span class="pricing-unit">积分 / 张</span>

@@ -11,6 +11,7 @@
 import { computed } from 'vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
+import { ceilCreditValue } from '@/types/adapter'
 
 const props = defineProps<{
   /** 渠道模型 id（ai_models.id，提交任务用）；0 = 未选中（由宿主负责默认值） */
@@ -64,7 +65,7 @@ function channelLabel(m: CatalogModel): string {
 }
 
 function fmtPrice(v: number): string {
-  return v === 0 ? '免费' : v.toFixed(3)
+  return v === 0 ? '免费' : ceilCreditValue(v).toFixed(2)
 }
 
 /** 模型维度价格：各渠道各分辨率最低单价 */

@@ -923,5 +923,55 @@ export function initSchema(): void {
     console.log(`[DB] Migration credits_v2 done (rate 0.035 → 1, ×0.035; ${convertedPricing.length} 个渠道模型定价已换算)`)
   }
 
+  // ── 一次性数据迁移 credits_dp2：积分精度 3 位 → 2 位（与人民币分位对齐，展示/账务同精度）──
+  // 幂等守卫：仅当 system_config.migration_credits_dp2 未标记 done 时执行。
+  // 须置于 credits_v2 之后：新库冷启动种子经 v2 换算出 3 位值，此处统一取整到 2 位。
+  // 取整差每行最多 ±0.005。
+  const creditsDp2Cfg = db.prepare(`SELECT value FROM system_config WHERE key = 'migration_credits_dp2'`).get() as { value: string } | undefined
+  if (creditsDp2Cfg?.value !== 'done') {
+    const backupDir = path.dirname(config.dbPath)
+    const backupTs = new Date().toISOString().replace(/[:.]/g, '-')
+    const backupPath = path.join(backupDir, `backup-pre-credits-dp2-${backupTs}.db`)
+    try {
+      db.prepare(`VACUUM INTO ?`).run(backupPath)
+      console.log(`[DB] Pre-migration backup created: ${backupPath}`)
+    } catch (e: any) {
+      throw new Error(`credits_dp2 迁移前备份失败，已中止启动：${e.message}`)
+    }
+
+    // 渠道模型定价逐档取整到 2 位（pricing JSON；NULL 跳过）
+    const modelRows = db.prepare(`SELECT id, pricing FROM ai_models WHERE pricing IS NOT NULL`).all() as { id: number; pricing: string }[]
+    const stmtUpdPricing = db.prepare(`UPDATE ai_models SET pricing = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    const roundedPricing = modelRows.map((row) => {
+      const pricing = JSON.parse(row.pricing) as Record<string, number>
+      const next: Record<string, number> = {}
+      for (const [res, price] of Object.entries(pricing)) {
+        next[res] = Math.round(price * 100) / 100
+      }
+      return { id: row.id, pricing: JSON.stringify(next) }
+    })
+
+    const creditsDp2Txn = db.transaction(() => {
+      db.exec(`
+        UPDATE users
+          SET points = ROUND(points, 2);
+        UPDATE generation_tasks
+          SET points_cost = ROUND(points_cost, 2),
+              points_balance_after = CASE WHEN points_balance_after IS NULL THEN NULL
+                                          ELSE ROUND(points_balance_after, 2) END;
+        UPDATE points_transactions
+          SET amount = ROUND(amount, 2),
+              balance_after = ROUND(balance_after, 2);
+      `)
+      for (const m of roundedPricing) {
+        stmtUpdPricing.run(m.pricing, m.id)
+      }
+      db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_credits_dp2', 'done')
+                  ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+    })
+    creditsDp2Txn()
+    console.log(`[DB] Migration credits_dp2 done (3 → 2 位小数; ${roundedPricing.length} 个渠道模型定价已取整)`)
+  }
+
   console.log('[DB] Schema initialized')
 }

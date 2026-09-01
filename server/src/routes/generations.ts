@@ -6,6 +6,7 @@ import { ProviderCallError } from '../providers/http.js'
 import type { ImageGenRequest, GeneratedImage } from '../providers/types.js'
 import { saveImage, importResultFromUrl, isStoredUrl } from '../utils/storage.js'
 import { bjDateRangeClause } from '../utils/datetime.js'
+import { roundCredits } from '../utils/credits.js'
 import {
   getChannelModelCapabilities,
   aspectRatiosAtResolution,
@@ -109,7 +110,7 @@ function failTaskAndRefund(taskId: number | string, errorCode: string, errorMess
     if (refund > 0) {
       const user = db.prepare(`SELECT points FROM users WHERE id = ?`).get(task.user_id) as any
       if (user) {
-        const newBalance = Math.round((Number(user.points) + refund) * 1000) / 1000
+        const newBalance = roundCredits(Number(user.points) + refund)
         db.prepare(`UPDATE users SET points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(newBalance, task.user_id)
         db.prepare(`
           INSERT INTO points_transactions (user_id, amount, balance_after, reason, reference_type, reference_id, note, created_at)
@@ -349,12 +350,12 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
       const user = db.prepare(`SELECT points FROM users WHERE id = ?`).get(userId) as any
       if (!user) throw { status: 404, error: '用户不存在' }
       const currentBalance = Number(user.points) || 0
-      const totalCost = Math.round(unitPrice * count * 1000) / 1000
+      const totalCost = roundCredits(unitPrice * count)
       if (currentBalance < totalCost) {
         throw {
           status: 402,
-          error: `积分不足，需要 ${totalCost} 积分，当前仅有 ${Math.round(currentBalance * 1000) / 1000} 积分`,
-          data: { required: totalCost, available: Math.round(currentBalance * 1000) / 1000 },
+          error: `积分不足，需要 ${totalCost} 积分，当前仅有 ${roundCredits(currentBalance)} 积分`,
+          data: { required: totalCost, available: roundCredits(currentBalance) },
         }
       }
 
@@ -375,8 +376,8 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
       const rows: Array<{ id: number; taskNo: string }> = []
       let balance = currentBalance
       for (let i = 0; i < count; i++) {
-        const cost = unitPrice
-        balance = Math.round((balance - cost) * 1000) / 1000
+        const cost = roundCredits(unitPrice)
+        balance = roundCredits(balance - cost)
         const no = generateTaskNo()
         const r = insert.run(
           no, userId, clientBusinessId || null, cm.model_id, finalPrompt, effRatio, effResolution, effRatio,
