@@ -76,3 +76,56 @@ export function initApiProviders(): void {
 
   console.log('[DB] Seeded api_providers (volcengine)')
 }
+
+/**
+ * 种子数据：易联 API 渠道（gpt-image-2，OpenAI Images 兼容中转，同步生图）。
+ *
+ * 依赖 ai_logical_models 已建表且逻辑模型 gpt-image-2 已同步，须在
+ * initAiProviderMigration / syncCanonicalLogicalModels 之后调用（见 schema.ts）。
+ * 幂等守卫：system_config.seed_yilian_channel_v1 标记后不再执行；已删过该渠道
+ * 不会自动重建，需在管理后台手动添加。
+ *
+ * 配置了环境变量 YILIAN_API_KEY 且渠道尚无任何 Key 时顺带预置一把（明文），
+ * 否则只预置渠道与模型，Key 请在管理后台「配置」页添加。
+ */
+export function seedYilianChannel(): void {
+  const flag = db.prepare(`SELECT value FROM system_config WHERE key = 'seed_yilian_channel_v1'`).get() as { value: string } | undefined
+  if (flag?.value === 'done') return
+
+  const YILIAN_KEY = (process.env.YILIAN_API_KEY || '').trim()
+
+  const tx = db.transaction(() => {
+    db.prepare(`
+      INSERT OR IGNORE INTO api_providers (code, name, base_url, adapter, remark, created_at, updated_at)
+      VALUES ('yilian', '易联 API', 'https://yilian.space', 'openai_image', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run('易联中转（OpenAI Images 兼容，同步生图；实测任意 WxH 尺寸，最小边 512，长边超 3840 被上游压回 3840）')
+    const provider = db.prepare(`SELECT id FROM api_providers WHERE code = 'yilian'`).get() as { id: number } | undefined
+    if (!provider) throw new Error('seedYilianChannel: 渠道插入失败')
+
+    // 平台渠道 Key 明文存储（key_iv 置空），后台可查看/复制；渠道已有 Key（含后台手填）时跳过
+    const hasKey = db.prepare(`SELECT 1 FROM api_provider_keys WHERE provider_id = ? LIMIT 1`).get(provider.id)
+    if (YILIAN_KEY && !hasKey) {
+      db.prepare(`
+        INSERT INTO api_provider_keys (provider_id, name, encrypted_key, key_iv, key_tag, key_hint, priority, created_at, updated_at)
+        VALUES (?, '默认 Key', ?, '', '', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(provider.id, YILIAN_KEY, maskKey(YILIAN_KEY))
+    }
+
+    db.prepare(`
+      INSERT OR IGNORE INTO ai_models
+        (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat,
+         logical_model_id, pricing, status, remark, created_at, updated_at)
+      VALUES (?, 'gpt-image-2', 'GPT-Image-2', 1, 1, 0,
+              (SELECT id FROM ai_logical_models WHERE code = 'gpt-image-2'),
+              '{"1K":4,"2K":4,"4K":4}', 'active', '上游 gpt-image-2；4K 档实际出图长边 3840', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(provider.id)
+
+    db.prepare(`
+      INSERT INTO system_config (key, value) VALUES ('seed_yilian_channel_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'
+    `).run()
+  })
+  tx()
+
+  console.log('[DB] Seeded api_providers (yilian)')
+}

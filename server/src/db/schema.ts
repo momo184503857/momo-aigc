@@ -1,6 +1,6 @@
 import { db } from './index.js'
 import { initSuiteGen } from './seedSuiteGen.js'
-import { initApiProviders } from './seedApiProviders.js'
+import { initApiProviders, seedYilianChannel } from './seedApiProviders.js'
 import { initAiProviderMigration } from './migrateAiProvider.js'
 import { syncCanonicalLogicalModels } from './logicalModels.js'
 
@@ -865,6 +865,9 @@ export function initSchema(): void {
 
   // 逻辑模型以代码清单为准（能力/类型/状态随代码同步；管理员仅可改显示名）
   syncCanonicalLogicalModels()
+
+  // 易联 API 渠道（依赖上面的逻辑模型 gpt-image-2 已同步）
+  seedYilianChannel()
 
   console.log('[DB] Schema initialized')
 }

@@ -90,17 +90,24 @@ export const openaiImageAdapter: ImageProviderAdapter = {
       body.image = imageUrls
     }
     const path = imageUrls.length > 0 ? '/v1/images/edits' : '/v1/images/generations'
-
-    let result = await postJson(joinUrl(ctx.baseUrl, path), {
+    const call = (b: Record<string, unknown>) => postJson(joinUrl(ctx.baseUrl, path), {
       authorization: `Bearer ${ctx.apiKey}`,
-    }, body, 600_000)
+    }, b, 600_000)
+
+    let currentBody = body
+    let result = await call(currentBody)
+
+    // new-api 系中转的 edits JSON 不认官方 image[] 数组，要求 images[].image_url（私有格式）；
+    // 仅在上游报错点名 image_url 时切换格式重试一次，官方/其他渠道不受影响
+    if ((result.status === 400 || result.status === 422) && imageUrls.length > 0
+      && /image_url/i.test(extractErrorMessage(result, ''))) {
+      currentBody = { ...currentBody, image: undefined, images: imageUrls.map((u) => ({ image_url: u })) }
+      result = await call(currentBody)
+    }
 
     if (result.status === 400 || result.status === 422) {
       // response_format=url 不被支持时回退 b64_json 重试一次
-      const retryBody = { ...body, response_format: 'b64_json' }
-      result = await postJson(joinUrl(ctx.baseUrl, path), {
-        authorization: `Bearer ${ctx.apiKey}`,
-      }, retryBody, 600_000)
+      result = await call({ ...currentBody, response_format: 'b64_json' })
     }
 
     if (result.status !== 200) {
