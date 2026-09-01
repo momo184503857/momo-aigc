@@ -412,14 +412,16 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
     const adapter = getImageAdapter(cm.p_adapter)
     for (const t of created) {
       try {
-        // 异步提交接入 Key 轮换：配额/欠费报错 → 仅本次请求换下一个 Key 重试，报错原样透传（F3）
+        // 异步提交接入 Key 轮换：配额/欠费报错 → 仅本次请求换下一个 Key 重试，报错原样透传（F3）。
+        // 记录实际提交成功的 Key：toapis 任务按 Key 隔离，轮询/reimport 必须用同一 Key 才能查到
+        let submitKeyId: number | undefined
         const submit = await withKeyFailover(cm.p_id, 'image', (config) =>
           adapter.submitImageTask(
             { model: cm.model_id, logicalCode: logicalCodeOf(cm), prompt: finalPrompt, negativePrompt: negativePrompt || undefined, aspectRatio: effRatio, resolution: effResolution, n: 1, imageUrls: refUrls },
             config,
-          ))
-        db.prepare(`UPDATE generation_tasks SET provider_task_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-          .run(submit.providerTaskId ?? null, t.id)
+          ).then((r) => { submitKeyId = config.keyId; return r }))
+        db.prepare(`UPDATE generation_tasks SET provider_task_id = ?, provider_key_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(submit.providerTaskId ?? null, submitKeyId ?? null, t.id)
       } catch (e: any) {
         if (e instanceof ProviderContextError) {
           // 渠道配置层面无可用 Key（全部停用/未配置/历史耗尽标记）：任务失败 + 全额退款
@@ -528,8 +530,9 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
       return
     }
     try {
-      // 轮询路径不接入 Key 切换（S3）：任务已在上游，换 Key 无济于事；异常记警告、下轮重试
-      const ctx = resolveProviderContext(cm.p_id, 'image')
+      // 轮询路径不接入 Key 切换（S3）：任务已在上游，换 Key 无济于事；异常记警告、下轮重试。
+      // 但必须用任务提交时的 Key 查询：toapis 任务按 Key 隔离，用错 Key 会得到 task_not_exist
+      const ctx = resolveProviderContext(cm.p_id, 'image', { preferKeyId: task.provider_key_id })
       const adapter = getImageAdapter(cm.p_adapter)
       const result = await adapter.queryImageTask(task.provider_task_id, ctx.config)
 
@@ -616,7 +619,7 @@ generationsRouter.post('/:id/reimport', async (req: AuthRequest, res) => {
   if (images.length === 0 && task.provider_task_id && task.channel_model_id) {
     try {
       const cm = loadChannelModel(task.channel_model_id)
-      const ctx = resolveProviderContext(cm.p_id, 'image')
+      const ctx = resolveProviderContext(cm.p_id, 'image', { preferKeyId: task.provider_key_id })
       const adapter = getImageAdapter(cm.p_adapter)
       const result = await adapter.queryImageTask(task.provider_task_id, ctx.config)
       if (result.status === 'completed') images = result.resultUrls.map((url) => ({ url }))

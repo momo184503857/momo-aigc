@@ -83,6 +83,8 @@ function runDdl(): void {
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN channel_model_id INTEGER REFERENCES ai_models(id)`) } catch { /* column exists */ }
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN channel_provider_id INTEGER REFERENCES api_providers(id)`) } catch { /* column exists */ }
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN provider_code VARCHAR(50)`) } catch { /* column exists */ }
+  // 提交任务实际使用的 Key（toapis 任务按 Key 隔离：轮询/reimport 必须用同一 Key 才能查到）
+  try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN provider_key_id INTEGER`) } catch { /* column exists */ }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_provider_task ON generation_tasks(provider_task_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_channel_model ON generation_tasks(channel_model_id);`)
 }

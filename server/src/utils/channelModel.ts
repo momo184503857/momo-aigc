@@ -245,12 +245,14 @@ export class ProviderContextError extends Error {
  * （明文存储，见 resolveKeyPlain）。
  *
  * opts.excludeKeyIds 仅供 withKeyFailover 的轮换使用（跳过本次请求已试过的 Key）；
- * 轮询/转存等直连路径不传 opts，行为保持「取优先级最高的 active Key」。
+ * opts.preferKeyId 供轮询/转存等直连路径指定任务提交时实际使用的 Key
+ * （toapis 等渠道任务按 Key 隔离，用其他 Key 查询会得到 task_not_exist；
+ * 该 Key 已停用/删除时自动回退到优先级最高的可用 Key）。
  */
 export function resolveProviderContext(
   providerId: number,
   kind: 'image' | 'chat' = 'image',
-  opts: { excludeKeyIds?: ReadonlySet<number> } = {},
+  opts: { excludeKeyIds?: ReadonlySet<number>; preferKeyId?: number | null } = {},
 ): ResolvedProviderContext {
   const provider = db.prepare(`
     SELECT id, code, name, base_url, adapter, status FROM api_providers WHERE id = ?
@@ -267,7 +269,8 @@ export function resolveProviderContext(
     throw new ProviderContextError('该渠道没有可用 Key（可能所有 Key 已停用，或为历史遗留的耗尽标记，请在 Key 管理中重新启用）', 400)
   }
 
-  const keyRow = keyRows.find((k) => !opts.excludeKeyIds?.has(k.key_id))
+  const keyRow = (opts.preferKeyId != null ? keyRows.find((k) => k.key_id === opts.preferKeyId) : undefined)
+    ?? keyRows.find((k) => !opts.excludeKeyIds?.has(k.key_id))
   if (!keyRow) throw new ProviderContextError('本轮请求已试遍该渠道全部可用 Key', 400, 'ALL_TRIED')
 
   let apiKey: string
