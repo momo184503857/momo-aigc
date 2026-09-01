@@ -4,6 +4,7 @@ import { volcengineAdapter } from './volcengine.js'
 import { toapisImageAdapter } from './toapisImage.js'
 import { openaiImageAdapter } from './openaiImage.js'
 import { volcengineImageAdapter } from './volcengineImage.js'
+import { geminiImageAdapter } from './geminiImage.js'
 
 /**
  * 适配器注册表：api_providers.adapter 列的值 → 适配器实例。
@@ -21,6 +22,7 @@ register(volcengineAdapter)         // volcengine：火山识图（存量识图�
 register(toapisImageAdapter)        // toapis：生图（异步任务式）+ 文字
 register(openaiImageAdapter)        // openai_image：生图（同步）
 register(volcengineImageAdapter)    // volcengine_image：火山 Ark 生图（同步）
+register(geminiImageAdapter)        // gemini_image：Gemini 原生生图（同步，/v1beta generateContent）
 
 export function getAdapter(code: string): ProviderAdapter {
   const adapter = adapters.get(code)
@@ -30,11 +32,11 @@ export function getAdapter(code: string): ProviderAdapter {
   return adapter
 }
 
-/** 取生图适配器（含 submitImageTask 的适配器；toapis/openai_image/volcengine_image） */
+/** 取生图适配器（含 submitImageTask 的适配器；toapis/openai_image/volcengine_image/gemini_image） */
 export function getImageAdapter(code: string): ImageProviderAdapter {
   const adapter = adapters.get(code)
   if (!adapter || typeof (adapter as ImageProviderAdapter).submitImageTask !== 'function') {
-    throw new Error(`适配器「${code}」不支持生图，请选择 toapis / openai_image / volcengine_image 协议的渠道`)
+    throw new Error(`适配器「${code}」不支持生图，请选择 toapis / openai_image / volcengine_image / gemini_image 协议的渠道`)
   }
   return adapter as ImageProviderAdapter
 }

@@ -68,3 +68,59 @@ export async function resolveUpstreamImageUrls(
   }
   return out
 }
+
+const INLINE_IMAGE_LIMIT_BYTES = 10 * 1024 * 1024
+
+/** 从 URL 扩展名推断图片 MIME（下载响应 content-type 缺失/非 image 时兜底） */
+function mimeFromUrlExt(url: string): string {
+  const m = /\.(png|jpe?g|webp|gif|bmp)(?:[?#]|$)/i.exec(url)
+  if (!m) return 'image/png'
+  const ext = m[1].toLowerCase()
+  return ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
+}
+
+/**
+ * 参考图 → 纯 base64 内联形式（Gemini 原生协议 inlineData 用，不带 data: 前缀）。
+ * 与 resolveUpstreamImageUrls 的差异：返回 {mimeType, base64} 而非 URL/data-URL 字符串，
+ * 且远程 URL 不透传——Gemini 只收内联 bytes，OSS 模式的公网地址必须服务端拉回。
+ * 单图 ≤10MB（对齐 toapis 上传上限）。DB input_image_urls 仍存原始 URL，转换仅本次派发生效。
+ */
+export async function resolveUpstreamInlineImages(
+  imageUrls: string[],
+): Promise<Array<{ mimeType: string; base64: string }>> {
+  if (imageUrls.length === 0) return []
+  const out: Array<{ mimeType: string; base64: string }> = []
+  for (const url of imageUrls) {
+    if (isLocalFileUrl(url)) {
+      const img = await readLocalImage(url)
+      if (!img) throw new ProviderCallError(`参考图文件不存在或已失效：${url}`)
+      if (img.buffer.length > INLINE_IMAGE_LIMIT_BYTES) {
+        throw new ProviderCallError(`参考图 ${(img.buffer.length / 1024 / 1024).toFixed(1)}MB 超过内联上限 10MB，请压缩后重试`)
+      }
+      out.push({ mimeType: img.mimeType, base64: img.buffer.toString('base64') })
+      continue
+    }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 60_000)
+    let buffer: Buffer
+    let mimeType: string
+    try {
+      const res = await fetch(url, { signal: controller.signal })
+      if (!res.ok) throw new ProviderCallError(`参考图下载失败（HTTP ${res.status}）：${url}`)
+      const declared = Number(res.headers.get('content-length') || 0)
+      if (declared > INLINE_IMAGE_LIMIT_BYTES) {
+        throw new ProviderCallError(`参考图 ${(declared / 1024 / 1024).toFixed(1)}MB 超过内联上限 10MB，请压缩后重试`)
+      }
+      mimeType = (res.headers.get('content-type') || '').split(';')[0].trim()
+      if (!/^image\//i.test(mimeType)) mimeType = mimeFromUrlExt(url)
+      buffer = Buffer.from(await res.arrayBuffer())
+    } finally {
+      clearTimeout(timer)
+    }
+    if (buffer.length > INLINE_IMAGE_LIMIT_BYTES) {
+      throw new ProviderCallError(`参考图 ${(buffer.length / 1024 / 1024).toFixed(1)}MB 超过内联上限 10MB，请压缩后重试`)
+    }
+    out.push({ mimeType, base64: buffer.toString('base64') })
+  }
+  return out
+}
