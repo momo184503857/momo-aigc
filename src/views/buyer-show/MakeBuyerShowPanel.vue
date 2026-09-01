@@ -28,6 +28,7 @@ import { translateError } from '@/utils/errors'
 import { formatCredits } from '@/types/adapter'
 import { UiImagePreview, UiEmptyState } from '@/components/ui'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
+import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
@@ -701,20 +702,11 @@ onUnmounted(() => {
         <div class="bs-params">
           <div class="param-row">
             <label class="param-label">模型</label>
-            <el-select v-model="selectedChannelModelId" style="width: 200px" @change="handleModelChange">
-              <template v-if="modelCatalog.loaded">
-                <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
-                  <el-option-group :label="group.providerName">
-                    <el-option
-                      v-for="m in group.models"
-                      :key="m.id"
-                      :label="m.displayName"
-                      :value="m.id"
-                    />
-                  </el-option-group>
-                </template>
-              </template>
-            </el-select>
+            <ModelChannelSelect
+              v-model="selectedChannelModelId"
+              style="width: 360px"
+              @change="handleModelChange"
+            />
           </div>
           <div class="param-row">
             <label class="param-label">分辨率</label>

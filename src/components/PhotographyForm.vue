@@ -15,6 +15,7 @@ import { photographyApi } from '@/services/photographyApi'
 import type { PhotographyElement } from '@/services/photographyApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import PromptEditorPanel from './PromptEditorPanel.vue'
+import ModelChannelSelect from './ModelChannelSelect.vue'
 import { Plus, Delete, Camera } from '@element-plus/icons-vue'
 
 const { warning } = useUiFeedback()
@@ -549,21 +550,12 @@ onMounted(() => loadElements())
       <!-- ─── Basic params ─── -->
       <div class="params-row">
         <div class="param-item">
-          <label>模型</label>
-          <el-select v-model="selectedChannelModelId" placeholder="选择模型" style="width: 220px" @change="handleModelChange">
-            <template v-if="modelCatalog.loaded">
-              <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
-                <el-option-group :label="group.providerName">
-                  <el-option
-                    v-for="m in group.models"
-                    :key="m.id"
-                    :label="m.displayName"
-                    :value="m.id"
-                  />
-                </el-option-group>
-              </template>
-            </template>
-          </el-select>
+          <label>模型 / 渠道</label>
+          <ModelChannelSelect
+            v-model="selectedChannelModelId"
+            style="width: 380px"
+            @change="handleModelChange"
+          />
         </div>
         <div class="param-item">
           <label>分辨率</label>

@@ -40,6 +40,16 @@ export interface CatalogGroup {
   models: CatalogModel[]
 }
 
+/** 逻辑模型（跨渠道去重后的「模型」维度，供模型+渠道分体选择） */
+export interface LogicalImageModel {
+  /** 去重 key：logicalCode ?? modelId（无逻辑模型的自定义模型按渠道模型名独立成项） */
+  key: string
+  /** 展示名（取首条渠道模型的 displayName） */
+  label: string
+  /** 提供该模型的渠道模型（按目录顺序，价格/能力可不同） */
+  channelModels: CatalogModel[]
+}
+
 interface CatalogResponse {
   platform: Array<{ providerId: number; providerName: string; adapter: string; models: any[] }>
 }
@@ -111,9 +121,40 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
   const defaultImageModel = computed<CatalogModel | null>(() => flatImageModels.value[0] ?? null)
   const defaultTextModel = computed<CatalogModel | null>(() => flatTextModels.value[0] ?? null)
 
+  /** 生图模型按逻辑模型去重（「模型+渠道」分体选择的模型维度，Map 保持目录首现顺序） */
+  const imageLogicalModels = computed<LogicalImageModel[]>(() => {
+    const map = new Map<string, LogicalImageModel>()
+    for (const m of flatImageModels.value) {
+      const key = m.logicalCode ?? m.modelId
+      const existing = map.get(key)
+      if (existing) existing.channelModels.push(m)
+      else map.set(key, { key, label: m.displayName, channelModels: [m] })
+    }
+    return [...map.values()]
+  })
+
   function getModel(channelModelId: number | null | undefined): CatalogModel | undefined {
     if (channelModelId === null || channelModelId === undefined) return undefined
     return allModels.value.find((m) => m.id === Number(channelModelId))
+  }
+
+  /** channelModelId 反查所属逻辑模型（模型+渠道分体选择时派生两级选中态） */
+  function logicalModelFor(channelModelId: number | null | undefined): LogicalImageModel | undefined {
+    if (channelModelId === null || channelModelId === undefined) return undefined
+    const id = Number(channelModelId)
+    return imageLogicalModels.value.find((lm) => lm.channelModels.some((m) => m.id === id))
+  }
+
+  /** 一组渠道模型的最低单价（积分，各分辨率取最小）；全部无定价返回 null */
+  function minPriceOf(models: CatalogModel[]): number | null {
+    let min: number | null = null
+    for (const m of models) {
+      if (!m.pricing) continue
+      for (const v of Object.values(m.pricing)) {
+        if (typeof v === 'number' && Number.isFinite(v) && (min === null || v < min)) min = v
+      }
+    }
+    return min
   }
 
   /** 按模型名/逻辑模型 code 反查（旧任务展示名、旧画布节点兼容） */
@@ -161,8 +202,11 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     hasImageModels,
     defaultImageModel,
     defaultTextModel,
+    imageLogicalModels,
     getModel,
     getModelByName,
+    logicalModelFor,
+    minPriceOf,
     displayNameFor,
     aspectRatiosFor,
     priceFor,

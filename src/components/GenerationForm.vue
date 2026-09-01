@@ -12,6 +12,7 @@ import type { CatalogModel } from '@/stores/modelCatalog'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import { usePromptLibrary } from '@/composables/usePromptLibrary'
 import TemplateSelector from './TemplateSelector.vue'
+import ModelChannelSelect from './ModelChannelSelect.vue'
 
 const emit = defineEmits<{
   (e: 'generate', params: {
@@ -348,24 +349,11 @@ defineExpose({ setParams })
         style="margin-bottom: 16px"
       />
 
-      <!-- Model -->
+      <!-- Model + Channel -->
       <div class="form-row-inline">
         <label class="form-label-left">模型</label>
         <div class="form-control-right">
-          <el-select v-model="selectedChannelModelId" style="width: 100%" @change="handleModelChange">
-            <template v-if="modelCatalog.loaded">
-              <template v-for="group in modelCatalog.imageGroups" :key="group.providerId">
-                <el-option-group :label="group.providerName">
-                  <el-option
-                    v-for="m in group.models"
-                    :key="m.id"
-                    :label="m.displayName"
-                    :value="m.id"
-                  />
-                </el-option-group>
-              </template>
-            </template>
-          </el-select>
+          <ModelChannelSelect v-model="selectedChannelModelId" @change="handleModelChange" />
         </div>
       </div>
 
