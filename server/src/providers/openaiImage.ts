@@ -10,7 +10,7 @@ import type {
 } from './types.js'
 import { postJson, joinUrl, extractErrorMessage, ProviderCallError } from './http.js'
 import { createOpenAiCompatAdapter } from './openaiCompat.js'
-import { toPixelSize } from '../utils/imageSize.js'
+import { toPixelSize, clampPixelSize } from '../utils/imageSize.js'
 import { resolveUpstreamImageUrls } from '../utils/upstreamImages.js'
 
 /**
@@ -73,7 +73,8 @@ export const openaiImageAdapter: ImageProviderAdapter = {
 
   async submitImageTask(req: ImageGenRequest, ctx: ProviderRuntimeConfig): Promise<ImageGenSubmitResult> {
     if (!ctx.apiKey) throw new ProviderCallError('未配置 API Key（请先在该渠道下设置主 Key）')
-    const size = toPixelSize(req.aspectRatio, req.resolution)
+    // 渠道硬限制（param_overrides.sizeClamp）在换算后等比钳制，如 relayrouter 单边≤3840 且总像素≤8294400
+    const size = clampPixelSize(toPixelSize(req.aspectRatio, req.resolution), req.sizeClamp ?? {})
     // 直接传模式：本地参考图转 base64 data URL（上游可直读，无需公网地址）
     const imageUrls = await resolveUpstreamImageUrls('openai_image', req.imageUrls, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey })
     const body: Record<string, unknown> = {

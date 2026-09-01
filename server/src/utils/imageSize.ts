@@ -54,6 +54,30 @@ export function parsePixelSize(size: string): [number, number] {
 }
 
 /**
+ * 渠道硬限制钳制：把 'WxH' 等比缩小到 maxEdge（单边上限）/ maxPixels（总像素上限）内，16px 对齐。
+ * 只缩不放（界内尺寸原样返回）；对齐取整后可能略超上限，按长边逐档下调兜底（比例偏差在 16px 级，观感无损）。
+ */
+export function clampPixelSize(size: string, clamp: { maxEdge?: number; maxPixels?: number }): string {
+  const maxEdge = Number.isFinite(clamp.maxEdge) ? clamp.maxEdge! : 0
+  const maxPixels = Number.isFinite(clamp.maxPixels) ? clamp.maxPixels! : 0
+  if (maxEdge <= 0 && maxPixels <= 0) return size
+  let [w, h] = parsePixelSize(size)
+  let scale = 1
+  if (maxEdge > 0) scale = Math.min(scale, maxEdge / Math.max(w, h))
+  if (maxPixels > 0) scale = Math.min(scale, Math.sqrt(maxPixels / (w * h)))
+  if (scale >= 1) return size
+  w = align16(w * scale)
+  h = align16(h * scale)
+  // 对齐上取整可能把尺寸顶回上限外：降长边直至满足（短边不动，保比例优先）
+  while ((maxEdge > 0 && Math.max(w, h) > maxEdge) || (maxPixels > 0 && w * h > maxPixels)) {
+    if (w >= h) w -= ALIGN
+    else h -= ALIGN
+    if (w < ALIGN || h < ALIGN) break
+  }
+  return `${w}x${h}`
+}
+
+/**
  * 在渠道支持的离散尺寸列表中取与目标最接近的一个。
  * 偏差（面积对角线近似，按长短边比例）> 10% 时报错 —— 属于管理员能力配置失误。
  */

@@ -88,6 +88,8 @@ export interface ImageGenRequest {
   resolution: string       // '512' | '1K' | '2K' | '4K'
   n: number                // 恒为 1：n>1 由编排层拆成多条任务
   imageUrls: string[]      // 参考图 OSS URL
+  /** 渠道模型 param_overrides 的像素尺寸钳制（适配器可选消费，等比缩到约束内） */
+  sizeClamp?: { maxEdge?: number; maxPixels?: number }
 }
 
 export interface GeneratedImage {

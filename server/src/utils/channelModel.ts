@@ -19,6 +19,9 @@ export interface CapabilityParams {
   aspectRatios?: string[]
   maxReferenceImages?: number
   maxPromptChars?: number
+  /** 渠道像素尺寸硬限制（openai_image 系渠道实测限制，如 relayrouter 单边≤3840 且总像素≤8294400）；
+   *  适配器把 toPixelSize 结果等比缩到约束内。逻辑模型不定义此维度，属渠道级附加配置 */
+  sizeClamp?: { maxEdge?: number; maxPixels?: number }
 }
 
 export interface ChannelModelRow {
@@ -85,6 +88,13 @@ export function validateCapabilityParams(p: unknown, opts: { requireFull?: boole
   }
   if (c.maxPromptChars !== undefined && (!Number.isFinite(c.maxPromptChars) || (c.maxPromptChars as number) < 1)) {
     return 'maxPromptChars 必须为正整数'
+  }
+  if (c.sizeClamp !== undefined) {
+    const sc = c.sizeClamp
+    if (!sc || typeof sc !== 'object' || Array.isArray(sc)) return 'sizeClamp 必须为对象 { maxEdge?, maxPixels? }'
+    if (sc.maxEdge !== undefined && (!Number.isFinite(sc.maxEdge) || sc.maxEdge < 16)) return 'sizeClamp.maxEdge 必须为 ≥16 的数字'
+    if (sc.maxPixels !== undefined && (!Number.isFinite(sc.maxPixels) || sc.maxPixels < 256)) return 'sizeClamp.maxPixels 必须为 ≥256 的数字'
+    if (sc.maxEdge === undefined && sc.maxPixels === undefined) return 'sizeClamp 至少需要 maxEdge 或 maxPixels 之一'
   }
   return null
 }

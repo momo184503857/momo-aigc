@@ -12,6 +12,7 @@ import {
   resolveProviderContext,
   withKeyFailover,
   ProviderContextError,
+  parseParams,
 } from '../utils/channelModel.js'
 
 /**
@@ -265,6 +266,7 @@ function buildImageGenRequest(task: any, cm: any): ImageGenRequest {
     resolution: task.resolution || '1K',
     n: 1,
     imageUrls: Array.isArray(task.input_image_urls) ? task.input_image_urls : parseJsonArray(task.input_image_urls),
+    sizeClamp: parseParams(cm.param_overrides)?.sizeClamp,
   }
 }
 
