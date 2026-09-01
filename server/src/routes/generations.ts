@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { getImageAdapter } from '../providers/index.js'
+import { ProviderCallError } from '../providers/http.js'
 import type { ImageGenRequest, GeneratedImage } from '../providers/types.js'
 import { saveImage, importResultFromUrl, isStoredUrl } from '../utils/storage.js'
 import { bjDateRangeClause } from '../utils/datetime.js'
@@ -91,6 +92,11 @@ function generateTaskNo(): string {
   // 理论极端兜底：同小时号段耗尽，追加时间戳尾数保证唯一
   return `gen-${stamp}${String(Date.now()).slice(-6)}`
 }
+
+// 异步任务兜底超时（分钟）：超过仍未终态 → 失败退款（正常 toapis 任务数分钟内完成）
+const ASYNC_TASK_TIMEOUT_MIN = 30
+// 上游 task_not_exist 宽限期（分钟）：刚提交的任务可能因上游写入延迟短暂查不到，宽限后判任务丢失
+const TASK_NOT_EXIST_GRACE_MIN = 10
 
 /** 失败退款：非终态 → failed 且已扣费则全额退款（completed 不回退，防套退） */
 function failTaskAndRefund(taskId: number | string, errorCode: string, errorMessage: string): void {
@@ -511,6 +517,16 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
       snapshot()
       return
     }
+
+    // 异步任务整体超时兜底：创建超过 30 分钟仍未终态 → 失败退款。
+    // 覆盖上游集群故障丢任务（轮询永远 task_not_exist）、上游进度停滞等一切卡死场景，
+    // 不设兜底时任务会永久挂在 submitted/in_progress 且积分不退。
+    const taskAgeMin = (Date.now() - new Date(String(task.created_at).replace(' ', 'T') + 'Z').getTime()) / 60_000
+    if (taskAgeMin > ASYNC_TASK_TIMEOUT_MIN) {
+      failTaskAndRefund(task.id, 'TASK_TIMEOUT', '任务超时未返回结果，已自动退款')
+      snapshot()
+      return
+    }
     try {
       // 轮询路径不接入 Key 切换（S3）：任务已在上游，换 Key 无济于事；异常记警告、下轮重试
       const ctx = resolveProviderContext(cm.p_id, 'image')
@@ -551,6 +567,16 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
       snapshot()
       return
     } catch (e: any) {
+      // 上游明确表示任务不存在：多为上游集群故障把任务弄丢（三入口均查不到），
+      // 重试永远无果。留 10 分钟宽限（防上游写入延迟误杀）后判终态失败退款。
+      const notExist =
+        (e instanceof ProviderCallError && (e.raw as any)?.code === 'task_not_exist') ||
+        /task_not_exist/i.test(String(e?.message ?? ''))
+      if (notExist && taskAgeMin > TASK_NOT_EXIST_GRACE_MIN) {
+        failTaskAndRefund(task.id, 'UPSTREAM_TASK_LOST', '上游任务丢失（task_not_exist），已自动退款')
+        snapshot()
+        return
+      }
       // 上游查询异常（网络抖动等）：不动任务状态，返回快照
       console.warn(`[generations] 轮询上游失败（${task.task_no}）：${e.message}`)
       snapshot()
@@ -681,7 +707,19 @@ export function sweepOrphanTasks(): void {
     }
   }
 
-  // 2. async 进行中且有 provider_task_id → 无需处理（轮询自然恢复）
+  // 2. async 进行中且有 provider_task_id → 无需处理（轮询自然恢复），
+  //    但超龄（>ASYNC_TASK_TIMEOUT_MIN）仍无终态 → 失败退款：
+  //    覆盖前端已关页无人轮询的场景（上游集群故障丢任务等卡死兜底，与轮询路径同口径）
+  const staleAsync = db.prepare(`
+    SELECT t.id FROM generation_tasks t
+    WHERE t.status IN ('submitted','queued','in_progress')
+      AND t.provider_task_id IS NOT NULL AND t.provider_task_id != ''
+      AND t.created_at <= datetime('now', '-${ASYNC_TASK_TIMEOUT_MIN} minutes')
+  `).all() as any[]
+  for (const t of staleAsync) {
+    failTaskAndRefund(t.id, 'TASK_TIMEOUT', '任务超时未返回结果，已自动退款')
+  }
+
   // 3. submitted 且无 provider_task_id（sync 在途丢失 / async 提交中断）→ 标失败 + 退款
   const orphans = db.prepare(`
     SELECT t.id, t.channel_model_id FROM generation_tasks t
@@ -691,8 +729,8 @@ export function sweepOrphanTasks(): void {
     failTaskAndRefund(t.id, 'RESTART_LOST', '服务重启导致任务中断，已自动退款')
   }
 
-  if (importing.length > 0 || orphans.length > 0) {
-    console.log(`[generations] 启动清扫：importing 复位 ${importing.length} 条，中断任务标失败 ${orphans.length} 条`)
+  if (importing.length > 0 || orphans.length > 0 || staleAsync.length > 0) {
+    console.log(`[generations] 启动清扫：importing 复位 ${importing.length} 条，中断任务标失败 ${orphans.length} 条，超时任务标失败 ${staleAsync.length} 条`)
   }
 }
 
