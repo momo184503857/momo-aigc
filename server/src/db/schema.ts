@@ -810,6 +810,7 @@ export function initSchema(): void {
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       code        VARCHAR(50)  NOT NULL UNIQUE,
       name        VARCHAR(100) NOT NULL,
+      display_name VARCHAR(100),
       base_url    TEXT         NOT NULL,
       adapter     VARCHAR(50)  NOT NULL DEFAULT 'openai_compat',
       remark      TEXT         NOT NULL DEFAULT '',

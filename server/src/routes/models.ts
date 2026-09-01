@@ -18,7 +18,7 @@ function buildGroups(kind: 'image' | 'text') {
   const rows = db.prepare(`
     SELECT m.id, m.model_id, m.display_name, m.logical_model_id, m.param_overrides, m.pricing,
            m.supports_vision, m.supports_image_gen, m.supports_chat,
-           p.id AS provider_id, p.name AS provider_name, p.adapter
+           p.id AS provider_id, p.name AS provider_name, p.display_name AS provider_display_name, p.adapter
     FROM ai_models m
     JOIN api_providers p ON p.id = m.provider_id
     WHERE p.status = 'active' AND m.status = 'active'
@@ -47,7 +47,8 @@ function buildGroups(kind: 'image' | 'text') {
     if (!group) {
       group = {
         providerId: r.provider_id,
-        providerName: r.provider_name,
+        // 对用户隐藏真实渠道商：display_name 优先（后台可配），留空回退 name
+        providerName: r.provider_display_name || r.provider_name,
         adapter: r.adapter,
         models: [] as any[],
       }

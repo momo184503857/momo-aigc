@@ -113,6 +113,7 @@ momoaigc
 1. 渠道列表、CRUD、测试连通、启停**沿用现状**；渠道 = base_url + 协议适配器 + Key 池（不再提「主 Key」）。
 2. 管理端删除用户渠道相关的全部入口：用户自建渠道只读 Tab（S1 of ai-provider）下线。
 3. 渠道卡片上的「主 Key hint」改为「首个可用 Key hint」+ Key 总数（如 `Keys 3 · sk-a1**…`），无可用 Key 时醒目提示。
+4. **用户可见渠道名**（2026-09-01 增补）：渠道可配 `display_name`（api_providers 列，管理端「用户可见名」字段）；模型目录 `providerName` 与任务列表 `channelProviderName` 返回 `display_name ?? name`——用户侧（模型/渠道下拉、计费说明列头）显示别名以隐藏真实渠道商，管理后台始终显示真实名称并附「用户可见：X」标签。留空回退显示渠道名称。迁移 T8 一次性回填：toapis→TA、chatgpt2api→CA、relayrouter-gpt→RRG、relayrouter-banana→RRB。
 
 ### FR2 Key 池管理（管理员）
 

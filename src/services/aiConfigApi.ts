@@ -73,6 +73,8 @@ export interface ProviderRow {
   id: number
   code: string
   name: string
+  /** 用户可见渠道名（对用户隐藏真实渠道商；NULL = 直接显示 name） */
+  display_name: string | null
   base_url: string
   adapter: string
   adapter_label: string
@@ -92,6 +94,8 @@ export interface ProviderPayload {
   name: string
   /** 机器唯一标识；选填，留空由后端自动生成（provider / provider-2 / ...） */
   code?: string
+  /** 用户可见渠道名；置空回退显示 name */
+  display_name?: string
   base_url: string
   adapter: string
   remark?: string

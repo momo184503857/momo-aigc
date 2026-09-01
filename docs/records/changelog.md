@@ -3,6 +3,19 @@
 按时间倒序记录功能层面的变更。
 
 ---
+## 2026-09-01 — 用户侧渠道名脱敏（api_providers.display_name）
+
+### 背景
+
+用户侧界面（模型/渠道下拉、计费说明列头）直接显示真实渠道商名（ToAPIs / chatgpt2api / RelayRouter …），不利于隐藏供货来源。
+
+### 变更
+
+- **新列 `api_providers.display_name`**（用户可见渠道名；NULL = 回退显示 name）：迁移 T8 加列并一次性回填别名——toapis→TA、chatgpt2api→CA、relayrouter-gpt→RRG、relayrouter-banana→RRB（code+name 双匹配防误伤；幂等标记 `migrate_channel_display_names_v1`）。
+- **用户侧切换别名**：`GET /api/models/catalog` 的 `providerName` 与任务列表 `channelProviderName` 均返回 `display_name ?? name`——模型+渠道下拉、计费说明列头、画布文字模型分组自动生效；管理后台（/admin/ai-config）始终显示真实名称。
+- **管理端可配**：渠道新建/编辑表单新增「用户可见名」（留空回退真名）；详情头附「用户可见：X」标签。
+
+---
 ## 2026-09-01 — 计费说明页改为「逻辑模型 × 分辨率 × 渠道」价格矩阵
 
 ### 背景

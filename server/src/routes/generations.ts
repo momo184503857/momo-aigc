@@ -673,7 +673,7 @@ generationsRouter.get('/', (req: AuthRequest, res) => {
 
   const countRow = db.prepare(`SELECT COUNT(*) as total FROM generation_tasks t ${where}`).get(...params) as any
   const rows = db.prepare(`
-    SELECT t.*, p.name AS channel_provider_name, m.display_name AS channel_model_display_name, lm.code AS logical_code
+    SELECT t.*, COALESCE(NULLIF(p.display_name, ''), p.name) AS channel_provider_name, m.display_name AS channel_model_display_name, lm.code AS logical_code
     FROM generation_tasks t
     LEFT JOIN api_providers p ON p.id = t.channel_provider_id
     LEFT JOIN ai_models m ON m.id = t.channel_model_id

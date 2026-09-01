@@ -15,9 +15,12 @@ import { CANONICAL_LOGICAL_MODELS } from './logicalModels.js'
  * T6 平台渠道 Key 密文 → 明文（后台可查看/复制；无标记，按 key_iv 为空幂等）
  * T7 fixed-channels 收尾：api_provider_keys 加 priority/exhausted_at、拆主 Key 约束、
  *    删除全部用户渠道（历史任务外键置空）、DROP user_toapis_keys
+ * T8 用户可见渠道名（api_providers.display_name）：目录/任务列表对用户隐藏真实渠道商，
+ *    一次性回填 toapis→TA、chatgpt2api→CA、relayrouter-gpt→RRG、relayrouter-banana→RRB
  *
  * 幂等标记（system_config）：seed_ai_provider_v1（T1-T3）、migrate_user_keys_v1（T4）、
- * migrate_tasks_v1（T5）、migrate_fixed_channels_v1（T7）。T5 支持断点续跑（按 task_no IS NULL）。
+ * migrate_tasks_v1（T5）、migrate_fixed_channels_v1（T7）、migrate_channel_display_names_v1（T8）。
+ * T5 支持断点续跑（按 task_no IS NULL）。
  * 迁移前自动备份（VACUUM INTO），备份失败中止启动。
  * MIGRATION_DRY_RUN=1 时仅输出影响行数与抽样，不写库。
  */
@@ -68,6 +71,8 @@ function runDdl(): void {
   // api_providers：渠道归属（NULL=平台渠道；非空=用户自建渠道）
   try { db.exec(`ALTER TABLE api_providers ADD COLUMN owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`) } catch { /* column exists */ }
   try { db.exec(`ALTER TABLE api_providers ADD COLUMN balance_check_interval_sec INTEGER NOT NULL DEFAULT 60`) } catch { /* column exists */ }
+  // 用户可见渠道名（对用户隐藏真实渠道商；NULL = 直接用 name）
+  try { db.exec(`ALTER TABLE api_providers ADD COLUMN display_name VARCHAR(100)`) } catch { /* column exists */ }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_providers_owner ON api_providers(owner_user_id);`)
 
   // ai_models：渠道模型（逻辑模型映射 + 能力覆盖 + 定价 + 文字标记）
@@ -413,6 +418,34 @@ function migrateFixedChannels(): void {
   console.log(`[DB] migrate_fixed_channels_v1 done（用户渠道删除 ${userProviders.length} 个、历史任务置空 ${tasksToNull} 条、主 Key 回填 ${primaryKeys} 行）`)
 }
 
+// ── T8：用户可见渠道名（隐藏真实渠道商标标）──
+
+/** 一次性回填别名（code+name 双重匹配，防误伤；后台可随时改，本迁移只跑一次） */
+const CHANNEL_DISPLAY_NAMES: Array<[code: string, name: string, display: string]> = [
+  ['toapis', 'ToAPIs', 'TA'],
+  ['provider', 'chatgpt2api', 'CA'],
+  ['relayrouter-gpt', 'RelayRouter GPT', 'RRG'],
+  ['relayrouter-banana', 'RelayRouter Banana', 'RRB'],
+]
+
+function migrateChannelDisplayNames(): void {
+  if (flag('migrate_channel_display_names_v1') === 'done') return
+  if (DRY_RUN) {
+    console.log('[dry-run] T8 用户可见渠道名回填：4 条规则')
+    return
+  }
+  const tx = db.transaction(() => {
+    const update = db.prepare(`
+      UPDATE api_providers SET display_name = ?
+      WHERE code = ? AND name = ? AND display_name IS NULL
+    `)
+    for (const [code, name, display] of CHANNEL_DISPLAY_NAMES) update.run(display, code, name)
+    setFlag('migrate_channel_display_names_v1')
+  })
+  tx()
+  console.log('[DB] migrate_channel_display_names_v1 done（用户可见渠道名回填）')
+}
+
 // ── 入口 ──
 
 export function initAiProviderMigration(): void {
@@ -420,11 +453,12 @@ export function initAiProviderMigration(): void {
   const needUserKeys = flag('migrate_user_keys_v1') !== 'done'
   const needTasks = flag('migrate_tasks_v1') !== 'done'
   const needFixedChannels = flag('migrate_fixed_channels_v1') !== 'done'
+  const needDisplayNames = flag('migrate_channel_display_names_v1') !== 'done'
 
   if (DRY_RUN) {
     console.log('[DB] MIGRATION_DRY_RUN=1：ai-provider 迁移 dry-run 模式，不写库')
     // DDL 仍执行（IF NOT EXISTS 幂等且不破坏数据），种子与回填仅输出
-  } else if (needSeed || needUserKeys || needTasks || needFixedChannels) {
+  } else if (needSeed || needUserKeys || needTasks || needFixedChannels || needDisplayNames) {
     backupBeforeMigration()
   }
 
@@ -434,6 +468,7 @@ export function initAiProviderMigration(): void {
   migrateTasks()
   migratePlatformKeysToPlain()
   migrateFixedChannels()
+  migrateChannelDisplayNames()
 
   if (!DRY_RUN) {
     // 兜底：即使所有标记已完成，也确保唯一索引存在（如历史中断）

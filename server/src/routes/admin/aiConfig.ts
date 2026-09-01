@@ -156,7 +156,7 @@ adminAiConfigRouter.get('/providers', (_req, res) => {
 // POST /api/admin/ai-config/providers
 adminAiConfigRouter.post('/providers', async (req: AuthRequest, res) => {
   try {
-    const { name, code, base_url, adapter, remark } = req.body || {}
+    const { name, code, base_url, adapter, remark, display_name } = req.body || {}
     const trimmedName = String(name || '').trim()
     const trimmedCode = String(code || '').trim().toLowerCase()
     const adapterCode = String(adapter || 'openai_compat').trim()
@@ -182,8 +182,8 @@ adminAiConfigRouter.post('/providers', async (req: AuthRequest, res) => {
       res.status(409).json({ success: false, error: `服务商标识「${finalCode}」已存在` }); return
     }
     const result = db.prepare(`
-      INSERT INTO api_providers (code, name, base_url, adapter, remark) VALUES (?, ?, ?, ?, ?)
-    `).run(finalCode, trimmedName, urlCheck.normalized, adapterCode, String(remark || ''))
+      INSERT INTO api_providers (code, name, display_name, base_url, adapter, remark) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(finalCode, trimmedName, String(display_name || '').trim() || null, urlCheck.normalized, adapterCode, String(remark || ''))
     res.json({ success: true, data: serializeProvider(loadProvider(result.lastInsertRowid)) })
   } catch (err: any) {
     console.error('[admin/ai-config] Create provider error:', err.message)
@@ -197,13 +197,17 @@ adminAiConfigRouter.patch('/providers/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     const row = loadProvider(id)
     if (!row) { res.status(404).json({ success: false, error: '服务商不存在' }); return }
-    const { name, base_url, adapter, remark, status } = req.body || {}
+    const { name, base_url, adapter, remark, status, display_name } = req.body || {}
     const fields: string[] = []
     const params: any[] = []
     if (name !== undefined) {
       const trimmed = String(name).trim()
       if (!trimmed) { res.status(400).json({ success: false, error: '服务商名称不能为空' }); return }
       fields.push('name = ?'); params.push(trimmed)
+    }
+    if (display_name !== undefined) {
+      // 置空 = 回退显示真实渠道名
+      fields.push('display_name = ?'); params.push(String(display_name).trim() || null)
     }
     if (base_url !== undefined) {
       const urlCheck = await validateProviderBaseUrl(String(base_url))

@@ -66,18 +66,18 @@ async function loadAdapters() {
 // ── 服务商弹窗 ──
 const providerDialog = ref(false)
 const providerEditing = ref<ProviderRow | null>(null)
-const providerForm = ref({ name: '', code: '', base_url: '', adapter: 'openai_image', remark: '' })
+const providerForm = ref({ name: '', display_name: '', code: '', base_url: '', adapter: 'openai_image', remark: '' })
 const providerSubmitting = ref(false)
 
 function openProviderCreate() {
   providerEditing.value = null
-  providerForm.value = { name: '', code: '', base_url: '', adapter: 'openai_image', remark: '' }
+  providerForm.value = { name: '', display_name: '', code: '', base_url: '', adapter: 'openai_image', remark: '' }
   providerDialog.value = true
 }
 
 function openProviderEdit(row: ProviderRow) {
   providerEditing.value = row
-  providerForm.value = { name: row.name, code: row.code, base_url: row.base_url, adapter: row.adapter, remark: row.remark }
+  providerForm.value = { name: row.name, display_name: row.display_name || '', code: row.code, base_url: row.base_url, adapter: row.adapter, remark: row.remark }
   providerDialog.value = true
 }
 
@@ -91,12 +91,12 @@ async function submitProvider() {
   try {
     if (providerEditing.value) {
       await aiConfigApi.updateProvider(providerEditing.value.id, {
-        name: f.name.trim(), base_url: f.base_url.trim(), adapter: f.adapter, remark: f.remark,
+        name: f.name.trim(), display_name: f.display_name.trim(), base_url: f.base_url.trim(), adapter: f.adapter, remark: f.remark,
       })
       success('服务商已更新')
     } else {
       const res = await aiConfigApi.createProvider({
-        name: f.name.trim(), code: f.code.trim(), base_url: f.base_url.trim(), adapter: f.adapter, remark: f.remark,
+        name: f.name.trim(), display_name: f.display_name.trim(), code: f.code.trim(), base_url: f.base_url.trim(), adapter: f.adapter, remark: f.remark,
       })
       selectedId.value = res.data.data.id
       success('服务商已创建，请继续添加 Key 与模型')
@@ -743,6 +743,7 @@ onMounted(() => {
             <div class="detail-header">
               <div class="detail-title">
                 <h3>{{ selected.name }}</h3>
+                <el-tag v-if="selected.display_name" size="small" effect="plain" class="detail-alias">用户可见：{{ selected.display_name }}</el-tag>
                 <span class="detail-url">{{ selected.base_url }}</span>
               </div>
               <div class="detail-actions">
@@ -1079,6 +1080,10 @@ onMounted(() => {
       <el-form label-width="90px">
         <el-form-item label="名称" required>
           <el-input v-model="providerForm.name" placeholder="如：火山引擎" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="用户可见名">
+          <el-input v-model="providerForm.display_name" placeholder="选填，如 TA；留空则向用户显示「名称」" maxlength="100" />
+          <div class="form-hint">模型下拉、计费说明等用户侧界面显示此名（用于隐藏真实渠道商）；管理后台始终显示真实名称。留空 = 显示「名称」。</div>
         </el-form-item>
         <el-form-item label="标识">
           <el-input
@@ -1508,6 +1513,10 @@ onMounted(() => {
   font-size: var(--momo-font-size-xs);
   color: var(--el-text-color-secondary);
   word-break: break-all;
+}
+.detail-alias {
+  margin-left: 8px;
+  vertical-align: middle;
 }
 .detail-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .detail-remark {
