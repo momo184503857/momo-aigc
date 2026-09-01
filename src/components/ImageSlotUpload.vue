@@ -102,13 +102,14 @@ function handleDrop(e: DragEvent) {
   const text = e.dataTransfer?.getData('text/plain') || e.dataTransfer?.getData('text/uri-list')
   if (!text) return
   const url = text.trim()
-  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:image/')) return
+  // /api/files/ 前缀 = direct 存储模式的任务结果站内地址，提交链路按 sourceUrl 透传后端
+  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:image/') && !url.startsWith('/api/files/')) return
   const remaining = props.maxCount - props.modelValue.length
   if (remaining <= 0) return
   const img: SlotImage = {
     id: generateId(),
     dataUrl: url,
-    sourceUrl: url.startsWith('http') ? url : undefined,
+    sourceUrl: url.startsWith('http') || url.startsWith('/api/files/') ? url : undefined,
   }
   emit('update:modelValue', [...props.modelValue, img])
 }

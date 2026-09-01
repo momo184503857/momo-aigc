@@ -232,9 +232,9 @@ function handlePoolDrop(e: DragEvent) {
     }
     return
   }
-  // URL from task list or browser
+  // URL from task list or browser（/api/files/ = direct 存储模式的站内结果地址）
   const text = e.dataTransfer?.getData('text/plain')
-  if (text?.startsWith('http://') || text?.startsWith('https://')) {
+  if (text?.startsWith('http://') || text?.startsWith('https://') || text?.startsWith('/api/files/')) {
     if (poolImages.value.length >= MAX_POOL) return
     poolImages.value = [...poolImages.value, {
       id: generatePoolId(), dataUrl: text, sourceUrl: text,

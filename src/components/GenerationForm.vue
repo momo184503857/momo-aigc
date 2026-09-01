@@ -246,7 +246,8 @@ function handleDrop(e: DragEvent) {
     return
   }
   // Handle regular URL dragged from task list or browser
-  if (text?.startsWith('http://') || text?.startsWith('https://')) {
+  // （/api/files/ 前缀 = direct 存储模式的任务结果站内地址，后端 resolveUpstreamImageUrls 原生支持）
+  if (text?.startsWith('http://') || text?.startsWith('https://') || text?.startsWith('/api/files/')) {
     if (!canAddImage.value) return
     referenceImages.value.push({
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
