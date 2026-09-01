@@ -30,9 +30,9 @@ const tabStore = useTabStore()
 const router = useRouter()
 const route = useRoute()
 
-// 头像显示平台积分余额（fixed-channels：渠道由平台统一配置，计费单轨积分）
+// 头像显示平台积分余额（fixed-channels：渠道由平台统一配置，计费单轨积分；3 位小数精确显示）
 const avatarCreditsLabel = computed(() => {
-  return formatCredits(auth.user?.points ?? 0, { creditDigits: 0 })
+  return formatCredits(auth.user?.points ?? 0)
 })
 
 interface MenuItem {
