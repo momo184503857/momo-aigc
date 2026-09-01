@@ -111,14 +111,15 @@ export function seedYilianChannel(): void {
       `).run(provider.id, YILIAN_KEY, maskKey(YILIAN_KEY))
     }
 
+    // 定价种子须写旧单位（新库冷启动由 migration_credits_v2 统一 ×0.035 换算）：200/7 ×0.035 = 新单位全档 1.0
     db.prepare(`
       INSERT OR IGNORE INTO ai_models
         (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat,
          logical_model_id, pricing, status, remark, created_at, updated_at)
       VALUES (?, 'gpt-image-2', 'GPT-Image-2', 1, 1, 0,
               (SELECT id FROM ai_logical_models WHERE code = 'gpt-image-2'),
-              '{"1K":4,"2K":4,"4K":4}', 'active', '上游 gpt-image-2；4K 档实际出图长边 3840', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(provider.id)
+              ?, 'active', '上游 gpt-image-2；4K 档实际出图长边 3840', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(provider.id, JSON.stringify({ '1K': 200 / 7, '2K': 200 / 7, '4K': 200 / 7 }))
 
     db.prepare(`
       INSERT INTO system_config (key, value) VALUES ('seed_yilian_channel_v1', 'done')
