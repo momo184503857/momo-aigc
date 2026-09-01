@@ -557,8 +557,10 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
       }
 
       if (result.status === 'failed') {
-        db.prepare(`UPDATE generation_tasks SET status = 'failed', error_code = ?, error_message = ?, progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status NOT IN ('completed','failed')`)
-          .run(result.errorCode || 'UPSTREAM_FAILED', result.errorMessage || '生成失败', result.progress ?? 0, task.id)
+        // 只同步进度，状态与错误信息交由 failTaskAndRefund 写入——
+        // 若先把 status 写成 failed，failTaskAndRefund 会因终态早退而跳过退款
+        db.prepare(`UPDATE generation_tasks SET progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(result.progress ?? 0, task.id)
         failTaskAndRefund(task.id, result.errorCode || 'UPSTREAM_FAILED', result.errorMessage || '生成失败')
         snapshot()
         return
