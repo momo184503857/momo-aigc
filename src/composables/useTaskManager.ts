@@ -238,13 +238,16 @@ export function useTaskManager() {
 
     const cnt = Math.max(1, Math.min(5, params.count))
 
+    // 乐观任务的模型名就地取自目录：提交/轮询响应都不含 model，缺了任务列表会显示空模型
+    const optimisticModelId = useModelCatalogStore().getModel(params.channelModelId)?.modelId ?? ''
+
     for (let i = 0; i < cnt; i++) {
       const newTask = reactive<TaskItem>({
         id: 0,
         task_no: '',
         provider_task_id: '',
         toapis_task_id: '',
-        model: '',
+        model: optimisticModelId,
         prompt: params.prompt,
         resolution: params.resolution,
         aspectRatio: params.aspectRatio,
@@ -285,7 +288,6 @@ export function useTaskManager() {
         newTask.id = result.dbTaskId
         newTask.task_no = result.taskNo
         newTask.input_image_urls = result.inputImageUrls
-        newTask.model = newTask.model || ''
 
         await pollTask(newTask)
 
