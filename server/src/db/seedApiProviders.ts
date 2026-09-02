@@ -115,11 +115,15 @@ export function seedYilianChannel(): void {
     db.prepare(`
       INSERT OR IGNORE INTO ai_models
         (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat,
-         logical_model_id, pricing, status, remark, created_at, updated_at)
+         logical_model_id, pricing, cost_pricing, status, remark, created_at, updated_at)
         VALUES (?, 'gpt-image-2', 'GPT-Image-2', 1, 1, 0,
                 (SELECT id FROM ai_logical_models WHERE code = 'gpt-image-2'),
-                ?, 'active', '上游 gpt-image-2；4K 档实际出图长边 3840', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `).run(provider.id, JSON.stringify({ '1K': 20 / 7, '2K': 20 / 7, '4K': 20 / 7 }))
+                ?, ?, 'active', '上游 gpt-image-2；4K 档实际出图长边 3840', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(
+        provider.id,
+        JSON.stringify({ '1K': 20 / 7, '2K': 20 / 7, '4K': 20 / 7 }),
+        JSON.stringify({ '1K': 20 / 7, '2K': 20 / 7, '4K': 20 / 7 }),
+      )
 
     db.prepare(`
       INSERT INTO system_config (key, value) VALUES ('seed_yilian_channel_v1', 'done')

@@ -53,7 +53,7 @@ onMounted(async () => {
     <el-alert
       class="mode-note"
       type="info" :closable="false" show-icon
-      title="所有模型按「渠道 × 模型 × 分辨率」定价扣积分（消耗下方余额）；生成失败自动全额退款。"
+      title="所有生图模型按「模型 × 分辨率」统一售价扣积分；生成失败自动全额退款。"
     />
 
     <div v-loading="loading">

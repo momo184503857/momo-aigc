@@ -179,7 +179,7 @@ const modelForm = ref({
   overrideRatios: [] as string[],
   overrideMaxRef: null as number | null,
   overrideMaxPromptChars: null as number | null,
-  pricing: {} as Record<string, number>,
+  costPricing: {} as Record<string, number>,
   remark: '',
 })
 const modelSubmitting = ref(false)
@@ -192,7 +192,7 @@ function openModelCreate() {
     logical_model_id: null as number | null,
     overrideResolutions: [], overrideRatios: [],
     overrideMaxRef: null as number | null, overrideMaxPromptChars: null as number | null,
-    pricing: {} as Record<string, number>, remark: '',
+    costPricing: {} as Record<string, number>, remark: '',
   }
   modelDialog.value = true
 }
@@ -211,7 +211,7 @@ function openModelEdit(row: ModelRow) {
     overrideRatios: overrides.aspectRatios ?? [],
     overrideMaxRef: overrides.maxReferenceImages ?? null,
     overrideMaxPromptChars: overrides.maxPromptChars ?? null,
-    pricing: { ...(row.pricing ?? {}) } as Record<string, number>,
+    costPricing: { ...(row.cost_pricing ?? {}) } as Record<string, number>,
     remark: row.remark,
   }
   modelDialog.value = true
@@ -237,10 +237,10 @@ function buildModelPayloadExtra(): Record<string, unknown> {
     if (f.overrideMaxRef !== null) overrides.maxReferenceImages = f.overrideMaxRef
     if (f.overrideMaxPromptChars !== null) overrides.maxPromptChars = f.overrideMaxPromptChars
     payload.param_overrides = Object.keys(overrides).length > 0 ? overrides : null
-    payload.pricing = f.pricing
+    payload.cost_pricing = f.costPricing
   } else {
     payload.param_overrides = null
-    payload.pricing = null
+    payload.cost_pricing = null
   }
   return payload
 }
@@ -260,9 +260,9 @@ async function submitModel() {
     return
   }
   if (f.supports_image_gen) {
-    const missing = modelEffectiveResolutions.value.filter((r) => typeof f.pricing[r] !== 'number')
+    const missing = modelEffectiveResolutions.value.filter((r) => typeof f.costPricing[r] !== 'number')
     if (missing.length > 0) {
-      warning(`定价未覆盖分辨率：${missing.join(' / ')}（平台生图模型定价必填）`)
+      warning(`成本价未覆盖分辨率：${missing.join(' / ')}（生图渠道成本价必填）`)
       return
     }
   }
@@ -551,7 +551,7 @@ const renamingValue = ref('')
 async function loadAllLogicalModels() {
   try {
     const res = await aiConfigApi.listLogicalModels()
-    allLogicalModels.value = res.data.data || []
+    allLogicalModels.value = (res.data.data || []).map((row) => ({ ...row, salePricing: row.salePricing ?? {} }))
     logicalModels.value = allLogicalModels.value.filter((l) => l.kind === 'image' && l.status === 'active')
   } catch { /* ignore */ }
 }
@@ -572,6 +572,23 @@ async function commitRename(row: LogicalModelRow) {
     await loadAllLogicalModels()
   } catch (e) {
     error(e, '保存失败')
+  }
+}
+
+async function saveSalePricing(row: LogicalModelRow) {
+  const resolutions = row.defaultParams.resolutions ?? []
+  const pricing = row.salePricing ?? {}
+  const missing = resolutions.filter((resolution) => typeof pricing[resolution] !== 'number')
+  if (missing.length > 0) {
+    warning(`售卖价未覆盖分辨率：${missing.join(' / ')}`)
+    return
+  }
+  try {
+    await aiConfigApi.updateLogicalModel(row.id, { sale_pricing: pricing })
+    success('统一售卖价已更新')
+    await loadAllLogicalModels()
+  } catch (e) {
+    error(e, '售卖价保存失败')
   }
 }
 
@@ -702,7 +719,7 @@ onMounted(() => {
       <!-- ═══ Tab 1：服务商与模型（渠道 / 渠道模型 / Key / 调试调用）═══ -->
       <el-tab-pane label="服务商与模型" name="providers">
         <div class="toolbar">
-          <div class="hint">管理平台渠道（服务商）、渠道模型与 Key 池。一渠道可配多把 Key，按优先级（小者优先）轮换调用，上游欠费自动切换；生图渠道可选 toapis / openai_image / volcengine_image 协议。</div>
+          <div class="hint">管理平台渠道、渠道模型成本与 Key。每个渠道只使用优先级最高的启用 Key；调用失败后直接切换到下一渠道。</div>
           <div class="toolbar-actions">
             <el-button type="primary" :icon="Plus" @click="openProviderCreate">新增服务商</el-button>
             <el-button :icon="Refresh" @click="loadAll">刷新</el-button>
@@ -790,10 +807,10 @@ onMounted(() => {
                       <span v-else class="cap-no">—</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="定价（积分/张）" min-width="170" show-overflow-tooltip>
+                  <el-table-column label="成本价（元/张）" min-width="170" show-overflow-tooltip>
                     <template #default="{ row }">
-                      <span v-if="row.pricing && Object.keys(row.pricing).length" class="pricing-cell">
-                        {{ Object.entries(row.pricing).map(([r, p]) => `${r}:${p}`).join(' · ') }}
+                      <span v-if="row.cost_pricing && Object.keys(row.cost_pricing).length" class="pricing-cell">
+                        {{ Object.entries(row.cost_pricing).map(([r, p]) => `${r}:¥${p}`).join(' · ') }}
                       </span>
                       <span v-else-if="row.supports_image_gen" class="cap-no">未配置</span>
                       <span v-else class="cap-no">—</span>
@@ -978,7 +995,7 @@ onMounted(() => {
         <section class="logical-section">
           <div class="section-head">
             <h3 class="section-title">逻辑模型</h3>
-            <span class="section-hint">标准模型清单由平台代码定义（能力：分辨率/宽高比/上限，一处修改全渠道生效），管理员仅可修改显示名。</span>
+            <span class="section-hint">标准模型能力由平台代码定义；管理员维护显示名和前台统一售卖价。</span>
           </div>
           <el-table :data="allLogicalModels" size="small" max-height="360">
             <el-table-column prop="code" label="Code" min-width="220" show-overflow-tooltip />
@@ -1006,6 +1023,21 @@ onMounted(() => {
             </el-table-column>
             <el-table-column label="能力定义" min-width="260" show-overflow-tooltip>
               <template #default="{ row }">{{ logicalCapabilitySummary(row) }}</template>
+            </el-table-column>
+            <el-table-column label="统一售卖价（积分/张）" min-width="320">
+              <template #default="{ row }">
+                <div v-if="row.kind === 'image'" class="pricing-block">
+                  <div v-for="resolution in (row.defaultParams.resolutions || [])" :key="resolution" class="pricing-row">
+                    <span class="pricing-label">{{ resolution }}</span>
+                    <el-input-number
+                      v-model="row.salePricing[resolution]"
+                      :min="0" :step="0.01" :precision="2" size="small" style="width: 120px"
+                    />
+                  </div>
+                  <el-button size="small" type="primary" plain @click="saveSalePricing(row)">保存售价</el-button>
+                </div>
+                <span v-else class="cap-no">—</span>
+              </template>
             </el-table-column>
             <el-table-column prop="modelCount" label="关联渠道模型" width="110" align="center" />
           </el-table>
@@ -1182,17 +1214,17 @@ onMounted(() => {
             <div class="form-hint">覆盖只允许收窄（不能超出逻辑模型能力）；生效能力即时反映在定价行</div>
           </div>
         </el-form-item>
-        <el-form-item v-if="modelForm.supports_image_gen && modelLogical" label="定价" required>
+        <el-form-item v-if="modelForm.supports_image_gen && modelLogical" label="成本价" required>
           <div class="pricing-block">
             <div v-for="r in modelEffectiveResolutions" :key="r" class="pricing-row">
               <span class="pricing-label">{{ r }}</span>
               <el-input-number
-                :model-value="modelForm.pricing[r]"
-                @update:model-value="(v: any) => modelForm.pricing[r] = v"
+                :model-value="modelForm.costPricing[r]"
+                @update:model-value="(v: any) => modelForm.costPricing[r] = v"
                 :min="0" :step="0.01" :precision="2" size="small" style="width: 140px"
-                placeholder="积分"
+                placeholder="元"
               />
-              <span class="pricing-unit">积分 / 张</span>
+              <span class="pricing-unit">元 / 张</span>
             </div>
             <div v-if="modelEffectiveResolutions.length === 0" class="form-hint">生效能力为空（覆盖过度收窄），请调整</div>
           </div>

@@ -1,91 +1,102 @@
 import { Router } from 'express'
 import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
-import { getChannelModelCapabilities } from '../utils/channelModel.js'
+import { getChannelModelCapabilities, parseParams } from '../utils/channelModel.js'
 
-/**
- * 模型目录（前端唯一模型真源，ai-provider §5.1；fixed-channels 后仅平台渠道）。
- *
- * GET /api/models/catalog?kind=image|text
- * 返回 { platform: [渠道组...] }，每组含渠道信息与渠道模型列表
- * （生效能力 / 定价 / 逻辑模型 code）。仅返回 active 渠道/模型。
- */
-
+/** 用户模型目录：生图只返回逻辑模型与统一售价，渠道和成本对普通用户不可见。 */
 export const modelsRouter = Router()
 modelsRouter.use(authMiddleware)
 
-function buildGroups(kind: 'image' | 'text') {
+function buildImageModels() {
+  const logicalRows = db.prepare(`
+    SELECT id, code, name, default_params, sale_pricing
+    FROM ai_logical_models
+    WHERE kind = 'image' AND status = 'active' AND sale_pricing IS NOT NULL
+    ORDER BY id ASC
+  `).all() as any[]
+  const channelRows = db.prepare(`
+    SELECT m.*
+    FROM ai_models m JOIN api_providers p ON p.id = m.provider_id
+    WHERE m.logical_model_id = ? AND m.status = 'active' AND p.status = 'active'
+      AND m.supports_image_gen = 1 AND m.cost_pricing IS NOT NULL
+      AND EXISTS (SELECT 1 FROM api_provider_keys k WHERE k.provider_id = p.id AND k.status = 'active')
+    ORDER BY m.id ASC
+  `)
+
+  return logicalRows.flatMap((logical) => {
+    const salePricing = parseParams(logical.sale_pricing) as Record<string, number> | null
+    const base = parseParams(logical.default_params)
+    if (!salePricing || !base) return []
+    const channels = channelRows.all(logical.id) as any[]
+    const availableResolutions = (base.resolutions ?? []).filter((resolution: string) =>
+      salePricing[resolution] !== undefined && channels.some((row) => {
+        const costs = parseParams(row.cost_pricing) as Record<string, number> | null
+        return costs?.[resolution] !== undefined && getChannelModelCapabilities(row)?.resolutions.includes(resolution)
+      }))
+    if (availableResolutions.length === 0) return []
+    const ratiosByResolution: Record<string, string[]> = {}
+    for (const resolution of availableResolutions) {
+      const ratios = new Set<string>()
+      for (const row of channels) {
+        const caps = getChannelModelCapabilities(row)
+        if (!caps?.resolutions.includes(resolution)) continue
+        const values = caps.aspectRatiosByResolution?.[resolution] ?? caps.aspectRatios ?? []
+        values.forEach((value) => ratios.add(value))
+      }
+      ratiosByResolution[resolution] = [...ratios]
+    }
+    return [{
+      id: logical.id,
+      modelId: logical.code,
+      displayName: logical.name || logical.code,
+      logicalCode: logical.code,
+      capabilities: {
+        resolutions: availableResolutions,
+        aspectRatiosByResolution: ratiosByResolution,
+        maxReferenceImages: base.maxReferenceImages ?? 14,
+        maxPromptChars: base.maxPromptChars ?? 32000,
+      },
+      pricing: Object.fromEntries(availableResolutions.map((r: string) => [r, salePricing[r]])),
+      kind: 'image',
+    }]
+  })
+}
+
+function buildTextGroups() {
   const rows = db.prepare(`
-    SELECT m.id, m.model_id, m.display_name, m.logical_model_id, m.param_overrides, m.pricing,
-           m.supports_vision, m.supports_image_gen, m.supports_chat,
+    SELECT m.id, m.model_id, m.display_name, m.logical_model_id,
            p.id AS provider_id, p.name AS provider_name, p.display_name AS provider_display_name, p.adapter
-    FROM ai_models m
-    JOIN api_providers p ON p.id = m.provider_id
-    WHERE p.status = 'active' AND m.status = 'active'
-      AND ${kind === 'image' ? 'm.supports_image_gen = 1' : 'm.supports_chat = 1'}
+    FROM ai_models m JOIN api_providers p ON p.id = m.provider_id
+    WHERE p.status = 'active' AND m.status = 'active' AND m.supports_chat = 1
     ORDER BY p.id ASC, m.id ASC
   `).all() as any[]
-
-  const groups: Array<Record<string, unknown>> = []
-  const groupByProvider = new Map<number, Record<string, unknown>>()
-  const logicalCache = new Map<number, { code: string; name: string; kind: string }>()
-
-  for (const r of rows) {
-    let logical: { code: string; name: string; kind: string } | undefined
-    if (r.logical_model_id) {
-      if (!logicalCache.has(r.logical_model_id)) {
-        const lm = db.prepare(`SELECT code, name, kind FROM ai_logical_models WHERE id = ?`).get(r.logical_model_id) as any
-        if (lm) logicalCache.set(r.logical_model_id, lm)
-      }
-      logical = logicalCache.get(r.logical_model_id)
-    }
-    // 生图模型必须有能力定义；文字模型无能力要求
-    const capabilities = r.supports_image_gen ? getChannelModelCapabilities(r) : null
-    if (r.supports_image_gen && (!capabilities || capabilities.resolutions.length === 0)) continue
-
-    let group = groupByProvider.get(r.provider_id)
+  const groups = new Map<number, any>()
+  for (const row of rows) {
+    let group = groups.get(row.provider_id)
     if (!group) {
-      group = {
-        providerId: r.provider_id,
-        // 对用户隐藏真实渠道商：display_name 优先（后台可配），留空回退 name
-        providerName: r.provider_display_name || r.provider_name,
-        adapter: r.adapter,
-        models: [] as any[],
-      }
-      groupByProvider.set(r.provider_id, group)
-      groups.push(group)
+      group = { providerId: row.provider_id, providerName: row.provider_display_name || row.provider_name, adapter: row.adapter, models: [] }
+      groups.set(row.provider_id, group)
     }
-
-    let pricing: Record<string, number> | null = null
-    if (r.pricing) {
-      try { pricing = JSON.parse(r.pricing) } catch { pricing = null }
-    }
-
-    ;(group as any).models.push({
-      id: r.id,                        // channelModelId
-      modelId: r.model_id,             // 渠道模型名（发给上游的 model 字符串）
-      displayName: r.display_name || logical?.name || r.model_id,
+    const logical = row.logical_model_id
+      ? db.prepare(`SELECT code, name FROM ai_logical_models WHERE id = ?`).get(row.logical_model_id) as any
+      : null
+    group.models.push({
+      id: row.id,
+      modelId: row.model_id,
+      displayName: row.display_name || logical?.name || row.model_id,
       logicalCode: logical?.code ?? null,
-      capabilities: capabilities ? {
-        resolutions: capabilities.resolutions,
-        aspectRatiosByResolution: capabilities.aspectRatiosByResolution ?? undefined,
-        aspectRatios: capabilities.aspectRatios ?? undefined,
-        maxReferenceImages: capabilities.maxReferenceImages ?? 14,
-        maxPromptChars: capabilities.maxPromptChars ?? 32000,
-      } : null,
-      pricing,
-      kind,
+      capabilities: null,
+      pricing: null,
+      kind: 'text',
     })
   }
-  return groups
+  return [...groups.values()]
 }
 
 modelsRouter.get('/catalog', (req: AuthRequest, res) => {
   const kind = req.query.kind === 'text' ? 'text' : 'image'
   res.json({
     success: true,
-    data: {
-      platform: buildGroups(kind),
-    },
+    data: kind === 'image' ? { models: buildImageModels() } : { platform: buildTextGroups() },
   })
 })

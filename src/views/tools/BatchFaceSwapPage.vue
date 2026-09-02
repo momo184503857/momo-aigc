@@ -65,23 +65,23 @@ function resetSystemPrompt() {
 // ─── Model / Resolution / Aspect Ratio ───
 
 const modelCatalog = useModelCatalogStore()
-const selectedChannelModelId = ref(0)
+const selectedModelId = ref(0)
 const resolution = ref('')
 const aspectRatio = ref('')
 
 // 目录加载完成后初始化默认模型
 modelCatalog.ensureLoaded().then(() => {
-  if (!selectedChannelModelId.value) {
+  if (!selectedModelId.value) {
     const m = modelCatalog.defaultImageModel
     if (m?.capabilities) {
-      selectedChannelModelId.value = m.id
+      selectedModelId.value = m.id
       resolution.value = m.capabilities.resolutions[0]
       aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0] ?? '1:1'
     }
   }
 })
 
-const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedModelId.value))
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
@@ -114,7 +114,7 @@ function handleResolutionChange() {
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!serverStatus.canGenerate) return false
-  if (!selectedChannelModelId.value) return false
+  if (!selectedModelId.value) return false
   if (clothImages.value.length === 0) return false
   if (faceImages.value.length === 0) return false
   return true
@@ -225,7 +225,7 @@ async function handleGenerate() {
       // 调用统一入口 submitTask
       // change-face 的参考图顺序：目标图（衣服图）在前，源脸图在后
       await submitTask({
-        channelModelId: selectedChannelModelId.value,
+        logicalModelId: selectedModelId.value,
         prompt,
         size: aspectRatio.value,
         resolution: resolution.value,
@@ -352,7 +352,7 @@ onMounted(() => {
         <div class="form-row-inline">
           <label class="form-label-left">模型</label>
           <div class="form-control-right">
-            <ModelChannelSelect v-model="selectedChannelModelId" @change="handleModelChange" />
+            <ModelChannelSelect v-model="selectedModelId" @change="handleModelChange" />
           </div>
         </div>
 

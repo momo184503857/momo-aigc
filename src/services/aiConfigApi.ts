@@ -26,6 +26,7 @@ export interface LogicalModelRow {
     maxReferenceImages?: number
     maxPromptChars?: number
   }
+  salePricing: Record<string, number> | null
   status: 'active' | 'disabled'
   remark: string
   modelCount: number
@@ -62,7 +63,7 @@ export interface ModelRow {
   logical_code?: string | null
   logical_name?: string | null
   param_overrides?: Record<string, unknown> | null
-  pricing?: Record<string, number> | null
+  cost_pricing?: Record<string, number> | null
   remark: string
   status: 'active' | 'disabled'
   created_at: string
@@ -110,7 +111,7 @@ export interface ModelPayload {
   supports_chat?: boolean
   logical_model_id?: number | null
   param_overrides?: Record<string, unknown> | null
-  pricing?: Record<string, number> | null
+  cost_pricing?: Record<string, number> | null
   remark?: string
   status?: 'active' | 'disabled'
 }
@@ -184,7 +185,7 @@ export const aiConfigApi = {
 
   /** 逻辑模型管理（FR2） */
   listLogicalModels: () => http.get<{ data: LogicalModelRow[] }>('/admin/ai-config/logical-models'),
-  updateLogicalModel: (id: number, payload: { name: string }) => http.patch<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}`, payload),
+  updateLogicalModel: (id: number, payload: { name?: string; sale_pricing?: Record<string, number> }) => http.patch<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}`, payload),
 
   /** 存储配置（直接传 / 阿里云 OSS，含 OSS 密钥——存 DB 不入 git） */
   getStorageConfig: () => http.get<{ data: StorageConfig }>('/admin/ai-config/storage'),

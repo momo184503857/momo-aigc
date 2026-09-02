@@ -26,7 +26,7 @@ const props = defineProps<{ featureId: string }>()
 
 const emit = defineEmits<{
   (e: 'generate', params: {
-    channelModelId: number
+    logicalModelId: number
     prompt: string
     resolution: string
     aspectRatio: string
@@ -64,7 +64,7 @@ function initSlots() {
 }
 
 // Form state
-const selectedChannelModelId = ref(0)
+const selectedModelId = ref(0)
 const resolution = ref('')
 const aspectRatio = ref('')
 const count = ref(1)
@@ -102,7 +102,7 @@ const editedSystemPromptsByModel = ref<Record<string, string>>({})
 
 // Model computed（必须在下方 promptKey 之前声明：watch(promptKey) 会在 setup 阶段
 // 立即求值一次 getter，若 selectedModel 声明在后会命中 TDZ 报错导致整页白屏）
-const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedModelId.value))
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
@@ -177,10 +177,10 @@ watch(config, (cfg) => {
 }, { immediate: true })
 
 function applyDefaultsIfReady() {
-  if (!modelCatalog.loaded || selectedChannelModelId.value) return
+  if (!modelCatalog.loaded || selectedModelId.value) return
   const cm = modelCatalog.getModelByName(pendingDefaults.modelName) ?? modelCatalog.defaultImageModel
   if (!cm?.capabilities) return
-  selectedChannelModelId.value = cm.id
+  selectedModelId.value = cm.id
   resolution.value = cm.capabilities.resolutions.includes(pendingDefaults.resolution)
     ? pendingDefaults.resolution
     : cm.capabilities.resolutions[0]
@@ -228,7 +228,7 @@ const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!config.value) return false
   if (!serverStatus.canGenerate) return false
-  if (!selectedChannelModelId.value) return false
+  if (!selectedModelId.value) return false
   for (const slot of config.value.imageSlots) {
     if (slot.required && getSlotImages(slot.key).length === 0) return false
   }
@@ -269,7 +269,7 @@ function handleGenerate() {
   })
 
   emit('generate', {
-    channelModelId: selectedChannelModelId.value,
+    logicalModelId: selectedModelId.value,
     prompt: buildFullPrompt(),
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
@@ -338,15 +338,15 @@ function setParams(params: {
   // 旧参数携带模型名字符串：按名反查渠道模型（兼容历史任务「复制参数」）
   const cm = modelCatalog.getModelByName(params.modelId)
   if (cm?.capabilities) {
-    selectedChannelModelId.value = cm.id
+    selectedModelId.value = cm.id
     resolution.value = cm.capabilities.resolutions.includes(params.resolution)
       ? params.resolution
       : cm.capabilities.resolutions[0]
     const ratios = modelCatalog.aspectRatiosFor(cm, resolution.value)
     aspectRatio.value = ratios.includes(params.aspectRatio) ? params.aspectRatio : ratios[0]
-  } else if (!selectedChannelModelId.value && modelCatalog.defaultImageModel?.capabilities) {
+  } else if (!selectedModelId.value && modelCatalog.defaultImageModel?.capabilities) {
     const dm = modelCatalog.defaultImageModel
-    selectedChannelModelId.value = dm.id
+    selectedModelId.value = dm.id
     resolution.value = dm.capabilities!.resolutions[0]
     aspectRatio.value = modelCatalog.aspectRatiosFor(dm, resolution.value)[0]
   }
@@ -491,7 +491,7 @@ defineExpose({ setParams })
       <div class="form-row-inline">
         <label class="form-label-left">模型</label>
         <div class="form-control-right">
-          <ModelChannelSelect v-model="selectedChannelModelId" @change="handleModelChange" />
+          <ModelChannelSelect v-model="selectedModelId" @change="handleModelChange" />
         </div>
       </div>
 

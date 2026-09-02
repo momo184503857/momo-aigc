@@ -16,8 +16,8 @@ import { ossApi } from '@/services/ossApi'
 // ─── Types ───
 
 export interface SubmitTaskParams {
-  /** 渠道模型 id（决定渠道、适配器、能力、定价） */
-  channelModelId: number
+  /** 逻辑模型 id（字段名暂保留，兼容现有调用方） */
+  logicalModelId: number
   /** 最终发送给 API 的完整 prompt */
   prompt: string
   /** 用户输入的补充提示词（可为空） */
@@ -155,7 +155,7 @@ async function processFile(file: File, allImageUrls: string[]): Promise<void> {
  */
 export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskResult> {
   const {
-    channelModelId,
+    logicalModelId,
     prompt,
     userPrompt,
     systemPrompt,
@@ -172,7 +172,7 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
     clientBusinessId,
   } = params
 
-  if (!channelModelId) {
+  if (!logicalModelId) {
     throw new Error('请先选择模型')
   }
 
@@ -201,7 +201,7 @@ export async function submitTask(params: SubmitTaskParams): Promise<SubmitTaskRe
 
   // ─── 服务端编排提交（校验/计价/落库/派发）───
   const res = await generationApi.submit({
-    channelModelId,
+    logicalModelId: logicalModelId,
     prompt: finalPrompt,
     userPrompt,
     systemPrompt,

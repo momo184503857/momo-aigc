@@ -39,10 +39,6 @@ const statusMap: Record<string, string> = {
   importing: '下载中', completed: '已完成', failed: '生成失败', unknown: '状态未知',
 }
 
-/** 渠道任务号：现取 provider_task_id，老数据回退 toapis_task_id；同步渠道无则为空 */
-function channelTaskId(task: NonNullable<typeof props.task>): string {
-  return task.provider_task_id || task.toapis_task_id || ''
-}
 </script>
 
 <template>
@@ -57,10 +53,6 @@ function channelTaskId(task: NonNullable<typeof props.task>): string {
         <el-descriptions-item label="任务ID">
           <span class="id-value">{{ task.task_no || '-' }}</span>
           <el-button v-if="task.task_no" :icon="CopyDocument" size="small" text type="primary" title="复制任务ID" @click="copy(task.task_no || '')" />
-        </el-descriptions-item>
-        <el-descriptions-item label="渠道任务ID">
-          <span class="id-value">{{ channelTaskId(task) || '-' }}</span>
-          <el-button v-if="channelTaskId(task)" :icon="CopyDocument" size="small" text type="primary" title="复制渠道任务ID" @click="copy(channelTaskId(task))" />
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="task.status === 'completed' ? 'success' : task.status === 'failed' ? 'danger' : 'info'" size="small">

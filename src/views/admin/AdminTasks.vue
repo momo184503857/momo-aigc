@@ -21,6 +21,16 @@ interface TaskRow {
   status: string
   progress: number
   created_at: string
+  route_attempts?: Array<{
+    id: number
+    attempt_no: number
+    provider_name: string | null
+    channel_model_name: string | null
+    key_name: string | null
+    cost_price: number
+    status: string
+    error_message: string | null
+  }>
 }
 
 const tasks = ref<TaskRow[]>([])
@@ -84,6 +94,26 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
     </template>
 
     <el-table :data="tasks" v-loading="loading" stripe>
+      <el-table-column type="expand" width="44">
+        <template #default="{ row }">
+          <el-table v-if="row.route_attempts?.length" :data="row.route_attempts" size="small" class="attempt-table">
+            <el-table-column prop="attempt_no" label="#" width="52" />
+            <el-table-column prop="provider_name" label="渠道" min-width="130" />
+            <el-table-column prop="channel_model_name" label="渠道模型" min-width="150" />
+            <el-table-column prop="key_name" label="Key" min-width="120" />
+            <el-table-column label="成本" width="100"><template #default="scope">¥{{ scope.row.cost_price }}</template></el-table-column>
+            <el-table-column label="结果" width="100">
+              <template #default="scope">
+                <el-tag :type="scope.row.status === 'succeeded' ? 'success' : scope.row.status === 'failed' ? 'danger' : 'info'" size="small">
+                  {{ scope.row.status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="error_message" label="错误" min-width="220" show-overflow-tooltip />
+          </el-table>
+          <el-empty v-else description="该任务没有路由记录" :image-size="48" />
+        </template>
+      </el-table-column>
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="username" label="用户" width="100" />
       <el-table-column prop="task_no" label="任务ID" width="170" show-overflow-tooltip>
@@ -136,6 +166,7 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
 </template>
 
 <style scoped>
-.filters { display: flex; gap: 8px; }
-.pagination-wrap { margin-top: 16px; display: flex; justify-content: center; }
+.filters { display: flex; gap: var(--momo-space-2); }
+.attempt-table { margin: var(--momo-space-2) var(--momo-space-4); width: calc(100% - var(--momo-space-8)); }
+.pagination-wrap { margin-top: var(--momo-space-4); display: flex; justify-content: center; }
 </style>

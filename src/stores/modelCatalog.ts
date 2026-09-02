@@ -4,8 +4,7 @@ import http from '@/services/http'
 
 /**
  * 模型目录 store（前端唯一模型真源，替代原 types/adapter.ts 的 MODELS/TEXT_MODELS
- * 硬编码常量）。数据来自 GET /api/models/catalog：fixed-channels 后渠道全部为
- * 平台渠道（管理员配置），模型按渠道分组展示，统一按积分计费。
+ * 硬编码常量）。生图目录只包含逻辑模型和统一售价，不暴露渠道信息。
  */
 
 export interface ModelCapabilities {
@@ -17,7 +16,7 @@ export interface ModelCapabilities {
 }
 
 export interface CatalogModel {
-  /** 渠道模型 id（提交任务用） */
+  /** 生图为逻辑模型 id；文字为渠道模型 id */
   id: number
   /** 渠道模型名（发给上游的 model 字符串，任务快照存这个） */
   modelId: string
@@ -51,7 +50,8 @@ export interface LogicalImageModel {
 }
 
 interface CatalogResponse {
-  platform: Array<{ providerId: number; providerName: string; adapter: string; models: any[] }>
+  models?: any[]
+  platform?: Array<{ providerId: number; providerName: string; adapter: string; models: any[] }>
 }
 
 export const useModelCatalogStore = defineStore('modelCatalog', () => {
@@ -62,7 +62,10 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
   let loadedAt = 0
 
   function normalize(res: CatalogResponse, kind: 'image' | 'text'): CatalogGroup[] {
-    return (res.platform || [])
+    const source = kind === 'image' && res.models
+      ? [{ providerId: 0, providerName: '', adapter: '', models: res.models }]
+      : (res.platform || [])
+    return source
       .map((g) => ({
         providerId: g.providerId,
         providerName: g.providerName,
@@ -121,7 +124,7 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
   const defaultImageModel = computed<CatalogModel | null>(() => flatImageModels.value[0] ?? null)
   const defaultTextModel = computed<CatalogModel | null>(() => flatTextModels.value[0] ?? null)
 
-  /** 生图模型按逻辑模型去重（「模型+渠道」分体选择的模型维度，Map 保持目录首现顺序） */
+  /** 生图目录本身已按逻辑模型去重。 */
   const imageLogicalModels = computed<LogicalImageModel[]>(() => {
     const map = new Map<string, LogicalImageModel>()
     for (const m of flatImageModels.value) {

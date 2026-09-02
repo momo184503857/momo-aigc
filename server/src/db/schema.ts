@@ -291,6 +291,24 @@ export function initSchema(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_user ON canvas_assets(user_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_project ON canvas_assets(project_id);`)
 
+  // Node-RED canvas projects table (AI画布 Pro)
+  // flow_json / creds_json 由 Node-RED storage 模块读写（每次 Deploy 实时落库）；
+  // credential_secret 每项目随机生成，仅 Node-RED 子进程用于加密节点凭据
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS nr_canvas_projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      name VARCHAR(100) NOT NULL DEFAULT '未命名画布',
+      flow_json TEXT DEFAULT '',
+      creds_json TEXT DEFAULT '',
+      credential_secret VARCHAR(64) NOT NULL,
+      node_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_nr_canvas_projects_user ON nr_canvas_projects(user_id);`)
+
   // Migration: add is_starred and sort_order to template_images
   try {
     db.exec(`ALTER TABLE template_images ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0`)
@@ -901,6 +919,14 @@ export function initSchema(): void {
       }
       return { id: row.id, pricing: JSON.stringify(next) }
     })
+    const convertJsonPrice = (value: string): string => JSON.stringify(Object.fromEntries(
+      Object.entries(JSON.parse(value) as Record<string, number>)
+        .map(([resolution, price]) => [resolution, Math.round(price * 0.035 * 1000) / 1000]),
+    ))
+    const costRows = db.prepare(`SELECT id, cost_pricing FROM ai_models WHERE cost_pricing IS NOT NULL`).all() as Array<{ id: number; cost_pricing: string }>
+    const saleRows = db.prepare(`SELECT id, sale_pricing FROM ai_logical_models WHERE sale_pricing IS NOT NULL`).all() as Array<{ id: number; sale_pricing: string }>
+    const updateCost = db.prepare(`UPDATE ai_models SET cost_pricing = ? WHERE id = ?`)
+    const updateSale = db.prepare(`UPDATE ai_logical_models SET sale_pricing = ? WHERE id = ?`)
 
     const creditsV2Txn = db.transaction(() => {
       db.exec(`
@@ -917,6 +943,8 @@ export function initSchema(): void {
       for (const m of convertedPricing) {
         stmtUpdPricing.run(m.pricing, m.id)
       }
+      for (const row of costRows) updateCost.run(convertJsonPrice(row.cost_pricing), row.id)
+      for (const row of saleRows) updateSale.run(convertJsonPrice(row.sale_pricing), row.id)
       db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_credits_v2', 'done')
                   ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
     })
@@ -951,6 +979,14 @@ export function initSchema(): void {
       }
       return { id: row.id, pricing: JSON.stringify(next) }
     })
+    const roundJsonPrice = (value: string): string => JSON.stringify(Object.fromEntries(
+      Object.entries(JSON.parse(value) as Record<string, number>)
+        .map(([resolution, price]) => [resolution, Math.round(price * 100) / 100]),
+    ))
+    const costRows = db.prepare(`SELECT id, cost_pricing FROM ai_models WHERE cost_pricing IS NOT NULL`).all() as Array<{ id: number; cost_pricing: string }>
+    const saleRows = db.prepare(`SELECT id, sale_pricing FROM ai_logical_models WHERE sale_pricing IS NOT NULL`).all() as Array<{ id: number; sale_pricing: string }>
+    const updateCost = db.prepare(`UPDATE ai_models SET cost_pricing = ? WHERE id = ?`)
+    const updateSale = db.prepare(`UPDATE ai_logical_models SET sale_pricing = ? WHERE id = ?`)
 
     const creditsDp2Txn = db.transaction(() => {
       db.exec(`
@@ -967,6 +1003,8 @@ export function initSchema(): void {
       for (const m of roundedPricing) {
         stmtUpdPricing.run(m.pricing, m.id)
       }
+      for (const row of costRows) updateCost.run(roundJsonPrice(row.cost_pricing), row.id)
+      for (const row of saleRows) updateSale.run(roundJsonPrice(row.sale_pricing), row.id)
       db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_credits_dp2', 'done')
                   ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
     })

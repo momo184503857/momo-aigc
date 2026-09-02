@@ -80,7 +80,7 @@ function serializeProvider(row: any) {
     supports_vision: !!m.supports_vision,
     supports_image_gen: !!m.supports_image_gen,
     supports_chat: !!m.supports_chat,
-    pricing: (() => { try { return m.pricing ? JSON.parse(m.pricing) : null } catch { return m.pricing } })(),
+    cost_pricing: (() => { try { return m.cost_pricing ? JSON.parse(m.cost_pricing) : null } catch { return m.cost_pricing } })(),
     param_overrides: parseParams(m.param_overrides),
   }))
   const adapterInfo = (() => { try { return getAdapter(row.adapter) } catch { return undefined } })()
@@ -283,7 +283,8 @@ adminAiConfigRouter.post('/providers/:id/test', async (req: AuthRequest, res) =>
 
 function validateModelBody(body: any, forCreate: boolean): { values: any; error?: string } {
   const { provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat, remark, status,
-          logical_model_id, param_overrides, pricing } = body || {}
+          logical_model_id, param_overrides } = body || {}
+  const costPricing = body?.cost_pricing !== undefined ? body.cost_pricing : body?.pricing
   if (forCreate) {
     if (!provider_id || !loadProvider(provider_id)) return { values: null, error: '所属服务商不存在' }
     if (!String(model_id || '').trim()) return { values: null, error: '模型 ID 不能为空' }
@@ -318,15 +319,15 @@ function validateModelBody(body: any, forCreate: boolean): { values: any; error?
   }
 
   // 计算生效能力（用于定价覆盖校验 S6）
-  if ((logicalId !== undefined || overridesJson !== undefined || pricing !== undefined)) {
+  if ((logicalId !== undefined || overridesJson !== undefined || costPricing !== undefined)) {
     // 具体校验放到 create/patch 处理器（需要合并旧行），此处先做定价结构校验
-    if (pricing !== undefined && pricing !== null) {
-      if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing)) {
-        return { values: null, error: '定价必须是 {分辨率: 积分} 对象' }
+    if (costPricing !== undefined && costPricing !== null) {
+      if (!costPricing || typeof costPricing !== 'object' || Array.isArray(costPricing)) {
+        return { values: null, error: '成本价必须是 {分辨率: 元/张} 对象' }
       }
-      for (const [res, price] of Object.entries(pricing)) {
+      for (const [res, price] of Object.entries(costPricing)) {
         if (typeof price !== 'number' || !Number.isFinite(price) || price < 0) {
-          return { values: null, error: `分辨率 ${res} 的定价必须为非负数字` }
+          return { values: null, error: `分辨率 ${res} 的成本价必须为非负数字` }
         }
       }
     }
@@ -362,13 +363,13 @@ function validatePricingCoverage(modelRow: any, logicalId: number | null, overri
   const caps = effectiveParams(base, overrides)
   if (!caps.resolutions.length) return '该模型没有可用分辨率，请配置逻辑模型或能力覆盖'
 
-  const effective = pricingObj !== undefined ? pricingObj : (parseParams(modelRow.pricing) as any)
+  const effective = pricingObj !== undefined ? pricingObj : (parseParams(modelRow.cost_pricing) as any)
   if (!effective || typeof effective !== 'object') {
-    return '生图模型必须配置定价（按分辨率）'
+    return '生图渠道模型必须配置成本价（按分辨率）'
   }
   for (const res of caps.resolutions) {
     if (typeof (effective as any)[res] !== 'number') {
-      return `定价未覆盖分辨率 ${res}（生效能力：${caps.resolutions.join(' / ')}）`
+      return `成本价未覆盖分辨率 ${res}（生效能力：${caps.resolutions.join(' / ')}）`
     }
   }
   return null
@@ -386,11 +387,11 @@ adminAiConfigRouter.post('/models', (req: AuthRequest, res) => {
     if (isImage && !logicalId) { res.status(400).json({ success: false, error: '生图模型必须关联逻辑模型' }); return }
 
     // 定价覆盖校验（S6）
-    const pseudoRow = { supports_image_gen: values.supports_image_gen ?? 0, pricing: null }
+    const pseudoRow = { supports_image_gen: values.supports_image_gen ?? 0, cost_pricing: null }
     if (isImage) {
       const narrowErr = validateOverridesAgainstLogical(logicalId, values.overridesJson ?? null)
       if (narrowErr) { res.status(400).json({ success: false, error: `能力覆盖只允许收窄：${narrowErr}` }); return }
-      const pricingObj = req.body.pricing ?? null
+      const pricingObj = req.body.cost_pricing ?? req.body.pricing ?? null
       const err = validatePricingCoverage(pseudoRow, logicalId, values.overridesJson ?? null, pricingObj)
       if (err) { res.status(400).json({ success: false, error: err }); return }
     }
@@ -398,12 +399,12 @@ adminAiConfigRouter.post('/models', (req: AuthRequest, res) => {
     const dup = db.prepare(`SELECT id FROM ai_models WHERE provider_id = ? AND model_id = ?`).get(values.provider_id, values.model_id)
     if (dup) { res.status(409).json({ success: false, error: '该服务商下已存在同名模型' }); return }
     const result = db.prepare(`
-      INSERT INTO ai_models (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat, logical_model_id, param_overrides, pricing, remark, status)
+      INSERT INTO ai_models (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat, logical_model_id, param_overrides, cost_pricing, remark, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       values.provider_id, values.model_id, values.display_name, values.supports_vision ?? 0, values.supports_image_gen ?? 0,
       values.supports_chat ?? 0, logicalId, values.overridesJson ?? null,
-      isImage && req.body.pricing ? JSON.stringify(req.body.pricing) : null,
+      isImage && (req.body.cost_pricing ?? req.body.pricing) ? JSON.stringify(req.body.cost_pricing ?? req.body.pricing) : null,
       values.remark, values.status ?? 'active',
     )
     const row = db.prepare(`SELECT * FROM ai_models WHERE id = ?`).get(result.lastInsertRowid) as any
@@ -445,9 +446,10 @@ adminAiConfigRouter.patch('/models/:id', (req: AuthRequest, res) => {
       fields.push('logical_model_id = ?'); params.push(values.logicalId)
     }
     if (body.param_overrides !== undefined) { fields.push('param_overrides = ?'); params.push(values.overridesJson ?? null) }
-    if (body.pricing !== undefined) {
-      fields.push('pricing = ?')
-      params.push(body.pricing === null ? null : JSON.stringify(body.pricing))
+    if (body.cost_pricing !== undefined || body.pricing !== undefined) {
+      const costPricing = body.cost_pricing !== undefined ? body.cost_pricing : body.pricing
+      fields.push('cost_pricing = ?')
+      params.push(costPricing === null ? null : JSON.stringify(costPricing))
     }
     if (body.remark !== undefined) { fields.push('remark = ?'); params.push(String(body.remark)) }
     if (body.status !== undefined) { fields.push('status = ?'); params.push(body.status) }
@@ -456,8 +458,9 @@ adminAiConfigRouter.patch('/models/:id', (req: AuthRequest, res) => {
     // 定价覆盖校验（合并后的最终状态）
     const finalLogicalId = body.logical_model_id !== undefined ? values.logicalId : row.logical_model_id
     const finalOverrides = body.param_overrides !== undefined ? (values.overridesJson ?? null) : row.param_overrides
-    const finalPricing = body.pricing !== undefined ? (body.pricing ?? null) : row.pricing
-    const pseudoRow = { supports_image_gen: mergedGen ? 1 : 0, pricing: finalPricing }
+    const hasCostPricing = body.cost_pricing !== undefined || body.pricing !== undefined
+    const finalPricing = hasCostPricing ? (body.cost_pricing ?? body.pricing ?? null) : row.cost_pricing
+    const pseudoRow = { supports_image_gen: mergedGen ? 1 : 0, cost_pricing: finalPricing }
     if (mergedGen) {
       const narrowErr = validateOverridesAgainstLogical(finalLogicalId, finalOverrides)
       if (narrowErr) { res.status(400).json({ success: false, error: `能力覆盖只允许收窄：${narrowErr}` }); return }
@@ -720,6 +723,7 @@ function serializeLogicalModel(row: any) {
     name: row.name,
     kind: row.kind,
     defaultParams: parseParams(row.default_params) ?? {},
+    salePricing: parseParams(row.sale_pricing),
     status: row.status,
     remark: row.remark,
     modelCount: (db.prepare(`SELECT COUNT(*) AS c FROM ai_models WHERE logical_model_id = ?`).get(row.id) as any).c,
@@ -744,20 +748,38 @@ adminAiConfigRouter.post('/logical-models', (_req, res) => {
   res.status(410).json({ success: false, error: '逻辑模型由平台代码定义，不支持新增；请修改 server/src/db/logicalModels.ts 后重启' })
 })
 
-// PATCH /api/admin/ai-config/logical-models/:id —— 管理员仅可修改显示名
+// PATCH /api/admin/ai-config/logical-models/:id —— 管理员可修改显示名与统一售卖价
 adminAiConfigRouter.patch('/logical-models/:id', (req: AuthRequest, res) => {
   try {
     const { id } = req.params
     const row = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
     if (!row) { res.status(404).json({ success: false, error: '逻辑模型不存在' }); return }
-    const { name, default_params, remark, status } = req.body || {}
+    const { name, sale_pricing, default_params, remark, status } = req.body || {}
     if (default_params !== undefined || remark !== undefined || status !== undefined) {
-      res.status(400).json({ success: false, error: '逻辑模型的类型/能力/状态由代码定义，仅支持修改显示名' }); return
+      res.status(400).json({ success: false, error: '逻辑模型的类型/能力/状态由代码定义，仅支持修改显示名和售卖价' }); return
     }
-    if (name === undefined || !String(name).trim()) {
+    if (name === undefined && sale_pricing === undefined) {
+      res.status(400).json({ success: false, error: '无更新字段' }); return
+    }
+    if (name !== undefined && !String(name).trim()) {
       res.status(400).json({ success: false, error: '显示名不能为空' }); return
     }
-    db.prepare(`UPDATE ai_logical_models SET name = ?, updated_at = ? WHERE id = ?`).run(String(name).trim(), new Date().toISOString(), id)
+    let saleJson = row.sale_pricing
+    if (sale_pricing !== undefined) {
+      if (!sale_pricing || typeof sale_pricing !== 'object' || Array.isArray(sale_pricing)) {
+        res.status(400).json({ success: false, error: '售卖价必须是 {分辨率: 积分/张} 对象' }); return
+      }
+      const caps = parseParams(row.default_params)
+      for (const resolution of caps?.resolutions ?? []) {
+        const price = sale_pricing[resolution]
+        if (typeof price !== 'number' || !Number.isFinite(price) || price < 0) {
+          res.status(400).json({ success: false, error: `售卖价未正确配置分辨率 ${resolution}` }); return
+        }
+      }
+      saleJson = JSON.stringify(sale_pricing)
+    }
+    db.prepare(`UPDATE ai_logical_models SET name = ?, sale_pricing = ?, updated_at = ? WHERE id = ?`)
+      .run(name === undefined ? row.name : String(name).trim(), saleJson, new Date().toISOString(), id)
     const updated = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
     res.json({ success: true, data: serializeLogicalModel(updated) })
   } catch (err: any) {

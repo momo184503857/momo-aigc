@@ -11,7 +11,6 @@ import {
   getChannelModelCapabilities,
   aspectRatiosAtResolution,
   resolveProviderContext,
-  withKeyFailover,
   ProviderContextError,
   parseParams,
 } from '../utils/channelModel.js'
@@ -194,86 +193,171 @@ function commitImportResult(task: any, imported: string[], rawUrls: string[]): v
   }
 }
 
-// ── 同步渠道后台执行（§4.4）──
+// ── 自动路由执行 ──
 
-const syncInFlight = new Map<number, Promise<void>>()
-const syncUserActive = new Map<number, number>()
+const routeInFlight = new Map<number, Promise<void>>()
+const routeUserActive = new Map<number, number>()
 
-function syncSlotsAvailable(userId: number): boolean {
-  return (syncUserActive.get(userId) ?? 0) < SYNC_PER_USER_LIMIT
+function routeSlotsAvailable(userId: number): boolean {
+  return (routeUserActive.get(userId) ?? 0) < SYNC_PER_USER_LIMIT
 }
 
-async function runSyncTask(taskId: number): Promise<void> {
-  const task = loadTask(taskId)
-  if (!task || TERMINAL.includes(task.status) || !task.channel_model_id) return
+function loadLogicalModel(id: number) {
+  return db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
+}
 
-  // 拿到执行槽即置「生成中」：前端状态徽章与真实执行对齐（submitted=排队等槽，in_progress=上游生成中）
-  const started = db.prepare(`
-    UPDATE generation_tasks SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND status = 'submitted'
-  `).run(task.id)
-  if (started.changes === 0) return
+function eligibleChannelModels(task: any): any[] {
+  const attemptedProviders = new Set((db.prepare(`SELECT provider_id FROM generation_route_attempts WHERE task_id = ?`).all(task.id) as any[]).map((r) => r.provider_id))
+  const rows = db.prepare(`
+    SELECT m.id, m.provider_id, m.model_id, m.display_name, m.logical_model_id, m.param_overrides,
+           m.cost_pricing, m.supports_image_gen, m.status AS model_status,
+           p.id AS p_id, p.code AS p_code, p.name AS p_name, p.base_url AS p_base_url,
+           p.adapter AS p_adapter, p.status AS p_status
+    FROM ai_models m JOIN api_providers p ON p.id = m.provider_id
+    WHERE m.logical_model_id = ? AND m.supports_image_gen = 1
+      AND m.status = 'active' AND p.status = 'active'
+      AND EXISTS (SELECT 1 FROM api_provider_keys k WHERE k.provider_id = p.id AND k.status = 'active')
+  `).all(task.logical_model_id) as any[]
+  return rows.filter((cm) => {
+    if (attemptedProviders.has(cm.p_id)) return false
+    const costs = parseParams(cm.cost_pricing) as Record<string, number> | null
+    const cost = costs?.[task.resolution]
+    if (typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0) return false
+    const caps = getChannelModelCapabilities(cm)
+    if (!caps?.resolutions.includes(task.resolution)) return false
+    const ratios = aspectRatiosAtResolution(caps, task.resolution)
+    if (ratios.length > 0 && !ratios.includes(task.aspect_ratio)) return false
+    if (parseJsonArray(task.input_image_urls).length > (caps.maxReferenceImages ?? 14)) return false
+    if (String(task.prompt || '').length > (caps.maxPromptChars ?? 32000)) return false
+    cm.route_cost = cost
+    return true
+  }).sort((a, b) => a.route_cost - b.route_cost || a.id - b.id)
+    .filter((cm, index, all) => all.findIndex((candidate) => candidate.p_id === cm.p_id) === index)
+}
 
-  let cm: any
-  try {
-    cm = loadChannelModel(task.channel_model_id)
-    if (!cm || cm.p_status !== 'active' || cm.model_status !== 'active') throw new Error('渠道或模型已停用/删除')
-    const adapter = getImageAdapter(cm.p_adapter)
+function startRouteAttempt(taskId: number, cm: any, keyId: number | null): number {
+  const next = db.prepare(`SELECT COALESCE(MAX(attempt_no), 0) + 1 AS n FROM generation_route_attempts WHERE task_id = ?`).get(taskId) as any
+  const result = db.prepare(`
+    INSERT INTO generation_route_attempts
+      (task_id, attempt_no, channel_model_id, provider_id, provider_key_id, cost_price, status)
+    VALUES (?, ?, ?, ?, ?, ?, 'started')
+  `).run(taskId, next.n, cm.id, cm.p_id, keyId, cm.route_cost)
+  return Number(result.lastInsertRowid)
+}
 
-    // 同步渠道执行同样接入 Key 轮换：配额/欠费报错 → 仅本次请求换下一个 Key 重试，报错原样透传（F3）
-    const images = await withKeyFailover(cm.p_id, 'image', (config) =>
-      adapter.submitImageTask(buildImageGenRequest(task, cm), config))
-    if (!images.images || images.images.length === 0) throw new Error('上游未返回任何图片')
+function finishRouteAttempt(id: number, status: 'succeeded' | 'failed', errorCode?: string, errorMessage?: string): void {
+  const safeMessage = errorMessage
+    ? String(errorMessage).replace(/Bearer\s+[^\s,;]+/gi, 'Bearer ***').replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, 'sk-***').slice(0, 2000)
+    : null
+  db.prepare(`
+    UPDATE generation_route_attempts
+    SET status = ?, error_code = ?, error_message = ?, finished_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(status, errorCode ?? null, safeMessage, id)
+}
 
-    // 抢占转存权（轮询请求/其他实例可能已处理）
-    const claimed = db.prepare(`
-      UPDATE generation_tasks SET status = 'importing', progress = 100, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND status IN ('submitted','in_progress')
-    `).run(task.id)
-    if (claimed.changes === 0) return
+function clearCurrentRoute(taskId: number): void {
+  db.prepare(`
+    UPDATE generation_tasks SET status = 'submitted', progress = 0,
+      provider_task_id = NULL, provider_key_id = NULL, provider_code = NULL,
+      channel_model_id = NULL, channel_provider_id = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(taskId)
+}
 
-    const fresh = loadTask(task.id)
-    const { imported, rawUrls } = await importImages(fresh, images.images)
-    commitImportResult(fresh, imported, rawUrls)
-  } catch (e: any) {
-    if (e instanceof ProviderContextError) {
-      // 渠道配置层面无可用 Key（全部停用/未配置/历史耗尽标记）
-      failTaskAndRefund(task.id, 'ALL_KEYS_EXHAUSTED', e.message)
-    } else {
-      // 上游报错原样透传给用户（项目不拦截/不停用用户的 Key），任务失败 + 全额退款
-      failTaskAndRefund(task.id, 'UPSTREAM_ERROR', e.message || String(e))
+function failCurrentRouteAndContinue(task: any, errorCode: string, errorMessage: string): void {
+  const attempt = db.prepare(`
+    SELECT id FROM generation_route_attempts
+    WHERE task_id = ? AND channel_model_id = ? AND status = 'started'
+    ORDER BY attempt_no DESC LIMIT 1
+  `).get(task.id, task.channel_model_id) as { id: number } | undefined
+  const cleared = db.prepare(`
+    UPDATE generation_tasks SET status = 'submitted', progress = 0,
+      provider_task_id = NULL, provider_key_id = NULL, provider_code = NULL,
+      channel_model_id = NULL, channel_provider_id = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND channel_model_id = ? AND provider_task_id IS ?
+  `).run(task.id, task.channel_model_id, task.provider_task_id ?? null)
+  if (cleared.changes === 0) return
+  if (attempt) finishRouteAttempt(attempt.id, 'failed', errorCode, errorMessage)
+  dispatchRoutedTask(task.id, task.user_id)
+}
+
+async function runRoutedTask(taskId: number): Promise<void> {
+  let task = loadTask(taskId)
+  if (!task || TERMINAL.includes(task.status) || !task.logical_model_id || task.provider_task_id) return
+  let lastError = '没有可用渠道'
+
+  while (true) {
+    task = loadTask(taskId)
+    if (!task || TERMINAL.includes(task.status) || task.provider_task_id) return
+    const cm = eligibleChannelModels(task)[0]
+    if (!cm) {
+      failTaskAndRefund(task.id, 'ROUTES_EXHAUSTED', `所有可用渠道均执行失败：${lastError}`)
+      return
+    }
+
+    let attemptId: number | null = null
+    try {
+      // 同一渠道只使用优先级最高的启用 Key；失败后直接跨渠道，不调用 withKeyFailover。
+      const ctx = resolveProviderContext(cm.p_id, 'image')
+      attemptId = startRouteAttempt(task.id, cm, ctx.config.keyId ?? null)
+      db.prepare(`
+        UPDATE generation_tasks SET status = 'in_progress', provider_code = ?,
+          channel_model_id = ?, channel_provider_id = ?, provider_key_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(cm.p_code, cm.id, cm.p_id, ctx.config.keyId ?? null, task.id)
+
+      const adapter = getImageAdapter(cm.p_adapter)
+      const result = await adapter.submitImageTask(buildImageGenRequest(task, cm), ctx.config)
+      if (cm.p_adapter === 'toapis') {
+        if (!result.providerTaskId) throw new Error('异步渠道未返回任务号')
+        db.prepare(`UPDATE generation_tasks SET status = 'submitted', provider_task_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(result.providerTaskId, task.id)
+        return
+      }
+      if (!result.images?.length) throw new Error('上游未返回任何图片')
+      db.prepare(`UPDATE generation_tasks SET status = 'importing', progress = 100, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(task.id)
+      const fresh = loadTask(task.id)
+      const { imported, rawUrls } = await importImages(fresh, result.images)
+      commitImportResult(fresh, imported, rawUrls)
+      finishRouteAttempt(attemptId, 'succeeded')
+      return
+    } catch (e: any) {
+      lastError = e?.message || String(e)
+      if (attemptId === null) attemptId = startRouteAttempt(task.id, cm, null)
+      finishRouteAttempt(attemptId, 'failed', e instanceof ProviderContextError ? 'KEY_UNAVAILABLE' : 'UPSTREAM_ERROR', lastError)
+      clearCurrentRoute(task.id)
+      console.warn(`[generations] 渠道 ${cm.p_name} 执行失败，切换下一渠道（任务 ${task.task_no}）：${lastError}`)
     }
   }
 }
 
-function dispatchSyncTask(taskId: number, userId: number): void {
-  if (syncInFlight.has(taskId)) return
-  if (!syncSlotsAvailable(userId)) return // 保持 submitted，由轮询端点补派发
-  syncUserActive.set(userId, (syncUserActive.get(userId) ?? 0) + 1)
-  const p = runSyncTask(taskId)
-    .catch((e) => console.error(`[generations] sync task ${taskId} crashed:`, e))
-    .finally(() => {
-      syncInFlight.delete(taskId)
-      syncUserActive.set(userId, Math.max(0, (syncUserActive.get(userId) ?? 1) - 1))
+function dispatchRoutedTask(taskId: number, userId: number): void {
+  if (routeInFlight.has(taskId)) return
+  if (!routeSlotsAvailable(userId)) return
+  routeUserActive.set(userId, (routeUserActive.get(userId) ?? 0) + 1)
+  const promise = runRoutedTask(taskId)
+    .catch((e) => {
+      console.error(`[generations] routed task ${taskId} crashed:`, e)
+      failTaskAndRefund(taskId, 'ROUTER_ERROR', e?.message || String(e))
     })
-  syncInFlight.set(taskId, p)
+    .finally(() => {
+      routeInFlight.delete(taskId)
+      routeUserActive.set(userId, Math.max(0, (routeUserActive.get(userId) ?? 1) - 1))
+    })
+  routeInFlight.set(taskId, promise)
 }
 
 function buildImageGenRequest(task: any, cm: any): ImageGenRequest {
-  let logicalCode: string | undefined
-  if (cm.logical_model_id) {
-    const lm = db.prepare(`SELECT code FROM ai_logical_models WHERE id = ?`).get(cm.logical_model_id) as { code: string } | undefined
-    logicalCode = lm?.code
-  }
   return {
     model: cm.model_id,
-    logicalCode,
+    logicalCode: logicalCodeOf(cm),
     prompt: task.prompt || '',
     negativePrompt: task.negative_prompt || undefined,
     aspectRatio: task.aspect_ratio || '1:1',
     resolution: task.resolution || '1K',
     n: 1,
-    imageUrls: Array.isArray(task.input_image_urls) ? task.input_image_urls : parseJsonArray(task.input_image_urls),
+    imageUrls: parseJsonArray(task.input_image_urls),
     sizeClamp: parseParams(cm.param_overrides)?.sizeClamp,
   }
 }
@@ -286,71 +370,63 @@ function parseJsonArray(v: any): string[] {
 
 // ── POST /api/generations（提交）──
 
-generationsRouter.post('/', async (req: AuthRequest, res) => {
+generationsRouter.post('/', (req: AuthRequest, res) => {
   const userId = req.user!.userId
   const {
-    channelModelId, prompt, userPrompt, systemPrompt,
+    logicalModelId, channelModelId, prompt, userPrompt, systemPrompt,
     aspectRatio, resolution, n, refImageUrls, templateImageIds,
     featureId, supplementaryImages, promptSegments, negativePrompt,
     suiteId, pointIndex, clientBusinessId,
   } = req.body || {}
 
-  if (!channelModelId || !prompt || typeof prompt !== 'string') {
-    res.status(400).json({ success: false, error: '缺少必要参数：channelModelId, prompt' })
+  let resolvedLogicalId = Number(logicalModelId) || 0
+  if (!resolvedLogicalId && channelModelId) resolvedLogicalId = Number(loadChannelModel(Number(channelModelId))?.logical_model_id) || 0
+  if (!resolvedLogicalId || typeof prompt !== 'string') {
+    res.status(400).json({ success: false, error: '缺少必要参数：logicalModelId, prompt' })
     return
   }
-
-  // 1. 解析与校验
-  const cm = loadChannelModel(Number(channelModelId))
-  if (!cm) { res.status(404).json({ success: false, error: '渠道模型不存在' }); return }
-  if (cm.p_status !== 'active' || cm.model_status !== 'active') {
-    res.status(400).json({ success: false, error: '渠道或模型已停用' }); return
+  const logical = loadLogicalModel(resolvedLogicalId)
+  if (!logical || logical.kind !== 'image' || logical.status !== 'active') {
+    res.status(404).json({ success: false, error: '逻辑模型不存在或已停用' }); return
   }
-  if (!cm.supports_image_gen) {
-    res.status(400).json({ success: false, error: '该模型不支持生图' }); return
-  }
-
-  const caps = getChannelModelCapabilities(cm)
-  if (!caps || caps.resolutions.length === 0) {
+  const caps = parseParams(logical.default_params)
+  if (!caps?.resolutions?.length) {
     res.status(400).json({ success: false, error: '该模型未配置有效能力，请联系管理员' }); return
   }
   const effResolution = resolution || caps.resolutions[0]
   if (!caps.resolutions.includes(effResolution)) {
     res.status(400).json({ success: false, error: `该模型不支持分辨率 ${effResolution}` }); return
   }
-  const effRatio = aspectRatio || aspectRatiosAtResolution(caps, effResolution)[0] || '1:1'
   const allowedRatios = aspectRatiosAtResolution(caps, effResolution)
+  const effRatio = aspectRatio || allowedRatios[0] || '1:1'
   if (allowedRatios.length > 0 && !allowedRatios.includes(effRatio)) {
     res.status(400).json({ success: false, error: `分辨率 ${effResolution} 下不支持宽高比 ${effRatio}` }); return
   }
   const refUrls = Array.isArray(refImageUrls) ? refImageUrls.filter((u: unknown) => typeof u === 'string') : []
-  const maxRef = caps.maxReferenceImages ?? 14
-  if (refUrls.length > maxRef) {
-    res.status(400).json({ success: false, error: `参考图最多 ${maxRef} 张` }); return
+  if (refUrls.length > (caps.maxReferenceImages ?? 14)) {
+    res.status(400).json({ success: false, error: `参考图最多 ${caps.maxReferenceImages ?? 14} 张` }); return
   }
-  const maxChars = caps.maxPromptChars ?? 32000
   const finalPrompt = prompt.trim()
-  if (finalPrompt.length > maxChars) {
-    res.status(400).json({ success: false, error: `提示词最长 ${maxChars} 字` }); return
+  if (finalPrompt.length > (caps.maxPromptChars ?? 32000)) {
+    res.status(400).json({ success: false, error: `提示词最长 ${caps.maxPromptChars ?? 32000} 字` }); return
   }
-  if (finalPrompt.length === 0 && refUrls.length === 0 && !(systemPrompt && String(systemPrompt).trim())) {
+  if (!finalPrompt && refUrls.length === 0 && !(systemPrompt && String(systemPrompt).trim())) {
     res.status(400).json({ success: false, error: '请输入提示词，描述你想要生成的效果' }); return
+  }
+  const salePricing = parseParams(logical.sale_pricing) as Record<string, number> | null
+  const unitPrice = salePricing?.[effResolution]
+  if (typeof unitPrice !== 'number' || !Number.isFinite(unitPrice) || unitPrice < 0) {
+    res.status(400).json({ success: false, error: `该模型未配置 ${effResolution} 分辨率售卖价，请联系管理员` }); return
+  }
+  const candidateProbe = {
+    id: -1, logical_model_id: resolvedLogicalId, resolution: effResolution, aspect_ratio: effRatio,
+    input_image_urls: refUrls, prompt: finalPrompt,
+  }
+  if (eligibleChannelModels(candidateProbe).length === 0) {
+    res.status(400).json({ success: false, error: '当前模型与参数没有可用渠道，请联系管理员' }); return
   }
   const count = Math.max(1, Math.min(5, Number(n) || 1))
 
-  // 2. 计价（F5 计费统一：全部渠道模型按平台定价预扣，单轨）
-  let unitPrice = 0
-  {
-    let pricing: Record<string, number> | null = null
-    try { pricing = cm.pricing ? JSON.parse(cm.pricing) : null } catch { pricing = null }
-    const price = pricing?.[effResolution]
-    if (price === undefined || price === null) {
-      res.status(400).json({ success: false, error: `该模型未配置 ${effResolution} 分辨率定价，请联系管理员` }); return
-    }
-    unitPrice = price
-  }
-
-  // 3. 落库 + 预扣（一个事务，口径与原 tasks.ts 一致）
   let created: Array<{ id: number; taskNo: string }>
   try {
     const tx = db.transaction(() => {
@@ -358,112 +434,58 @@ generationsRouter.post('/', async (req: AuthRequest, res) => {
       if (!user) throw { status: 404, error: '用户不存在' }
       const currentBalance = Number(user.points) || 0
       const totalCost = roundCredits(unitPrice * count)
-      if (currentBalance < totalCost) {
-        throw {
-          status: 402,
-          error: `积分不足，需要 ${totalCost} 积分，当前仅有 ${roundCredits(currentBalance)} 积分`,
-          data: { required: totalCost, available: roundCredits(currentBalance) },
-        }
+      if (currentBalance < totalCost) throw {
+        status: 402,
+        error: `积分不足，需要 ${totalCost} 积分，当前仅有 ${roundCredits(currentBalance)} 积分`,
+        data: { required: totalCost, available: roundCredits(currentBalance) },
       }
-
       const insert = db.prepare(`
         INSERT INTO generation_tasks (
           task_no, user_id, toapis_task_id, client_business_id, model, prompt, size, resolution, aspect_ratio, n,
           template_image_ids, input_image_urls, status, progress, feature_id, user_prompt,
           points_cost, points_balance_after, supplementary_images, prompt_segments, negative_prompt,
-          suite_id, point_index, provider_code, channel_model_id, channel_provider_id
-        ) VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, 1, ?, ?, 'submitted', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          suite_id, point_index, logical_model_id
+        ) VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, 1, ?, ?, 'submitted', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const deduct = db.prepare(`UPDATE users SET points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       const txnLog = db.prepare(`
         INSERT INTO points_transactions (user_id, amount, balance_after, reason, reference_type, reference_id, note, created_at)
         VALUES (?, ?, ?, 'generation', 'generation_task', ?, '', CURRENT_TIMESTAMP)
       `)
-
       const rows: Array<{ id: number; taskNo: string }> = []
       let balance = currentBalance
       for (let i = 0; i < count; i++) {
         const cost = roundCredits(unitPrice)
         balance = roundCredits(balance - cost)
         const no = generateTaskNo()
-        const r = insert.run(
-          no, userId, clientBusinessId || null, cm.model_id, finalPrompt, effRatio, effResolution, effRatio,
-          templateImageIds ? JSON.stringify(templateImageIds) : null,
-          JSON.stringify(refUrls),
-          featureId || null, userPrompt || '',
-          cost, balance,
-          JSON.stringify(supplementaryImages || []),
-          JSON.stringify(promptSegments || {}),
-          negativePrompt || '',
+        const result = insert.run(
+          no, userId, clientBusinessId || null, logical.code, finalPrompt, effRatio, effResolution, effRatio,
+          templateImageIds ? JSON.stringify(templateImageIds) : null, JSON.stringify(refUrls),
+          featureId || null, userPrompt || '', cost, balance,
+          JSON.stringify(supplementaryImages || []), JSON.stringify(promptSegments || {}), negativePrompt || '',
           suiteId ? Number(suiteId) : null,
           pointIndex !== undefined && pointIndex !== null ? Number(pointIndex) : null,
-          cm.p_code, cm.id, cm.p_id,
+          resolvedLogicalId,
         )
-        const id = Number(r.lastInsertRowid)
-        if (cost > 0) {
-          deduct.run(balance, userId)
-          txnLog.run(userId, -cost, balance, id)
-        }
+        const id = Number(result.lastInsertRowid)
+        if (cost > 0) { deduct.run(balance, userId); txnLog.run(userId, -cost, balance, id) }
         rows.push({ id, taskNo: no })
       }
       return rows
     })
     created = tx() as Array<{ id: number; taskNo: string }>
   } catch (e: any) {
-    if (e?.status && e?.error) {
-      res.status(e.status).json({ success: false, error: e.error, data: e.data })
-      return
-    }
+    if (e?.status && e?.error) { res.status(e.status).json({ success: false, error: e.error, data: e.data }); return }
     throw e
   }
 
-  // 4. 派发（事务提交后）。toapis 为异步任务式渠道；openai_image / volcengine_image 同步渠道
-  if (cm.p_adapter === 'toapis') {
-    const adapter = getImageAdapter(cm.p_adapter)
-    for (const t of created) {
-      try {
-        // 异步提交接入 Key 轮换：配额/欠费报错 → 仅本次请求换下一个 Key 重试，报错原样透传（F3）。
-        // 记录实际提交成功的 Key：toapis 任务按 Key 隔离，轮询/reimport 必须用同一 Key 才能查到
-        let submitKeyId: number | undefined
-        const submit = await withKeyFailover(cm.p_id, 'image', (config) =>
-          adapter.submitImageTask(
-            { model: cm.model_id, logicalCode: logicalCodeOf(cm), prompt: finalPrompt, negativePrompt: negativePrompt || undefined, aspectRatio: effRatio, resolution: effResolution, n: 1, imageUrls: refUrls },
-            config,
-          ).then((r) => { submitKeyId = config.keyId; return r }))
-        db.prepare(`UPDATE generation_tasks SET provider_task_id = ?, provider_key_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-          .run(submit.providerTaskId ?? null, submitKeyId ?? null, t.id)
-      } catch (e: any) {
-        if (e instanceof ProviderContextError) {
-          // 渠道配置层面无可用 Key（全部停用/未配置/历史耗尽标记）：任务失败 + 全额退款
-          failTaskAndRefund(t.id, 'ALL_KEYS_EXHAUSTED', e.message)
-        } else {
-          // 上游报错原样透传给用户（项目不拦截/不停用用户的 Key），任务失败 + 全额退款
-          failTaskAndRefund(t.id, 'SUBMIT_FAILED', e.message || String(e))
-        }
-      }
-    }
-  } else {
-    for (const t of created) {
-      dispatchSyncTask(t.id, userId)
-    }
-  }
-
-  res.json({
-    success: true,
-    data: {
-      tasks: created.map((t) => {
-        const row = loadTask(t.id)
-        return { id: t.id, taskNo: t.taskNo, status: row?.status ?? 'submitted' }
-      }),
-      inputImageUrls: refUrls,
-    },
-  })
+  for (const task of created) dispatchRoutedTask(task.id, userId)
+  res.json({ success: true, data: { tasks: created.map((t) => ({ ...t, status: loadTask(t.id)?.status ?? 'submitted' })), inputImageUrls: refUrls } })
 })
 
 function logicalCodeOf(cm: any): string | undefined {
   if (!cm.logical_model_id) return undefined
-  const lm = db.prepare(`SELECT code FROM ai_logical_models WHERE id = ?`).get(cm.logical_model_id) as { code: string } | undefined
-  return lm?.code
+  return (db.prepare(`SELECT code FROM ai_logical_models WHERE id = ?`).get(cm.logical_model_id) as any)?.code
 }
 
 // ── GET /api/generations/:id/status（轮询）──
@@ -487,7 +509,6 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
         errorCode: row.error_code || undefined,
         expiresAt: row.expires_at || undefined,
         taskNo: row.task_no,
-        providerTaskId: row.provider_task_id || undefined,
         completedAt: row.completed_at || undefined,
       },
     })
@@ -507,15 +528,15 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
     return
   }
 
-  // 渠道/模型被删：任务无法继续
+  // 尚未绑定渠道：后台派发可能仍在排队，轮询时补派发。
   if (!task.channel_model_id) {
-    failTaskAndRefund(task.id, 'CHANNEL_GONE', '渠道模型已被删除，任务终止')
+    dispatchRoutedTask(task.id, task.user_id)
     snapshot()
     return
   }
   const cm = loadChannelModel(task.channel_model_id)
   if (!cm) {
-    failTaskAndRefund(task.id, 'CHANNEL_GONE', '渠道模型已被删除，任务终止')
+    failCurrentRouteAndContinue(task, 'CHANNEL_GONE', '当前渠道模型已被删除')
     snapshot()
     return
   }
@@ -535,6 +556,8 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
     // 不设兜底时任务会永久挂在 submitted/in_progress 且积分不退。
     const taskAgeMin = (Date.now() - new Date(String(task.created_at).replace(' ', 'T') + 'Z').getTime()) / 60_000
     if (taskAgeMin > ASYNC_TASK_TIMEOUT_MIN) {
+      const attempt = db.prepare(`SELECT id FROM generation_route_attempts WHERE task_id = ? AND status = 'started' ORDER BY attempt_no DESC LIMIT 1`).get(task.id) as any
+      if (attempt) finishRouteAttempt(attempt.id, 'failed', 'TASK_TIMEOUT', '任务超时，无法确认上游最终状态')
       failTaskAndRefund(task.id, 'TASK_TIMEOUT', '任务超时未返回结果，已自动退款')
       snapshot()
       return
@@ -562,16 +585,14 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
           db.prepare(`UPDATE generation_tasks SET expires_at = ? WHERE id = ?`).run(result.expiresAt, task.id)
         }
         commitImportResult(fresh, imported, rawUrls)
+        const attempt = db.prepare(`SELECT id FROM generation_route_attempts WHERE task_id = ? AND channel_model_id = ? AND status = 'started' ORDER BY attempt_no DESC LIMIT 1`).get(task.id, task.channel_model_id) as any
+        if (attempt) finishRouteAttempt(attempt.id, 'succeeded')
         snapshot()
         return
       }
 
       if (result.status === 'failed') {
-        // 只同步进度，状态与错误信息交由 failTaskAndRefund 写入——
-        // 若先把 status 写成 failed，failTaskAndRefund 会因终态早退而跳过退款
-        db.prepare(`UPDATE generation_tasks SET progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-          .run(result.progress ?? 0, task.id)
-        failTaskAndRefund(task.id, result.errorCode || 'UPSTREAM_FAILED', result.errorMessage || '生成失败')
+        failCurrentRouteAndContinue(task, result.errorCode || 'UPSTREAM_FAILED', result.errorMessage || '生成失败')
         snapshot()
         return
       }
@@ -582,13 +603,18 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
       snapshot()
       return
     } catch (e: any) {
+      if (e instanceof ProviderContextError) {
+        failCurrentRouteAndContinue(task, 'CHANNEL_UNAVAILABLE', e.message)
+        snapshot()
+        return
+      }
       // 上游明确表示任务不存在：多为上游集群故障把任务弄丢（三入口均查不到），
       // 重试永远无果。留 10 分钟宽限（防上游写入延迟误杀）后判终态失败退款。
       const notExist =
         (e instanceof ProviderCallError && (e.raw as any)?.code === 'task_not_exist') ||
         /task_not_exist/i.test(String(e?.message ?? ''))
       if (notExist && taskAgeMin > TASK_NOT_EXIST_GRACE_MIN) {
-        failTaskAndRefund(task.id, 'UPSTREAM_TASK_LOST', '上游任务丢失（task_not_exist），已自动退款')
+        failCurrentRouteAndContinue(task, 'UPSTREAM_TASK_LOST', '上游任务丢失（task_not_exist）')
         snapshot()
         return
       }
@@ -601,7 +627,7 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
 
   // 同步渠道：submitted 且未完成 → 补派发（如重启后/并发超限）
   if (task.status === 'submitted') {
-    dispatchSyncTask(task.id, task.user_id)
+    dispatchRoutedTask(task.id, task.user_id)
   }
   snapshot()
 })
@@ -680,11 +706,9 @@ generationsRouter.get('/', (req: AuthRequest, res) => {
 
   const countRow = db.prepare(`SELECT COUNT(*) as total FROM generation_tasks t ${where}`).get(...params) as any
   const rows = db.prepare(`
-    SELECT t.*, COALESCE(NULLIF(p.display_name, ''), p.name) AS channel_provider_name, m.display_name AS channel_model_display_name, lm.code AS logical_code
+    SELECT t.*, lm.code AS logical_code
     FROM generation_tasks t
-    LEFT JOIN api_providers p ON p.id = t.channel_provider_id
-    LEFT JOIN ai_models m ON m.id = t.channel_model_id
-    LEFT JOIN ai_logical_models lm ON lm.id = m.logical_model_id
+    LEFT JOIN ai_logical_models lm ON lm.id = t.logical_model_id
     ${where} ORDER BY t.created_at DESC LIMIT ? OFFSET ?
   `).all(...params, pageSize, (page - 1) * pageSize) as any[]
 
@@ -694,9 +718,12 @@ generationsRouter.get('/', (req: AuthRequest, res) => {
       records: rows.map((r) => {
         const parsed = parseTaskRow(r)
         parsed.taskNo = r.task_no
-        parsed.channelProviderName = r.channel_provider_name
-        parsed.channelModelName = r.channel_model_display_name || r.model
         parsed.logicalCode = r.logical_code
+        delete parsed.provider_task_id
+        delete parsed.provider_key_id
+        delete parsed.provider_code
+        delete parsed.channel_model_id
+        delete parsed.channel_provider_id
         return parsed
       }),
       total: countRow.total,
@@ -717,8 +744,9 @@ export function sweepOrphanTasks(): void {
     if (t.provider_task_id) {
       db.prepare(`UPDATE generation_tasks SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(t.id)
     } else {
-      // 同步渠道 importing 中崩溃：结果已丢失（仅存内存）→ 失败退款
-      failTaskAndRefund(t.id, 'RESTART_LOST', '服务重启导致结果丢失，已自动退款')
+      const task = loadTask(t.id)
+      if (task?.logical_model_id) failCurrentRouteAndContinue(task, 'RESTART_LOST', '服务重启导致当前渠道结果丢失')
+      else failTaskAndRefund(t.id, 'RESTART_LOST', '服务重启导致结果丢失，已自动退款')
     }
   }
 
@@ -732,16 +760,24 @@ export function sweepOrphanTasks(): void {
       AND t.created_at <= datetime('now', '-${ASYNC_TASK_TIMEOUT_MIN} minutes')
   `).all() as any[]
   for (const t of staleAsync) {
+    const attempt = db.prepare(`SELECT id FROM generation_route_attempts WHERE task_id = ? AND status = 'started' ORDER BY attempt_no DESC LIMIT 1`).get(t.id) as any
+    if (attempt) finishRouteAttempt(attempt.id, 'failed', 'TASK_TIMEOUT', '任务超时，无法确认上游最终状态')
     failTaskAndRefund(t.id, 'TASK_TIMEOUT', '任务超时未返回结果，已自动退款')
   }
 
-  // 3. submitted 且无 provider_task_id（sync 在途丢失 / async 提交中断）→ 标失败 + 退款
+  // 3. 无渠道任务号的自动路由任务重新派发；旧任务维持失败退款。
   const orphans = db.prepare(`
     SELECT t.id, t.channel_model_id FROM generation_tasks t
     WHERE t.status IN ('submitted','queued','in_progress') AND (t.provider_task_id IS NULL OR t.provider_task_id = '')
   `).all() as any[]
   for (const t of orphans) {
-    failTaskAndRefund(t.id, 'RESTART_LOST', '服务重启导致任务中断，已自动退款')
+    const task = loadTask(t.id)
+    if (task?.logical_model_id) {
+      if (task.channel_model_id) failCurrentRouteAndContinue(task, 'RESTART_LOST', '服务重启导致当前渠道调用中断')
+      else dispatchRoutedTask(task.id, task.user_id)
+    } else {
+      failTaskAndRefund(t.id, 'RESTART_LOST', '服务重启导致任务中断，已自动退款')
+    }
   }
 
   if (importing.length > 0 || orphans.length > 0 || staleAsync.length > 0) {
@@ -751,7 +787,7 @@ export function sweepOrphanTasks(): void {
 
 /** 优雅停机：等待在途同步任务落库（最多 10s） */
 export async function waitForSyncTasks(): Promise<void> {
-  const tasks = [...syncInFlight.values()]
+  const tasks = [...routeInFlight.values()]
   if (tasks.length === 0) return
   console.log(`[generations] 等待 ${tasks.length} 个同步渠道在途任务完成…`)
   await Promise.race([

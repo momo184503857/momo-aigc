@@ -24,7 +24,7 @@ const serverStatus = useServerStatusStore()
 // ─── Emit ───
 const emit = defineEmits<{
   (e: 'generate', params: {
-    channelModelId: number
+    logicalModelId: number
     prompt: string
     resolution: string
     aspectRatio: string
@@ -77,14 +77,14 @@ function getElementPrompt(el: ElementDef, modelId: string): string {
 }
 
 // ─── Basic params ───
-const selectedChannelModelId = ref(0)
+const selectedModelId = ref(0)
 const resolution = ref('')
 const aspectRatio = ref('')
 const count = ref(1)
 const userPrompt = ref('')
 
 const modelCatalog = useModelCatalogStore()
-const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedModelId.value))
 /** 元素提示词键：逻辑模型 code（后台按 model_id 存量数据与逻辑 code 同名，天然兼容） */
 const promptKey = computed(() => selectedModel.value?.logicalCode ?? selectedModel.value?.modelId ?? '')
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
@@ -101,10 +101,10 @@ const generateButtonLabel = computed(() => {
 
 // 目录加载完成后初始化默认模型
 modelCatalog.ensureLoaded().then(() => {
-  if (!selectedChannelModelId.value) {
+  if (!selectedModelId.value) {
     const m = modelCatalog.defaultImageModel
     if (m?.capabilities) {
-      selectedChannelModelId.value = m.id
+      selectedModelId.value = m.id
       resolution.value = m.capabilities.resolutions[0]
       aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0] ?? '1:1'
     }
@@ -352,7 +352,7 @@ function handleRemoveFromElement(elementId: number, poolImageId: string) {
 const canGenerate = computed(() => {
   if (!serverStatus.loaded) return false
   if (!serverStatus.canGenerate) return false
-  if (!selectedChannelModelId.value) return false
+  if (!selectedModelId.value) return false
   // At least one element with an image
   const hasAnyAssignment = Object.values(elementAssignments.value).some(ids => ids.length > 0)
   if (!hasAnyAssignment) return false
@@ -453,7 +453,7 @@ function handleGenerate() {
   }
 
   emit('generate', {
-    channelModelId: selectedChannelModelId.value,
+    logicalModelId: selectedModelId.value,
     prompt: finalPrompt,
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
@@ -479,15 +479,15 @@ function setParams(params: {
   // 旧参数携带模型名字符串：按名反查渠道模型（兼容历史任务「重新生成」）
   const cm = modelCatalog.getModelByName(params.modelId)
   if (cm?.capabilities) {
-    selectedChannelModelId.value = cm.id
+    selectedModelId.value = cm.id
     resolution.value = cm.capabilities.resolutions.includes(params.resolution)
       ? params.resolution
       : cm.capabilities.resolutions[0]
     const ratios = modelCatalog.aspectRatiosFor(cm, resolution.value)
     aspectRatio.value = ratios.includes(params.aspectRatio) ? params.aspectRatio : ratios[0]
-  } else if (!selectedChannelModelId.value && modelCatalog.defaultImageModel?.capabilities) {
+  } else if (!selectedModelId.value && modelCatalog.defaultImageModel?.capabilities) {
     const dm = modelCatalog.defaultImageModel
-    selectedChannelModelId.value = dm.id
+    selectedModelId.value = dm.id
     resolution.value = dm.capabilities!.resolutions[0]
     aspectRatio.value = modelCatalog.aspectRatiosFor(dm, resolution.value)[0]
   }
@@ -550,9 +550,9 @@ onMounted(() => loadElements())
       <!-- ─── Basic params ─── -->
       <div class="params-row">
         <div class="param-item">
-          <label>模型 / 渠道</label>
+          <label>模型</label>
           <ModelChannelSelect
-            v-model="selectedChannelModelId"
+            v-model="selectedModelId"
             style="width: 380px"
             @change="handleModelChange"
           />

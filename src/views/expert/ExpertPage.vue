@@ -357,8 +357,8 @@ modelCatalog.ensureLoaded().then(() => {
     expertModel.value = modelCatalog.defaultImageModel.logicalCode ?? modelCatalog.defaultImageModel.modelId
   }
 })
-/** 提交用渠道模型 id：按当前模型名在目录解析（平台渠道优先） */
-function resolveExpertChannelModelId(): number {
+/** 提交用逻辑模型 id：按当前模型名在目录解析（平台渠道优先） */
+function resolveExpertLogicalModelId(): number {
   return modelCatalog.getModelByName(expertModel.value)?.id ?? modelCatalog.defaultImageModel?.id ?? 0
 }
 
@@ -435,7 +435,7 @@ async function generateSingle(mode: 'fusion' | 'swap') {
     const sys = await sysPromptOf(mode === 'fusion' ? 'expert-fusion' : 'expert-swap')
     const prompt = [sys, mode === 'fusion' ? fusionPrompt.value : swapPrompt.value].filter(Boolean).join('\n')
     const res = await submitTask({
-      channelModelId: resolveExpertChannelModelId(),
+      logicalModelId: resolveExpertLogicalModelId(),
       prompt,
       size: '3:4',
       resolution: '2K',

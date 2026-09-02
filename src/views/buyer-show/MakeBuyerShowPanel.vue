@@ -70,12 +70,12 @@ const zipping = ref(false)
 
 // 统一生图参数（默认比例 9:16、张数 1）
 const modelCatalog = useModelCatalogStore()
-const selectedChannelModelId = ref(0)
+const selectedModelId = ref(0)
 const resolution = ref('') // '2K'
 const aspectRatio = ref('9:16')
 const countN = ref(1)
 
-const selectedModel = computed(() => modelCatalog.getModel(selectedChannelModelId.value))
+const selectedModel = computed(() => modelCatalog.getModel(selectedModelId.value))
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
@@ -85,10 +85,10 @@ const unitPrice = computed(() => modelCatalog.priceFor(selectedModel.value, reso
 
 // 目录加载后初始化默认模型（买家秀默认 9:16）
 modelCatalog.ensureLoaded().then(() => {
-  if (!selectedChannelModelId.value) {
+  if (!selectedModelId.value) {
     const m = modelCatalog.defaultImageModel
     if (m?.capabilities) {
-      selectedChannelModelId.value = m.id
+      selectedModelId.value = m.id
       resolution.value = m.capabilities.resolutions.includes('2K') ? '2K' : m.capabilities.resolutions[0]
       const ratios = modelCatalog.aspectRatiosFor(m, resolution.value)
       aspectRatio.value = ratios.includes('9:16') ? '9:16' : (ratios[0] ?? '9:16')
@@ -313,7 +313,7 @@ function stopAllPolling() {
 interface SubmitParams {
   /** 模型名快照（行回显用） */
   model: string
-  channelModelId: number
+  logicalModelId: number
   resolution: string
   aspectRatio: string
   n: number
@@ -322,7 +322,7 @@ interface SubmitParams {
 function currentParams(): SubmitParams {
   return {
     model: selectedModel.value?.displayName ?? selectedModel.value?.modelId ?? '',
-    channelModelId: selectedChannelModelId.value,
+    logicalModelId: selectedModelId.value,
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
     n: countN.value,
@@ -334,7 +334,7 @@ function rowOriginalParams(row: TableRow): SubmitParams {
   const cm = row.model ? modelCatalog.getModelByName(row.model) : undefined
   return {
     model: row.model || selectedModel.value?.displayName || '',
-    channelModelId: cm?.id ?? selectedChannelModelId.value,
+    logicalModelId: cm?.id ?? selectedModelId.value,
     resolution: row.resolution || resolution.value,
     aspectRatio: row.aspectRatio || aspectRatio.value,
     n: row.n || 1,
@@ -359,7 +359,7 @@ async function doSubmit(row: TableRow, params: SubmitParams): Promise<{ ok: bool
   row.resultImageUrls = undefined
   try {
     const result = await submitTask({
-      channelModelId: params.channelModelId,
+      logicalModelId: params.logicalModelId,
       prompt: row.prompt,
       size: params.aspectRatio,
       resolution: params.resolution,
@@ -703,7 +703,7 @@ onUnmounted(() => {
           <div class="param-row">
             <label class="param-label">模型</label>
             <ModelChannelSelect
-              v-model="selectedChannelModelId"
+              v-model="selectedModelId"
               style="width: 360px"
               @change="handleModelChange"
             />

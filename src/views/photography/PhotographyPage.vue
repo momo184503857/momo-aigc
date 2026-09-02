@@ -20,7 +20,7 @@ const photographyForm = ref<InstanceType<typeof PhotographyForm>>()
 
 // ─── Generate ───
 async function handleGenerate(params: {
-  channelModelId: number
+  logicalModelId: number
   prompt: string
   resolution: string
   aspectRatio: string
@@ -32,7 +32,7 @@ async function handleGenerate(params: {
   supplementaryImages: { name: string; url: string }[]
 }) {
   await tm.handleGenerate({
-    channelModelId: params.channelModelId,
+    logicalModelId: params.logicalModelId,
     prompt: params.prompt,
     resolution: params.resolution,
     aspectRatio: params.aspectRatio,

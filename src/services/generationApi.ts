@@ -7,8 +7,8 @@ import http from './http'
  */
 
 export interface GenerationSubmitParams {
-  /** 渠道模型 id（决定渠道、适配器、能力、定价） */
-  channelModelId: number
+  /** 逻辑模型 id；服务端按成本自动选择渠道 */
+  logicalModelId: number
   prompt: string
   userPrompt?: string
   systemPrompt?: string

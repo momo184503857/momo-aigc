@@ -48,23 +48,23 @@ const nextId = ref(1)
 
 // Model params
 const modelCatalog = useModelCatalogStore()
-const selectedChannelModelId = ref(0)
+const selectedModelId = ref(0)
 const resolution = ref('')
 const aspectRatio = ref('')
 
 // 目录加载完成后初始化默认模型
 modelCatalog.ensureLoaded().then(() => {
-  if (!selectedChannelModelId.value) {
+  if (!selectedModelId.value) {
     const m = modelCatalog.defaultImageModel
     if (m?.capabilities) {
-      selectedChannelModelId.value = m.id
+      selectedModelId.value = m.id
       resolution.value = m.capabilities.resolutions[0]
       aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0] ?? '1:1'
     }
   }
 })
 
-const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedModelId.value))
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
   if (!selectedModel.value) return ['1:1']
@@ -243,7 +243,7 @@ async function handleGenerate() {
     try {
       // 调用统一入口 submitTask（服务端编排）
       const result = await submitTask({
-        channelModelId: selectedChannelModelId.value,
+        logicalModelId: selectedModelId.value,
         prompt: row.prompt,
         size: aspectRatio.value,
         resolution: resolution.value,
@@ -326,7 +326,7 @@ async function retryRow(row: TableRow) {
   try {
     // 调用统一入口 submitTask（服务端编排）
     const result = await submitTask({
-      channelModelId: selectedChannelModelId.value,
+      logicalModelId: selectedModelId.value,
       prompt: row.prompt,
       size: aspectRatio.value,
       resolution: resolution.value,
@@ -465,7 +465,7 @@ onUnmounted(() => {
         <div class="param-row">
           <label class="param-label">模型</label>
           <ModelChannelSelect
-            v-model="selectedChannelModelId"
+            v-model="selectedModelId"
             style="width: 360px"
             @change="handleModelChange"
           />

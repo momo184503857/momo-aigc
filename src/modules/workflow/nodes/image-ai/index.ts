@@ -36,7 +36,7 @@ const imageAi: NodeModule = {
   async run(workflow, node): Promise<NodeRunResult> {
     const config = node.config
     const modelName = typeof config.modelName === 'string' ? config.modelName : 'gpt-image-2'
-    // 按模型名在目录解析渠道模型 id（目录未命中时用默认模型，兼容旧画布存量节点）
+    // 按模型名在目录解析逻辑模型 id（目录未命中时用默认模型，兼容旧画布存量节点）
     const catalog = useModelCatalogStore()
     await catalog.ensureLoaded()
     const channelModel = catalog.getModelByName(modelName) ?? catalog.defaultImageModel
@@ -91,7 +91,7 @@ const imageAi: NodeModule = {
       // 调用统一生图函数（提交 + 阻塞轮询；结果转存由服务端完成）
       const result = await generateImage(
         {
-          channelModelId: channelModel.id,
+          logicalModelId: channelModel.id,
           prompt,
           size: aspectRatio,
           resolution: outputSize,

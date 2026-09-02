@@ -256,8 +256,7 @@ export class ProviderContextError extends Error {
  *
  * opts.excludeKeyIds 仅供 withKeyFailover 的轮换使用（跳过本次请求已试过的 Key）；
  * opts.preferKeyId 供轮询/转存等直连路径指定任务提交时实际使用的 Key
- * （toapis 等渠道任务按 Key 隔离，用其他 Key 查询会得到 task_not_exist；
- * 该 Key 已停用/删除时自动回退到优先级最高的可用 Key）。
+ * （toapis 等渠道任务按 Key 隔离，用其他 Key 查询会得到 task_not_exist；指定后不会回退其他 Key）。
  */
 export function resolveProviderContext(
   providerId: number,
@@ -270,17 +269,23 @@ export function resolveProviderContext(
   if (!provider) throw new ProviderContextError('渠道不存在', 404)
   if (provider.status !== 'active') throw new ProviderContextError('渠道已停用', 400)
 
-  const keyRows = db.prepare(`
-    SELECT id AS key_id, encrypted_key, key_iv, key_tag FROM api_provider_keys
-    WHERE provider_id = ? AND status = 'active'
-    ORDER BY priority ASC, id ASC
-  `).all(providerId) as Array<{ key_id: number; encrypted_key: string; key_iv: string; key_tag: string }>
+  const keyRows = (opts.preferKeyId != null
+    ? db.prepare(`
+        SELECT id AS key_id, encrypted_key, key_iv, key_tag FROM api_provider_keys
+        WHERE provider_id = ? AND id = ?
+      `).all(providerId, opts.preferKeyId)
+    : db.prepare(`
+        SELECT id AS key_id, encrypted_key, key_iv, key_tag FROM api_provider_keys
+        WHERE provider_id = ? AND status = 'active'
+        ORDER BY priority ASC, id ASC
+      `).all(providerId)) as Array<{ key_id: number; encrypted_key: string; key_iv: string; key_tag: string }>
   if (keyRows.length === 0) {
     throw new ProviderContextError('该渠道没有可用 Key（可能所有 Key 已停用，或为历史遗留的耗尽标记，请在 Key 管理中重新启用）', 400)
   }
 
-  const keyRow = (opts.preferKeyId != null ? keyRows.find((k) => k.key_id === opts.preferKeyId) : undefined)
-    ?? keyRows.find((k) => !opts.excludeKeyIds?.has(k.key_id))
+  const keyRow = opts.preferKeyId != null
+    ? keyRows[0]
+    : keyRows.find((k) => !opts.excludeKeyIds?.has(k.key_id))
   if (!keyRow) throw new ProviderContextError('本轮请求已试遍该渠道全部可用 Key', 400, 'ALL_TRIED')
 
   let apiKey: string

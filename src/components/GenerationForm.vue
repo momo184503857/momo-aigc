@@ -16,7 +16,7 @@ import ModelChannelSelect from './ModelChannelSelect.vue'
 
 const emit = defineEmits<{
   (e: 'generate', params: {
-    channelModelId: number
+    logicalModelId: number
     prompt: string
     resolution: string
     aspectRatio: string
@@ -30,7 +30,7 @@ const emit = defineEmits<{
 const serverStatus = useServerStatusStore()
 const modelCatalog = useModelCatalogStore()
 
-const selectedChannelModelId = ref(0)
+const selectedModelId = ref(0)
 const prompt = ref('')
 const resolution = ref('')
 const aspectRatio = ref('')
@@ -91,14 +91,14 @@ const referenceImages = ref<RefImage[]>([])
 
 const draggedIndex = ref<number | null>(null)
 
-const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedChannelModelId.value))
+const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedModelId.value))
 
 // 目录加载完成后初始化默认模型（目录第一个可用模型）
 modelCatalog.ensureLoaded().then(() => {
-  if (!selectedChannelModelId.value) {
+  if (!selectedModelId.value) {
     const m = modelCatalog.defaultImageModel
     if (m) {
-      selectedChannelModelId.value = m.id
+      selectedModelId.value = m.id
       resolution.value = m.capabilities?.resolutions?.[0] ?? ''
       aspectRatio.value = modelCatalog.aspectRatiosFor(m, resolution.value)[0] ?? '1:1'
     }
@@ -126,7 +126,7 @@ const canAddImage = computed(() => referenceImages.value.length < maxReferenceIm
 	  if (prompt.value.trim().length === 0 || prompt.value.length > maxPromptChars.value) return false
 	  if (!serverStatus.loaded) return false
 	  if (!serverStatus.canGenerate) return false
-	  if (!selectedChannelModelId.value) return false
+	  if (!selectedModelId.value) return false
 	  return true
 	})
 
@@ -277,7 +277,7 @@ function handleGenerate() {
   })
 
   emit('generate', {
-    channelModelId: selectedChannelModelId.value,
+    logicalModelId: selectedModelId.value,
     prompt: prompt.value.trim(),
     resolution: resolution.value,
     aspectRatio: aspectRatio.value,
@@ -309,7 +309,7 @@ function setParams(params: {
   // 旧参数携带模型名字符串：按名反查渠道模型（兼容历史任务「重新生成」）
   const cm = modelCatalog.getModelByName(params.modelId)
   if (cm) {
-    selectedChannelModelId.value = cm.id
+    selectedModelId.value = cm.id
     if (!cm.capabilities?.resolutions?.includes(params.resolution)) {
       resolution.value = cm.capabilities?.resolutions?.[0] ?? params.resolution
     } else {
@@ -353,7 +353,7 @@ defineExpose({ setParams })
       <div class="form-row-inline">
         <label class="form-label-left">模型</label>
         <div class="form-control-right">
-          <ModelChannelSelect v-model="selectedChannelModelId" @change="handleModelChange" />
+          <ModelChannelSelect v-model="selectedModelId" @change="handleModelChange" />
         </div>
       </div>
 

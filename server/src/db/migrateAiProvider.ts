@@ -17,6 +17,7 @@ import { CANONICAL_LOGICAL_MODELS } from './logicalModels.js'
  *    删除全部用户渠道（历史任务外键置空）、DROP user_toapis_keys
  * T8 用户可见渠道名（api_providers.display_name）：目录/任务列表对用户隐藏真实渠道商，
  *    一次性回填 toapis→TA、chatgpt2api→CA、relayrouter-gpt→RRG、relayrouter-banana→RRB
+ * T9 自动路由定价拆分：逻辑模型统一售价、渠道模型成本价、任务逻辑模型与路由尝试记录
  *
  * 幂等标记（system_config）：seed_ai_provider_v1（T1-T3）、migrate_user_keys_v1（T4）、
  * migrate_tasks_v1（T5）、migrate_fixed_channels_v1（T7）、migrate_channel_display_names_v1（T8）。
@@ -79,7 +80,9 @@ function runDdl(): void {
   try { db.exec(`ALTER TABLE ai_models ADD COLUMN logical_model_id INTEGER REFERENCES ai_logical_models(id)`) } catch { /* column exists */ }
   try { db.exec(`ALTER TABLE ai_models ADD COLUMN param_overrides TEXT`) } catch { /* column exists */ }
   try { db.exec(`ALTER TABLE ai_models ADD COLUMN pricing TEXT`) } catch { /* column exists */ }
+  try { db.exec(`ALTER TABLE ai_models ADD COLUMN cost_pricing TEXT`) } catch { /* column exists */ }
   try { db.exec(`ALTER TABLE ai_models ADD COLUMN supports_chat INTEGER NOT NULL DEFAULT 0`) } catch { /* column exists */ }
+  try { db.exec(`ALTER TABLE ai_logical_models ADD COLUMN sale_pricing TEXT`) } catch { /* column exists */ }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_models_logical ON ai_models(logical_model_id);`)
 
   // generation_tasks：任务键切换（内部任务号收口；toapis_task_id 停写）
@@ -90,8 +93,28 @@ function runDdl(): void {
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN provider_code VARCHAR(50)`) } catch { /* column exists */ }
   // 提交任务实际使用的 Key（toapis 任务按 Key 隔离：轮询/reimport 必须用同一 Key 才能查到）
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN provider_key_id INTEGER`) } catch { /* column exists */ }
+  try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN logical_model_id INTEGER REFERENCES ai_logical_models(id)`) } catch { /* column exists */ }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_provider_task ON generation_tasks(provider_task_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_channel_model ON generation_tasks(channel_model_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_logical_model ON generation_tasks(logical_model_id);`)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS generation_route_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES generation_tasks(id) ON DELETE CASCADE,
+      attempt_no INTEGER NOT NULL,
+      channel_model_id INTEGER REFERENCES ai_models(id) ON DELETE SET NULL,
+      provider_id INTEGER REFERENCES api_providers(id) ON DELETE SET NULL,
+      provider_key_id INTEGER REFERENCES api_provider_keys(id) ON DELETE SET NULL,
+      cost_price REAL NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'started',
+      error_code VARCHAR(64),
+      error_message TEXT,
+      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      finished_at TIMESTAMP,
+      UNIQUE(task_id, channel_model_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_route_attempts_task ON generation_route_attempts(task_id, attempt_no);
+  `)
 }
 
 function backupBeforeMigration(): void {
@@ -446,6 +469,40 @@ function migrateChannelDisplayNames(): void {
   console.log('[DB] migrate_channel_display_names_v1 done（用户可见渠道名回填）')
 }
 
+// ── T9：渠道成本价与逻辑模型统一售价 ──
+
+function migrateModelRoutingPricing(): void {
+  if (flag('migrate_model_routing_v1') === 'done') return
+  if (DRY_RUN) {
+    console.log('[dry-run] T9 自动路由定价拆分：复制渠道定价为成本价并初始化逻辑模型售价')
+    return
+  }
+  const tx = db.transaction(() => {
+    db.prepare(`UPDATE ai_models SET cost_pricing = pricing WHERE cost_pricing IS NULL AND pricing IS NOT NULL`).run()
+    const logicalModels = db.prepare(`SELECT id FROM ai_logical_models WHERE kind = 'image'`).all() as Array<{ id: number }>
+    const firstPricing = db.prepare(`
+      SELECT COALESCE(cost_pricing, pricing) AS value
+      FROM ai_models
+      WHERE logical_model_id = ? AND supports_image_gen = 1
+        AND COALESCE(cost_pricing, pricing) IS NOT NULL
+      ORDER BY id ASC LIMIT 1
+    `)
+    const updateSale = db.prepare(`UPDATE ai_logical_models SET sale_pricing = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND sale_pricing IS NULL`)
+    for (const logical of logicalModels) {
+      const row = firstPricing.get(logical.id) as { value: string } | undefined
+      if (row?.value) updateSale.run(row.value, logical.id)
+    }
+    db.prepare(`
+      UPDATE generation_tasks
+      SET logical_model_id = (SELECT logical_model_id FROM ai_models WHERE ai_models.id = generation_tasks.channel_model_id)
+      WHERE logical_model_id IS NULL AND channel_model_id IS NOT NULL
+    `).run()
+    setFlag('migrate_model_routing_v1')
+  })
+  tx()
+  console.log('[DB] migrate_model_routing_v1 done（成本价、统一售价与历史任务逻辑模型已初始化）')
+}
+
 // ── 入口 ──
 
 export function initAiProviderMigration(): void {
@@ -454,11 +511,12 @@ export function initAiProviderMigration(): void {
   const needTasks = flag('migrate_tasks_v1') !== 'done'
   const needFixedChannels = flag('migrate_fixed_channels_v1') !== 'done'
   const needDisplayNames = flag('migrate_channel_display_names_v1') !== 'done'
+  const needModelRouting = flag('migrate_model_routing_v1') !== 'done'
 
   if (DRY_RUN) {
     console.log('[DB] MIGRATION_DRY_RUN=1：ai-provider 迁移 dry-run 模式，不写库')
     // DDL 仍执行（IF NOT EXISTS 幂等且不破坏数据），种子与回填仅输出
-  } else if (needSeed || needUserKeys || needTasks || needFixedChannels || needDisplayNames) {
+  } else if (needSeed || needUserKeys || needTasks || needFixedChannels || needDisplayNames || needModelRouting) {
     backupBeforeMigration()
   }
 
@@ -469,6 +527,7 @@ export function initAiProviderMigration(): void {
   migratePlatformKeysToPlain()
   migrateFixedChannels()
   migrateChannelDisplayNames()
+  migrateModelRoutingPricing()
 
   if (!DRY_RUN) {
     // 兜底：即使所有标记已完成，也确保唯一索引存在（如历史中断）

@@ -21,7 +21,7 @@ const generationForm = ref<InstanceType<typeof GenerationForm>>()
 // ─── 生成 ───
 
 async function handleGenerate(params: {
-  channelModelId: number
+  logicalModelId: number
   prompt: string
   resolution: string
   aspectRatio: string

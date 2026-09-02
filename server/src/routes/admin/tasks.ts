@@ -64,7 +64,21 @@ adminTasksRouter.get('/', (req: AuthRequest, res) => {
 
   res.json({
     success: true,
-    data: { records: (rows as any[]).map(parseRow), total: countRow.total, page, pageSize },
+    data: {
+      records: (rows as any[]).map((row) => {
+        const parsed = parseRow(row)
+        parsed.route_attempts = db.prepare(`
+          SELECT a.*, p.name AS provider_name, m.display_name AS channel_model_name, k.name AS key_name
+          FROM generation_route_attempts a
+          LEFT JOIN api_providers p ON p.id = a.provider_id
+          LEFT JOIN ai_models m ON m.id = a.channel_model_id
+          LEFT JOIN api_provider_keys k ON k.id = a.provider_key_id
+          WHERE a.task_id = ? ORDER BY a.attempt_no ASC
+        `).all(row.id)
+        return parsed
+      }),
+      total: countRow.total, page, pageSize,
+    },
   })
 })
 

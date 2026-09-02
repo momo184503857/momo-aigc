@@ -15,6 +15,7 @@ export interface TaskItem {
   task_no?: string
   /** 渠道侧任务号（异步渠道如 toapis 才有；同步渠道为空） */
   provider_task_id?: string | null
+  logical_model_id?: number | null
   toapis_task_id?: string
   model: ModelId
   prompt: string

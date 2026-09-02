@@ -212,7 +212,7 @@ export function useTaskManager() {
   // ─── Generate ───
 
   async function handleGenerate(params: {
-    channelModelId: number
+    logicalModelId: number
     prompt: string
     resolution: string
     aspectRatio: string
@@ -231,7 +231,7 @@ export function useTaskManager() {
       warning('暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型')
       return
     }
-    if (!params.channelModelId) {
+    if (!params.logicalModelId) {
       warning('请先选择模型')
       return
     }
@@ -239,7 +239,7 @@ export function useTaskManager() {
     const cnt = Math.max(1, Math.min(5, params.count))
 
     // 乐观任务的模型名就地取自目录：提交/轮询响应都不含 model，缺了任务列表会显示空模型
-    const optimisticModelId = useModelCatalogStore().getModel(params.channelModelId)?.modelId ?? ''
+    const optimisticModelId = useModelCatalogStore().getModel(params.logicalModelId)?.modelId ?? ''
 
     for (let i = 0; i < cnt; i++) {
       const newTask = reactive<TaskItem>({
@@ -269,7 +269,7 @@ export function useTaskManager() {
       try {
         // 调用核心模块提交任务（服务端编排：校验/计价/落库/派发）
         const result = await submitTask({
-          channelModelId: params.channelModelId,
+          logicalModelId: params.logicalModelId,
           prompt: params.prompt,
           userPrompt: params.userPrompt,
           systemPrompt: params.systemPrompt,
@@ -412,7 +412,7 @@ export function useTaskManager() {
     if (isPhotography) {
       const supplementary = task.supplementaryImages || []
       await handleGenerate({
-        channelModelId: resolveChannelModelId(task),
+        logicalModelId: resolveLogicalModelId(task),
         prompt: task.prompt,
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
@@ -427,7 +427,7 @@ export function useTaskManager() {
     }
 
     await handleGenerate({
-      channelModelId: resolveChannelModelId(task),
+      logicalModelId: resolveLogicalModelId(task),
       prompt: task.prompt,
       resolution: task.resolution,
       aspectRatio: task.aspectRatio,
@@ -437,9 +437,10 @@ export function useTaskManager() {
     })
   }
 
-  /** 按任务快照的模型名反查渠道模型 id（目录中同名模型；查不到时提示选择） */
-  function resolveChannelModelId(task: TaskItem): number {
+  /** 历史任务优先使用逻辑模型 id，旧数据再按模型名反查。 */
+  function resolveLogicalModelId(task: TaskItem): number {
     const catalog = useModelCatalogStore()
+    if (task.logical_model_id && catalog.getModel(task.logical_model_id)) return task.logical_model_id
     const m = catalog.getModelByName(task.model)
     return m?.id ?? 0
   }
