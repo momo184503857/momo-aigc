@@ -207,6 +207,13 @@ async function runSyncTask(taskId: number): Promise<void> {
   const task = loadTask(taskId)
   if (!task || TERMINAL.includes(task.status) || !task.channel_model_id) return
 
+  // 拿到执行槽即置「生成中」：前端状态徽章与真实执行对齐（submitted=排队等槽，in_progress=上游生成中）
+  const started = db.prepare(`
+    UPDATE generation_tasks SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND status = 'submitted'
+  `).run(task.id)
+  if (started.changes === 0) return
+
   let cm: any
   try {
     cm = loadChannelModel(task.channel_model_id)
@@ -221,7 +228,7 @@ async function runSyncTask(taskId: number): Promise<void> {
     // 抢占转存权（轮询请求/其他实例可能已处理）
     const claimed = db.prepare(`
       UPDATE generation_tasks SET status = 'importing', progress = 100, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND status = 'submitted'
+      WHERE id = ? AND status IN ('submitted','in_progress')
     `).run(task.id)
     if (claimed.changes === 0) return
 
