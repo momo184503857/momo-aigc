@@ -3,6 +3,8 @@ dist/
 server/dist/
 # 数据库文件（含数据，不入库）
 server/data/
+# Node-RED 实例运行时产物（userdir/.config.json 等，不入库）
+server/nodered/userdir/
 *.log
 *.tsbuildinfo
 vite.config.js

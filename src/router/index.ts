@@ -70,6 +70,12 @@ const router = createRouter({
       meta: { title: 'AI画布', requiresAuth: true },
     },
     {
+      path: '/flow-canvas',
+      name: 'FlowCanvasProjects',
+      component: () => import('@/views/flow-canvas/FlowProjectsPage.vue'),
+      meta: { title: 'AI画布 Pro', requiresAuth: true },
+    },
+    {
       path: '/photography',
       name: 'Photography',
       component: () => import('@/views/photography/PhotographyPage.vue'),
@@ -176,6 +182,12 @@ const router = createRouter({
       name: 'AICanvas',
       component: () => import('@/views/canvas/AICanvasPage.vue'),
       meta: { title: 'AI画布', requiresAuth: true, hideInMenu: true },
+    },
+    {
+      path: '/flow-canvas/:projectId',
+      name: 'FlowCanvasEditor',
+      component: () => import('@/views/flow-canvas/FlowEditorPage.vue'),
+      meta: { title: 'AI画布 Pro', requiresAuth: true, hideInMenu: true },
     },
     {
       path: '/admin',

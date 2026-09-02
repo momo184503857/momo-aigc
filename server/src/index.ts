@@ -39,10 +39,18 @@ import { adminAiConfigRouter } from './routes/admin/aiConfig.js'
 import { themeLibraryRouter } from './routes/themeLibrary.js'
 import { generationsRouter, sweepOrphanTasks, waitForSyncTasks } from './routes/generations.js'
 import { modelsRouter } from './routes/models.js'
+import { flowCanvasRouter } from './routes/flowCanvas.js'
+import { redHttpHandler, attachRedWsUpgrade } from './nodered/proxy.js'
+import { startNrSweeper, killAllNrInstances } from './nodered/manager.js'
 
 const app = express()
 
 app.use(cors())
+
+// Node-RED 画布反向代理（/red/u/...）——必须在 body parser 之前挂载：
+// 代理转发原始请求流，被 express.json 消费后 Node-RED 会收到空 body
+app.use(redHttpHandler)
+
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
@@ -83,6 +91,7 @@ app.use('/api/toapis', toapisProxyRouter)
 app.use('/api/points', pointsRouter)
 app.use('/api/canvas', canvasRouter)
 app.use('/api/canvas-ai', canvasAiRouter)
+app.use('/api/flow-canvas', flowCanvasRouter)
 app.use('/api/photography', photographyRouter)
 app.use('/api/admin/photography', adminPhotographyRouter)
 app.use('/api/buyer-show', buyerShowRouter)
@@ -106,9 +115,14 @@ const server = app.listen(config.port, () => {
   console.log(`[Server] momoAigc server running on http://localhost:${config.port}`)
 })
 
-// 优雅停机：等待同步渠道在途任务落库（最多 10s）
+// Node-RED 画布（AI画布 Pro）：WS 升级反代（编辑器 comms）+ 空闲回收定时器
+attachRedWsUpgrade(server)
+startNrSweeper()
+
+// 优雅停机：回收 Node-RED 子进程 → 等待同步渠道在途任务落库（最多 10s）
 function shutdown() {
   console.log('[Server] Shutting down…')
+  killAllNrInstances()
   waitForSyncTasks().finally(() => server.close(() => process.exit(0)))
   // 兜底：15s 后强制退出
   setTimeout(() => process.exit(0), 15_000).unref()

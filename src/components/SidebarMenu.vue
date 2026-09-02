@@ -56,6 +56,7 @@ const menuSections = computed<MenuSection[]>(() => {
         { path: '/workspace', title: '快速生图', icon: MagicStick },
         { path: '/photography', title: 'AI摄影', icon: Camera },
         { path: '/canvas-projects', title: 'AI画布', icon: Share },
+        { path: '/flow-canvas', title: 'AI画布 Pro', icon: Share },
         { path: '/toolbox', title: 'AI工具箱', icon: Box },
         { path: '/buyer-show', title: 'AI买家秀', icon: Goods },
       ],

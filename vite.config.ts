@@ -18,6 +18,12 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // Node-RED 画布（AI画布 Pro）反向代理，含编辑器 comms WebSocket
+      '/red': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        ws: true,
+      },
       // 用户帮助文档静态资源（开发链路与生产 Nginx /docs/ 一致）
       '/docs': {
         target: 'http://localhost:3000',

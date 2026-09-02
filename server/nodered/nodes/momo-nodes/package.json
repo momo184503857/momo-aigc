@@ -1,0 +1,14 @@
+{
+  "name": "momo-nodered-nodes",
+  "version": "1.0.0",
+  "description": "momoAIGC AI画布 Pro 自定义节点（回环调用主进程 /api，复用计费/退款/Key 轮换）",
+  "type": "commonjs",
+  "node-red": {
+    "nodes": {
+      "momo-text-ai": "momo-text-ai.js",
+      "momo-image-ai": "momo-image-ai.js",
+      "momo-image-input": "momo-image-input.js",
+      "momo-save": "momo-save.js"
+    }
+  }
+}

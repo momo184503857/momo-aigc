@@ -1,0 +1,196 @@
+<script type="text/javascript">
+  RED.nodes.registerType('momo-image-ai', {
+    category: 'Momo AI',
+    color: '#c32bac',
+    defaults: {
+      name: { value: '' },
+      logicalModelId: { value: '' },
+      resolution: { value: '' },
+      aspectRatio: { value: '' },
+      n: { value: 1 },
+      refImages: { value: [] },
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'camera.svg',
+    paletteLabel: '图片 AI',
+    label: function () {
+      return this.name || '图片 AI'
+    },
+    oneditprepare: function () {
+      const node = this
+      const $model = $('#node-input-logicalModelId')
+      const $res = $('#node-input-resolution')
+      const $ratio = $('#node-input-aspectRatio')
+      let models = []
+
+      function fillSelect($sel, values, preferred, formatter) {
+        $sel.empty()
+        for (const v of values) {
+          $sel.append(
+            $('<option></option>').val(String(v)).text(formatter ? formatter(v) : String(v))
+          )
+        }
+        const cur = values.map(String).includes(String(preferred)) ? preferred : values[0]
+        $sel.val(String(cur))
+      }
+
+      // 分辨率变化时按 aspectRatiosByResolution 联动可选比例
+      function refreshRatios(modelId) {
+        const m = models.find((x) => String(x.id) === String(modelId))
+        if (!m) return
+        const res = $res.val()
+        const ratios =
+          (m.aspectRatiosByResolution && m.aspectRatiosByResolution[res]) ||
+          m.aspectRatios ||
+          ['1:1']
+        fillSelect($ratio, ratios, $ratio.val() || node.aspectRatio)
+      }
+
+      function refreshModelDeps(modelId) {
+        const m = models.find((x) => String(x.id) === String(modelId))
+        if (!m) return
+        fillSelect($res, m.resolutions.length ? m.resolutions : ['1K'], $res.val() || node.resolution)
+        refreshRatios(modelId)
+        const maxRef = m.maxReferenceImages || 14
+        $('.momo-ref-tip').text(maxRef > 0 ? `最多 ${maxRef} 张` : '该模型不支持参考图')
+      }
+
+      momoNr
+        .getCtx()
+        .then((ctx) => {
+          models = ctx.imageModels
+          $model.empty()
+          for (const m of models) {
+            let label = m.displayName
+            if (m.pricing) {
+              const prices = Object.values(m.pricing).filter(function (v) { return typeof v === 'number' })
+              if (prices.length) {
+                label += '（' + Math.min.apply(null, prices) + ' 积分起）'
+              }
+            }
+            $model.append($('<option></option>').val(String(m.id)).text(label))
+          }
+          const cur = String(node.logicalModelId || node.channelModelId || '')
+          $model.val(
+            models.some((m) => String(m.id) === cur) ? cur : models.length ? String(models[0].id) : ''
+          )
+          refreshModelDeps($model.val())
+        })
+        .catch((err) => {
+          $model.append($('<option></option>').text('模型目录加载失败: ' + err.message))
+        })
+
+      $model.on('change', function () {
+        refreshModelDeps($(this).val())
+      })
+      $res.on('change', function () {
+        refreshRatios($model.val())
+      })
+
+      // 参考图列表：上传走 /api/oss/upload（同源直传主进程），行数据挂在 $row.data 上
+      const $list = $('#node-input-refImages').editableList({
+        header: false,
+        addButton: '添加参考图',
+        removable: true,
+        height: 'auto',
+        addItem($row, index, data) {
+          const item = data && data.url ? { url: data.url, fileName: data.fileName } : { url: '', fileName: '' }
+          $row.css({ overflow: 'hidden', 'white-space': 'nowrap', 'line-height': '34px' })
+          $row.data('momoItem', item)
+          const $img = $('<img/>')
+            .attr('src', item.url)
+            .css({ height: '32px', maxWidth: '48px', marginRight: '8px', verticalAlign: 'middle' })
+          const $name = $('<span></span>').text(item.fileName || '未上传').css({ marginRight: '8px', verticalAlign: 'middle' })
+          const $btn = $('<button class="red-ui-button" type="button">上传</button>')
+          const $file = $('<input type="file" accept="image/*" style="display:none">')
+          $row.append($img, $name, $btn, $file)
+          $btn.on('click', function () {
+            $file.trigger('click')
+          })
+          $file.on('change', async function () {
+            const file = this.files && this.files[0]
+            if (!file) return
+            $btn.text('上传中…').prop('disabled', true)
+            try {
+              const uploaded = await momoNr.uploadImage(file)
+              item.url = uploaded.url
+              item.fileName = uploaded.fileName
+              $img.attr('src', uploaded.url)
+              $name.text(uploaded.fileName)
+            } catch (err) {
+              RED.notify('参考图上传失败: ' + err.message, 'error')
+            } finally {
+              $btn.text(item.url ? '重新上传' : '上传').prop('disabled', false)
+            }
+          })
+        },
+      })
+      for (const item of Array.isArray(node.refImages) ? node.refImages : []) {
+        $list.editableList('addItem', item)
+      }
+    },
+    oneditsave: function () {
+      const collected = []
+      $('#node-input-refImages')
+        .editableList('items')
+        .each(function () {
+          const item = $(this).data('momoItem')
+          if (item && item.url) collected.push({ url: item.url, fileName: item.fileName })
+        })
+      this.refImages = collected
+    },
+  })
+</script>
+
+<script type="text/html" data-template-name="momo-image-ai">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> 名称</label>
+    <input type="text" id="node-input-name" placeholder="图片 AI" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-logicalModelId"><i class="fa fa-cogs"></i> 模型</label>
+    <select id="node-input-logicalModelId"></select>
+  </div>
+  <div class="form-row">
+    <label for="node-input-resolution"><i class="fa fa-expand"></i> 分辨率</label>
+    <select id="node-input-resolution"></select>
+  </div>
+  <div class="form-row">
+    <label for="node-input-aspectRatio"><i class="fa fa-crop"></i> 比例</label>
+    <select id="node-input-aspectRatio"></select>
+  </div>
+  <div class="form-row">
+    <label for="node-input-n"><i class="fa fa-files-o"></i> 张数</label>
+    <select id="node-input-n">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label style="width: auto"><i class="fa fa-picture-o"></i> 参考图 <span class="momo-ref-tip"></span></label>
+    <ol id="node-input-refImages" style="min-height: 36px"></ol>
+  </div>
+  <div class="form-tips">
+    输入 msg.payload = 提示词（必填）；按所选模型统一售价预扣积分，失败自动全额退款。输出：msg.payload = { images: [...], taskNos: [...] }。
+  </div>
+</script>
+
+<script type="text/html" data-help-name="momo-image-ai">
+  <p>调用平台生图模型生成图片（走统一任务管线，计入主任务列表，积分计费）。</p>
+  <h3>输入</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">string</span></dt>
+    <dd>提示词（必填）。</dd>
+  </dl>
+  <h3>输出</h3>
+  <dl class="message-properties">
+    <dt>payload.images <span class="property-type">array</span></dt>
+    <dd>生成图片的 URL 列表。</dd>
+    <dt>payload.taskNos <span class="property-type">array</span></dt>
+    <dd>任务号列表（可到主站任务面板查看进度）。</dd>
+  </dl>
+</script>
