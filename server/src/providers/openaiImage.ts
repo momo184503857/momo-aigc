@@ -8,16 +8,17 @@ import type {
   ConnectionTestResult,
   ProviderRuntimeConfig,
 } from './types.js'
-import { postJson, joinUrl, extractErrorMessage, ProviderCallError } from './http.js'
+import { postJson, postForm, joinUrl, extractErrorMessage, ProviderCallError } from './http.js'
 import { createOpenAiCompatAdapter } from './openaiCompat.js'
 import { toPixelSize, clampPixelSize } from '../utils/imageSize.js'
-import { resolveUpstreamImageUrls } from '../utils/upstreamImages.js'
+import { resolveUpstreamInlineImages } from '../utils/upstreamImages.js'
 
 /**
  * 通用 OpenAI 兼容生图适配器（同步）：POST {base}/v1/images/generations。
  *
  *  - 标准请求体 {model, prompt, n, size}；response_format 优先 url、失败回退 b64_json；
- *  - 参考图：透传 image[] / image_url 字段（渠道支持才有意义，不支持的渠道在能力层配成"无参考图"）；
+ *  - 参考图：走 /v1/images/edits 官方 multipart 文件上传（渠道支持才有意义，
+ *    不支持的渠道在能力层配成"无参考图"）；multipart 被拒时回退 JSON image[] 等兼容格式；
  *  - 结果 url / base64 均归一为 GeneratedImage。
  */
 
@@ -75,40 +76,52 @@ export const openaiImageAdapter: ImageProviderAdapter = {
     if (!ctx.apiKey) throw new ProviderCallError('未配置 API Key（请先在该渠道下设置主 Key）')
     // 渠道硬限制（param_overrides.sizeClamp）在换算后等比钳制，如 relayrouter 单边≤3840 且总像素≤8294400
     const size = clampPixelSize(toPixelSize(req.aspectRatio, req.resolution), req.sizeClamp ?? {})
-    // 直接传模式：本地参考图转 base64 data URL（上游可直读，无需公网地址）
-    const imageUrls = await resolveUpstreamImageUrls('openai_image', req.imageUrls, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey })
-    const body: Record<string, unknown> = {
-      model: req.model,
-      prompt: req.prompt,
-      n: 1,
-      size,
-      response_format: 'url',
-    }
-    if (req.negativePrompt) body.negative_prompt = req.negativePrompt
-    // 参考图走图生图端点（OpenAI 语义：generations=文生图，edits=图生图），
-    // image 字段以 URL/data-URL 数组透传，由上游自行下载或解码
-    if (imageUrls.length > 0) {
-      body.image = imageUrls
-    }
-    const path = imageUrls.length > 0 ? '/v1/images/edits' : '/v1/images/generations'
-    const call = (b: Record<string, unknown>) => postJson(joinUrl(ctx.baseUrl, path), {
-      authorization: `Bearer ${ctx.apiKey}`,
-    }, b, 600_000)
-
-    let currentBody = body
-    let result = await call(currentBody)
-
-    // new-api 系中转的 edits JSON 不认官方 image[] 数组，要求 images[].image_url（私有格式）；
-    // 仅在上游报错点名 image_url 时切换格式重试一次，官方/其他渠道不受影响
-    if ((result.status === 400 || result.status === 422) && imageUrls.length > 0
-      && /image_url/i.test(extractErrorMessage(result, ''))) {
-      currentBody = { ...currentBody, image: undefined, images: imageUrls.map((u) => ({ image_url: u })) }
-      result = await call(currentBody)
+    const headers = { authorization: `Bearer ${ctx.apiKey}` }
+    const baseBody = (): Record<string, unknown> => {
+      const b: Record<string, unknown> = { model: req.model, prompt: req.prompt, n: 1, size, response_format: 'url' }
+      if (req.negativePrompt) b.negative_prompt = req.negativePrompt
+      return b
     }
 
-    if (result.status === 400 || result.status === 422) {
-      // response_format=url 不被支持时回退 b64_json 重试一次
-      result = await call({ ...currentBody, response_format: 'b64_json' })
+    // 参考图统一拉成内联 bytes（本地读盘 / 远程 OSS 服务端拉回，单图 ≤10MB）：
+    // edits 走官方 multipart 文件上传——RelayRouter 等中转的 edits 端点只认 multipart
+    // （JSON image[] URL 数组会被网关以 failed to parse multipart form 拒绝，2026-09-02 生产实测）
+    const refImages = await resolveUpstreamInlineImages(req.imageUrls)
+
+    let result
+    if (refImages.length === 0) {
+      // 文生图：POST /v1/images/generations（JSON）；response_format=url 不被支持时回退 b64_json
+      let body = baseBody()
+      result = await postJson(joinUrl(ctx.baseUrl, '/v1/images/generations'), headers, body, 600_000)
+      if (result.status === 400 || result.status === 422) {
+        body = { ...body, response_format: 'b64_json' }
+        result = await postJson(joinUrl(ctx.baseUrl, '/v1/images/generations'), headers, body, 600_000)
+      }
+    } else {
+      // 图生图：POST /v1/images/edits，官方 multipart 优先；400/422 依序回退
+      // JSON image[]（data URL）→ images[].image_url（new-api 私有格式）→ 最后 b64_json 重试
+      const form = new FormData()
+      for (const [k, v] of Object.entries(baseBody())) form.append(k, String(v))
+      refImages.forEach((img, i) => {
+        const ext = img.mimeType === 'image/jpeg' ? 'jpg' : img.mimeType.split('/')[1] || 'png'
+        form.append('image', new Blob([Buffer.from(img.base64, 'base64')], { type: img.mimeType }), `reference-${i + 1}.${ext}`)
+      })
+      result = await postForm(joinUrl(ctx.baseUrl, '/v1/images/edits'), headers, form, 600_000)
+
+      const callJson = (b: Record<string, unknown>) => postJson(joinUrl(ctx.baseUrl, '/v1/images/edits'), headers, b, 600_000)
+      let currentBody: Record<string, unknown> | null = null
+      if (result.status === 400 || result.status === 422) {
+        const dataUrls = refImages.map((img) => `data:${img.mimeType};base64,${img.base64}`)
+        currentBody = { ...baseBody(), image: dataUrls }
+        result = await callJson(currentBody)
+        if ((result.status === 400 || result.status === 422) && /image_url/i.test(extractErrorMessage(result, ''))) {
+          currentBody = { ...currentBody, image: undefined, images: dataUrls.map((u) => ({ image_url: u })) }
+          result = await callJson(currentBody)
+        }
+      }
+      if ((result.status === 400 || result.status === 422) && currentBody) {
+        result = await callJson({ ...currentBody, response_format: 'b64_json' })
+      }
     }
 
     if (result.status !== 200) {

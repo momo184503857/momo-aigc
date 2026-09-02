@@ -80,10 +80,11 @@ function mimeFromUrlExt(url: string): string {
 }
 
 /**
- * 参考图 → 纯 base64 内联形式（Gemini 原生协议 inlineData 用，不带 data: 前缀）。
+ * 参考图 → 纯 base64 内联形式（Gemini 原生协议 inlineData、openai_image 的 multipart edits 用，不带 data: 前缀）。
  * 与 resolveUpstreamImageUrls 的差异：返回 {mimeType, base64} 而非 URL/data-URL 字符串，
- * 且远程 URL 不透传——Gemini 只收内联 bytes，OSS 模式的公网地址必须服务端拉回。
- * 单图 ≤10MB（对齐 toapis 上传上限）。DB input_image_urls 仍存原始 URL，转换仅本次派发生效。
+ * 且远程 URL 不透传——Gemini 只收内联 bytes、multipart edits 要以文件上传，
+ * OSS 模式的公网地址必须服务端拉回。单图 ≤10MB（对齐 toapis 上传上限）。
+ * DB input_image_urls 仍存原始 URL，转换仅本次派发生效。
  */
 export async function resolveUpstreamInlineImages(
   imageUrls: string[],
