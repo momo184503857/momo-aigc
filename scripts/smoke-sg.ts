@@ -77,7 +77,7 @@ async function main() {
     check('sg_garment_features ≥ 30', counts('sg_garment_features') >= 30, counts('sg_garment_features'))
     check('sg_knowledge ≥ 25', counts('sg_knowledge') >= 25, counts('sg_knowledge'))
     const fp = db.prepare("SELECT COUNT(*) c FROM feature_prompts WHERE feature_id IN ('suite-gen','expert-fusion','expert-swap','expert-derive')").get() as any
-    check('feature_prompts 新功能行 ≥ 16（4 功能 × ≥4 模型）', fp.c >= 16, fp.c)
+    check('feature_prompts 新功能行 ≥ 4（每功能一条）', fp.c >= 4, fp.c)
     const cfg = db.prepare("SELECT value FROM system_config WHERE key='seed_sg_assets_v1'").get() as any
     check('幂等守卫已标记 done', cfg?.value === 'done')
     const badPoints = db.prepare(`SELECT COUNT(*) c FROM sg_themes WHERE points NOT LIKE '%,%' OR json_array_length(points) != 5`).get() as any

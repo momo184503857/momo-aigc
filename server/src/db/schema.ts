@@ -193,18 +193,16 @@ export function initSchema(): void {
     );
   `)
 
-  // Feature prompts table (per-feature per-model system prompts)
+  // Feature prompts table (one system prompt per feature — no longer per-model)
   db.exec(`
     CREATE TABLE IF NOT EXISTS feature_prompts (
       id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-      feature_id          TEXT NOT NULL,
-      model_id            TEXT NOT NULL,
+      feature_id          TEXT NOT NULL UNIQUE,
       system_prompt       TEXT NOT NULL DEFAULT '',
       user_prompt_label   TEXT DEFAULT '补充提示词',
       user_prompt_placeholder TEXT DEFAULT '',
       created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(feature_id, model_id)
+      updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `)
 
@@ -233,26 +231,60 @@ export function initSchema(): void {
   // 旧表 user_toapis_keys（个人 ToAPIs Key）已随 fixed-channels 重构退役：
   // 基线不再创建，T7 迁移对存量库 DROP（见 migrateAiProvider.ts T7.5）
 
-  // Seed feature prompts for all feature × model combinations
+  // 一次性迁移：feature_prompts 从「功能 × 模型」多行收敛为「每功能一行」。
+  // 幂等守卫：仅当 system_config.migration_feature_prompts_single_v1 未标记 done
+  // 且旧 model_id 列仍存在时执行。每个功能保留 system_prompt 非空里最长的一行
+  // （全空则保留 id 最小的一行），其余丢弃。
+  const fpSingleCfg = db.prepare(`SELECT value FROM system_config WHERE key = 'migration_feature_prompts_single_v1'`).get() as { value: string } | undefined
+  if (fpSingleCfg?.value !== 'done') {
+    const fpCols = db.prepare(`PRAGMA table_info(feature_prompts)`).all() as { name: string }[]
+    if (fpCols.some((c) => c.name === 'model_id')) {
+      const rebuildFeaturePrompts = db.transaction(() => {
+        db.exec(`
+          CREATE TABLE feature_prompts_new (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            feature_id          TEXT NOT NULL UNIQUE,
+            system_prompt       TEXT NOT NULL DEFAULT '',
+            user_prompt_label   TEXT DEFAULT '补充提示词',
+            user_prompt_placeholder TEXT DEFAULT '',
+            created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+        `)
+        db.exec(`
+          INSERT INTO feature_prompts_new (feature_id, system_prompt, user_prompt_label, user_prompt_placeholder, created_at, updated_at)
+          SELECT fp.feature_id, fp.system_prompt, fp.user_prompt_label, fp.user_prompt_placeholder, fp.created_at, fp.updated_at
+          FROM feature_prompts fp
+          WHERE fp.id = (
+            SELECT f2.id FROM feature_prompts f2
+            WHERE f2.feature_id = fp.feature_id
+            ORDER BY (CASE WHEN TRIM(COALESCE(f2.system_prompt, '')) = '' THEN 1 ELSE 0 END) ASC,
+                     LENGTH(COALESCE(f2.system_prompt, '')) DESC,
+                     f2.id ASC
+            LIMIT 1
+          );
+        `)
+        db.exec(`DROP TABLE feature_prompts;`)
+        db.exec(`ALTER TABLE feature_prompts_new RENAME TO feature_prompts;`)
+      })
+      rebuildFeaturePrompts()
+    }
+    db.prepare(`INSERT INTO system_config (key, value) VALUES ('migration_feature_prompts_single_v1', 'done')
+                ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()
+  }
+
+  // Seed feature prompts: one row per feature (no longer keyed by model)
   const featureIds = [
     'change-clothes', 'change-bg', 'change-face',
     'detail-pic', 'fabric-pic', 'flat-pic', '3d-pic',
     'model-gen', 'three-view',
   ]
-  const modelIds = [
-    'gpt-image-2',
-    'gemini-3-pro-image-preview',
-    'gemini-3.1-flash-image-preview',
-    'gemini-2.5-flash-image-preview',
-  ]
   const insertFp = db.prepare(`
-    INSERT OR IGNORE INTO feature_prompts (feature_id, model_id, created_at, updated_at)
-    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT OR IGNORE INTO feature_prompts (feature_id, created_at, updated_at)
+    VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `)
   for (const fid of featureIds) {
-    for (const mid of modelIds) {
-      insertFp.run(fid, mid)
-    }
+    insertFp.run(fid)
   }
 
 

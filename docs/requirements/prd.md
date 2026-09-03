@@ -1060,7 +1060,7 @@ ToAPIs（gpt-image-2/gemini）是自然语言模型，不解析 SD 的 `(word:1.
 1. 用户管理 `/users`（创建账号、改状态/角色、积分充值/扣除、状态筛选）。
 2. 生图日志 `/dashboard`（任务与积分流水统一活动日志 + 生成统计图表）。
 3. 模板管理 `/templates`（浏览/删除用户上传模板，按 user_id 筛选）。
-4. 功能提示词 `/feature-prompts`（按功能/模型维护 system_prompt）。
+4. 功能提示词 `/feature-prompts`（按功能维护单一 system_prompt，不再区分模型）。
 5. AI摄影配置 `/photography`（元素 CRUD + 每元素×每模型 prompt）。
 6. 作品库管理 `/works`（含已下架、上架/下架、删除、发布官方种子、标签管理）。
 7. 提示词案例 `/prompt-cases`（官方案例图 CRUD）。

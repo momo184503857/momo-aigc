@@ -3,7 +3,6 @@ import http from './http'
 export interface FeaturePromptItem {
   id: number
   feature_id: string
-  model_id: string
   system_prompt: string
   user_prompt_label: string
   user_prompt_placeholder: string

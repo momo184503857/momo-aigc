@@ -6,7 +6,6 @@ import { adminMiddleware } from '../middleware/admin.js'
 interface FeaturePromptRow {
   id: number
   feature_id: string
-  model_id: string
   system_prompt: string
   user_prompt_label: string
   user_prompt_placeholder: string
@@ -18,14 +17,14 @@ interface FeaturePromptRow {
 export const featurePromptsRouter = Router()
 
 // GET /api/feature-prompts/:featureId
-// Returns all model prompts for a feature
+// Returns the single prompt for a feature (one row per feature)
 featurePromptsRouter.get('/:featureId', (_req, res) => {
   const { featureId } = _req.params
-  const rows = db.prepare(
-    'SELECT * FROM feature_prompts WHERE feature_id = ? ORDER BY model_id'
-  ).all(featureId) as FeaturePromptRow[]
+  const row = db.prepare(
+    'SELECT * FROM feature_prompts WHERE feature_id = ?'
+  ).get(featureId) as FeaturePromptRow | undefined
 
-  res.json({ success: true, data: rows })
+  res.json({ success: true, data: row ?? null })
 })
 
 // ───── Admin Router (auth + admin) ─────
@@ -36,7 +35,7 @@ adminFeaturePromptsRouter.use(authMiddleware, adminMiddleware)
 // List all feature prompts
 adminFeaturePromptsRouter.get('/', (_req: AuthRequest, res) => {
   const rows = db.prepare(
-    'SELECT * FROM feature_prompts ORDER BY feature_id, model_id'
+    'SELECT * FROM feature_prompts ORDER BY feature_id'
   ).all() as FeaturePromptRow[]
 
   res.json({ success: true, data: rows })

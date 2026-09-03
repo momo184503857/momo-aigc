@@ -344,19 +344,13 @@ export function initSuiteGen(): void {
       insKnow.run(k.kind, k.field, JSON.stringify(k.content))
     }
 
-    // feature_prompts：新功能 × 现有模型（供管理后台按模型调话术）
+    // feature_prompts：每功能一行（不再按模型区分）
     const featureIds = ['suite-gen', 'expert-fusion', 'expert-swap', 'expert-derive']
-    const modelRows = db.prepare(`SELECT DISTINCT model_id FROM feature_prompts`).all() as { model_id: string }[]
-    const modelIds = modelRows.length > 0
-      ? modelRows.map((r) => r.model_id)
-      : ['gpt-image-2', 'gemini-3-pro-image-preview', 'gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image-preview']
     const insFp = db.prepare(`
-      INSERT OR IGNORE INTO feature_prompts (feature_id, model_id, created_at, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT OR IGNORE INTO feature_prompts (feature_id, created_at, updated_at)
+      VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `)
-    for (const fid of featureIds) {
-      for (const mid of modelIds) insFp.run(fid, mid)
-    }
+    for (const fid of featureIds) insFp.run(fid)
 
     db.prepare(`INSERT INTO system_config (key, value) VALUES ('seed_sg_assets_v1', 'done')
                 ON CONFLICT(key) DO UPDATE SET value = 'done'`).run()

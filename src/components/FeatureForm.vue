@@ -92,16 +92,16 @@ async function fetchStarredTemplates() {
   }
 }
 
-// Prompts from server
+// Prompts from server（每功能一条，不再按模型区分）
 const promptLoading = ref(false)
 const promptError = ref(false)
-const modelPrompts = ref<Record<string, FeaturePromptItem>>({})
+const featurePrompt = ref<FeaturePromptItem | null>(null)
 
-// 当前会话内用户对系统提示词的修改，按 modelId 隔离；不持久化到服务器
-const editedSystemPromptsByModel = ref<Record<string, string>>({})
+// 当前会话内用户对系统提示词的修改；不持久化到服务器
+const editedSystemPrompt = ref<string | undefined>(undefined)
 
-// Model computed（必须在下方 promptKey 之前声明：watch(promptKey) 会在 setup 阶段
-// 立即求值一次 getter，若 selectedModel 声明在后会命中 TDZ 报错导致整页白屏）
+// Model computed（必须在依赖它的下方 computed 之前声明，否则 setup 阶段
+// 立即求值 getter 时会命中 TDZ 报错导致整页白屏）
 const selectedModel = computed<CatalogModel | undefined>(() => modelCatalog.getModel(selectedModelId.value))
 const availableResolutions = computed(() => selectedModel.value?.capabilities?.resolutions || [])
 const availableAspectRatios = computed(() => {
@@ -114,26 +114,20 @@ const generateButtonLabel = computed(() => {
   return `生成图片 · ${formatCredits((currentPrice.value ?? 0) * count.value)}`
 })
 
-const promptKey = computed(() => selectedModel.value?.logicalCode ?? selectedModel.value?.modelId ?? '')
-const currentPrompt = computed(() => modelPrompts.value[promptKey.value])
-const systemPrompt = computed(() => {
-  const edited = editedSystemPromptsByModel.value[promptKey.value]
-  if (edited !== undefined) return edited
-  return currentPrompt.value?.system_prompt || ''
-})
-const userPromptLabel = computed(() => currentPrompt.value?.user_prompt_label || '补充提示词')
-const userPromptPlaceholder = computed(() => currentPrompt.value?.user_prompt_placeholder || '')
+const systemPrompt = computed(() => editedSystemPrompt.value ?? featurePrompt.value?.system_prompt ?? '')
+const userPromptLabel = computed(() => featurePrompt.value?.user_prompt_label || '补充提示词')
+const userPromptPlaceholder = computed(() => featurePrompt.value?.user_prompt_placeholder || '')
 
 // 提示词折叠面板绑定：单段系统提示词
 const promptPanelModel = computed({
   get: () => ({ system: systemPrompt.value }),
-  set: (val) => { editedSystemPromptsByModel.value[promptKey.value] = val.system },
+  set: (val) => { editedSystemPrompt.value = val.system },
 })
 
-const defaultPromptPanelModel = computed(() => ({ system: currentPrompt.value?.system_prompt || '' }))
+const defaultPromptPanelModel = computed(() => ({ system: featurePrompt.value?.system_prompt || '' }))
 
 function resetSystemPrompt() {
-  editedSystemPromptsByModel.value[promptKey.value] = currentPrompt.value?.system_prompt || ''
+  editedSystemPrompt.value = featurePrompt.value?.system_prompt || ''
 }
 
 async function fetchPrompts() {
@@ -141,18 +135,15 @@ async function fetchPrompts() {
   promptError.value = false
   try {
     const res = await featurePromptApi.get(props.featureId)
-    const items: FeaturePromptItem[] = res.data.data || []
-    const map: Record<string, FeaturePromptItem> = {}
-    items.forEach(item => { map[item.model_id] = item })
-    modelPrompts.value = map
-    // 若当前模型还没有本地编辑记录，初始化为后台默认值
-    const key = promptKey.value
-    if (key && editedSystemPromptsByModel.value[key] === undefined) {
-      editedSystemPromptsByModel.value[key] = map[key]?.system_prompt || ''
+    const item: FeaturePromptItem | null = res.data.data || null
+    featurePrompt.value = item
+    // 首次加载时用后台默认值初始化本地编辑缓存
+    if (editedSystemPrompt.value === undefined) {
+      editedSystemPrompt.value = item?.system_prompt || ''
     }
   } catch {
     promptError.value = true
-    modelPrompts.value = {}
+    featurePrompt.value = null
   } finally {
     promptLoading.value = false
   }
@@ -188,14 +179,6 @@ function applyDefaultsIfReady() {
   aspectRatio.value = ratios.includes(pendingDefaults.aspectRatio) ? pendingDefaults.aspectRatio : ratios[0]
 }
 modelCatalog.ensureLoaded().then(() => applyDefaultsIfReady())
-
-// 切换模型时，若提示词已加载且该模型还没有本地编辑记录，则初始化为后台默认值
-watch(promptKey, (key) => {
-  if (!key || Object.keys(modelPrompts.value).length === 0) return
-  if (editedSystemPromptsByModel.value[key] === undefined) {
-    editedSystemPromptsByModel.value[key] = modelPrompts.value[key]?.system_prompt || ''
-  }
-})
 
 // Model change: reset resolution/aspect to valid values
 function handleModelChange() {

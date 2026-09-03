@@ -362,20 +362,17 @@ function resolveExpertLogicalModelId(): number {
   return modelCatalog.getModelByName(expertModel.value)?.id ?? modelCatalog.defaultImageModel?.id ?? 0
 }
 
-/** 系统提示词（feature_prompts，按模型） */
+/** 系统提示词（feature_prompts，每功能一条） */
 const sysPromptCache = ref<Record<string, string>>({})
 async function sysPromptOf(featureId: string): Promise<string> {
-  const cacheKey = `${featureId}:${expertModel.value}`
-  if (sysPromptCache.value[cacheKey] !== undefined) return sysPromptCache.value[cacheKey]
+  if (sysPromptCache.value[featureId] !== undefined) return sysPromptCache.value[featureId]
   try {
     const res = await featurePromptApi.get(featureId)
-    const models = res.data.data?.models || []
-    const hit = models.find((m: { model_id: string }) => m.model_id === expertModel.value)
-    sysPromptCache.value[cacheKey] = hit?.system_prompt || ''
+    sysPromptCache.value[featureId] = res.data.data?.system_prompt || ''
   } catch {
-    sysPromptCache.value[cacheKey] = ''
+    sysPromptCache.value[featureId] = ''
   }
-  return sysPromptCache.value[cacheKey]
+  return sysPromptCache.value[featureId]
 }
 
 function expertContext(feature: 'fusion' | 'swap', extra: string): AssembleContext {

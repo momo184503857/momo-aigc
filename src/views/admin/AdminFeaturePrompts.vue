@@ -2,12 +2,10 @@
 defineOptions({ name: 'AdminFeaturePrompts' })
 import { ref, computed, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-const { success, info, warning, error } = useUiFeedback()
-import { ArrowDown } from '@element-plus/icons-vue'
+const { success, info, error } = useUiFeedback()
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
-import { useModelCatalogStore } from '@/stores/modelCatalog'
 import PageLayout from '@/components/PageLayout.vue'
 
 const categoryGroups = [
@@ -25,14 +23,17 @@ const categoryGroups = [
   },
 ]
 
-interface PromptRow extends FeaturePromptItem {
+interface PromptRow {
+  id: number
+  feature_id: string
+  system_prompt: string
   _dirty: boolean
 }
 
 interface FeatureBlock {
   featureId: string
   label: string
-  prompts: PromptRow[]
+  prompt: PromptRow | null
 }
 
 interface CategoryBlock {
@@ -43,29 +44,16 @@ interface CategoryBlock {
 const categories = ref<CategoryBlock[]>([])
 const loading = ref(false)
 const saving = ref(false)
-const expandedCats = ref(new Set<number>())
 
-const allExpanded = computed(() => expandedCats.value.size === categories.value.length && categories.value.length > 0)
+const dirtyCount = computed(() =>
+  categories.value.reduce(
+    (n, cat) => n + cat.features.reduce((m, f) => m + (f.prompt?._dirty ? 1 : 0), 0),
+    0,
+  ),
+)
 
-function toggleCat(index: number) {
-  const s = new Set(expandedCats.value)
-  if (s.has(index)) s.delete(index)
-  else s.add(index)
-  expandedCats.value = s
-}
-
-function toggleAll() {
-  if (allExpanded.value) {
-    expandedCats.value = new Set()
-  } else {
-    expandedCats.value = new Set(categories.value.map((_, i) => i))
-  }
-}
-
-const modelCatalog = useModelCatalogStore()
-
-function modelDisplayName(modelId: string): string {
-  return modelCatalog.displayNameFor(modelId)
+function markDirty(feat: FeatureBlock) {
+  if (feat.prompt) feat.prompt._dirty = true
 }
 
 async function load() {
@@ -73,24 +61,19 @@ async function load() {
   try {
     const res = await featurePromptApi.listAll()
     const items: FeaturePromptItem[] = res.data.data || []
+    const byFeature = new Map<string, FeaturePromptItem>()
+    items.forEach((item) => byFeature.set(item.feature_id, item))
 
-    const promptMap = new Map<string, FeaturePromptItem[]>()
-    items.forEach(item => {
-      const list = promptMap.get(item.feature_id) || []
-      list.push(item)
-      promptMap.set(item.feature_id, list)
-    })
-
-    categories.value = categoryGroups.map(cat => ({
+    categories.value = categoryGroups.map((cat) => ({
       name: cat.name,
-      features: cat.featureIds.map(fid => {
-        const prompts = (promptMap.get(fid) || []).sort(
-          (a, b) => a.model_id.localeCompare(b.model_id)
-        )
+      features: cat.featureIds.map((fid) => {
+        const row = byFeature.get(fid)
         return {
           featureId: fid,
           label: FEATURE_CONFIGS[fid]?.label || fid,
-          prompts: prompts.map(p => ({ ...p, _dirty: false })),
+          prompt: row
+            ? { id: row.id, feature_id: row.feature_id, system_prompt: row.system_prompt, _dirty: false }
+            : null,
         }
       }),
     }))
@@ -101,25 +84,31 @@ async function load() {
   }
 }
 
-function markDirty(prompt: PromptRow) {
-  prompt._dirty = true
-}
-
-async function saveFeature(feature: FeatureBlock) {
+async function saveAll() {
+  const dirty: PromptRow[] = []
+  categories.value.forEach((cat) =>
+    cat.features.forEach((f) => {
+      if (f.prompt?._dirty) dirty.push(f.prompt)
+    }),
+  )
+  if (dirty.length === 0) {
+    info('没有需要保存的修改')
+    return
+  }
   saving.value = true
   let ok = 0
-  for (const p of feature.prompts) {
-    if (!p._dirty) continue
+  for (const p of dirty) {
     try {
-      await featurePromptApi.update(p.id, {
-        system_prompt: p.system_prompt,
-      })
+      await featurePromptApi.update(p.id, { system_prompt: p.system_prompt })
       p._dirty = false
       ok++
-    } catch { /* skip */ }
+    } catch {
+      /* 单条失败不阻断其余保存 */
+    }
   }
   saving.value = false
   if (ok > 0) success(`已保存 ${ok} 条`)
+  if (ok < dirty.length) error(`${dirty.length - ok} 条保存失败`)
 }
 
 onMounted(() => load())
@@ -132,161 +121,98 @@ onMounted(() => load())
     <div v-loading="loading">
       <div class="toolbar">
         <el-alert
-          title="提示词中使用 {user_prompt} 作为用户补充输入的占位符。"
+          title="每个功能一条系统提示词，对所有生图模型生效；使用 {user_prompt} 作为用户补充输入的占位符。"
           type="info" show-icon :closable="false" class="toolbar-alert"
         />
-        <el-button size="small" @click="toggleAll">
-          {{ allExpanded ? '全部折叠' : '全部展开' }}
+        <el-button
+          type="primary"
+          :loading="saving"
+          :disabled="dirtyCount === 0"
+          @click="saveAll"
+        >
+          {{ dirtyCount ? `保存修改（${dirtyCount}）` : '保存修改' }}
         </el-button>
       </div>
 
-      <div class="categories-container">
-        <div v-for="(cat, ci) in categories" :key="cat.name" class="category-card">
-          <div class="category-header" @click="toggleCat(ci)">
-            <div class="category-header-left">
-              <el-icon class="chevron" :class="{ rotated: expandedCats.has(ci) }">
-                <ArrowDown />
-              </el-icon>
-              <span class="category-name">{{ cat.name }}</span>
-            </div>
-            <span class="category-count">{{ cat.features.length }} 个功能</span>
-          </div>
-
-          <div v-show="expandedCats.has(ci)" class="category-body">
-            <div v-for="feat in cat.features" :key="feat.featureId" class="feature-block">
-              <div class="feature-header">
+      <div class="categories">
+        <section v-for="cat in categories" :key="cat.name" class="category">
+          <h3 class="category-title">{{ cat.name }}</h3>
+          <div class="feature-grid">
+            <div
+              v-for="feat in cat.features"
+              :key="feat.featureId"
+              class="feature-card"
+              :class="{ dirty: feat.prompt?._dirty }"
+            >
+              <div class="feature-head">
                 <span class="feature-label">{{ feat.label }}</span>
+                <span v-if="feat.prompt?._dirty" class="dirty-tag">未保存</span>
               </div>
-
-              <div class="feature-prompts">
-                <div v-for="prompt in feat.prompts" :key="prompt.id" class="prompt-row">
-                  <div class="prompt-model">{{ modelDisplayName(prompt.model_id) }}</div>
-                  <el-input
-                    v-model="prompt.system_prompt"
-                    type="textarea"
-                    :rows="3"
-                    placeholder="系统提示词"
-                    @input="markDirty(prompt)"
-                  />
-                </div>
-              </div>
-
-              <div class="feature-footer">
-                <el-button
-                  size="small"
-                  type="primary"
-                  :loading="saving"
-                  @click="saveFeature(feat)"
-                >
-                  保存
-                </el-button>
-              </div>
+              <el-input
+                v-if="feat.prompt"
+                v-model="feat.prompt.system_prompt"
+                type="textarea"
+                :rows="6"
+                resize="vertical"
+                placeholder="系统提示词"
+                @input="markDirty(feat)"
+              />
+              <el-text v-else type="info" size="small">未初始化</el-text>
             </div>
           </div>
-        </div>
+        </section>
       </div>
-
-      <el-empty v-if="categories.length === 0 && !loading" description="暂无数据" />
     </div>
   </PageLayout>
 </template>
 
 <style scoped>
 .toolbar {
-  display: flex; align-items: flex-start; gap: 12px;
-  margin-bottom: 24px;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 20px;
 }
 .toolbar-alert { flex: 1; }
 
-.categories-container {
-  display: flex; flex-direction: column; gap: 20px;
+.categories {
+  display: flex; flex-direction: column; gap: 24px;
 }
 
-.category-card {
-  border: 1px solid var(--el-border-color);
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  background: var(--el-bg-color);
-}
-
-.category-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px;
-  background: var(--el-fill-color-light);
-  border-bottom: 1px solid var(--el-border-color);
-  cursor: pointer; user-select: none;
-  transition: background 0.15s;
-}
-.category-header:hover {
-  background: var(--el-fill-color);
-}
-
-.category-header-left {
-  display: flex; align-items: center; gap: 10px;
-}
-
-.chevron {
-  transition: transform 0.25s;
-  font-size: var(--momo-font-size-base); color: var(--el-text-color-secondary);
-}
-.chevron.rotated {
-  transform: rotate(180deg);
-}
-
-.category-name {
-  font-size: var(--momo-font-size-lg); font-weight: 600;
-  color: var(--el-text-color-primary);
+.category-title {
+  margin: 0 0 12px;
+  font-size: var(--momo-font-size-base); font-weight: 600;
+  color: var(--el-text-color-secondary);
   letter-spacing: 1px;
 }
 
-.category-count {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 16px;
 }
 
-.category-body {
-  padding: 0;
+.feature-card {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--momo-radius-md);
+  padding: 12px 14px;
+  background: var(--el-bg-color);
+  transition: border-color 0.15s;
+}
+.feature-card.dirty {
+  border-color: var(--el-color-primary);
 }
 
-.feature-block {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-.feature-block:last-child {
-  border-bottom: none;
-}
-
-.feature-header {
-  margin-bottom: 12px;
+.feature-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
 }
 
 .feature-label {
-  font-size: 15px; font-weight: 600;
-  color: var(--el-color-primary);
-  padding-left: 10px;
-  border-left: 3px solid var(--el-color-primary);
+  font-size: var(--momo-font-size-base); font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
-.feature-prompts {
-  display: flex; flex-direction: column; gap: 10px;
-  margin-bottom: 12px;
+.dirty-tag {
+  font-size: var(--momo-font-size-xs);
+  color: var(--el-color-warning);
 }
-
-.prompt-row {
-  display: flex; gap: 12px; align-items: flex-start;
-}
-
-.prompt-model {
-  width: 170px; flex-shrink: 0;
-  font-size: var(--momo-font-size-sm); font-weight: 500;
-  color: var(--el-text-color-regular);
-  padding-top: 8px;
-}
-
-.feature-footer {
-  display: flex; align-items: center; gap: 8px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--el-border-color-lighter);
-}
-
 </style>
