@@ -19,12 +19,14 @@ export interface LogicalModelSeed {
   name: string
   kind: 'image' | 'text'
   default_params: Record<string, unknown>
+  /** 缺省 active；置 disabled 后启动同步会把库内状态一并禁用（用户端目录不再展示） */
+  status?: 'active' | 'disabled'
 }
 
 export const CANONICAL_LOGICAL_MODELS: LogicalModelSeed[] = [
   {
     code: 'gpt-image-2',
-    name: 'GPT-Image-2',
+    name: 'image2',
     kind: 'image',
     default_params: {
       resolutions: ['1K', '2K', '4K'],
@@ -40,7 +42,7 @@ export const CANONICAL_LOGICAL_MODELS: LogicalModelSeed[] = [
   },
   {
     code: 'gemini-3-pro-image-preview',
-    name: 'Gemini 3 Pro Image',
+    name: 'banana pro',
     kind: 'image',
     default_params: {
       resolutions: ['1K', '2K', '4K'],
@@ -51,7 +53,7 @@ export const CANONICAL_LOGICAL_MODELS: LogicalModelSeed[] = [
   },
   {
     code: 'gemini-3.1-flash-image-preview',
-    name: 'Gemini 3.1 Flash Image',
+    name: 'banana 2',
     kind: 'image',
     default_params: {
       resolutions: ['512', '1K', '2K', '4K'],
@@ -62,8 +64,9 @@ export const CANONICAL_LOGICAL_MODELS: LogicalModelSeed[] = [
   },
   {
     code: 'gemini-2.5-flash-image-preview',
-    name: 'Gemini 2.5 Flash Image',
+    name: 'banana',
     kind: 'image',
+    status: 'disabled',
     default_params: {
       resolutions: ['1K'],
       aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'],
@@ -81,11 +84,11 @@ export function syncCanonicalLogicalModels(): void {
   const codes = CANONICAL_LOGICAL_MODELS.map((m) => m.code)
   const upsert = db.prepare(`
     INSERT INTO ai_logical_models (code, name, kind, default_params, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(code) DO UPDATE SET
       kind = excluded.kind,
       default_params = excluded.default_params,
-      status = 'active',
+      status = excluded.status,
       updated_at = CURRENT_TIMESTAMP
   `)
   const prune = db.prepare(`
@@ -95,7 +98,7 @@ export function syncCanonicalLogicalModels(): void {
   `)
   db.transaction(() => {
     for (const m of CANONICAL_LOGICAL_MODELS) {
-      upsert.run(m.code, m.name, m.kind, JSON.stringify(m.default_params))
+      upsert.run(m.code, m.name, m.kind, JSON.stringify(m.default_params), m.status ?? 'active')
     }
     prune.run(...codes)
   })()

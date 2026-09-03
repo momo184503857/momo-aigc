@@ -21,7 +21,7 @@ import {
   type AdapterInfo,
   type LogicalModelRow,
 } from '@/services/aiConfigApi'
-import { Plus, Refresh, Edit, Delete, Key, Connection, UploadFilled, ChatDotRound, CopyDocument } from '@element-plus/icons-vue'
+import { Plus, Refresh, Edit, Delete, Key, Connection, UploadFilled, ChatDotRound, CopyDocument, QuestionFilled } from '@element-plus/icons-vue'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const { copy } = useClipboard()
@@ -603,6 +603,29 @@ function logicalCapabilitySummary(row: LogicalModelRow): string {
   return parts.join(' · ') || '—'
 }
 
+/** 某逻辑模型在某分辨率下的各渠道成本价（复用已加载的 providers 数据，按成本升序） */
+function costEntries(logicalId: number, resolution: string) {
+  const entries: { channel: string; model: string; price: number; disabled: boolean }[] = []
+  for (const p of providers.value) {
+    for (const m of p.models) {
+      if (m.logical_model_id !== logicalId) continue
+      const price = m.cost_pricing?.[resolution]
+      if (typeof price !== 'number') continue
+      entries.push({
+        channel: p.name,
+        model: m.display_name || m.model_id,
+        price,
+        disabled: p.status !== 'active' || m.status !== 'active',
+      })
+    }
+  }
+  return entries.sort((a, b) => a.price - b.price)
+}
+
+function fmtCost(value: number): string {
+  return Number(value.toFixed(4)).toString()
+}
+
 // ── 存储配置（直接传 / 阿里云 OSS）──
 const storageForm = ref<{
   mode: 'direct' | 'oss'
@@ -997,7 +1020,7 @@ onMounted(() => {
             <h3 class="section-title">逻辑模型</h3>
             <span class="section-hint">标准模型能力由平台代码定义；管理员维护显示名和前台统一售卖价。</span>
           </div>
-          <el-table :data="allLogicalModels" size="small" max-height="360">
+          <el-table :data="allLogicalModels" size="small" height="calc(100vh - 330px)">
             <el-table-column prop="code" label="Code" min-width="220" show-overflow-tooltip />
             <el-table-column label="显示名" min-width="200">
               <template #default="{ row }">
@@ -1028,7 +1051,29 @@ onMounted(() => {
               <template #default="{ row }">
                 <div v-if="row.kind === 'image'" class="pricing-block">
                   <div v-for="resolution in (row.defaultParams.resolutions || [])" :key="resolution" class="pricing-row">
-                    <span class="pricing-label">{{ resolution }}</span>
+                    <span class="pricing-label sale-label">
+                      {{ resolution }}
+                      <el-tooltip placement="top" effect="dark" :show-after="100">
+                        <template #content>
+                          <div class="cost-tip">
+                            <div class="cost-tip-title">各渠道成本价 · {{ row.name }} · {{ resolution }}</div>
+                            <template v-if="costEntries(row.id, resolution).length">
+                              <div
+                                v-for="(c, i) in costEntries(row.id, resolution)"
+                                :key="i"
+                                class="cost-tip-row"
+                                :class="{ 'cost-tip-disabled': c.disabled }"
+                              >
+                                <span class="cost-tip-name">{{ c.channel }} · {{ c.model }}<template v-if="c.disabled">（已停用）</template></span>
+                                <b>{{ fmtCost(c.price) }}</b>
+                              </div>
+                            </template>
+                            <div v-else class="cost-tip-empty">暂无配置该分辨率成本价的渠道</div>
+                          </div>
+                        </template>
+                        <el-icon class="cost-help"><QuestionFilled /></el-icon>
+                      </el-tooltip>
+                    </span>
                     <el-input-number
                       v-model="row.salePricing[resolution]"
                       :min="0" :step="0.01" :precision="2" size="small" style="width: 120px"
@@ -1403,6 +1448,19 @@ onMounted(() => {
   width: 60px;
   font-weight: 600;
 }
+.sale-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  min-width: 60px;
+}
+.cost-help {
+  color: var(--el-text-color-secondary);
+  cursor: help;
+  font-size: 14px;
+}
+.cost-help:hover { color: var(--el-color-primary); }
 .pricing-unit {
   font-size: var(--momo-font-size-xs, 12px);
   color: var(--el-text-color-secondary);
@@ -1697,4 +1755,28 @@ onMounted(() => {
   line-height: 1.5;
   padding: 8px 12px;
 }
+</style>
+
+<style>
+/* 成本价 tooltip 内容挂载在 body 下，scoped 样式不可达 */
+.cost-tip {
+  min-width: 220px;
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.cost-tip-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+.cost-tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.cost-tip-row b { flex-shrink: 0; }
+.cost-tip-disabled { opacity: 0.5; }
+.cost-tip-empty { opacity: 0.7; }
 </style>

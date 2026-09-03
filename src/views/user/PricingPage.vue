@@ -8,15 +8,23 @@ defineOptions({ name: 'Pricing' })
 const modelCatalog = useModelCatalogStore()
 onMounted(() => modelCatalog.ensureLoaded())
 
-const rows = computed(() => modelCatalog.flatImageModels.flatMap((model) =>
-  (model.capabilities?.resolutions ?? []).map((resolution) => ({
-    key: `${model.id}-${resolution}`,
-    model: model.displayName,
-    code: model.logicalCode || model.modelId,
-    resolution,
-    price: model.pricing?.[resolution] ?? null,
-  })),
-))
+const RESOLUTION_SIZE: Record<string, number> = { '512': 512, '1K': 1024, '2K': 2048, '4K': 4096 }
+
+const resolutionColumns = computed(() => {
+  const set = new Set<string>()
+  for (const model of modelCatalog.flatImageModels) {
+    for (const r of model.capabilities?.resolutions ?? []) set.add(r)
+  }
+  return [...set].sort((a, b) => (RESOLUTION_SIZE[a] ?? Infinity) - (RESOLUTION_SIZE[b] ?? Infinity))
+})
+
+const rows = computed(() => modelCatalog.flatImageModels.map((model) => ({
+  key: model.id,
+  model: model.displayName,
+  prices: Object.fromEntries(
+    resolutionColumns.value.map((r) => [r, model.pricing?.[r] ?? null]),
+  ) as Record<string, number | null>,
+})))
 
 function fmt(value: number): string {
   return ceilCreditValue(value, 2).toFixed(2)
@@ -34,13 +42,20 @@ function fmt(value: number): string {
     <template v-else>
       <el-table :data="rows" border size="small">
         <el-table-column label="模型" prop="model" min-width="180" />
-        <el-table-column label="模型标识" prop="code" min-width="220" show-overflow-tooltip />
-        <el-table-column label="分辨率" prop="resolution" width="140" align="center" />
-        <el-table-column label="售价（积分/张）" width="180" align="center">
-          <template #default="{ row }">
-            <span v-if="row.price !== null" class="price">{{ fmt(row.price) }}</span>
-            <span v-else class="na">未配置</span>
-          </template>
+        <el-table-column label="售价（积分/张）" align="center">
+          <el-table-column
+            v-for="res in resolutionColumns"
+            :key="res"
+            :label="res"
+            :prop="`prices.${res}`"
+            width="120"
+            align="center"
+          >
+            <template #default="{ row }">
+              <span v-if="row.prices[res] !== null" class="price">{{ fmt(row.prices[res]) }}</span>
+              <span v-else class="na">—</span>
+            </template>
+          </el-table-column>
         </el-table-column>
       </el-table>
       <el-empty v-if="!rows.length" description="暂无已定价的生图模型" />
