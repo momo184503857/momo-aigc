@@ -291,21 +291,6 @@ export function initSchema(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_user ON canvas_assets(user_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_project ON canvas_assets(project_id);`)
 
-  // React Flow canvas projects table (AI画布 Pro+)
-  // graph_json 只做透传存储（节点/连线/视口/运行结果与日志），服务端不解析语义
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS rf_canvas_projects (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id     INTEGER NOT NULL REFERENCES users(id),
-      name        TEXT    NOT NULL,
-      graph_json  TEXT    NOT NULL DEFAULT '{}',
-      node_count  INTEGER NOT NULL DEFAULT 0,
-      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-      updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
-  `)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_rf_canvas_projects_user ON rf_canvas_projects(user_id);`)
-
   // Migration: add is_starred and sort_order to template_images
   try {
     db.exec(`ALTER TABLE template_images ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0`)

@@ -39,7 +39,6 @@ import { adminAiConfigRouter } from './routes/admin/aiConfig.js'
 import { themeLibraryRouter } from './routes/themeLibrary.js'
 import { generationsRouter, sweepOrphanTasks, waitForSyncTasks } from './routes/generations.js'
 import { modelsRouter } from './routes/models.js'
-import { rfCanvasRouter } from './routes/rfCanvas.js'
 
 const app = express()
 
@@ -85,7 +84,6 @@ app.use('/api/toapis', toapisProxyRouter)
 app.use('/api/points', pointsRouter)
 app.use('/api/canvas', canvasRouter)
 app.use('/api/canvas-ai', canvasAiRouter)
-app.use('/api/rf-canvas', rfCanvasRouter)
 app.use('/api/photography', photographyRouter)
 app.use('/api/admin/photography', adminPhotographyRouter)
 app.use('/api/buyer-show', buyerShowRouter)

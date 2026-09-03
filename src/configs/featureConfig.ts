@@ -94,14 +94,6 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     hasUserPrompt: true,
     hasSupplementaryImages: false,
   },
-  // ── AI画布 Pro+（React Flow 版）：featureId 仅用于任务面板标签展示（R9.3） ──
-  'rf-canvas': {
-    id: 'rf-canvas',
-    label: 'AI画布 Pro+',
-    imageSlots: [],
-    hasUserPrompt: true,
-    hasSupplementaryImages: false,
-  },
   'ai-photography': {
     id: 'ai-photography',
     label: 'AI摄影',

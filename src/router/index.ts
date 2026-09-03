@@ -70,12 +70,6 @@ const router = createRouter({
       meta: { title: 'AI画布', requiresAuth: true },
     },
     {
-      path: '/rf-canvas',
-      name: 'RfCanvasProjects',
-      component: () => import('@/views/rf-canvas/RfProjectsPage.vue'),
-      meta: { title: 'AI画布 Pro+', requiresAuth: true },
-    },
-    {
       path: '/photography',
       name: 'Photography',
       component: () => import('@/views/photography/PhotographyPage.vue'),
@@ -182,12 +176,6 @@ const router = createRouter({
       name: 'AICanvas',
       component: () => import('@/views/canvas/AICanvasPage.vue'),
       meta: { title: 'AI画布', requiresAuth: true, hideInMenu: true },
-    },
-    {
-      path: '/rf-canvas/:projectId',
-      name: 'RfCanvasEditor',
-      component: () => import('@/views/rf-canvas/RfEditorPage.vue'),
-      meta: { title: 'AI画布 Pro+', requiresAuth: true, hideInMenu: true },
     },
     {
       path: '/admin',
