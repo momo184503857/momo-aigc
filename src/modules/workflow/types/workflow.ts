@@ -45,6 +45,8 @@ export interface TextInputNodeConfig {
 
 export interface TextAiNodeConfig {
   modelName: string
+  /** 渠道模型数字 id（目录 textGroups 的 m.id；优先于 modelName 解析，改名/下架不受影响） */
+  channelModelId?: number
   taskPrompt: string
   detailPrompt: string
   pauseAfterRun: boolean
@@ -61,6 +63,8 @@ export interface PromptSplitterNodeConfig {
 
 export interface ImageAiNodeConfig {
   modelName: string
+  /** 逻辑模型数字 id（目录 imageGroups 的 m.id；优先于 modelName 解析，改名/下架不受影响） */
+  logicalModelId?: number
   aspectRatio: string
   outputSize: string
   imageCount: number
@@ -135,11 +139,19 @@ export interface WorkflowEdge {
   targetPortId: string
 }
 
+export interface WorkflowViewport {
+  x: number
+  y: number
+  zoom: number
+}
+
 export interface WorkflowModel {
   id: string
   name: string
   nodes: WorkflowNode[]
   edges: WorkflowEdge[]
+  /** 画布视口（平移/缩放），重开项目时恢复 */
+  viewport?: WorkflowViewport
   updatedAt: string
 }
 

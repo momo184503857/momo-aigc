@@ -291,23 +291,20 @@ export function initSchema(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_user ON canvas_assets(user_id);`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_canvas_assets_project ON canvas_assets(project_id);`)
 
-  // Node-RED canvas projects table (AI画布 Pro)
-  // flow_json / creds_json 由 Node-RED storage 模块读写（每次 Deploy 实时落库）；
-  // credential_secret 每项目随机生成，仅 Node-RED 子进程用于加密节点凭据
+  // React Flow canvas projects table (AI画布 Pro+)
+  // graph_json 只做透传存储（节点/连线/视口/运行结果与日志），服务端不解析语义
   db.exec(`
-    CREATE TABLE IF NOT EXISTS nr_canvas_projects (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      name VARCHAR(100) NOT NULL DEFAULT '未命名画布',
-      flow_json TEXT DEFAULT '',
-      creds_json TEXT DEFAULT '',
-      credential_secret VARCHAR(64) NOT NULL,
-      node_count INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE IF NOT EXISTS rf_canvas_projects (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL REFERENCES users(id),
+      name        TEXT    NOT NULL,
+      graph_json  TEXT    NOT NULL DEFAULT '{}',
+      node_count  INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
   `)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_nr_canvas_projects_user ON nr_canvas_projects(user_id);`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_rf_canvas_projects_user ON rf_canvas_projects(user_id);`)
 
   // Migration: add is_starred and sort_order to template_images
   try {

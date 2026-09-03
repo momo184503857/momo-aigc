@@ -12,11 +12,32 @@ modelCatalog.ensureLoaded()
 
 const availableModels = computed(() =>
   modelCatalog.imageGroups.flatMap((g) => g.models.map((m) => ({
-    value: m.logicalCode ?? m.modelId,
+    value: m.id,
     label: m.displayName,
   }))))
 
-const selectedModel = computed(() => modelCatalog.getModelByName(String(props.node.config.modelName || '')))
+const selectedModel = computed(() => {
+  if (typeof props.node.config.logicalModelId === 'number') {
+    return modelCatalog.getModel(props.node.config.logicalModelId)
+  }
+  return modelCatalog.getModelByName(String(props.node.config.modelName || ''))
+})
+
+/** 模型切换时把分辨率/比例收敛到新模型的合法值（同 patch 一次写入） */
+function onModelChange(modelId: number) {
+  const model = modelCatalog.getModel(modelId)
+  const patch: Record<string, unknown> = { logicalModelId: modelId, modelName: model?.modelId ?? '' }
+  if (model) {
+    const resolutions = model.capabilities?.resolutions ?? []
+    const curSize = String(props.node.config.outputSize || '')
+    const newSize = resolutions.includes(curSize) ? curSize : (resolutions[0] ?? curSize)
+    if (newSize !== curSize) patch.outputSize = newSize
+    const ratios = modelCatalog.aspectRatiosFor(model, newSize)
+    const curRatio = String(props.node.config.aspectRatio || '')
+    if (ratios.length && !ratios.includes(curRatio)) patch.aspectRatio = ratios[0]
+  }
+  emit('update', patch)
+}
 
 const validAspectRatios = computed(() => {
   const model = selectedModel.value
@@ -41,7 +62,7 @@ const imageCount = computed(() => {
     <el-alert title="API 密钥已在管理后台统一配置" type="info" show-icon :closable="false" />
 
     <label>模型名称</label>
-    <el-select :model-value="props.node.config.modelName" @update:model-value="emit('update', { modelName: $event })">
+    <el-select :model-value="props.node.config.logicalModelId ?? props.node.config.modelName" @update:model-value="onModelChange(Number($event))">
       <el-option v-for="m in availableModels" :key="m.value" :label="m.label" :value="m.value" />
     </el-select>
 

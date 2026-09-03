@@ -15,6 +15,12 @@ function val(key: string, fallback = ''): string {
 function boolVal(key: string): boolean {
   return Boolean(props.node.config[key])
 }
+
+/** 模型切换写入数字 id，并同步 modelName 供旧链路兜底/摘要展示 */
+function onModelChange(modelId: number) {
+  const model = modelCatalog.getModel(modelId)
+  emit('update', { channelModelId: modelId, modelName: model?.modelId ?? '' })
+}
 </script>
 
 <template>
@@ -22,7 +28,12 @@ function boolVal(key: string): boolean {
     <el-alert title="API 密钥已在管理后台统一配置" type="info" show-icon :closable="false" />
 
     <label>模型名称</label>
-    <el-select :model-value="val('modelName')" placeholder="选择文字模型" style="width: 100%" @update:model-value="emit('update', { modelName: $event })">
+    <el-select
+      :model-value="props.node.config.channelModelId ?? val('modelName')"
+      placeholder="选择文字模型"
+      style="width: 100%"
+      @update:model-value="onModelChange(Number($event))"
+    >
       <template v-if="modelCatalog.loaded">
         <template v-for="group in modelCatalog.textGroups" :key="group.providerId">
           <el-option-group :label="group.providerName">
@@ -30,7 +41,7 @@ function boolVal(key: string): boolean {
               v-for="m in group.models"
               :key="m.id"
               :label="m.displayName"
-              :value="m.modelId"
+              :value="m.id"
             />
           </el-option-group>
         </template>

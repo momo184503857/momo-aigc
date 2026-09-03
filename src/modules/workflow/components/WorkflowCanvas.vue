@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import {
   ArrowDown,
   CircleCheck,
@@ -21,9 +21,14 @@ import type {
   NodeDragEvent,
   NodeMouseEvent,
 } from '@vue-flow/core'
+import { Background, BackgroundVariant } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
+import { MiniMap } from '@vue-flow/minimap'
+import '@vue-flow/controls/dist/style.css'
+import '@vue-flow/minimap/dist/style.css'
 import WorkflowNode from '@/modules/workflow/components/WorkflowNode.vue'
 import WorkflowRightPanel from '@/modules/workflow/components/WorkflowRightPanel.vue'
-import { getNodeDefinitions } from '@/modules/workflow/nodes/nodeRegistry'
+import { getNodeDefinitions, getNodeTheme } from '@/modules/workflow/nodes/nodeRegistry'
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import type {
@@ -39,7 +44,14 @@ type CanvasNode = Node<WorkflowCanvasNodeData>
 type CanvasEdge = Edge<WorkflowCanvasEdgeData>
 
 const workflowStore = useWorkflowStore()
-const { screenToFlowCoordinate, fitView, nodes: vfNodes } = useVueFlow('ai-workflow-canvas')
+const {
+  screenToFlowCoordinate,
+  fitView,
+  nodes: vfNodes,
+  setViewport: vfSetViewport,
+  onPaneReady,
+  onMoveEnd,
+} = useVueFlow('ai-workflow-canvas')
 const { warning, info } = useUiFeedback()
 
 const nodeDefinitions = getNodeDefinitions()
@@ -57,9 +69,42 @@ const contextMenu = reactive({
 const canvasNodes = computed(() => workflowStore.canvasNodes)
 const canvasEdges = computed(() => workflowStore.canvasEdges)
 
+// ── 视口持久化：项目加载后恢复保存的视口；用户平移/缩放后写回（随图自动保存） ──
+let viewportReady = false
+
+onPaneReady(() => {
+  const vp = workflowStore.workflow.viewport
+  if (vp) {
+    vfSetViewport({ x: vp.x, y: vp.y, zoom: vp.zoom })
+  }
+  viewportReady = true
+})
+
+onMoveEnd((event) => {
+  if (!viewportReady) return
+  const t = event.flowTransform
+  workflowStore.saveViewport({ x: t.x, y: t.y, zoom: t.zoom })
+})
+
+// 项目在画布挂载后才加载完成（keep-alive 切换项目）时，同样恢复视口
+watch(
+  () => workflowStore.workflow,
+  async () => {
+    await nextTick()
+    if (!viewportReady) return
+    const vp = workflowStore.workflow.viewport
+    if (vp) {
+      vfSetViewport({ x: vp.x, y: vp.y, zoom: vp.zoom })
+    }
+  }
+)
+
 const onNodeDragStop = (event: NodeDragEvent) => {
-  const node = event.node
-  workflowStore.updateSingleNodePosition(node.id, node.position)
+  // 多选拖动时 event.nodes 含所有被拖动节点；一次历史入栈
+  const dragged = Array.isArray(event.nodes) && event.nodes.length ? event.nodes : [event.node]
+  workflowStore.updateNodesPositions(
+    dragged.map((n) => ({ id: n.id, position: n.position }))
+  )
 }
 
 const closeContextMenu = () => {
@@ -105,7 +150,7 @@ const addNode = (type: NodeType) => {
 }
 
 const handleCopyNode = () => {
-  workflowStore.copyNode(contextMenu.nodeId)
+  workflowStore.copySelection(getSelectedNodeIds())
   closeContextMenu()
 }
 
@@ -138,6 +183,12 @@ const getSelectedNodeIds = (): string[] => {
   }
 
   return ids
+}
+
+/** MiniMap 节点着色：按节点类型主题色 */
+const miniMapNodeColor = (node: Node): string => {
+  const data = node.data as WorkflowCanvasNodeData | undefined
+  return getNodeTheme(data?.workflowNode?.type ?? '').color
 }
 
 const handleConnect = (connection: Connection) => {
@@ -216,6 +267,13 @@ const hasAnySelection = computed(
 
 const onSelectionEnd = () => {
   multiSelectTick.value++
+  // 选区拖动结束后同步所有选中节点位置（vue-flow 对选区整体拖动不发 node-drag-stop）
+  const selected = Array.isArray(vfNodes.value) ? vfNodes.value.filter((n) => n.selected) : []
+  if (selected.length > 1) {
+    workflowStore.updateNodesPositions(
+      selected.map((n) => ({ id: n.id, position: { x: n.position.x, y: n.position.y } }))
+    )
+  }
 }
 
 const handleDeleteSelected = () => {
@@ -292,15 +350,16 @@ const handleKeydown = (event: KeyboardEvent) => {
   if (isEditableTarget(event.target)) return
 
   if ((event.ctrlKey || event.metaKey) && event.key === 'c' && !event.shiftKey) {
-    if (workflowStore.selectedNodeId && !workflowStore.selectedEdgeId) {
+    const ids = getSelectedNodeIds()
+    if (ids.length > 0) {
       event.preventDefault()
-      workflowStore.copyNode(workflowStore.selectedNodeId)
+      workflowStore.copySelection(ids)
     }
     return
   }
 
   if ((event.ctrlKey || event.metaKey) && event.key === 'v' && !event.shiftKey) {
-    if (workflowStore.copiedNode) {
+    if (workflowStore.copiedNodes.length > 0) {
       event.preventDefault()
       const viewportCenter = screenToFlowCoordinate({
         x: window.innerWidth / 2,
@@ -428,6 +487,8 @@ onUnmounted(() => {
         :pan-on-drag="true"
         :selection-on-drag="true"
         :multi-selection-key-code="'Shift'"
+        :snap-to-grid="true"
+        :snap-grid="[16, 16]"
         @selection-drag-stop="onSelectionEnd"
         @connect="handleConnect"
         @node-click="handleNodeClick"
@@ -440,6 +501,9 @@ onUnmounted(() => {
         <template #node-workflow="nodeProps">
           <WorkflowNode v-bind="nodeProps" />
         </template>
+        <Background :variant="BackgroundVariant.Dots" :gap="16" :size="1.2" />
+        <Controls position="bottom-left" :show-interactive="false" />
+        <MiniMap position="bottom-right" pannable zoomable :node-color="miniMapNodeColor" :node-stroke-color="miniMapNodeColor" mask-color="rgba(125,125,125,0.18)" />
       </VueFlow>
 
       <!-- Pane context menu -->
@@ -451,11 +515,15 @@ onUnmounted(() => {
         <button
           class="workflow-context-menu__item"
           type="button"
-          :disabled="!workflowStore.copiedNode"
+          :disabled="!workflowStore.copiedNodes.length"
           @click="handlePasteNode"
         >
           <strong>粘贴节点</strong>
-          <span>{{ workflowStore.copiedNode ? workflowStore.copiedNode.title : '请先复制节点' }}</span>
+          <span>{{
+            workflowStore.copiedNodes.length
+              ? workflowStore.copiedNodes.map((n) => n.title).join('、')
+              : '请先复制节点'
+          }}</span>
         </button>
 
         <div class="workflow-context-menu__section">新增节点</div>
@@ -485,11 +553,11 @@ onUnmounted(() => {
         <button
           class="workflow-context-menu__item"
           type="button"
-          :disabled="!workflowStore.copiedNode"
+          :disabled="!workflowStore.copiedNodes.length"
           @click="handlePasteNode"
         >
           <strong>粘贴节点</strong>
-          <span>{{ workflowStore.copiedNode ? 'Ctrl+V' : '请先复制节点' }}</span>
+          <span>{{ workflowStore.copiedNodes.length ? 'Ctrl+V' : '请先复制节点' }}</span>
         </button>
 
         <button
@@ -567,6 +635,60 @@ onUnmounted(() => {
 .workflow-flow {
   width: 100%;
   height: 100%;
+}
+
+/* ── MiniMap / Controls / Background 主题化 ── */
+.workflow-flow :deep(.vue-flow__minimap) {
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--momo-radius-md);
+  overflow: hidden;
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.workflow-flow :deep(.vue-flow__minimap-mask) {
+  fill: var(--el-overlay-color-lighter);
+  stroke: var(--el-border-color);
+  stroke-width: 2;
+}
+
+.workflow-flow :deep(.vue-flow__controls) {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--momo-radius-md);
+  overflow: hidden;
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.workflow-flow :deep(.vue-flow__controls-button) {
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  color: var(--el-text-color-regular);
+  fill: var(--el-text-color-regular);
+}
+
+.workflow-flow :deep(.vue-flow__controls-button:hover) {
+  background: var(--el-fill-color-light);
+}
+
+.workflow-flow :deep(.vue-flow__controls-button svg) {
+  fill: currentColor;
+}
+
+/* 点阵背景网格：圆点用边框色 */
+.workflow-flow :deep(.vue-flow__background circle) {
+  fill: var(--el-border-color);
+}
+
+/* 连线流动动画：虚线偏移（运行中来源节点） */
+.workflow-flow :deep(.vue-flow__edge.animated path) {
+  stroke-dasharray: 6 4;
+  animation: workflow-edge-dash 0.5s linear infinite;
+}
+
+@keyframes workflow-edge-dash {
+  to {
+    stroke-dashoffset: -10;
+  }
 }
 
 .workflow-context-menu {

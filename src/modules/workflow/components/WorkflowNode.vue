@@ -70,15 +70,44 @@ const modelCatalog = useModelCatalogStore()
 modelCatalog.ensureLoaded()
 const modelOptions = computed(() =>
   modelCatalog.imageGroups.flatMap((g) => g.models.map((m) => ({
-    value: m.logicalCode ?? m.modelId,
+    value: m.id,
     label: m.displayName,
   }))))
 const textModelOptions = computed(() =>
   modelCatalog.textGroups.flatMap((g) => g.models.map((m) => ({
-    value: m.modelId,
+    value: m.id,
     label: m.displayName,
   }))))
-const currentModel = computed(() => modelCatalog.getModelByName(String(workflowNode.value.config.modelName || '')))
+// 模型引用优先数字 id；旧数据只有名字时按名反查（仅展示兜底）
+const currentModel = computed(() => {
+  const config = workflowNode.value.config
+  if (typeof config.logicalModelId === 'number') {
+    return modelCatalog.getModel(config.logicalModelId)
+  }
+  if (typeof config.channelModelId === 'number') {
+    return modelCatalog.getModel(config.channelModelId)
+  }
+  return modelCatalog.getModelByName(String(config.modelName || ''))
+})
+/** 模型切换时把分辨率/比例收敛到新模型的合法值（同 patch 一次写入） */
+function updateImageModel(modelId: number) {
+  const model = modelCatalog.getModel(modelId)
+  const patch: Record<string, unknown> = { logicalModelId: modelId, modelName: model?.modelId ?? '' }
+  if (model) {
+    const resolutions = model.capabilities?.resolutions ?? []
+    const curSize = String(workflowNode.value.config.outputSize || '')
+    const newSize = resolutions.includes(curSize) ? curSize : (resolutions[0] ?? curSize)
+    if (newSize !== curSize) patch.outputSize = newSize
+    const ratios = modelCatalog.aspectRatiosFor(model, newSize)
+    const curRatio = String(workflowNode.value.config.aspectRatio || '')
+    if (ratios.length && !ratios.includes(curRatio)) patch.aspectRatio = ratios[0]
+  }
+  updateConfig(patch)
+}
+function updateTextModel(modelId: number) {
+  const model = modelCatalog.getModel(modelId)
+  updateConfig({ channelModelId: modelId, modelName: model?.modelId ?? '' })
+}
 const aspectRatios = computed(() => {
   const model = currentModel.value
   if (!model) return ['1:1']
@@ -233,7 +262,7 @@ onUnmounted(() => {
 
       <!-- text-ai -->
       <template v-else-if="workflowNode.type === 'text-ai'">
-        <el-select :model-value="workflowNode.config.modelName" size="small" placeholder="选择模型" style="width:100%" @update:model-value="updateConfig({ modelName: $event })">
+        <el-select :model-value="workflowNode.config.channelModelId ?? workflowNode.config.modelName" size="small" placeholder="选择模型" style="width:100%" @update:model-value="updateTextModel(Number($event))">
           <el-option v-for="m in textModelOptions" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
         <el-input :model-value="workflowNode.config.taskPrompt" type="textarea" :rows="2" size="small" placeholder="任务指令..." @update:model-value="updateConfig({ taskPrompt: $event })" />
@@ -241,7 +270,7 @@ onUnmounted(() => {
 
       <!-- image-ai -->
       <template v-else-if="workflowNode.type === 'image-ai'">
-        <el-select :model-value="workflowNode.config.modelName" size="small" style="width:100%" @update:model-value="updateConfig({ modelName: $event })">
+        <el-select :model-value="workflowNode.config.logicalModelId ?? workflowNode.config.modelName" size="small" style="width:100%" @update:model-value="updateImageModel(Number($event))">
           <el-option v-for="m in modelOptions" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
         <div class="workflow-node__config-row">

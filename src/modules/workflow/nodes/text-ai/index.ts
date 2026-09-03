@@ -82,10 +82,13 @@ const textAi: NodeModule = {
 
     try {
       const startedAt = Date.now()
-      // 按模型名在目录解析渠道模型（旧画布存量节点的模型名兼容映射，§8）
+      // 优先按数字 id 解析渠道模型；旧画布存量节点只有模型名时按名兜底，最后退默认模型
       const catalog = useModelCatalogStore()
       await catalog.ensureLoaded()
-      const channelModel = (modelName ? catalog.getModelByName(modelName) : undefined) ?? catalog.defaultTextModel
+      const channelModel =
+        (typeof config.channelModelId === 'number' ? catalog.getModel(config.channelModelId) : undefined) ??
+        (modelName ? catalog.getModelByName(modelName) : undefined) ??
+        catalog.defaultTextModel
       const result = await canvasApi.chat({
         model: channelModel?.modelId ?? modelName,
         channelModelId: channelModel?.id,

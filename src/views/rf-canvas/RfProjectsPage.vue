@@ -4,10 +4,10 @@ import { useRouter } from 'vue-router'
 import { Plus, Refresh, Edit } from '@element-plus/icons-vue'
 import PageLayout from '@/components/PageLayout.vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-import { flowCanvasApi, type FlowProject } from '@/services/flowCanvasApi'
+import { rfCanvasApi, type RfProject } from '@/services/rfCanvasApi'
 import { toBJDate } from '@/utils/datetime'
 
-defineOptions({ name: 'FlowCanvasProjects' })
+defineOptions({ name: 'RfCanvasProjects' })
 
 const router = useRouter()
 const { success, error: showError, confirmDanger } = useUiFeedback()
@@ -17,7 +17,7 @@ const PRESET_COLORS = [
   '#00b0ff', '#c32bac', '#52c41a', '#13c2c2', '#fa8c16',
 ]
 
-const projects = ref<FlowProject[]>([])
+const projects = ref<RfProject[]>([])
 const loading = ref(true)
 const showCreateDialog = ref(false)
 const createName = ref('')
@@ -30,7 +30,7 @@ const saving = ref(false)
 async function loadProjects() {
   loading.value = true
   try {
-    projects.value = await flowCanvasApi.listProjects()
+    projects.value = await rfCanvasApi.listProjects()
   } catch {
     showError('加载项目列表失败')
   } finally {
@@ -47,10 +47,10 @@ async function handleCreate() {
   if (!createName.value.trim()) return
   creating.value = true
   try {
-    const project = await flowCanvasApi.createProject(createName.value.trim())
+    const project = await rfCanvasApi.createProject(createName.value.trim())
     showCreateDialog.value = false
     success('项目已创建')
-    router.push(`/flow-canvas/${project.id}`)
+    router.push(`/rf-canvas/${project.id}`)
   } catch {
     showError('创建项目失败')
   } finally {
@@ -59,10 +59,10 @@ async function handleCreate() {
 }
 
 function openProject(id: number) {
-  router.push(`/flow-canvas/${id}`)
+  router.push(`/rf-canvas/${id}`)
 }
 
-function openRenameDialog(project: FlowProject) {
+function openRenameDialog(project: RfProject) {
   renamingId.value = project.id
   renameName.value = project.name
   showRenameDialog.value = true
@@ -72,7 +72,7 @@ async function handleRename() {
   if (!renameName.value.trim()) return
   saving.value = true
   try {
-    await flowCanvasApi.renameProject(renamingId.value, renameName.value.trim())
+    await rfCanvasApi.renameProject(renamingId.value, renameName.value.trim())
     showRenameDialog.value = false
     success('项目已重命名')
     await loadProjects()
@@ -85,7 +85,7 @@ async function handleRename() {
 
 async function duplicateProject(id: number) {
   try {
-    await flowCanvasApi.duplicateProject(id)
+    await rfCanvasApi.duplicateProject(id)
     success('项目已复制')
     await loadProjects()
   } catch {
@@ -93,13 +93,13 @@ async function duplicateProject(id: number) {
   }
 }
 
-async function deleteProject(project: FlowProject) {
+async function deleteProject(project: RfProject) {
   try {
     await confirmDanger({
       message: `确定要删除项目"${project.name}"吗？此操作不可恢复。`,
       confirmText: '删除',
     })
-    await flowCanvasApi.deleteProject(project.id)
+    await rfCanvasApi.deleteProject(project.id)
     success('项目已删除')
     await loadProjects()
   } catch {
@@ -119,7 +119,7 @@ function formatTime(isoString: string): string {
   return toBJDate(isoString)
 }
 
-function thumbnailColor(project: FlowProject): string {
+function thumbnailColor(project: RfProject): string {
   let hash = 0
   for (let i = 0; i < project.name.length; i++) {
     hash = project.name.charCodeAt(i) + ((hash << 5) - hash)
@@ -143,7 +143,7 @@ onActivated(() => { loadProjects() })
     <div v-loading="loading" class="projects-content">
       <el-empty
         v-if="!loading && projects.length === 0"
-        description="还没有项目，点击「新建项目」开始创建你的第一个 Node-RED 画布。"
+        description="还没有项目，点击「新建项目」开始创建你的第一个 AI画布 Pro+ 工作流。"
       />
 
       <div v-else class="projects-grid">
@@ -160,8 +160,8 @@ onActivated(() => { loadProjects() })
           <div class="project-card__body">
             <h3 class="project-card__name">{{ project.name }}</h3>
             <div class="project-card__meta">
-              <span>{{ formatTime(project.updated_at) }}</span>
-              <span v-if="project.node_count > 0">{{ project.node_count }} 个节点</span>
+              <span>{{ formatTime(project.updatedAt) }}</span>
+              <span v-if="project.nodeCount > 0">{{ project.nodeCount }} 个节点</span>
             </div>
           </div>
 

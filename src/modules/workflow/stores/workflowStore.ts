@@ -15,6 +15,7 @@ import type {
   WorkflowModel,
   WorkflowNode,
   WorkflowPosition,
+  WorkflowViewport,
 } from '@/modules/workflow/types/workflow'
 import { runBasicNode } from '@/modules/workflow/engine/basicRunner'
 import { getNodeDefinition } from '@/modules/workflow/nodes/nodeRegistry'
@@ -22,6 +23,7 @@ import { canAddEdge } from '@/modules/workflow/engine/validator'
 import { WorkflowRunner, findDescendants } from '@/modules/workflow/engine/executor'
 import type { RunnerCallbacks } from '@/modules/workflow/engine/executor'
 import { canvasApi } from '@/services/canvasApi'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 
 type CanvasNode = Node<WorkflowCanvasNodeData>
@@ -104,6 +106,10 @@ const buildNode = (
 const buildEdgeId = (edge: Omit<WorkflowEdge, 'id'>): string =>
   `edge_${edge.sourceNodeId}_${edge.sourcePortId}_${edge.targetNodeId}_${edge.targetPortId}`
 
+// 自动保存：图变更后 2s 防抖落盘（替代旧的 30s 定时全量 PUT）
+const AUTOSAVE_DELAY_MS = 2000
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+
 let activeRunner: WorkflowRunner | null = null
 
 let _canvasNodesCache: CanvasNode[] = []
@@ -115,6 +121,14 @@ interface HistorySnapshot {
 }
 
 const MAX_HISTORY = 50
+
+/** 历史快照只存结构态：剥离 status/result/logs，撤销/重做绝不回滚运行结果 */
+const stripRuntimeNodes = (nodes: WorkflowNode[]): WorkflowNode[] =>
+  nodes.map((node) => ({ ...node, status: 'idle' as NodeStatus, result: undefined, logs: [] }))
+
+// 配置编辑的连续变更（打字/滑块）合并为一条历史：同 key 1s 内不重复入栈
+let _lastHistoryKey = ''
+let _lastHistoryAt = 0
 
 const statusColorMap: Record<NodeStatus, string> = {
   idle: 'var(--el-text-color-secondary)',
@@ -128,21 +142,26 @@ const statusColorMap: Record<NodeStatus, string> = {
   paused: 'var(--el-color-warning)',
 }
 
+const emptyWorkflow = (): WorkflowModel => ({
+  id: createId('workflow'),
+  name: '未命名 AI 画布',
+  nodes: [],
+  edges: [],
+  updatedAt: new Date().toISOString(),
+})
+
 export const useWorkflowStore = defineStore('workflow', {
   state: () => ({
-    workflow: {
-      id: createId('workflow'),
-      name: '未命名 AI 画布',
-      nodes: [] as WorkflowNode[],
-      edges: [] as WorkflowEdge[],
-      updatedAt: new Date().toISOString(),
-    } satisfies WorkflowModel,
+    workflow: emptyWorkflow(),
     selectedNodeId: '' as string,
     selectedEdgeId: '' as string,
-    copiedNode: null as WorkflowNode | null,
+    copiedNodes: [] as WorkflowNode[],
+    copiedInternalEdges: [] as WorkflowEdge[],
+    pasteCount: 0 as number,
     isRunning: false as boolean,
     executionMode: '' as string,
     pausedNodeId: '' as string,
+    isDirty: false as boolean,
     history: [] as HistorySnapshot[],
     historyIndex: -1 as number,
     _currentProjectId: '' as string,
@@ -209,55 +228,49 @@ export const useWorkflowStore = defineStore('workflow', {
     canvasEdges(state): CanvasEdge[] {
       const prevById = new Map(_canvasEdgesCache.map((ce) => [ce.id, ce]))
       const workflowEdges = state.workflow.edges
+      const statusByNodeId = new Map(state.workflow.nodes.map((node) => [node.id, node.status]))
 
-      let structureChanged = _canvasEdgesCache.length !== workflowEdges.length
-      if (!structureChanged) {
-        for (const wEdge of workflowEdges) {
-          const prev = prevById.get(wEdge.id)
-          if (
-            !prev ||
-            prev.source !== wEdge.sourceNodeId ||
-            prev.target !== wEdge.targetNodeId ||
-            prev.sourceHandle !== wEdge.sourcePortId ||
-            prev.targetHandle !== wEdge.targetPortId
-          ) {
-            structureChanged = true
-            break
-          }
-        }
-      }
-
-      if (!structureChanged) {
-        for (const wEdge of workflowEdges) {
-          const cached = prevById.get(wEdge.id)
-          if (cached) {
-            cached.data = { workflowEdge: wEdge }
-          }
-        }
-        return [..._canvasEdgesCache]
+      /** 边视觉跟随来源节点状态：运行中流动 + 主题色、成功绿、失败红 */
+      const edgeVisual = (edge: WorkflowEdge): { stroke: string; animated: boolean } => {
+        const src = statusByNodeId.get(edge.sourceNodeId)
+        if (src === 'running') return { stroke: statusColorMap.running, animated: true }
+        if (src === 'success') return { stroke: statusColorMap.success, animated: false }
+        if (src === 'failed') return { stroke: statusColorMap.failed, animated: false }
+        return { stroke: statusColorMap.idle, animated: false }
       }
 
       const result: CanvasEdge[] = []
-      for (const workflowEdge of workflowEdges) {
-        const prev = prevById.get(workflowEdge.id)
-        if (prev) {
-          prev.data = { workflowEdge }
+      for (const wEdge of workflowEdges) {
+        const visual = edgeVisual(wEdge)
+        const prev = prevById.get(wEdge.id)
+        const structureMatches =
+          prev &&
+          prev.source === wEdge.sourceNodeId &&
+          prev.target === wEdge.targetNodeId &&
+          prev.sourceHandle === wEdge.sourcePortId &&
+          prev.targetHandle === wEdge.targetPortId
+        if (
+          structureMatches &&
+          (typeof prev.style !== 'object' || prev.style.stroke === visual.stroke) &&
+          prev.animated === visual.animated
+        ) {
+          prev.data = { workflowEdge: wEdge }
           result.push(prev)
-        } else {
-          result.push({
-            id: workflowEdge.id,
-            source: workflowEdge.sourceNodeId,
-            sourceHandle: workflowEdge.sourcePortId,
-            target: workflowEdge.targetNodeId,
-            targetHandle: workflowEdge.targetPortId,
-            type: 'default',
-            animated: false,
-            data: { workflowEdge },
-            style: {
-              stroke: statusColorMap.idle,
-            },
-          })
+          continue
         }
+        result.push({
+          id: wEdge.id,
+          source: wEdge.sourceNodeId,
+          sourceHandle: wEdge.sourcePortId,
+          target: wEdge.targetNodeId,
+          targetHandle: wEdge.targetPortId,
+          type: 'default',
+          animated: visual.animated,
+          data: { workflowEdge: wEdge },
+          style: {
+            stroke: visual.stroke,
+          },
+        })
       }
 
       _canvasEdgesCache = result
@@ -268,25 +281,118 @@ export const useWorkflowStore = defineStore('workflow', {
   actions: {
     touch() {
       this.workflow.updatedAt = new Date().toISOString()
+      this.isDirty = true
+      this.scheduleAutosave()
+    },
+
+    scheduleAutosave() {
+      if (!this._currentProjectId) return
+      if (autosaveTimer) clearTimeout(autosaveTimer)
+      autosaveTimer = setTimeout(() => {
+        autosaveTimer = null
+        if (!this.isDirty || !this._currentProjectId) return
+        this.saveToDb(this._currentProjectId)
+          .then(() => {
+            this.isDirty = false
+          })
+          .catch((err) => {
+            console.error('[workflowStore] 自动保存失败:', err)
+          })
+      }, AUTOSAVE_DELAY_MS)
+    },
+
+    /** 立即落盘未保存变更（切页/失活/关闭前调用）；无脏数据时为 no-op */
+    async flushAutosave() {
+      if (autosaveTimer) {
+        clearTimeout(autosaveTimer)
+        autosaveTimer = null
+      }
+      if (!this.isDirty || !this._currentProjectId) return
+      this.isDirty = false
+      try {
+        await this.saveToDb(this._currentProjectId)
+      } catch (err) {
+        this.isDirty = true
+        throw err
+      }
+    },
+
+    /** 供 beforeunload 的 fetch keepalive 使用：返回当前保存载荷与项目 id */
+    getSavePayload(): { projectId: string; workflowData: string; nodeCount: number } | null {
+      if (!this.isDirty || !this._currentProjectId) return null
+      return {
+        projectId: this._currentProjectId,
+        workflowData: JSON.stringify(this.workflow),
+        nodeCount: this.workflow.nodes.length,
+      }
+    },
+
+    clearAutosaveTimer() {
+      if (autosaveTimer) {
+        clearTimeout(autosaveTimer)
+        autosaveTimer = null
+      }
+      this.isDirty = false
+    },
+
+    /** 记录画布视口（随图持久化，重开项目恢复） */
+    saveViewport(viewport: { x: number; y: number; zoom: number }) {
+      const current = this.workflow.viewport
+      if (
+        current &&
+        current.x === viewport.x &&
+        current.y === viewport.y &&
+        current.zoom === viewport.zoom
+      ) {
+        return
+      }
+      this.workflow.viewport = { ...viewport }
+      this.touch()
     },
 
     pushHistory() {
       this.history = this.history.slice(0, this.historyIndex + 1)
       this.history.push({
-        nodes: deepClone(this.workflow.nodes),
+        nodes: stripRuntimeNodes(this.workflow.nodes),
         edges: deepClone(this.workflow.edges),
       })
       if (this.history.length > MAX_HISTORY) {
         this.history.shift()
       }
       this.historyIndex = this.history.length - 1
+      _lastHistoryKey = ''
+    },
+
+    /** 连续配置编辑合并为一条历史（1s 内同 key 不重复入栈） */
+    pushHistoryThrottled(key: string) {
+      const now = Date.now()
+      if (key === _lastHistoryKey && now - _lastHistoryAt < 1000) {
+        _lastHistoryAt = now
+        return
+      }
+      _lastHistoryKey = key
+      _lastHistoryAt = now
+      this.pushHistory()
+    },
+
+    /** 应用结构快照：结构来自快照，运行态（status/result/logs）按节点 id 保留当前值 */
+    applySnapshot(snapshot: HistorySnapshot) {
+      const runtimeById = new Map(this.workflow.nodes.map((node) => [node.id, node]))
+      this.workflow.nodes = snapshot.nodes.map((node) => {
+        const current = runtimeById.get(node.id)
+        return current
+          ? { ...node, status: current.status, result: current.result, logs: current.logs }
+          : node
+      })
+      this.workflow.edges = deepClone(snapshot.edges)
+      this.touch()
     },
 
     undo() {
       if (this.historyIndex < 0 || this.isRunning) return
       if (this.historyIndex === this.history.length - 1) {
         this.history.push({
-          nodes: deepClone(this.workflow.nodes),
+          nodes: stripRuntimeNodes(this.workflow.nodes),
           edges: deepClone(this.workflow.edges),
         })
         if (this.history.length > MAX_HISTORY) {
@@ -298,9 +404,7 @@ export const useWorkflowStore = defineStore('workflow', {
       this.historyIndex--
       const snapshot = this.history[this.historyIndex]
       if (snapshot) {
-        this.workflow.nodes = snapshot.nodes
-        this.workflow.edges = snapshot.edges
-        this.touch()
+        this.applySnapshot(snapshot)
       }
     },
 
@@ -309,9 +413,7 @@ export const useWorkflowStore = defineStore('workflow', {
       this.historyIndex++
       const snapshot = this.history[this.historyIndex]
       if (snapshot) {
-        this.workflow.nodes = snapshot.nodes
-        this.workflow.edges = snapshot.edges
-        this.touch()
+        this.applySnapshot(snapshot)
       }
     },
 
@@ -324,32 +426,67 @@ export const useWorkflowStore = defineStore('workflow', {
       this.touch()
     },
 
-    copyNode(nodeId: string) {
-      const node = this.workflow.nodes.find((n) => n.id === nodeId)
-      if (!node) return
+    /** 复制一组节点（多选时带上选区内部的连线），id 间保持引用关系 */
+    copySelection(nodeIds: string[]) {
+      const idSet = new Set(nodeIds)
+      const nodes = this.workflow.nodes.filter((node) => idSet.has(node.id))
+      if (nodes.length === 0) return
       try {
-        this.copiedNode = deepClone(node)
+        this.copiedNodes = deepClone(nodes)
+        this.copiedInternalEdges = deepClone(
+          this.workflow.edges.filter(
+            (edge) => idSet.has(edge.sourceNodeId) && idSet.has(edge.targetNodeId)
+          )
+        )
+        this.pasteCount = 0
       } catch (err) {
-        console.error('Copy node error:', err)
+        console.error('Copy nodes error:', err)
       }
     },
 
+    copyNode(nodeId: string) {
+      this.copySelection([nodeId])
+    },
+
     pasteNode(position: WorkflowPosition) {
-      if (!this.copiedNode) return
+      if (this.copiedNodes.length === 0) return
       this.pushHistory()
-      const baseTitle = this.copiedNode.title.replace(/\s\d+$/, '')
-      const suffix = nextNodeSuffix(this.workflow.nodes)
-      const node = {
-        ...deepClone(this.copiedNode),
-        id: createId('node'),
-        title: `${baseTitle} ${suffix}`,
-        position,
-        status: 'idle' as NodeStatus,
-        result: undefined,
-        logs: [],
-      }
-      this.workflow.nodes.push(node)
-      this.selectedNodeId = node.id
+
+      // 簇内相对形状保持不变：以复制的节点簇左上角对齐粘贴锚点；连续粘贴每次偏移 +20 避免完全重叠
+      const offsetX = position.x - Math.min(...this.copiedNodes.map((n) => n.position.x)) + this.pasteCount * 20
+      const offsetY = position.y - Math.min(...this.copiedNodes.map((n) => n.position.y)) + this.pasteCount * 20
+      this.pasteCount += 1
+
+      const idMap = new Map<string, string>()
+      let suffix = nextNodeSuffix(this.workflow.nodes)
+      const newNodes: WorkflowNode[] = this.copiedNodes.map((copied) => {
+        const newId = createId('node')
+        idMap.set(copied.id, newId)
+        const baseTitle = copied.title.replace(/\s\d+$/, '')
+        return {
+          ...deepClone(copied),
+          id: newId,
+          title: `${baseTitle} ${suffix++}`,
+          position: { x: copied.position.x + offsetX, y: copied.position.y + offsetY },
+          status: 'idle' as NodeStatus,
+          result: undefined,
+          logs: [],
+        }
+      })
+      const newEdges: WorkflowEdge[] = this.copiedInternalEdges.map((edge) => ({
+        ...deepClone(edge),
+        id: buildEdgeId({
+          sourceNodeId: idMap.get(edge.sourceNodeId) ?? edge.sourceNodeId,
+          sourcePortId: edge.sourcePortId,
+          targetNodeId: idMap.get(edge.targetNodeId) ?? edge.targetNodeId,
+          targetPortId: edge.targetPortId,
+        }),
+        sourceNodeId: idMap.get(edge.sourceNodeId) ?? edge.sourceNodeId,
+        targetNodeId: idMap.get(edge.targetNodeId) ?? edge.targetNodeId,
+      }))
+      this.workflow.nodes.push(...newNodes)
+      this.workflow.edges.push(...newEdges)
+      this.selectedNodeId = newNodes[newNodes.length - 1].id
       this.selectedEdgeId = ''
       this.touch()
     },
@@ -377,6 +514,22 @@ export const useWorkflowStore = defineStore('workflow', {
       this.workflow.nodes = this.workflow.nodes.map((n) =>
         n.id === nodeId ? { ...n, position } : n
       )
+      this.touch()
+    },
+
+    /** 多选拖动结束后批量同步位置（一次历史入栈） */
+    updateNodesPositions(list: Array<{ id: string; position: { x: number; y: number } }>) {
+      const changed = list.filter((item) => {
+        const node = this.workflow.nodes.find((n) => n.id === item.id)
+        return node && (node.position.x !== item.position.x || node.position.y !== item.position.y)
+      })
+      if (changed.length === 0) return
+      this.pushHistory()
+      const posById = new Map(changed.map((item) => [item.id, item.position]))
+      this.workflow.nodes = this.workflow.nodes.map((n) => {
+        const pos = posById.get(n.id)
+        return pos ? { ...n, position: pos } : n
+      })
       this.touch()
     },
 
@@ -442,7 +595,7 @@ export const useWorkflowStore = defineStore('workflow', {
     },
 
     updateNodeTitle(nodeId: string, title: string) {
-      this.pushHistory()
+      this.pushHistoryThrottled(`title-${nodeId}`)
       this.workflow.nodes = this.workflow.nodes.map((node) =>
         node.id === nodeId ? { ...node, title } : node
       )
@@ -469,6 +622,8 @@ export const useWorkflowStore = defineStore('workflow', {
         imageCountPatch !== undefined && imageCountPatch >= 1 && imageCountPatch <= 9
           ? imageCountPatch
           : undefined
+
+      this.pushHistoryThrottled(`cfg-${nodeId}`)
 
       this.workflow.nodes = this.workflow.nodes.map((n) => {
         if (n.id !== nodeId) return n
@@ -738,6 +893,7 @@ export const useWorkflowStore = defineStore('workflow', {
 
     async loadFromDb(projectId: string) {
       if (this.isRunning) return
+      this.clearAutosaveTimer()
       try {
         const project = await canvasApi.getProject(projectId)
         if (!project || !project.workflow_data) {
@@ -757,6 +913,7 @@ export const useWorkflowStore = defineStore('workflow', {
 
         const data = JSON.parse(project.workflow_data) as WorkflowModel
         this.workflow = { ...data, id: projectId, name: project.name || data.name }
+        await this.migrateModelReferences()
         this.clearSelection()
         this.pausedNodeId = ''
         this.isRunning = false
@@ -773,6 +930,45 @@ export const useWorkflowStore = defineStore('workflow', {
         this.isRunning = false
       }
       this._currentProjectId = projectId
+    },
+
+    /**
+     * 存量节点模型引用迁移：旧画布节点 config 只存模型名字符串（改名/下架即静默失效），
+     * 加载时按目录一次性补写数字 id（image-ai → logicalModelId，text-ai → channelModelId）。
+     * 目录未命中的保持原样，运行时仍有按名兜底。
+     */
+    async migrateModelReferences() {
+      const needsMigration = this.workflow.nodes.some((node) => {
+        if (node.type === 'image-ai') return typeof node.config.logicalModelId !== 'number'
+        if (node.type === 'text-ai') return typeof node.config.channelModelId !== 'number'
+        return false
+      })
+      if (!needsMigration) return
+      const catalog = useModelCatalogStore()
+      await catalog.ensureLoaded()
+      let changed = false
+      this.workflow.nodes = this.workflow.nodes.map((node) => {
+        if (node.type === 'image-ai' && typeof node.config.logicalModelId !== 'number') {
+          const modelName = typeof node.config.modelName === 'string' ? node.config.modelName : ''
+          const model = catalog.getModelByName(modelName)
+          if (model) {
+            changed = true
+            return { ...node, config: { ...node.config, logicalModelId: model.id } }
+          }
+        }
+        if (node.type === 'text-ai' && typeof node.config.channelModelId !== 'number') {
+          const modelName = typeof node.config.modelName === 'string' ? node.config.modelName : ''
+          const model = catalog.getModelByName(modelName)
+          if (model) {
+            changed = true
+            return { ...node, config: { ...node.config, channelModelId: model.id } }
+          }
+        }
+        return node
+      })
+      if (changed) {
+        this.touch()
+      }
     },
 
     async saveToDb(projectId: string) {

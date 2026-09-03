@@ -36,10 +36,13 @@ const imageAi: NodeModule = {
   async run(workflow, node): Promise<NodeRunResult> {
     const config = node.config
     const modelName = typeof config.modelName === 'string' ? config.modelName : 'gpt-image-2'
-    // 按模型名在目录解析逻辑模型 id（目录未命中时用默认模型，兼容旧画布存量节点）
+    // 优先按数字 id 解析（目录唯一真源）；旧画布存量节点只有模型名时按名兜底，最后退默认模型
     const catalog = useModelCatalogStore()
     await catalog.ensureLoaded()
-    const channelModel = catalog.getModelByName(modelName) ?? catalog.defaultImageModel
+    const channelModel =
+      (typeof config.logicalModelId === 'number' ? catalog.getModel(config.logicalModelId) : undefined) ??
+      (modelName ? catalog.getModelByName(modelName) : undefined) ??
+      catalog.defaultImageModel
     if (!channelModel) {
       return { success: false, message: '暂无可用生图模型，请联系管理员配置渠道' }
     }

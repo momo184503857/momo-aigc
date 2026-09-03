@@ -86,6 +86,22 @@ export const FEATURE_CONFIGS: Record<string, FeatureConfig> = {
     hasUserPrompt: true,
     hasSupplementaryImages: true,
   },
+  // ── AI画布（旧版 vue-flow 画布）：image-ai 节点 featureId='canvas'，任务面板/作品页显示中文名 ──
+  'canvas': {
+    id: 'canvas',
+    label: 'AI画布',
+    imageSlots: [],
+    hasUserPrompt: true,
+    hasSupplementaryImages: false,
+  },
+  // ── AI画布 Pro+（React Flow 版）：featureId 仅用于任务面板标签展示（R9.3） ──
+  'rf-canvas': {
+    id: 'rf-canvas',
+    label: 'AI画布 Pro+',
+    imageSlots: [],
+    hasUserPrompt: true,
+    hasSupplementaryImages: false,
+  },
   'ai-photography': {
     id: 'ai-photography',
     label: 'AI摄影',
