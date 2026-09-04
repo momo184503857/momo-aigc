@@ -84,30 +84,35 @@ function ossCredentials() {
   return { bucket, endpoint, accessKeyId, accessKeySecret, host: `${bucket}.${endpoint}` }
 }
 
-/** OSS v1 签名请求（与 server/src/utils/oss.ts 的签名方式一致） */
-async function ossSigned(method, objectKey, oss, { copySource = null, contentType = '' } = {}) {
-  const expires = Math.floor(Date.now() / 1000) + 600
+/** OSS v1 签名请求（Authorization 头方案用 Date 参与签名；Expires 只属于预签名 URL） */
+async function ossSigned(method, objectKey, oss, { copySource = null, contentType = '', extraHeaders = {} } = {}) {
+  const date = new Date().toUTCString()
   const ossHeaders = copySource ? `x-oss-copy-source:${copySource}\n` : ''
-  const stringToSign = `${method}\n\n${contentType}\n${expires}\n${ossHeaders}/${oss.bucket}/${objectKey}`
+  const stringToSign = `${method}\n\n${contentType}\n${date}\n${ossHeaders}/${oss.bucket}/${objectKey}`
   const signature = crypto.createHmac('sha1', oss.accessKeySecret).update(stringToSign).digest('base64')
-  const headers = { Authorization: `OSS ${oss.accessKeyId}:${signature}` }
+  const headers = { Date: date, Authorization: `OSS ${oss.accessKeyId}:${signature}`, ...extraHeaders }
   if (copySource) headers['x-oss-copy-source'] = copySource
   if (contentType) headers['Content-Type'] = contentType
   return fetch(`https://${oss.host}/${objectKey}`, { method, headers })
 }
 
-/** 只读探测 OSS 对象格式：HEAD 的 content-type 可信就用，否则 Range 取文件头嗅探 */
-async function probeOssExt(url) {
+/** 签名探测对象真实格式：HEAD 的 content-type 可信就用，否则 Range 取文件头嗅探 */
+async function probeOssExt(objectKey, oss) {
   try {
-    const head = await fetch(url, { method: 'HEAD' })
+    const head = await ossSigned('HEAD', objectKey, oss)
+    if (!head.ok) {
+      console.warn(`  跳过（对象不可读 HTTP ${head.status}：${objectKey}）`)
+      return null
+    }
     const fromMime = MIME_TO_EXT[(head.headers.get('content-type') || '').split(';')[0]]
     if (fromMime) return fromMime
-    if (head.ok) {
-      const ranged = await fetch(url, { headers: { Range: 'bytes=0-15' } })
-      if (ranged.ok) return extFromBytes(Buffer.from(await ranged.arrayBuffer())) || 'png'
-    }
-  } catch { /* 探测不通按 png 兜底，与代码侧默认一致 */ }
-  return 'png'
+    const ranged = await ossSigned('GET', objectKey, oss, { extraHeaders: { Range: 'bytes=0-15' } })
+    if (ranged.ok) return extFromBytes(Buffer.from(await ranged.arrayBuffer())) || 'png'
+    console.warn(`  跳过（无法读取对象内容：${objectKey}）`)
+  } catch (err) {
+    console.warn(`  跳过（探测异常：${objectKey} ${err.message}）`)
+  }
+  return null
 }
 
 /** 扫全库文本列，找出末段后缀不可信的图片 URL（本地 + 本 bucket） */
@@ -154,7 +159,7 @@ function findBadUrls() {
 /** 为每个待修 URL 定真实扩展名（本地读文件头 / OSS 探测），定不了的跳过并告警 */
 async function planRenames(pending) {
   const plan = new Map()
-  const needsOss = [...pending.values()].some((p) => p.kind === 'oss')
+  const oss = [...pending.values()].some((p) => p.kind === 'oss') ? ossCredentials() : null
   for (const [url, item] of pending) {
     let realExt = null
     if (item.kind === 'local') {
@@ -175,8 +180,8 @@ async function planRenames(pending) {
         continue
       }
     } else {
-      if (!needsOss) continue
-      realExt = await probeOssExt(url)
+      realExt = await probeOssExt(item.objectKey, oss)
+      if (!realExt) continue
     }
     const newKey = `${item.stemKey}.${realExt}`
     const newUrl = item.kind === 'local'
@@ -222,11 +227,13 @@ try {
       fs.renameSync(absOld, absNew)
       undoLocal.push([absNew, absOld])
     } else {
-      if ((await fetch(item.newUrl, { method: 'HEAD' })).status === 200) continue // 已复制过，只补库里的 URL
+      const exists = await ossSigned('HEAD', item.newKey, oss)
+      if (exists.status === 200) continue // 已复制过，只补库里的 URL
+      if (exists.status !== 404) throw new Error(`新对象状态检查失败 (${exists.status})：${item.newKey}`)
       const copySource = `/${oss.bucket}/${item.objectKey.split('/').map(encodeURIComponent).join('/')}`
       const res = await ossSigned('PUT', item.newKey, oss, { copySource })
       if (!res.ok) throw new Error(`OSS CopyObject 失败 (${res.status}) ${item.objectKey}：${(await res.text()).slice(0, 160)}`)
-      if ((await fetch(item.newUrl, { method: 'HEAD' })).status !== 200) throw new Error(`新对象校验失败：${item.newKey}`)
+      if ((await ossSigned('HEAD', item.newKey, oss)).status !== 200) throw new Error(`新对象校验失败：${item.newKey}`)
       undoOss.push(item.newKey)
     }
   }
