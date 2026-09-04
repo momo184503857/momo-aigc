@@ -86,14 +86,29 @@ function ossCredentials() {
 
 /** OSS v1 签名请求（Authorization 头方案用 Date 参与签名；Expires 只属于预签名 URL） */
 async function ossSigned(method, objectKey, oss, { copySource = null, contentType = '', extraHeaders = {} } = {}) {
-  const date = new Date().toUTCString()
   const ossHeaders = copySource ? `x-oss-copy-source:${copySource}\n` : ''
-  const stringToSign = `${method}\n\n${contentType}\n${date}\n${ossHeaders}/${oss.bucket}/${objectKey}`
-  const signature = crypto.createHmac('sha1', oss.accessKeySecret).update(stringToSign).digest('base64')
-  const headers = { Date: date, Authorization: `OSS ${oss.accessKeyId}:${signature}`, ...extraHeaders }
-  if (copySource) headers['x-oss-copy-source'] = copySource
+  const headers = copySource ? { 'x-oss-copy-source': copySource } : {}
   if (contentType) headers['Content-Type'] = contentType
-  return fetch(`https://${oss.host}/${objectKey}`, { method, headers })
+  Object.assign(headers, extraHeaders)
+
+  let lastErr = null
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 400 * attempt))
+    const date = new Date().toUTCString()
+    const stringToSign = `${method}\n\n${contentType}\n${date}\n${ossHeaders}/${oss.bucket}/${objectKey}`
+    const signature = crypto.createHmac('sha1', oss.accessKeySecret).update(stringToSign).digest('base64')
+    try {
+      const resp = await fetch(`https://${oss.host}/${objectKey}`, {
+        method,
+        headers: { ...headers, Date: date, Authorization: `OSS ${oss.accessKeyId}:${signature}` },
+      })
+      if (resp.status < 500 || attempt === 3) return resp
+      lastErr = new Error(`${method} ${objectKey} → HTTP ${resp.status}`)
+    } catch (err) {
+      lastErr = err
+    }
+  }
+  throw lastErr
 }
 
 /** 签名探测对象真实格式：HEAD 的 content-type 可信就用，否则 Range 取文件头嗅探 */
@@ -213,6 +228,8 @@ console.log(`库备份：${backupPath}`)
 
 const undoLocal = []
 const undoOss = []
+let committed = false
+let replaced = 0
 try {
   // 1) 先把文件/对象落到新名字（这一步失败即中止，库还没动）
   for (const [, item] of bad) {
@@ -239,7 +256,6 @@ try {
   }
 
   // 2) 全库替换 URL 文本
-  let replaced = 0
   db.transaction(() => {
     for (const [oldUrl, item] of bad) {
       for (const { table_name: table, column_name: column } of textColumns) {
@@ -249,26 +265,40 @@ try {
       }
     }
   })()
+  committed = true
   console.log(`完成：改名/复制 ${undoLocal.length + undoOss.length} 个，更新 ${replaced} 行引用`)
 
-  // 3) 可选清理旧 OSS 对象（库已指向新地址，删除不可逆）
+  // 3) 可选清理旧 OSS 对象：逐项确认新对象已在才删，单项失败只告警（新对象绝不能删）
   const ossItems = [...bad.values()].filter((i) => i.kind === 'oss')
   if (purge) {
     let removed = 0
     for (const item of ossItems) {
-      const res = await ossSigned('DELETE', item.objectKey, oss)
-      if (res.ok || res.status === 404) removed++
-      else console.warn(`  旧对象删除失败 (${res.status})：${item.objectKey}`)
+      try {
+        if ((await ossSigned('HEAD', item.newKey, oss)).status !== 200) {
+          console.warn(`  未删（新对象不在位：${item.newKey}）`)
+          continue
+        }
+        const res = await ossSigned('DELETE', item.objectKey, oss)
+        if (res.ok || res.status === 404) removed++
+        else console.warn(`  旧对象删除失败 (${res.status})：${item.objectKey}`)
+      } catch (e) {
+        console.warn(`  旧对象删除中断（${e.message}）：${item.objectKey}`)
+      }
     }
-    console.log(`已删除旧 OSS 对象 ${removed} 个`)
+    console.log(`已删除旧 OSS 对象 ${removed}/${ossItems.length} 个`)
   } else if (ossItems.length) {
     console.log(`旧 OSS 对象已保留 ${ossItems.length} 个；确认无误后加 --purge 删除`)
   }
 } catch (err) {
-  for (const [absNew, absOld] of undoLocal.reverse()) fs.renameSync(absNew, absOld)
-  for (const key of undoOss) await ossSigned('DELETE', key, oss)
-  console.error(`失败：已回滚 ${undoLocal.length} 个本地改名、${undoOss.length} 个新 OSS 对象，库未改动 —— ${err.message}`)
-  console.error(`如需回滚库：停服后用 ${backupPath} 覆盖 ${dbPath}`)
+  if (committed) {
+    console.error(`库已更新（${replaced} 行）且线上正用新地址 —— 不回滚、新对象保留。未完成部分：${err.message}`)
+    console.error(`重跑本脚本即可续做（幂等）。如需回退库：停服后用 ${backupPath} 覆盖 ${dbPath}`)
+  } else {
+    for (const [absNew, absOld] of undoLocal.reverse()) fs.renameSync(absNew, absOld)
+    for (const key of undoOss) await ossSigned('DELETE', key, oss)
+    console.error(`失败（库未改动）：已回滚 ${undoLocal.length} 个本地改名、${undoOss.length} 个新 OSS 对象 —— ${err.message}`)
+    console.error(`如需回滚库：停服后用 ${backupPath} 覆盖 ${dbPath}`)
+  }
   process.exitCode = 1
 }
 db.close()
