@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { getStorageConfig } from './storageConfig.js'
 import { uploadToOss, importResultToOss } from './oss.js'
+import { resolveImageExt, extFromUrlPathname } from './imageExt.js'
 
 /**
  * 统一图片存储抽象（双模式）：
@@ -59,41 +60,16 @@ function buildObjectKey(scope: StorageScope, userId: number, ext: string): strin
   return `${scope}/${userId}/${yyyy}/${mm}/${uuid}.${safeExt}`
 }
 
-function extFromMime(mimeType: string): string {
-  if (mimeType.includes('jpeg')) return 'jpg'
-  if (mimeType.includes('webp')) return 'webp'
-  if (mimeType.includes('gif')) return 'gif'
-  return 'png'
-}
-
-/** 可信的图片扩展名：URL 末段后缀只有命中白名单才能当扩展名用（中转常返回 `.{哈希}` 结尾的地址） */
-const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif'])
-
-function normalizeImageExt(ext: string | undefined): string | null {
-  const value = (ext || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-  if (!IMAGE_EXTENSIONS.has(value)) return null
-  return value === 'jpeg' ? 'jpg' : value
-}
-
-/** 按文件头识别真实图片格式：中转渠道的 content-type 经常是 octet-stream 或与内容不符 */
-function extFromBytes(buffer: Buffer): string | null {
-  if (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'png'
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg'
-  if (buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') return 'webp'
-  if (buffer.length >= 3 && buffer.subarray(0, 3).toString('ascii') === 'GIF') return 'gif'
-  return null
-}
-
 /** 保存图片字节（上传/结果图 base64 落盘共用入口） */
 export async function saveImage(opts: {
   scope: StorageScope
   userId: number
   buffer: Buffer
   mimeType: string
-  ext?: string
+  ext?: string | null
 }): Promise<StoredFile> {
   const cfg = getStorageConfig()
-  const ext = normalizeImageExt(opts.ext) || extFromBytes(opts.buffer) || extFromMime(opts.mimeType)
+  const ext = resolveImageExt({ ext: opts.ext, mimeType: opts.mimeType, buffer: opts.buffer })
   const objectKey = buildObjectKey(opts.scope, opts.userId, ext)
 
   if (cfg.mode === 'direct') {
@@ -121,10 +97,9 @@ export async function importResultFromUrl(opts: {
     const buffer = Buffer.from(await resp.arrayBuffer())
     if (buffer.length === 0) throw new Error('结果图内容为空')
     const mimeType = resp.headers.get('content-type')?.split(';')[0] || 'image/png'
-    let ext: string | undefined
+    let ext: string | null = null
     try {
-      const m = new URL(opts.sourceUrl).pathname.match(/\.([a-zA-Z0-9]+)$/)
-      if (m) ext = m[1]
+      ext = extFromUrlPathname(new URL(opts.sourceUrl).pathname)
     } catch { /* data: 等无 pathname */ }
     const stored = await saveImage({ scope: 'results', userId: opts.userId, buffer, mimeType, ext })
     return { url: stored.url, objectKey: stored.objectKey }

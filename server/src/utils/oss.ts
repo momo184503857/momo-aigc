@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { getStorageConfig, type OssSettings } from './storageConfig.js'
+import { extFromUrlPathname, resolveImageExt } from './imageExt.js'
 
 /** 签名用 OSS 参数：默认取当前存储配置（后台可改、env 兜底），测试连接时传待验证的新值 */
 function ossSettings(overrides?: Partial<OssSettings>): OssSettings {
@@ -22,7 +23,7 @@ export function generateOssUploadToken(
   const yyyy = now.getFullYear()
   const mm = String(now.getMonth() + 1).padStart(2, '0')
   const uuid = crypto.randomUUID()
-  const ext = opts.filename.split('.').pop() || 'png'
+  const ext = resolveImageExt({ ext: opts.filename.split('.').pop(), mimeType: opts.mimeType })
 
   const scope = opts.scope || 'inputs'
   const objectKey = `${scope}/${opts.userId}/${yyyy}/${mm}/${uuid}.${ext}`
@@ -71,8 +72,9 @@ export function generateResultObjectKey(userId: number, sourceUrl: string): stri
   const pathname = (() => {
     try { return new URL(sourceUrl).pathname } catch { return '' }
   })()
-  const extMatch = pathname.match(/\.([a-zA-Z0-9]+)$/)
-  const ext = extMatch?.[1].toLowerCase() || 'png'
+  // 只有可信的图片后缀才进 objectKey：中转渠道常返回 `.{sha256}` 结尾的地址，
+  // 直接当扩展名会让 OSS 公网地址失去 png 后缀，浏览器右键另存得到打不开的文件
+  const ext = extFromUrlPathname(pathname) || 'png'
   return `results/${userId}/${yyyy}/${mm}/${uuid}.${ext}`
 }
 
