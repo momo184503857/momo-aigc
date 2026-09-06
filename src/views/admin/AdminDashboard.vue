@@ -21,8 +21,9 @@ const allUsers = ref<UserOption[]>([])
 
 async function loadAllUsers() {
   try {
-    const res = await adminApi.listUsers()
-    allUsers.value = (res.data.data || []).map((u: any) => ({ id: u.id, username: u.username }))
+    // 仅用作用户 id → 用户名映射，pageSize 取接口上限内的大值一次拉全
+    const res = await adminApi.listUsers({ page: 1, pageSize: 1000 })
+    allUsers.value = (res.data.data.list || []).map((u: any) => ({ id: u.id, username: u.username }))
   } catch { /* ignore */ }
 }
 

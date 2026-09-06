@@ -2,13 +2,13 @@ import http from './http'
 
 export const adminApi = {
   // Users
-  listUsers(params?: { search?: string; sort?: string; order?: 'asc' | 'desc'; status?: string }) {
+  listUsers(params?: { page?: number; pageSize?: number; search?: string; sort?: string; order?: 'asc' | 'desc'; status?: string }) {
     return http.get('/admin/users', { params })
   },
   createUser(username: string, password: string) {
     return http.post('/admin/users', { username, password })
   },
-  updateUser(id: number, data: { status?: string; role?: string }) {
+  updateUser(id: number, data: { status?: string; role?: string; note?: string }) {
     return http.put(`/admin/users/${id}`, data)
   },
   updateUserStatus(userId: number, status: string) {

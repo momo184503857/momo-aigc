@@ -9,26 +9,18 @@ export const adminUsersRouter = Router()
 
 adminUsersRouter.use(authMiddleware, adminMiddleware)
 
-// List all users with optional search and sorting
+// List users: search / status filter / sort / pagination
 adminUsersRouter.get('/', (req: AuthRequest, res) => {
   const { search, status, sort, order } = req.query
+  const page = Math.max(1, parseInt(String(req.query.page)) || 1)
+  const pageSize = Math.min(1000, Math.max(1, parseInt(String(req.query.pageSize)) || 20))
 
-  let sql = `
-    SELECT u.*,
-      (SELECT COUNT(*) FROM generation_tasks WHERE user_id = u.id) AS submitted_count,
-      (SELECT COUNT(*) FROM generation_tasks WHERE user_id = u.id AND status = 'completed') AS completed_count,
-      (SELECT COUNT(*) FROM generation_tasks WHERE user_id = u.id AND status = 'failed') AS failed_count,
-      (SELECT MAX(created_at) FROM generation_tasks WHERE user_id = u.id) AS last_submitted_at,
-      COALESCE((SELECT SUM(amount) FROM points_transactions WHERE user_id = u.id AND amount < 0), 0) AS total_spent,
-      COALESCE((SELECT SUM(amount) FROM points_transactions WHERE user_id = u.id AND amount > 0), 0) AS total_recharged
-    FROM users u
-  `
   const conditions: string[] = []
   const params: unknown[] = []
 
   if (search) {
-    conditions.push(`u.username LIKE ? OR u.email LIKE ?`)
-    params.push(`%${search}%`, `%${search}%`)
+    conditions.push(`(u.username LIKE ? OR u.email LIKE ? OR u.nickname LIKE ? OR u.admin_note LIKE ?)`)
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
   }
 
   if (status) {
@@ -36,20 +28,36 @@ adminUsersRouter.get('/', (req: AuthRequest, res) => {
     params.push(status)
   }
 
-  if (conditions.length > 0) {
-    sql += ' WHERE ' + conditions.join(' AND ')
-  }
+  const where = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : ''
+
+  const total = (
+    db.prepare(`SELECT COUNT(*) AS c FROM users u${where}`).get(...params) as any
+  ).c
+
+  const listSql = `
+    SELECT u.*,
+      (SELECT COUNT(*) FROM generation_tasks WHERE user_id = u.id) AS submitted_count,
+      (SELECT COUNT(*) FROM generation_tasks WHERE user_id = u.id AND status = 'completed') AS completed_count,
+      (SELECT COUNT(*) FROM generation_tasks WHERE user_id = u.id AND status = 'failed') AS failed_count,
+      (SELECT MAX(created_at) FROM generation_tasks WHERE user_id = u.id) AS last_submitted_at,
+      COALESCE((SELECT SUM(amount) FROM points_transactions WHERE user_id = u.id AND amount < 0), 0) AS total_spent,
+      COALESCE((SELECT SUM(amount) FROM points_transactions WHERE user_id = u.id AND amount > 0), 0) AS total_recharged
+    FROM users u${where}
+  `
 
   // 排序：白名单校验，防止 SQL 注入
   const SORTABLE = new Set(['points', 'total_spent', 'total_recharged', 'last_login_at'])
   const sortField = typeof sort === 'string' && SORTABLE.has(sort) ? sort : null
   const sortOrder = order === 'asc' ? 'ASC' : 'DESC'
-  sql += sortField
+  const orderBy = sortField
     ? ` ORDER BY ${sortField} ${sortOrder}`
     : ' ORDER BY u.created_at DESC'
 
-  const users = db.prepare(sql).all(...params)
-  res.json({ success: true, data: users })
+  const users = db
+    .prepare(listSql + orderBy + ' LIMIT ? OFFSET ?')
+    .all(...params, pageSize, (page - 1) * pageSize)
+
+  res.json({ success: true, data: { list: users, total, page, pageSize } })
 })
 
 // Create user
@@ -75,9 +83,9 @@ adminUsersRouter.post('/', (req: AuthRequest, res) => {
   res.json({ success: true, data: { id: result.lastInsertRowid, username } })
 })
 
-// Edit user (status / role only)
+// Edit user (status / role / admin note)
 adminUsersRouter.put('/:id', (req: AuthRequest, res) => {
-  const { status, role } = req.body
+  const { status, role, note } = req.body
   const userId = req.params.id
 
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any
@@ -105,6 +113,16 @@ adminUsersRouter.put('/:id', (req: AuthRequest, res) => {
     }
     updates.push('role = ?')
     params.push(role)
+  }
+
+  if (note !== undefined) {
+    if (typeof note !== 'string' || note.trim().length > 500) {
+      res.status(400).json({ success: false, error: '备注最长 500 字' })
+      return
+    }
+    const trimmed = note.trim()
+    updates.push('admin_note = ?')
+    params.push(trimmed === '' ? null : trimmed)
   }
 
   if (updates.length > 0) {

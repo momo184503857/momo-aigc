@@ -23,6 +23,7 @@ interface UserItem {
   last_submitted_at: string | null
   last_login_at: string | null
   created_at: string
+  admin_note: string | null
   total_spent?: number
   total_recharged?: number
 }
@@ -31,6 +32,10 @@ const users = ref<UserItem[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
 const statusFilter = ref('active')
+// 分页状态
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 // 后端排序状态（积分/累计消耗/累计充值）
 const sortField = ref<string>('')
 const sortOrder = ref<'asc' | 'desc'>('desc')
@@ -46,6 +51,7 @@ const editVisible = ref(false)
 const editUser = ref<UserItem | null>(null)
 const editStatus = ref('')
 const editRole = ref('')
+const editNote = ref('')
 const editLoading = ref(false)
 
 // Points dialog
@@ -66,7 +72,10 @@ const pointsValue = computed(() => {
 async function loadUsers() {
   loading.value = true
   try {
-    const params: any = {}
+    const params: any = {
+      page: page.value,
+      pageSize: pageSize.value,
+    }
     if (searchQuery.value) params.search = searchQuery.value
     if (statusFilter.value) params.status = statusFilter.value
     if (sortField.value) {
@@ -74,12 +83,25 @@ async function loadUsers() {
       params.order = sortOrder.value
     }
     const res = await adminApi.listUsers(params)
-    users.value = res.data.data || []
+    users.value = res.data.data.list || []
+    total.value = res.data.data.total || 0
+    // 若当前页已超出总页数（如搜索后数据变少），回退到最后一页
+    const maxPage = Math.max(1, Math.ceil(total.value / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return loadUsers()
+    }
   } catch {
     error('加载用户列表失败')
   } finally {
     loading.value = false
   }
+}
+
+// 筛选条件变化时回到第 1 页再查询
+function reloadFromFirstPage() {
+  page.value = 1
+  loadUsers()
 }
 
 // 表头排序：委托后端排序
@@ -92,7 +114,7 @@ function handleSortChange({ prop, order }: { prop: string; order: string | null 
     sortField.value = ''
     sortOrder.value = 'desc'
   }
-  loadUsers()
+  reloadFromFirstPage()
 }
 
 async function handleCreate() {
@@ -130,6 +152,7 @@ function openEdit(user: UserItem) {
   editUser.value = user
   editStatus.value = user.status
   editRole.value = user.role
+  editNote.value = user.admin_note || ''
   editVisible.value = true
 }
 
@@ -139,6 +162,7 @@ async function handleEdit() {
     await adminApi.updateUser(editUser.value!.id, {
       status: editStatus.value,
       role: editRole.value,
+      note: editNote.value,
     })
     success('保存成功')
     editVisible.value = false
@@ -228,15 +252,15 @@ onMounted(() => {
     <div style="margin-bottom:16px; display:flex; gap:12px; align-items:center">
       <el-input
         v-model="searchQuery"
-        placeholder="搜索用户名或邮箱..."
+        placeholder="搜索用户名 / 邮箱 / 备注..."
         clearable
         style="width:240px"
-        @change="loadUsers"
-        @clear="loadUsers"
+        @change="reloadFromFirstPage"
+        @clear="reloadFromFirstPage"
       >
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
-      <el-select v-model="statusFilter" style="width:120px" @change="loadUsers">
+      <el-select v-model="statusFilter" style="width:120px" @change="reloadFromFirstPage">
         <el-option label="全部" value="" />
         <el-option label="正常" value="active" />
         <el-option label="已禁用" value="disabled" />
@@ -269,6 +293,12 @@ onMounted(() => {
           <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
             {{ row.status === 'active' ? '正常' : '已禁用' }}
           </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="备注" min-width="140" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span v-if="row.admin_note">{{ row.admin_note }}</span>
+          <span v-else class="username-hint">—</span>
         </template>
       </el-table-column>
       <el-table-column label="积分" width="170" prop="points" sortable="custom">
@@ -312,6 +342,20 @@ onMounted(() => {
       </el-table-column>
     </el-table>
 
+    <!-- Pagination -->
+    <div class="table-pagination">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+        @size-change="reloadFromFirstPage"
+        @current-change="loadUsers"
+      />
+    </div>
+
     <!-- Create User Dialog -->
     <el-dialog v-model="createVisible" title="创建用户" width="400px">
       <el-form>
@@ -342,6 +386,16 @@ onMounted(() => {
             <el-radio value="user">用户</el-radio>
             <el-radio value="admin">管理员</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input
+            v-model="editNote"
+            type="textarea"
+            :rows="3"
+            maxlength="500"
+            show-word-limit
+            placeholder="仅管理员可见，可记录用户情况（如充值意向、特殊说明等）"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -395,5 +449,11 @@ onMounted(() => {
   font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-placeholder);
   margin-left: 4px;
+}
+
+.table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 </style>

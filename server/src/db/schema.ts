@@ -131,6 +131,11 @@ export function initSchema(): void {
     db.exec(`ALTER TABLE users ADD COLUMN nickname TEXT`)
   } catch { /* column already exists */ }
 
+  // Migration: add admin_note column to users（管理员后台用户备注，仅后台可见）
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN admin_note TEXT`)
+  } catch { /* column already exists */ }
+
   // email 唯一索引（部分索引：仅非空行参与，保证旧账号 email=NULL 不冲突）
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`)
 
