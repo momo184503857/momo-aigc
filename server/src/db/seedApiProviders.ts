@@ -200,3 +200,69 @@ export function seedToapisGptImage25(): void {
 
   console.log('[DB] Seeded ToAPIs gpt-image-2.5-sunburst channel model')
 }
+
+/** 将 ToAPIs 的 image2 / banana pro 渠道映射切换到指定 VIP 模型名。 */
+export function migrateToapisVipModelIds(): void {
+  const flag = db.prepare(`SELECT value FROM system_config WHERE key = 'migrate_toapis_vip_model_ids_v1'`).get() as { value: string } | undefined
+  if (flag?.value === 'done') return
+
+  const provider = db.prepare(`SELECT id FROM api_providers WHERE code = 'toapis' AND owner_user_id IS NULL`).get() as { id: number } | undefined
+  if (!provider) {
+    console.warn('[DB] migrateToapisVipModelIds skipped：toapis 渠道不存在')
+    return
+  }
+
+  const mappings = [
+    {
+      logicalCode: 'gpt-image-2',
+      oldModelId: 'gpt-image-2',
+      newModelId: 'gpt-image-2-vip',
+      displayName: 'GPT-Image-2 VIP',
+      remark: 'ToAPIs VIP 异步版；quality=low',
+    },
+    {
+      logicalCode: 'gemini-3-pro-image-preview',
+      oldModelId: 'gemini-3-pro-image-preview',
+      newModelId: 'gemini-3-pro-image-preview-vip',
+      displayName: 'Gemini 3 Pro Image Preview VIP',
+      remark: 'ToAPIs VIP 异步版',
+    },
+  ]
+
+  db.transaction(() => {
+    for (const mapping of mappings) {
+      const logical = db.prepare(`SELECT id FROM ai_logical_models WHERE code = ?`).get(mapping.logicalCode) as { id: number } | undefined
+      const source = db.prepare(`SELECT * FROM ai_models WHERE provider_id = ? AND model_id = ?`).get(provider.id, mapping.oldModelId) as any
+      const target = db.prepare(`SELECT * FROM ai_models WHERE provider_id = ? AND model_id = ?`).get(provider.id, mapping.newModelId) as any
+      if (!logical || (!source && !target)) {
+        throw new Error(`ToAPIs 模型映射缺失：${mapping.logicalCode}`)
+      }
+
+      if (!target && source) {
+        // 原地改名可保留渠道模型主键及所有历史任务/路由记录关联。
+        db.prepare(`
+          UPDATE ai_models
+          SET model_id = ?, display_name = ?, logical_model_id = ?, status = 'active', remark = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(mapping.newModelId, mapping.displayName, logical.id, mapping.remark, source.id)
+      } else {
+        db.prepare(`
+          UPDATE ai_models
+          SET display_name = ?, logical_model_id = ?, supports_vision = 1, supports_image_gen = 1,
+              status = 'active', pricing = COALESCE(pricing, ?), cost_pricing = COALESCE(cost_pricing, ?),
+              remark = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(mapping.displayName, logical.id, source?.pricing ?? null, source?.cost_pricing ?? null, mapping.remark, target.id)
+        if (source && source.id !== target.id) {
+          db.prepare(`UPDATE ai_models SET status = 'disabled', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(source.id)
+        }
+      }
+    }
+    db.prepare(`
+      INSERT INTO system_config (key, value) VALUES ('migrate_toapis_vip_model_ids_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'
+    `).run()
+  })()
+
+  console.log('[DB] Migrated ToAPIs image2 / banana pro channel models to VIP ids')
+}

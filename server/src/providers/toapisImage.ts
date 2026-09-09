@@ -92,7 +92,10 @@ function buildCreateBody(req: ImageGenRequest): Record<string, unknown> {
       size: req.aspectRatio,
       resolution: req.resolution,
     }
-    if (req.logicalCode === 'gpt-image-2') body.response_format = 'url'
+    if (req.logicalCode === 'gpt-image-2') {
+      body.response_format = 'url'
+      body.quality = 'low'
+    }
     if (req.logicalCode === 'gpt-image-2.5') body.quality = 'max'
     if (req.imageUrls.length > 0) body.reference_images = req.imageUrls
     return body
