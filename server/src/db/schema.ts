@@ -2,7 +2,7 @@ import path from 'node:path'
 import { db } from './index.js'
 import { config } from '../config.js'
 import { initSuiteGen } from './seedSuiteGen.js'
-import { initApiProviders, seedYilianChannel } from './seedApiProviders.js'
+import { initApiProviders, seedToapisGptImage25, seedYilianChannel } from './seedApiProviders.js'
 import { initAiProviderMigration } from './migrateAiProvider.js'
 import { syncCanonicalLogicalModels } from './logicalModels.js'
 
@@ -1030,6 +1030,9 @@ export function initSchema(): void {
     creditsDp2Txn()
     console.log(`[DB] Migration credits_dp2 done (3 → 2 位小数; ${roundedPricing.length} 个渠道模型定价已取整)`)
   }
+
+  // image2.5 首期仅接入 ToAPIs；放在金额迁移后，冷启动与存量库均直接写当前积分单位。
+  seedToapisGptImage25()
 
   console.log('[DB] Schema initialized')
 }

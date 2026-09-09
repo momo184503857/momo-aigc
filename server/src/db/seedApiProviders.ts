@@ -134,3 +134,69 @@ export function seedYilianChannel(): void {
 
   console.log('[DB] Seeded api_providers (yilian)')
 }
+
+/**
+ * 为既有与新建数据库补齐 image2.5 的首个渠道映射。
+ *
+ * ToAPIs 将 gpt-image-2.5 定义为系列名，实际请求必须使用完整模型名；这里采用
+ * 普通异步版 gpt-image-2.5-sunburst。价格按文档 USD 档位以
+ * 1 USD ≈ 7 积分换算，并按当前账务精度取两位小数。
+ */
+export function seedToapisGptImage25(): void {
+  const flag = db.prepare(`SELECT value FROM system_config WHERE key = 'seed_toapis_gpt_image_25_v4'`).get() as { value: string } | undefined
+  if (flag?.value === 'done') return
+
+  const provider = db.prepare(`SELECT id FROM api_providers WHERE code = 'toapis' AND owner_user_id IS NULL`).get() as { id: number } | undefined
+  const logical = db.prepare(`SELECT id FROM ai_logical_models WHERE code = 'gpt-image-2.5'`).get() as { id: number } | undefined
+  if (!provider || !logical) {
+    console.warn('[DB] seedToapisGptImage25 skipped：toapis 渠道或 gpt-image-2.5 逻辑模型不存在')
+    return
+  }
+
+  const costPricing = JSON.stringify({ '1K': 0.11, '2K': 0.14, '4K': 0.18 })
+  const salePricing = JSON.stringify({ '1K': 0.2, '2K': 0.25, '4K': 0.4 })
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO ai_models
+        (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat,
+         logical_model_id, pricing, cost_pricing, status, remark, created_at, updated_at)
+      VALUES (?, 'gpt-image-2.5-sunburst', 'GPT-Image-2.5 Sunburst', 1, 1, 0,
+              ?, ?, ?, 'active', 'ToAPIs 普通异步版；quality=max；按 resolution 计价', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(provider_id, model_id) DO UPDATE SET
+        display_name = excluded.display_name,
+        supports_vision = 1,
+        supports_image_gen = 1,
+        supports_chat = 0,
+        logical_model_id = excluded.logical_model_id,
+        pricing = excluded.pricing,
+        cost_pricing = excluded.cost_pricing,
+        status = 'active',
+        remark = excluded.remark,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(provider.id, logical.id, costPricing, costPricing)
+    // 早期开发版本曾短暂写入 Flare；明确停用，确保自动路由只会选择 Sunburst。
+    db.prepare(`
+      UPDATE ai_models
+      SET status = 'disabled', remark = '已改用 gpt-image-2.5-sunburst', updated_at = CURRENT_TIMESTAMP
+      WHERE provider_id = ? AND model_id = 'gpt-image-2.5-flare'
+    `).run(provider.id)
+    // 没有历史引用时直接清理开发期 Flare 行；已有任务引用则保留为 disabled 以维护审计关系。
+    db.prepare(`
+      DELETE FROM ai_models
+      WHERE provider_id = ? AND model_id = 'gpt-image-2.5-flare'
+        AND NOT EXISTS (SELECT 1 FROM generation_tasks t WHERE t.channel_model_id = ai_models.id)
+        AND NOT EXISTS (SELECT 1 FROM generation_route_attempts a WHERE a.channel_model_id = ai_models.id)
+    `).run(provider.id)
+    db.prepare(`
+      UPDATE ai_logical_models
+      SET sale_pricing = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(salePricing, logical.id)
+    db.prepare(`
+      INSERT INTO system_config (key, value) VALUES ('seed_toapis_gpt_image_25_v4', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'
+    `).run()
+  })()
+
+  console.log('[DB] Seeded ToAPIs gpt-image-2.5-sunburst channel model')
+}

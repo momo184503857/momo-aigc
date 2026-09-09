@@ -12,6 +12,7 @@ import { db } from './index.js'
  */
 
 const ASPECTS_10 = ['1:1', '16:9', '9:16', '4:3', '3:4', '4:5', '5:4', '2:3', '3:2', '21:9']
+const ASPECTS_GPT_IMAGE_25 = ['1:1', '3:2', '2:3', '4:3', '3:4', '5:4', '4:5', '16:9', '9:16', '2:1', '1:2', '21:9', '9:21']
 const ASPECTS_14 = ['1:1', '16:9', '9:16', '4:3', '3:4', '4:5', '5:4', '2:3', '3:2', '1:4', '4:1', '1:8', '8:1', '21:9']
 
 export interface LogicalModelSeed {
@@ -36,6 +37,18 @@ export const CANONICAL_LOGICAL_MODELS: LogicalModelSeed[] = [
         '4K': ['16:9', '9:16', '21:9', '4:3', '3:4', '2:3', '3:2'],
       },
       aspectRatios: ASPECTS_10,
+      maxReferenceImages: 14,
+      maxPromptChars: 32000,
+    },
+  },
+  {
+    code: 'gpt-image-2.5',
+    name: 'image2.5',
+    kind: 'image',
+    default_params: {
+      resolutions: ['1K', '2K', '4K'],
+      aspectRatios: ASPECTS_GPT_IMAGE_25,
+      // ToAPIs 文档未声明参考图数量与提示词长度上限，沿用平台通用保护上限。
       maxReferenceImages: 14,
       maxPromptChars: 32000,
     },

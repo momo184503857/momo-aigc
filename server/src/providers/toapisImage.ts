@@ -18,7 +18,7 @@ import { resolveUpstreamImageUrls } from '../utils/upstreamImages.js'
  * 迁移自 utils/toapis.ts + 前端 buildGptImage2Request/buildGeminiRequest：
  *  - 提交 POST {base}/v1/images/generations → 返回任务号（异步）；
  *  - 轮询 GET  {base}/v1/images/generations/:id → status/progress/resultUrls；
- *  - 请求体按逻辑模型分支：gpt-image-2 用顶层 resolution + reference_images，
+ *  - 请求体按逻辑模型分支：gpt-image-2 / gpt-image-2.5 用顶层 resolution + reference_images，
  *    gemini 系用 metadata.resolution + image_urls（现状格式，原样保留）；
  *  - 余额查询沿用 /v1/balance（supportsBalance=true，驱动「我的渠道」余额 UI）；
  *  - 文字调用（chat）与 OpenAI 兼容协议同构，复用 openaiCompat 工厂（/v1/chat/completions）。
@@ -84,15 +84,16 @@ async function getJson(url: string, apiKey: string, timeoutMs = 120_000): Promis
 }
 
 function buildCreateBody(req: ImageGenRequest): Record<string, unknown> {
-  if (req.logicalCode === 'gpt-image-2') {
+  if (req.logicalCode === 'gpt-image-2' || req.logicalCode === 'gpt-image-2.5') {
     const body: Record<string, unknown> = {
       model: req.model,
       prompt: req.prompt,
       n: 1,
       size: req.aspectRatio,
       resolution: req.resolution,
-      response_format: 'url',
     }
+    if (req.logicalCode === 'gpt-image-2') body.response_format = 'url'
+    if (req.logicalCode === 'gpt-image-2.5') body.quality = 'max'
     if (req.imageUrls.length > 0) body.reference_images = req.imageUrls
     return body
   }
