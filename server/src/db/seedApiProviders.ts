@@ -266,3 +266,24 @@ export function migrateToapisVipModelIds(): void {
 
   console.log('[DB] Migrated ToAPIs image2 / banana pro channel models to VIP ids')
 }
+
+/** 将存量 ToAPIs 平台渠道的中国大陆入口切换为 toapis.cn。 */
+export function migrateToapisBaseUrl(): void {
+  const flag = db.prepare(`SELECT value FROM system_config WHERE key = 'migrate_toapis_base_url_cn_v1'`).get() as { value: string } | undefined
+  if (flag?.value === 'done') return
+
+  db.transaction(() => {
+    const result = db.prepare(`
+      UPDATE api_providers
+      SET base_url = 'https://toapis.cn', updated_at = CURRENT_TIMESTAMP
+      WHERE code = 'toapis' AND owner_user_id IS NULL
+    `).run()
+    if (result.changes === 0) throw new Error('ToAPIs 平台渠道不存在，无法更新入口')
+    db.prepare(`
+      INSERT INTO system_config (key, value) VALUES ('migrate_toapis_base_url_cn_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'
+    `).run()
+  })()
+
+  console.log('[DB] Migrated ToAPIs base URL to https://toapis.cn')
+}

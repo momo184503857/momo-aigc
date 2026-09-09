@@ -2,7 +2,7 @@ import path from 'node:path'
 import { db } from './index.js'
 import { config } from '../config.js'
 import { initSuiteGen } from './seedSuiteGen.js'
-import { initApiProviders, migrateToapisVipModelIds, seedToapisGptImage25, seedYilianChannel } from './seedApiProviders.js'
+import { initApiProviders, migrateToapisBaseUrl, migrateToapisVipModelIds, seedToapisGptImage25, seedYilianChannel } from './seedApiProviders.js'
 import { initAiProviderMigration } from './migrateAiProvider.js'
 import { syncCanonicalLogicalModels } from './logicalModels.js'
 
@@ -1036,6 +1036,9 @@ export function initSchema(): void {
 
   // ToAPIs 指定逻辑模型切换到 VIP 上游模型名（原地迁移，保留历史关联）。
   migrateToapisVipModelIds()
+
+  // 中国大陆主入口统一使用 toapis.cn。
+  migrateToapisBaseUrl()
 
   console.log('[DB] Schema initialized')
 }

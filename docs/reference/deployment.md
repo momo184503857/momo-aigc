@@ -82,7 +82,7 @@ JWT_SECRET=<随机字符串，用 openssl rand -hex 32 生成>
 PORT=3000
 
 # ToAPIs Base URL
-TOAPIS_BASE_URL=https://toapis.xyz
+TOAPIS_BASE_URL=https://toapis.cn
 ```
 
 直接传模式下：上传图片保存在 `server/data/uploads/`（由 `/api/files/` 静态服务），生图参考图提交时直传 AI 渠道（ToAPIs 走 `/v1/uploads/images` 官方上传接口，OpenAI 兼容 / 火山走 base64），结果图由服务端直接下载落盘。**无需 OSS、无需 CORS 配置。**
