@@ -206,15 +206,17 @@ function loadLogicalModel(id: number) {
   return db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(id) as any
 }
 
+/** 候选渠道严格按管理员维护的 route_priority 排序；成本仅用于资格校验与尝试记录。 */
 function eligibleChannelModels(task: any): any[] {
   const attemptedProviders = new Set((db.prepare(`SELECT provider_id FROM generation_route_attempts WHERE task_id = ?`).all(task.id) as any[]).map((r) => r.provider_id))
   const rows = db.prepare(`
     SELECT m.id, m.provider_id, m.model_id, m.display_name, m.logical_model_id, m.param_overrides,
-           m.cost_pricing, m.supports_image_gen, m.status AS model_status,
+           m.route_priority, m.route_enabled, m.cost_pricing, m.supports_image_gen, m.status AS model_status,
            p.id AS p_id, p.code AS p_code, p.name AS p_name, p.base_url AS p_base_url,
            p.adapter AS p_adapter, p.status AS p_status
     FROM ai_models m JOIN api_providers p ON p.id = m.provider_id
     WHERE m.logical_model_id = ? AND m.supports_image_gen = 1
+      AND m.route_enabled = 1
       AND m.status = 'active' AND p.status = 'active'
       AND EXISTS (SELECT 1 FROM api_provider_keys k WHERE k.provider_id = p.id AND k.status = 'active')
   `).all(task.logical_model_id) as any[]
@@ -231,7 +233,7 @@ function eligibleChannelModels(task: any): any[] {
     if (String(task.prompt || '').length > (caps.maxPromptChars ?? 32000)) return false
     cm.route_cost = cost
     return true
-  }).sort((a, b) => a.route_cost - b.route_cost || a.id - b.id)
+  }).sort((a, b) => a.route_priority - b.route_priority || a.id - b.id)
     .filter((cm, index, all) => all.findIndex((candidate) => candidate.p_id === cm.p_id) === index)
 }
 

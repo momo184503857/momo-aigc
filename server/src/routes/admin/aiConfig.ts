@@ -398,14 +398,17 @@ adminAiConfigRouter.post('/models', (req: AuthRequest, res) => {
 
     const dup = db.prepare(`SELECT id FROM ai_models WHERE provider_id = ? AND model_id = ?`).get(values.provider_id, values.model_id)
     if (dup) { res.status(409).json({ success: false, error: '该服务商下已存在同名模型' }); return }
+    const routePriority = isImage
+      ? Number((db.prepare(`SELECT COALESCE(MAX(route_priority), 0) + 1 AS n FROM ai_models WHERE logical_model_id = ? AND supports_image_gen = 1`).get(logicalId) as any).n)
+      : 100
     const result = db.prepare(`
-      INSERT INTO ai_models (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat, logical_model_id, param_overrides, cost_pricing, remark, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ai_models (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat, logical_model_id, param_overrides, cost_pricing, route_priority, remark, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       values.provider_id, values.model_id, values.display_name, values.supports_vision ?? 0, values.supports_image_gen ?? 0,
       values.supports_chat ?? 0, logicalId, values.overridesJson ?? null,
       isImage && (req.body.cost_pricing ?? req.body.pricing) ? JSON.stringify(req.body.cost_pricing ?? req.body.pricing) : null,
-      values.remark, values.status ?? 'active',
+      routePriority, values.remark, values.status ?? 'active',
     )
     const row = db.prepare(`SELECT * FROM ai_models WHERE id = ?`).get(result.lastInsertRowid) as any
     res.json({ success: true, data: { ...row, supports_vision: !!row.supports_vision, supports_image_gen: !!row.supports_image_gen, supports_chat: !!row.supports_chat } })
@@ -444,6 +447,10 @@ adminAiConfigRouter.patch('/models/:id', (req: AuthRequest, res) => {
     if (body.logical_model_id !== undefined) {
       if (mergedGen && !values.logicalId) { res.status(400).json({ success: false, error: '生图模型必须关联逻辑模型' }); return }
       fields.push('logical_model_id = ?'); params.push(values.logicalId)
+      if (mergedGen && (!row.supports_image_gen || values.logicalId !== row.logical_model_id)) {
+        const nextPriority = Number((db.prepare(`SELECT COALESCE(MAX(route_priority), 0) + 1 AS n FROM ai_models WHERE logical_model_id = ? AND supports_image_gen = 1`).get(values.logicalId) as any).n)
+        fields.push('route_priority = ?'); params.push(nextPriority)
+      }
     }
     if (body.param_overrides !== undefined) { fields.push('param_overrides = ?'); params.push(values.overridesJson ?? null) }
     if (body.cost_pricing !== undefined || body.pricing !== undefined) {
@@ -717,6 +724,19 @@ adminAiConfigRouter.post('/storage/test', async (req: AuthRequest, res) => {
 // ── 逻辑模型管理（FR2：标准模型抽象，渠道模型共享能力定义）──
 
 function serializeLogicalModel(row: any) {
+  const routes = db.prepare(`
+    SELECT m.id AS channel_model_id, m.model_id, m.display_name, m.route_priority, m.route_enabled,
+           m.cost_pricing, m.status AS model_status,
+           p.id AS provider_id, p.name AS provider_name, p.display_name AS provider_display_name,
+           p.status AS provider_status,
+           EXISTS (
+             SELECT 1 FROM api_provider_keys k
+             WHERE k.provider_id = p.id AND k.status = 'active'
+           ) AS has_active_key
+    FROM ai_models m JOIN api_providers p ON p.id = m.provider_id
+    WHERE m.logical_model_id = ? AND m.supports_image_gen = 1
+    ORDER BY m.route_priority ASC, m.id ASC
+  `).all(row.id) as any[]
   return {
     id: row.id,
     code: row.code,
@@ -727,6 +747,20 @@ function serializeLogicalModel(row: any) {
     status: row.status,
     remark: row.remark,
     modelCount: (db.prepare(`SELECT COUNT(*) AS c FROM ai_models WHERE logical_model_id = ?`).get(row.id) as any).c,
+    routes: routes.map((route) => ({
+      channelModelId: route.channel_model_id,
+      modelId: route.model_id,
+      modelName: route.display_name || route.model_id,
+      providerId: route.provider_id,
+      providerName: route.provider_name,
+      providerDisplayName: route.provider_display_name,
+      routePriority: route.route_priority,
+      routeEnabled: !!route.route_enabled,
+      providerStatus: route.provider_status,
+      modelStatus: route.model_status,
+      hasActiveKey: !!route.has_active_key,
+      costPricing: parseParams(route.cost_pricing),
+    })),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -785,6 +819,66 @@ adminAiConfigRouter.patch('/logical-models/:id', (req: AuthRequest, res) => {
   } catch (err: any) {
     console.error('[admin/ai-config] Update logical model error:', err.message)
     res.status(500).json({ success: false, error: '更新逻辑模型失败' })
+  }
+})
+
+// PUT /api/admin/ai-config/logical-models/:id/route-order —— 原子保存完整渠道优先顺序与参与状态
+adminAiConfigRouter.put('/logical-models/:id/route-order', (req: AuthRequest, res) => {
+  try {
+    const logicalId = Number(req.params.id)
+    const routeConfigs = req.body?.routes
+    const channelModelIds = routeConfigs === undefined
+      ? req.body?.channel_model_ids
+      : Array.isArray(routeConfigs)
+        ? routeConfigs.map((route: any) => route?.channel_model_id)
+        : routeConfigs
+    if (!Number.isInteger(logicalId) || logicalId < 1) {
+      res.status(400).json({ success: false, error: '逻辑模型 ID 非法' }); return
+    }
+    if (!Array.isArray(channelModelIds) || channelModelIds.some((id) => !Number.isInteger(id) || id < 1)) {
+      res.status(400).json({ success: false, error: 'channel_model_ids 必须为正整数数组' }); return
+    }
+    if (routeConfigs !== undefined && (
+      !Array.isArray(routeConfigs)
+      || routeConfigs.some((route: any) => !route || typeof route !== 'object' || typeof route.enabled !== 'boolean')
+    )) {
+      res.status(400).json({ success: false, error: 'routes 必须包含 channel_model_id 与布尔值 enabled' }); return
+    }
+    if (new Set(channelModelIds).size !== channelModelIds.length) {
+      res.status(400).json({ success: false, error: '渠道模型顺序不能包含重复项' }); return
+    }
+
+    const updated = db.transaction(() => {
+      const logical = db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(logicalId) as any
+      if (!logical) throw Object.assign(new Error('逻辑模型不存在'), { status: 404 })
+      if (logical.kind !== 'image') throw Object.assign(new Error('文字逻辑模型不支持生图渠道排序'), { status: 400 })
+      const existing = db.prepare(`
+        SELECT id FROM ai_models
+        WHERE logical_model_id = ? AND supports_image_gen = 1
+        ORDER BY id ASC
+      `).all(logicalId) as Array<{ id: number }>
+      const existingIds = existing.map((item) => item.id)
+      const expected = [...existingIds].sort((a, b) => a - b)
+      const received = [...channelModelIds].sort((a, b) => a - b)
+      if (expected.length !== received.length || expected.some((id, index) => id !== received[index])) {
+        throw Object.assign(new Error('渠道列表已变化，请刷新后重新排序'), { status: 409 })
+      }
+      const updateOrder = db.prepare(`UPDATE ai_models SET route_priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND logical_model_id = ?`)
+      const updateConfig = db.prepare(`UPDATE ai_models SET route_priority = ?, route_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND logical_model_id = ?`)
+      channelModelIds.forEach((channelModelId, index) => {
+        if (routeConfigs === undefined) {
+          updateOrder.run(index + 1, channelModelId, logicalId)
+        } else {
+          updateConfig.run(index + 1, routeConfigs[index].enabled ? 1 : 0, channelModelId, logicalId)
+        }
+      })
+      return db.prepare(`SELECT * FROM ai_logical_models WHERE id = ?`).get(logicalId) as any
+    })()
+
+    res.json({ success: true, data: serializeLogicalModel(updated) })
+  } catch (err: any) {
+    console.error('[admin/ai-config] Update route config error:', err.message)
+    res.status(err.status || 500).json({ success: false, error: err.status ? err.message : '保存路由配置失败' })
   }
 })
 

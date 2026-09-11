@@ -82,6 +82,15 @@ function runDdl(): void {
   try { db.exec(`ALTER TABLE ai_models ADD COLUMN pricing TEXT`) } catch { /* column exists */ }
   try { db.exec(`ALTER TABLE ai_models ADD COLUMN cost_pricing TEXT`) } catch { /* column exists */ }
   try { db.exec(`ALTER TABLE ai_models ADD COLUMN supports_chat INTEGER NOT NULL DEFAULT 0`) } catch { /* column exists */ }
+  const hasRoutePriority = !!db.prepare(`SELECT name FROM pragma_table_info('ai_models') WHERE name = 'route_priority'`).get()
+  if (!hasRoutePriority) {
+    db.exec(`ALTER TABLE ai_models ADD COLUMN route_priority INTEGER NOT NULL DEFAULT 100`)
+    db.prepare(`UPDATE ai_models SET route_priority = id`).run()
+  }
+  const hasRouteEnabled = !!db.prepare(`SELECT name FROM pragma_table_info('ai_models') WHERE name = 'route_enabled'`).get()
+  if (!hasRouteEnabled) {
+    db.exec(`ALTER TABLE ai_models ADD COLUMN route_enabled INTEGER NOT NULL DEFAULT 1`)
+  }
   try { db.exec(`ALTER TABLE ai_logical_models ADD COLUMN sale_pricing TEXT`) } catch { /* column exists */ }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_models_logical ON ai_models(logical_model_id);`)
 

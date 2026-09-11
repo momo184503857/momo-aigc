@@ -20,8 +20,9 @@ import {
   type ProviderKeyRow,
   type AdapterInfo,
   type LogicalModelRow,
+  type LogicalModelRouteRow,
 } from '@/services/aiConfigApi'
-import { Plus, Refresh, Edit, Delete, Key, Connection, UploadFilled, ChatDotRound, CopyDocument, QuestionFilled } from '@element-plus/icons-vue'
+import { Plus, Refresh, Edit, Delete, Key, Connection, UploadFilled, ChatDotRound, CopyDocument, QuestionFilled, Rank, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const { copy } = useClipboard()
@@ -626,6 +627,81 @@ function fmtCost(value: number): string {
   return Number(value.toFixed(4)).toString()
 }
 
+// ── 逻辑模型渠道路由顺序 ──
+const routeDialog = ref(false)
+const routeEditing = ref<LogicalModelRow | null>(null)
+const routeDraft = ref<LogicalModelRouteRow[]>([])
+const routeSaving = ref(false)
+const draggedRouteId = ref<number | null>(null)
+
+function openRouteEditor(row: LogicalModelRow) {
+  routeEditing.value = row
+  routeDraft.value = (row.routes ?? []).map((route) => ({ ...route, costPricing: route.costPricing ? { ...route.costPricing } : null }))
+  draggedRouteId.value = null
+  routeDialog.value = true
+}
+
+function moveRoute(index: number, offset: number) {
+  const target = index + offset
+  if (target < 0 || target >= routeDraft.value.length) return
+  const next = [...routeDraft.value]
+  const [item] = next.splice(index, 1)
+  next.splice(target, 0, item)
+  routeDraft.value = next
+}
+
+function startRouteDrag(event: DragEvent, route: LogicalModelRouteRow) {
+  draggedRouteId.value = route.channelModelId
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(route.channelModelId))
+  }
+}
+
+function dropRoute(target: LogicalModelRouteRow) {
+  const sourceId = draggedRouteId.value
+  draggedRouteId.value = null
+  if (!sourceId || sourceId === target.channelModelId) return
+  const next = [...routeDraft.value]
+  const sourceIndex = next.findIndex((route) => route.channelModelId === sourceId)
+  const targetIndex = next.findIndex((route) => route.channelModelId === target.channelModelId)
+  if (sourceIndex < 0 || targetIndex < 0) return
+  const [item] = next.splice(sourceIndex, 1)
+  next.splice(targetIndex, 0, item)
+  routeDraft.value = next
+}
+
+function routeState(route: LogicalModelRouteRow): { label: string; type: 'success' | 'info' | 'warning' | 'danger' } {
+  if (!route.routeEnabled) return { label: '已关闭路由', type: 'info' }
+  if (route.providerStatus !== 'active') return { label: '渠道已停用', type: 'info' }
+  if (route.modelStatus !== 'active') return { label: '模型已停用', type: 'info' }
+  if (!route.hasActiveKey) return { label: '无可用 Key', type: 'danger' }
+  return { label: '可路由', type: 'success' }
+}
+
+function routeCostSummary(route: LogicalModelRouteRow): string {
+  if (!route.costPricing) return '未配置成本价'
+  return Object.entries(route.costPricing).map(([resolution, price]) => `${resolution} ${fmtCost(price)}`).join(' · ')
+}
+
+async function saveRouteConfig() {
+  if (!routeEditing.value) return
+  routeSaving.value = true
+  try {
+    await aiConfigApi.updateLogicalModelRouteConfig(
+      routeEditing.value.id,
+      routeDraft.value.map((route) => ({ channelModelId: route.channelModelId, enabled: route.routeEnabled })),
+    )
+    success('渠道路由配置已保存')
+    routeDialog.value = false
+    await loadAllLogicalModels()
+  } catch (e) {
+    error(e, '保存渠道路由配置失败')
+  } finally {
+    routeSaving.value = false
+  }
+}
+
 // ── 存储配置（直接传 / 阿里云 OSS）──
 const storageForm = ref<{
   mode: 'direct' | 'oss'
@@ -1085,6 +1161,14 @@ onMounted(() => {
               </template>
             </el-table-column>
             <el-table-column prop="modelCount" label="关联渠道模型" width="110" align="center" />
+            <el-table-column label="操作" width="100" fixed="right" align="center">
+              <template #default="{ row }">
+                <el-button v-if="row.kind === 'image'" link type="primary" :icon="Edit" @click="openRouteEditor(row)">
+                  编辑
+                </el-button>
+                <span v-else class="cap-no">—</span>
+              </template>
+            </el-table-column>
           </el-table>
         </section>
       </el-tab-pane>
@@ -1287,6 +1371,91 @@ onMounted(() => {
       </template>
     </el-dialog>
 
+    <!-- 逻辑模型渠道优先路由弹窗 -->
+    <el-dialog
+      v-model="routeDialog"
+      :title="`编辑逻辑模型 · ${routeEditing?.name || ''}`"
+      width="var(--momo-dialog-md)"
+      destroy-on-close
+    >
+      <div class="route-editor-intro">
+        <div>
+          <strong>{{ routeEditing?.code }}</strong>
+          <span>开启“参与路由”的渠道才会按下方顺序尝试；成本价只用于诊断，不参与排序。</span>
+        </div>
+        <el-tag type="info" effect="plain">全分辨率共用</el-tag>
+      </div>
+
+      <div v-if="routeDraft.length" class="route-list" role="list" aria-label="渠道优先路由顺序">
+        <div
+          v-for="(route, index) in routeDraft"
+          :key="route.channelModelId"
+          class="route-item"
+          :class="{
+            'route-item-dragging': draggedRouteId === route.channelModelId,
+            'route-item-disabled': !route.routeEnabled,
+          }"
+          role="listitem"
+          draggable="true"
+          @dragstart="startRouteDrag($event, route)"
+          @dragend="draggedRouteId = null"
+          @dragover.prevent
+          @drop.prevent="dropRoute(route)"
+        >
+          <button
+            type="button"
+            class="route-drag-handle"
+            :aria-label="`拖动调整 ${route.providerName} 的顺序`"
+            title="按住拖动调整顺序"
+          >
+            <el-icon><Rank /></el-icon>
+          </button>
+          <span class="route-index">{{ index + 1 }}</span>
+          <div class="route-main">
+            <div class="route-title-row">
+              <strong>{{ route.providerName }}</strong>
+              <span class="route-model-name">{{ route.modelName }}</span>
+              <el-tag size="small" :type="routeState(route).type" effect="light">
+                {{ routeState(route).label }}
+              </el-tag>
+            </div>
+            <div class="route-meta">
+              <code>{{ route.modelId }}</code>
+              <span>{{ routeCostSummary(route) }}</span>
+            </div>
+          </div>
+          <div class="route-toggle">
+            <span>参与路由</span>
+            <el-switch
+              v-model="route.routeEnabled"
+              :aria-label="`${route.providerName} 参与当前逻辑模型路由`"
+              draggable="false"
+            />
+          </div>
+          <div class="route-keyboard-actions" aria-label="键盘调整顺序">
+            <el-button
+              circle size="small" :icon="ArrowUp" :disabled="index === 0"
+              :aria-label="`上移 ${route.providerName}`"
+              @click="moveRoute(index, -1)"
+            />
+            <el-button
+              circle size="small" :icon="ArrowDown" :disabled="index === routeDraft.length - 1"
+              :aria-label="`下移 ${route.providerName}`"
+              @click="moveRoute(index, 1)"
+            />
+          </div>
+        </div>
+      </div>
+      <el-empty v-else description="该逻辑模型尚未接入生图渠道" :image-size="72" />
+
+      <template #footer>
+        <el-button @click="routeDialog = false">取消</el-button>
+        <el-button type="primary" :loading="routeSaving" :disabled="routeDraft.length === 0" @click="saveRouteConfig">
+          保存路由配置
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- Key 弹窗 -->
     <el-dialog
       v-model="keyDialog"
@@ -1342,6 +1511,131 @@ onMounted(() => {
   flex: 1;
   font-size: var(--momo-font-size-xs, 12px);
   color: var(--el-text-color-secondary);
+}
+
+/* ── 逻辑模型渠道优先路由 ── */
+.route-editor-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--momo-space-3);
+  margin-bottom: var(--momo-space-3);
+  padding: var(--momo-space-2) var(--momo-space-3);
+  border: 1px solid var(--momo-color-border-soft);
+  border-radius: var(--momo-radius-sm);
+  background: var(--momo-color-bg-soft);
+}
+.route-editor-intro > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--momo-space-1);
+  min-width: 0;
+}
+.route-editor-intro span {
+  color: var(--momo-color-text-secondary);
+  font-size: var(--momo-font-size-xs);
+  line-height: 1.6;
+}
+.route-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--momo-space-2);
+  max-height: var(--momo-dialog-xs);
+  overflow-y: auto;
+}
+.route-item {
+  display: flex;
+  align-items: center;
+  gap: var(--momo-space-2);
+  min-height: calc(var(--momo-space-8) * 2);
+  padding: var(--momo-space-2) var(--momo-space-3);
+  border: 1px solid var(--momo-color-border-soft);
+  border-radius: var(--momo-radius-md);
+  background: var(--momo-color-bg);
+  transition: border-color var(--momo-transition-fast), background-color var(--momo-transition-fast), opacity var(--momo-transition-fast);
+}
+.route-item:hover {
+  border-color: var(--momo-color-brand-border);
+  background: var(--momo-color-brand-subtle);
+}
+.route-item-disabled {
+  background: var(--momo-color-bg-soft);
+}
+.route-item-disabled .route-main {
+  opacity: 0.72;
+}
+.route-item-dragging { opacity: 0.55; }
+.route-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--momo-space-7);
+  height: var(--momo-control-height);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--momo-color-text-tertiary);
+  cursor: grab;
+}
+.route-drag-handle:active { cursor: grabbing; }
+.route-drag-handle:focus-visible {
+  outline: 2px solid var(--momo-color-control-focus);
+  outline-offset: 2px;
+  border-radius: var(--momo-radius-sm);
+}
+.route-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--momo-space-6);
+  height: var(--momo-space-6);
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--momo-color-bg-muted);
+  color: var(--momo-color-text-secondary);
+  font-size: var(--momo-font-size-xs);
+  font-weight: var(--momo-font-weight-semibold);
+}
+.route-main { flex: 1; min-width: 0; }
+.route-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--momo-space-2);
+  min-width: 0;
+}
+.route-model-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--momo-color-text-secondary);
+  font-size: var(--momo-font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.route-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--momo-space-2) var(--momo-space-3);
+  margin-top: var(--momo-space-1);
+  color: var(--momo-color-text-tertiary);
+  font-size: var(--momo-font-size-xs);
+}
+.route-meta code {
+  color: var(--momo-color-text-secondary);
+  word-break: break-all;
+}
+.route-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--momo-space-1);
+  flex-shrink: 0;
+  color: var(--momo-color-text-secondary);
+  font-size: var(--momo-font-size-xs);
+}
+.route-keyboard-actions {
+  display: flex;
+  gap: var(--momo-space-1);
+  flex-shrink: 0;
 }
 
 /* ── 存储配置页签 ── */

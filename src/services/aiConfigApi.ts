@@ -13,6 +13,21 @@ export interface AdapterInfo {
   supportsBalance?: boolean
 }
 
+export interface LogicalModelRouteRow {
+  channelModelId: number
+  modelId: string
+  modelName: string
+  providerId: number
+  providerName: string
+  providerDisplayName: string | null
+  routePriority: number
+  routeEnabled: boolean
+  providerStatus: 'active' | 'disabled'
+  modelStatus: 'active' | 'disabled'
+  hasActiveKey: boolean
+  costPricing: Record<string, number> | null
+}
+
 /** 逻辑模型（标准模型抽象：能力定义，所有关联渠道模型共享） */
 export interface LogicalModelRow {
   id: number
@@ -30,6 +45,7 @@ export interface LogicalModelRow {
   status: 'active' | 'disabled'
   remark: string
   modelCount: number
+  routes: LogicalModelRouteRow[]
   createdAt: string
   updatedAt: string
 }
@@ -68,6 +84,8 @@ export interface ModelRow {
   status: 'active' | 'disabled'
   created_at: string
   updated_at: string
+  route_priority?: number
+  route_enabled?: boolean
 }
 
 export interface ProviderRow {
@@ -186,6 +204,10 @@ export const aiConfigApi = {
   /** 逻辑模型管理（FR2） */
   listLogicalModels: () => http.get<{ data: LogicalModelRow[] }>('/admin/ai-config/logical-models'),
   updateLogicalModel: (id: number, payload: { name?: string; sale_pricing?: Record<string, number> }) => http.patch<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}`, payload),
+  updateLogicalModelRouteConfig: (id: number, routes: Array<{ channelModelId: number; enabled: boolean }>) =>
+    http.put<{ data: LogicalModelRow }>(`/admin/ai-config/logical-models/${id}/route-order`, {
+      routes: routes.map((route) => ({ channel_model_id: route.channelModelId, enabled: route.enabled })),
+    }),
 
   /** 存储配置（直接传 / 阿里云 OSS，含 OSS 密钥——存 DB 不入 git） */
   getStorageConfig: () => http.get<{ data: StorageConfig }>('/admin/ai-config/storage'),

@@ -10,7 +10,7 @@ import type {
 } from './types.js'
 import { postJson, postForm, joinUrl, extractErrorMessage, ProviderCallError } from './http.js'
 import { createOpenAiCompatAdapter } from './openaiCompat.js'
-import { toPixelSize, clampPixelSize } from '../utils/imageSize.js'
+import { toPixelSize, clampPixelSize, toApiYiGptImage25VipSize } from '../utils/imageSize.js'
 import { resolveUpstreamInlineImages } from '../utils/upstreamImages.js'
 
 /**
@@ -74,11 +74,24 @@ export const openaiImageAdapter: ImageProviderAdapter = {
 
   async submitImageTask(req: ImageGenRequest, ctx: ProviderRuntimeConfig): Promise<ImageGenSubmitResult> {
     if (!ctx.apiKey) throw new ProviderCallError('未配置 API Key（请先在该渠道下设置主 Key）')
-    // 渠道硬限制（param_overrides.sizeClamp）在换算后等比钳制，如 relayrouter 单边≤3840 且总像素≤8294400
-    const size = clampPixelSize(toPixelSize(req.aspectRatio, req.resolution), req.sizeClamp ?? {})
+    const isApiYiGptImage25Vip = (() => {
+      try {
+        return new URL(ctx.baseUrl).hostname.toLowerCase() === 'api.apiyi.com'
+          && req.model === 'gpt-image-2.5-vip'
+      } catch {
+        return false
+      }
+    })()
+    // API易 VIP 使用官方 30 档离散尺寸；其他 OpenAI 图片渠道沿用通用像素换算与渠道钳制。
+    const rawSize = isApiYiGptImage25Vip
+      ? toApiYiGptImage25VipSize(req.aspectRatio, req.resolution)
+      : toPixelSize(req.aspectRatio, req.resolution)
+    const size = clampPixelSize(rawSize, req.sizeClamp ?? {})
     const headers = { authorization: `Bearer ${ctx.apiKey}` }
     const baseBody = (): Record<string, unknown> => {
-      const b: Record<string, unknown> = { model: req.model, prompt: req.prompt, n: 1, size, response_format: 'url' }
+      const b: Record<string, unknown> = { model: req.model, prompt: req.prompt, size, response_format: 'url' }
+      if (!isApiYiGptImage25Vip) b.n = 1
+      if (isApiYiGptImage25Vip) b.quality = 'max'
       if (req.negativePrompt) b.negative_prompt = req.negativePrompt
       return b
     }

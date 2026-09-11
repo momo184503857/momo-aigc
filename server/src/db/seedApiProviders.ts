@@ -201,6 +201,73 @@ export function seedToapisGptImage25(): void {
   console.log('[DB] Seeded ToAPIs gpt-image-2.5-sunburst channel model')
 }
 
+
+/**
+ * API易 gpt-image-2.5-vip 渠道（OpenAI Images 兼容，同步生图/编辑）。
+ *
+ * APIYI_API_KEY 仅从未跟踪的 .env / 部署环境读取，绝不写入源码；渠道已有 Key 时不覆盖。
+ * 成本按文档 $0.03/张、1 USD≈7 CNY 折算为 0.21 积分，三档同价。
+ */
+export function seedApiYiGptImage25VipChannel(): void {
+  const flag = db.prepare(`SELECT value FROM system_config WHERE key = 'seed_apiyi_gpt_image_25_vip_v1'`).get() as { value: string } | undefined
+  if (flag?.value === 'done') return
+
+  const APIYI_KEY = (process.env.APIYI_API_KEY || '').trim()
+  const costPricing = JSON.stringify({ '1K': 0.21, '2K': 0.21, '4K': 0.21 })
+  const paramOverrides = JSON.stringify({
+    resolutions: ['1K', '2K', '4K'],
+    aspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+    maxReferenceImages: 14,
+  })
+
+  db.transaction(() => {
+    db.prepare(`
+      INSERT OR IGNORE INTO api_providers (code, name, base_url, adapter, remark, created_at, updated_at)
+      VALUES ('apiyi', 'API易', 'https://api.apiyi.com/v1', 'openai_image', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run('API易 GPT-Image-2.5 VIP（同步 Images API；quality=max；30 档精确尺寸）')
+
+    const provider = db.prepare(`SELECT id FROM api_providers WHERE code = 'apiyi' AND owner_user_id IS NULL`).get() as { id: number } | undefined
+    const logical = db.prepare(`SELECT id FROM ai_logical_models WHERE code = 'gpt-image-2.5'`).get() as { id: number } | undefined
+    if (!provider || !logical) throw new Error('seedApiYiGptImage25VipChannel: 渠道或逻辑模型不存在')
+
+    const hasKey = db.prepare(`SELECT 1 FROM api_provider_keys WHERE provider_id = ? LIMIT 1`).get(provider.id)
+    if (APIYI_KEY && !hasKey) {
+      db.prepare(`
+        INSERT INTO api_provider_keys
+          (provider_id, name, encrypted_key, key_iv, key_tag, key_hint, priority, created_at, updated_at)
+        VALUES (?, '默认 Key', ?, '', '', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(provider.id, APIYI_KEY, maskKey(APIYI_KEY))
+    }
+
+    db.prepare(`
+      INSERT INTO ai_models
+        (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat,
+         logical_model_id, param_overrides, pricing, cost_pricing, status, remark, created_at, updated_at)
+      VALUES (?, 'gpt-image-2.5-vip', 'GPT-Image-2.5 VIP', 1, 1, 0,
+              ?, ?, ?, ?, 'active', 'API易 Adobe Firefly 线路；quality=max；同步返回；全档 $0.03/张', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(provider_id, model_id) DO UPDATE SET
+        display_name = excluded.display_name,
+        supports_vision = 1,
+        supports_image_gen = 1,
+        supports_chat = 0,
+        logical_model_id = excluded.logical_model_id,
+        param_overrides = excluded.param_overrides,
+        pricing = excluded.pricing,
+        cost_pricing = excluded.cost_pricing,
+        status = 'active',
+        remark = excluded.remark,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(provider.id, logical.id, paramOverrides, costPricing, costPricing)
+
+    db.prepare(`
+      INSERT INTO system_config (key, value) VALUES ('seed_apiyi_gpt_image_25_vip_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'
+    `).run()
+  })()
+
+  console.log('[DB] Seeded API易 gpt-image-2.5-vip channel model')
+}
+
 /** 将 ToAPIs 的 image2 / banana pro 渠道映射切换到指定 VIP 模型名。 */
 export function migrateToapisVipModelIds(): void {
   const flag = db.prepare(`SELECT value FROM system_config WHERE key = 'migrate_toapis_vip_model_ids_v1'`).get() as { value: string } | undefined
