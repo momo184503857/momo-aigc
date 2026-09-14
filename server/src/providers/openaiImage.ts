@@ -82,7 +82,7 @@ export const openaiImageAdapter: ImageProviderAdapter = {
         return false
       }
     })()
-    // API易 VIP 使用官方 30 档离散尺寸；其他 OpenAI 图片渠道沿用通用像素换算与渠道钳制。
+    // API易 VIP 使用官方 30 档离散尺寸（quality=high）；其他 OpenAI 图片渠道沿用通用像素换算与渠道钳制。
     const rawSize = isApiYiGptImage25Vip
       ? toApiYiGptImage25VipSize(req.aspectRatio, req.resolution)
       : toPixelSize(req.aspectRatio, req.resolution)
@@ -91,7 +91,7 @@ export const openaiImageAdapter: ImageProviderAdapter = {
     const baseBody = (): Record<string, unknown> => {
       const b: Record<string, unknown> = { model: req.model, prompt: req.prompt, size, response_format: 'url' }
       if (!isApiYiGptImage25Vip) b.n = 1
-      if (isApiYiGptImage25Vip) b.quality = 'max'
+      if (isApiYiGptImage25Vip) b.quality = 'high'
       if (req.negativePrompt) b.negative_prompt = req.negativePrompt
       return b
     }

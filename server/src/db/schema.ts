@@ -2,7 +2,7 @@ import path from 'node:path'
 import { db } from './index.js'
 import { config } from '../config.js'
 import { initSuiteGen } from './seedSuiteGen.js'
-import { initApiProviders, migrateToapisBaseUrl, migrateToapisVipModelIds, seedApiYiGptImage25VipChannel, seedToapisGptImage25, seedYilianChannel } from './seedApiProviders.js'
+import { initApiProviders, migrateApiYiGptImage25QualityHigh, migrateToapisBaseUrl, migrateToapisVipModelIds, seedApiYiGptImage25VipChannel, seedToapisGptImage25, seedYilianChannel } from './seedApiProviders.js'
 import { initAiProviderMigration } from './migrateAiProvider.js'
 import { syncCanonicalLogicalModels } from './logicalModels.js'
 
@@ -1042,6 +1042,9 @@ export function initSchema(): void {
 
   // 中国大陆主入口统一使用 toapis.cn。
   migrateToapisBaseUrl()
+
+  // API易 image2.5 的 quality 档位由 max 调整为 high（同步存量库说明文案）。
+  migrateApiYiGptImage25QualityHigh()
 
   console.log('[DB] Schema initialized')
 }

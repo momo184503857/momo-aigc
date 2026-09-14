@@ -224,7 +224,7 @@ export function seedApiYiGptImage25VipChannel(): void {
     db.prepare(`
       INSERT OR IGNORE INTO api_providers (code, name, base_url, adapter, remark, created_at, updated_at)
       VALUES ('apiyi', 'API易', 'https://api.apiyi.com/v1', 'openai_image', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run('API易 GPT-Image-2.5 VIP（同步 Images API；quality=max；30 档精确尺寸）')
+    `).run('API易 GPT-Image-2.5 VIP（同步 Images API；quality=high；30 档精确尺寸）')
 
     const provider = db.prepare(`SELECT id FROM api_providers WHERE code = 'apiyi' AND owner_user_id IS NULL`).get() as { id: number } | undefined
     const logical = db.prepare(`SELECT id FROM ai_logical_models WHERE code = 'gpt-image-2.5'`).get() as { id: number } | undefined
@@ -244,7 +244,7 @@ export function seedApiYiGptImage25VipChannel(): void {
         (provider_id, model_id, display_name, supports_vision, supports_image_gen, supports_chat,
          logical_model_id, param_overrides, pricing, cost_pricing, status, remark, created_at, updated_at)
       VALUES (?, 'gpt-image-2.5-vip', 'GPT-Image-2.5 VIP', 1, 1, 0,
-              ?, ?, ?, ?, 'active', 'API易 Adobe Firefly 线路；quality=max；同步返回；全档 $0.03/张', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              ?, ?, ?, ?, 'active', 'API易 Adobe Firefly 线路；quality=high；同步返回；全档 $0.03/张', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT(provider_id, model_id) DO UPDATE SET
         display_name = excluded.display_name,
         supports_vision = 1,
@@ -353,4 +353,35 @@ export function migrateToapisBaseUrl(): void {
   })()
 
   console.log('[DB] Migrated ToAPIs base URL to https://toapis.cn')
+}
+
+/**
+ * API易 image2.5（gpt-image-2.5-vip）请求参数 quality 由 max 调整为 high。
+ *
+ * quality 是适配器里硬编码的请求参数（providers/openaiImage.ts），这里只同步存量库中
+ * 渠道与渠道模型的说明文案，避免管理后台仍显示旧的 quality=max。
+ */
+export function migrateApiYiGptImage25QualityHigh(): void {
+  const flag = db.prepare(`SELECT value FROM system_config WHERE key = 'migrate_apiyi_gpt_image_25_quality_high_v1'`).get() as { value: string } | undefined
+  if (flag?.value === 'done') return
+
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE api_providers
+      SET remark = REPLACE(remark, 'quality=max', 'quality=high'), updated_at = CURRENT_TIMESTAMP
+      WHERE code = 'apiyi' AND owner_user_id IS NULL AND remark LIKE '%quality=max%'
+    `).run()
+    db.prepare(`
+      UPDATE ai_models
+      SET remark = REPLACE(remark, 'quality=max', 'quality=high'), updated_at = CURRENT_TIMESTAMP
+      WHERE remark LIKE '%quality=max%'
+        AND provider_id IN (SELECT id FROM api_providers WHERE code = 'apiyi' AND owner_user_id IS NULL)
+    `).run()
+    db.prepare(`
+      INSERT INTO system_config (key, value) VALUES ('migrate_apiyi_gpt_image_25_quality_high_v1', 'done')
+      ON CONFLICT(key) DO UPDATE SET value = 'done'
+    `).run()
+  })()
+
+  console.log('[DB] Migrated API易 gpt-image-2.5-vip quality note to high')
 }
