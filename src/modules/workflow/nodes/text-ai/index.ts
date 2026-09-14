@@ -1,6 +1,7 @@
 import type { NodeModule, NodeRunResult } from '@/modules/workflow/nodes/types'
 import type { LocalImageAsset } from '@/modules/workflow/types/workflow'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
+import { collectImageAssets, assetUrl, isUsableImageUrl } from '@/modules/workflow/utils/imageAssets'
 import { canvasApi } from '@/services/canvasApi'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 
@@ -11,25 +12,27 @@ function isLocalImageAsset(value: unknown): value is LocalImageAsset {
 }
 
 /**
- * 从图片输入端口提取可访问的图片 URL（http(s) 直链或 data: base64）。
+ * 从图片输入端口提取可访问的图片 URL（http(s) 直链、站内 /api/files/ 或 data: base64）。
  * 上游（image-input / image-ai）的 result.value 结构为 { image, imageList }。
  */
 function extractImageUrls(imageInput: unknown): string[] {
   if (!imageInput || typeof imageInput !== 'object') return []
   const value = (imageInput as { result?: { value?: unknown } }).result?.value
-  if (!value || typeof value !== 'object') return []
-  const obj = value as Record<string, unknown>
   const assets: LocalImageAsset[] = []
-  if (isLocalImageAsset(obj.image)) assets.push(obj.image)
-  if (Array.isArray(obj.imageList)) {
-    for (const item of obj.imageList) {
-      if (isLocalImageAsset(item) && !assets.includes(item)) assets.push(item)
+  if (isLocalImageAsset(value)) assets.push(value)
+  else if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    if (isLocalImageAsset(obj.image)) assets.push(obj.image)
+    if (Array.isArray(obj.imageList)) {
+      for (const item of obj.imageList) {
+        if (isLocalImageAsset(item) && !assets.some((a) => a.id === item.id)) assets.push(item)
+      }
     }
   }
   const urls: string[] = []
   for (const a of assets) {
-    const url = a.previewUrl || a.localPath
-    if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:'))) urls.push(url)
+    const url = assetUrl(a)
+    if (isUsableImageUrl(url)) urls.push(url)
   }
   return urls
 }
@@ -72,11 +75,6 @@ const textAi: NodeModule = {
 
     const prompt = ['[Task]', taskPrompt, '', '[Details]', detailPrompt, '', '[Upstream text]', upstreamText ?? ''].join('\n')
 
-    // 有图片时用 OpenAI vision 多模态 content（文字 + 图片），否则纯文本（向后兼容）
-    const content = imageUrls.length
-      ? ([{ type: 'text', text: prompt }, ...imageUrls.map((url) => ({ type: 'image_url', image_url: { url } }))] as Array<Record<string, unknown>>)
-      : prompt
-
     const logs: NodeRunResult['logs'] = [{ level: 'info', message: `请求参数: ${JSON.stringify({ taskPrompt: taskPrompt.slice(0, 200), detailPrompt: detailPrompt.slice(0, 200), hasUpstreamText: typeof upstreamText === 'string', imageCount: imageUrls.length })}` }]
     if (imageUrls.length) logs.push({ level: 'info', message: `附带 ${imageUrls.length} 张参考图发给文字模型。` })
 
@@ -89,10 +87,12 @@ const textAi: NodeModule = {
         (typeof config.channelModelId === 'number' ? catalog.getModel(config.channelModelId) : undefined) ??
         (modelName ? catalog.getModelByName(modelName) : undefined) ??
         catalog.defaultTextModel
+      // 图片走 imageUrls 由服务端代取转 base64（messages 的数组 content 会被服务端拍平为纯文本）
       const result = await canvasApi.chat({
         model: channelModel?.modelId ?? modelName,
         channelModelId: channelModel?.id,
-        messages: [{ role: 'user', content }],
+        messages: [{ role: 'user', content: prompt }],
+        ...(imageUrls.length ? { imageUrls: imageUrls.slice(0, 8) } : {}),
         temperature: config.temperature as number | undefined,
         maxTokens: config.maxTokens as number | undefined,
       })

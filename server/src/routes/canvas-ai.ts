@@ -3,6 +3,7 @@ import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { getAdapter } from '../providers/index.js'
 import { withKeyFailover, ProviderContextError } from '../utils/channelModel.js'
+import { resolveUpstreamInlineImages } from '../utils/upstreamImages.js'
 
 /**
  * 画布文字 AI 节点代理（ai-provider §8 文字模型迁移；fixed-channels 后仅平台渠道）。
@@ -61,7 +62,7 @@ async function callChat(req: {
 }
 
 canvasAiRouter.post('/chat', async (req: AuthRequest, res) => {
-  const { channelModelId, model, messages, temperature, maxTokens, images } = req.body || {}
+  const { channelModelId, model, messages, temperature, maxTokens, images, imageUrls } = req.body || {}
   const finalModel = channelModelId ? null : model
   if (!channelModelId && !finalModel) {
     res.status(400).json({ success: false, error: '缺少模型参数' })
@@ -88,12 +89,18 @@ canvasAiRouter.post('/chat', async (req: AuthRequest, res) => {
   }
 
   try {
+    const inlineImages: Array<{ mimeType: string; base64: string }> = Array.isArray(images) ? images : []
+    const urlList: string[] = Array.isArray(imageUrls) ? imageUrls.filter((u: unknown) => typeof u === 'string' && u) : []
+    if (urlList.length > 0) {
+      // 上限 8 张，防止误传大数组打爆上游
+      inlineImages.push(...await resolveUpstreamInlineImages(urlList.slice(0, 8)))
+    }
     const { text } = await callChat({
       model: modelIdStr,
       messages,
       temperature,
       maxTokens,
-      images,
+      images: inlineImages,
     })
     res.json({ success: true, data: { text } })
   } catch (err: any) {

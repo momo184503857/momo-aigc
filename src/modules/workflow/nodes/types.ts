@@ -8,6 +8,18 @@ export interface NodeRunSuccess {
   result: NodeResult
   outputs?: NodePort[]
   logs?: Array<{ level: 'info' | 'warn' | 'error'; message: string }>
+  /**
+   * 质检重试请求：整轮执行结束后由执行器统一应用（写回目标节点 config 的修正字段），
+   * 再自动加跑一轮；输入哈希缓存保证只有被修正节点及其下游真正重跑。
+   */
+  retry?: Array<{
+    /** 需要修正重跑的节点 id（通常是本节点的上游） */
+    nodeId: string
+    /** 修正指令（拼进目标节点的提示词） */
+    feedback: string
+    /** 回合耗尽仍失败时，是否把本（质检）节点置为 failed 并中止工作流 */
+    strict?: boolean
+  }>
 }
 
 export interface NodeRunFailure {

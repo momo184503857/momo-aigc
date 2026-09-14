@@ -813,6 +813,22 @@ export const useWorkflowStore = defineStore('workflow', {
       this.updateNodeConfig(nodeId, patch)
     },
 
+    /**
+     * 质检重试回合回写：直接更新目标节点 config 并置 dirty（使其输入哈希失效而重跑）。
+     * 与 updateNodeConfig 的差异：不入 undo 历史、不 markDownstreamDirty——
+     * 下游靠输入哈希比对自然失效，绝不能把下游置成会被执行器跳过的 affected 状态。
+     */
+    applyRetryAmendment(nodeId: string, patch: Record<string, unknown>) {
+      const node = this.workflow.nodes.find((n) => n.id === nodeId)
+      if (!node) return
+      this.workflow.nodes = this.workflow.nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, config: { ...n.config, ...patch }, status: 'dirty' as NodeStatus }
+          : n
+      )
+      this.touch()
+    },
+
     // ========== Workflow Execution ==========
 
     makeRunnerCallbacks(): RunnerCallbacks {
@@ -823,6 +839,7 @@ export const useWorkflowStore = defineStore('workflow', {
         clearNodeLogs: (nodeId) => this.clearNodeLogs(nodeId),
         addNodeLog: (nodeId, level, message, detail) =>
           this.addNodeLog(nodeId, level, message, detail),
+        applyRetryAmendment: (nodeId, patch) => this.applyRetryAmendment(nodeId, patch),
       }
     },
 

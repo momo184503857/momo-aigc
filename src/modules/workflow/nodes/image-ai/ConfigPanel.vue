@@ -55,6 +55,11 @@ const imageCount = computed(() => {
   const v = props.node.config.imageCount
   return typeof v === 'number' && v >= 1 && v <= 9 ? v : 3
 })
+
+const amendment = computed(() => {
+  const v = props.node.config.promptAmendment
+  return typeof v === 'string' && v.trim() ? v : ''
+})
 </script>
 
 <template>
@@ -82,6 +87,12 @@ const imageCount = computed(() => {
 
     <label>参考图数量</label>
     <UiNumberInput :model-value="imageCount" :min="1" :max="9" @update:model-value="emit('update', { imageCount: $event })" />
+
+    <template v-if="amendment">
+      <el-divider>质检修正</el-divider>
+      <el-alert type="warning" show-icon :closable="false" title="本节点带有质检回写的修正指令，将在下次生成时拼接到提示词末尾；生成成功后自动清空。" />
+      <el-input :model-value="amendment" type="textarea" :rows="4" @update:model-value="emit('update', { promptAmendment: $event })" />
+    </template>
   </div>
 </template>
 

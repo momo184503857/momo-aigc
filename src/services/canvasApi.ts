@@ -109,6 +109,10 @@ export const canvasApi = {
     messages: Array<{ role: string; content: unknown }>
     temperature?: number
     maxTokens?: number
+    /** base64 图片（前端已持有 bytes 时用） */
+    images?: Array<{ mimeType: string; base64: string }>
+    /** 图片 URL（服务端代取转 base64；本地 /api/files/ 与远程 http(s) 均可，上限 8 张） */
+    imageUrls?: string[]
   }): Promise<{ text: string }> {
     // 文字模型（尤其带参考图的多模态推理）响应较慢，单独放宽超时，避开全局 15s 限制
     return http.post('/canvas-ai/chat', request, { timeout: 900000 }).then((r) => r.data.data)
