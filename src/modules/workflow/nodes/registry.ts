@@ -11,6 +11,9 @@ import textAi from '@/modules/workflow/nodes/text-ai'
 import imageAi from '@/modules/workflow/nodes/image-ai'
 import promptSplitter from '@/modules/workflow/nodes/prompt-splitter'
 import save from '@/modules/workflow/nodes/save'
+import imageCrop from '@/modules/workflow/nodes/image-crop'
+import knowledge from '@/modules/workflow/nodes/knowledge'
+import imageQa from '@/modules/workflow/nodes/image-qa'
 
 import TextInputConfig from '@/modules/workflow/nodes/text-input/ConfigPanel.vue'
 import ImageInputConfig from '@/modules/workflow/nodes/image-input/ConfigPanel.vue'
@@ -20,6 +23,9 @@ import TextAiConfig from '@/modules/workflow/nodes/text-ai/ConfigPanel.vue'
 import ImageAiConfig from '@/modules/workflow/nodes/image-ai/ConfigPanel.vue'
 import PromptSplitterConfig from '@/modules/workflow/nodes/prompt-splitter/ConfigPanel.vue'
 import SaveConfig from '@/modules/workflow/nodes/save/ConfigPanel.vue'
+import ImageCropConfig from '@/modules/workflow/nodes/image-crop/ConfigPanel.vue'
+import KnowledgeConfig from '@/modules/workflow/nodes/knowledge/ConfigPanel.vue'
+import ImageQaConfig from '@/modules/workflow/nodes/image-qa/ConfigPanel.vue'
 
 const modules: NodeModule[] = [
   textInput,
@@ -30,6 +36,9 @@ const modules: NodeModule[] = [
   imageAi,
   promptSplitter,
   save,
+  imageCrop,
+  knowledge,
+  imageQa,
 ]
 
 const registry = new Map<string, NodeModule>()
@@ -46,6 +55,9 @@ const configPanels: Record<string, Component> = {
   'image-ai': ImageAiConfig,
   'prompt-splitter': PromptSplitterConfig,
   'save': SaveConfig,
+  'image-crop': ImageCropConfig,
+  'knowledge': KnowledgeConfig,
+  'image-qa': ImageQaConfig,
 }
 
 /** 获取指定类型的节点模块 */

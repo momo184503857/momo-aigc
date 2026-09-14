@@ -26,6 +26,8 @@ export interface CatalogModel {
   /** 定价（分辨率→积分），ai_models.pricing 单一真源 */
   pricing: Record<string, number> | null
   kind: 'image' | 'text'
+  /** 文字模型是否支持识图（ai_models.supports_vision；生图模型恒 undefined） */
+  supportsVision?: boolean
   /** 所属渠道 */
   providerId: number
   providerName: string
@@ -78,6 +80,7 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
           capabilities: m.capabilities ?? null,
           pricing: m.pricing ?? null,
           kind: m.kind ?? kind,
+          supportsVision: m.supportsVision ?? undefined,
           providerId: g.providerId,
           providerName: g.providerName,
           adapter: g.adapter,
@@ -123,6 +126,10 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
   /** 默认模型：目录第一个可用模型 */
   const defaultImageModel = computed<CatalogModel | null>(() => flatImageModels.value[0] ?? null)
   const defaultTextModel = computed<CatalogModel | null>(() => flatTextModels.value[0] ?? null)
+  /** 支持识图的文字模型（画布质检/识图审计节点用） */
+  const visionTextModels = computed<CatalogModel[]>(() =>
+    flatTextModels.value.filter((m) => m.supportsVision)
+  )
 
   /** 生图目录本身已按逻辑模型去重。 */
   const imageLogicalModels = computed<LogicalImageModel[]>(() => {
@@ -205,6 +212,7 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     hasImageModels,
     defaultImageModel,
     defaultTextModel,
+    visionTextModels,
     imageLogicalModels,
     getModel,
     getModelByName,

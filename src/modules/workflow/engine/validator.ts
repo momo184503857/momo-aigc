@@ -203,6 +203,33 @@ export const validateWorkflowExecution = (
         break
       }
 
+      case 'image-crop': {
+        if (!connectedInputPorts.has('image')) {
+          return failure(`运行失败：图片裁剪节点「${node.title}」缺少 Image 输入。`)
+        }
+        if (node.config.ratio === 'custom' && !(Number(node.config.customW) > 0 && Number(node.config.customH) > 0)) {
+          return failure(`运行失败：图片裁剪节点「${node.title}」自定义比例无效。`)
+        }
+        break
+      }
+
+      case 'knowledge': {
+        const content = node.config.content as string | undefined
+        const hasUpstream = connectedInputPorts.has('text')
+        if ((!content || !content.trim()) && !hasUpstream) {
+          return failure(`运行失败：知识库节点「${node.title}」内容为空且无上游文本。`)
+        }
+        break
+      }
+
+      case 'image-qa': {
+        const hasImage = [...connectedInputPorts].some((p) => p.startsWith('image_'))
+        if (!hasImage) {
+          return failure(`运行失败：图片质检节点「${node.title}」至少需要一张图片输入。`)
+        }
+        break
+      }
+
       default:
         break
     }

@@ -20,6 +20,9 @@ export type NodeType =
   | 'text-preview'
   | 'image-preview'
   | 'save'
+  | 'image-crop'
+  | 'knowledge'
+  | 'image-qa'
 
 export interface WorkflowPosition {
   x: number
@@ -68,6 +71,32 @@ export interface ImageAiNodeConfig {
   aspectRatio: string
   outputSize: string
   imageCount: number
+  /** 质检重试回合回写的修正指令（提交时拼接到 prompt 末尾）；运行成功后自动清空 */
+  promptAmendment?: string
+}
+
+export interface ImageCropNodeConfig {
+  /** 目标比例；custom 时用 customW/customH */
+  ratio: '1:1' | '3:4' | '4:3' | '9:16' | '16:9' | 'custom'
+  customW?: number
+  customH?: number
+}
+
+export interface KnowledgeNodeConfig {
+  /** 知识库正文（规则/基调等大段文本） */
+  content: string
+  /** 与上游文本的拼接顺序 */
+  mergeMode: 'rules-first' | 'upstream-first'
+}
+
+export interface ImageQaNodeConfig {
+  /** 识图文字模型（渠道模型 id；需 supportsVision） */
+  channelModelId?: number
+  modelName: string
+  /** 质检提示词（检查清单） */
+  qaPrompt: string
+  /** 回合耗尽仍有不合格时：true=节点置失败并中止，false=保持成功并警告交付 */
+  strict: boolean
 }
 
 export interface SaveNodeConfig {

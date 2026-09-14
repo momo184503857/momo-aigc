@@ -23,6 +23,8 @@ export interface RunnerCallbacks {
     message: string,
     detail?: { request?: unknown; response?: unknown }
   ): void
+  /** 质检重试回合：把修正指令写回目标节点 config（不走 undo 历史；status→dirty，不入 affected） */
+  applyRetryAmendment(nodeId: string, patch: Record<string, unknown>): void
 }
 
 // ========== Graph Algorithms ==========
@@ -186,6 +188,17 @@ const saveCacheResultToAssets = (node: WorkflowNode, workflow: WorkflowModel): v
 
 // ========== DAG Runner ==========
 
+/** 质检重试回合上限：初始轮 + 最多 2 轮修正重跑 */
+const MAX_RETRY_ROUNDS = 2
+
+interface RetryRequest {
+  /** 发起请求的节点（质检节点）id */
+  fromNodeId: string
+  nodeId: string
+  feedback: string
+  strict?: boolean
+}
+
 export class WorkflowRunner {
   private getWorkflow: () => WorkflowModel
   private callbacks: RunnerCallbacks
@@ -193,6 +206,8 @@ export class WorkflowRunner {
   private paused = false
   private pausedNodeId: string | null = null
   private onPauseResolve: (() => void) | null = null
+  /** 本轮执行中节点上报的质检重试请求（run 成功后暂存，整轮结束统一应用） */
+  private pendingRetries: RetryRequest[] = []
 
   constructor(getWorkflow: () => WorkflowModel, callbacks: RunnerCallbacks) {
     this.getWorkflow = getWorkflow
@@ -244,7 +259,7 @@ export class WorkflowRunner {
     const levels = topologicalSort(workflow.nodes, workflow.edges)
     if (levels.length === 0) return true
 
-    return this.executeLevels(levels)
+    return this.executeWithRetryRounds(levels)
   }
 
   async runToCurrent(nodeId: string): Promise<boolean> {
@@ -276,7 +291,7 @@ export class WorkflowRunner {
     if (filteredNodes.length === 0) return true
 
     const levels = topologicalSort(filteredNodes, filteredEdges)
-    return this.executeLevels(levels)
+    return this.executeWithRetryRounds(levels)
   }
 
   async runFromCurrent(nodeId: string): Promise<boolean> {
@@ -308,7 +323,85 @@ export class WorkflowRunner {
     if (filteredNodes.length === 0) return true
 
     const levels = topologicalSort(filteredNodes, filteredEdges)
-    return this.executeLevels(levels)
+    return this.executeWithRetryRounds(levels)
+  }
+
+  /**
+   * 质检重试回合：每轮执行完毕后，若节点上报了 retry 请求（目标节点 + 修正指令），
+   * 把修正指令写回目标节点 config（status→dirty，使输入哈希失效），再整图重跑一轮。
+   * 缓存命中让未受影响的节点全部跳过——实际只重跑被修正节点及其下游。全程零人工。
+   */
+  private async executeWithRetryRounds(levels: string[][]): Promise<boolean> {
+    for (let round = 0; round <= MAX_RETRY_ROUNDS; round++) {
+      this.pendingRetries = []
+      const ok = await this.executeLevels(levels)
+      if (!ok || this.aborted) return ok
+
+      const retries = this.pendingRetries
+      if (retries.length === 0) return true
+      if (round === MAX_RETRY_ROUNDS) break
+
+      const workflow = this.getWorkflow()
+      const nodeIdSet = new Set(levels.flat())
+
+      // 校验并应用修正：目标必须在本轮执行范围内（通常是质检节点的上游）
+      const applied: RetryRequest[] = []
+      const rejected: RetryRequest[] = []
+      for (const req of retries) {
+        const target = workflow.nodes.find((n) => n.id === req.nodeId)
+        if (!target || !nodeIdSet.has(req.nodeId) || target.disabled) {
+          rejected.push(req)
+          continue
+        }
+        const prev = typeof target.config.promptAmendment === 'string' ? target.config.promptAmendment : ''
+        const merged = prev ? `${prev}\n${req.feedback}` : req.feedback
+        this.callbacks.applyRetryAmendment(req.nodeId, { promptAmendment: merged })
+        applied.push(req)
+      }
+
+      for (const req of rejected) {
+        this.callbacks.addNodeLog(
+          req.fromNodeId,
+          'warn',
+          `修正目标节点（${req.nodeId}）不在本轮执行范围内或已禁用，已忽略该修正请求。`
+        )
+      }
+      if (applied.length === 0) {
+        this.callbacks.addNodeLog('', 'warn', '质检修正请求全部无效，跳过重试回合。')
+        return true
+      }
+
+      for (const req of applied) {
+        const target = workflow.nodes.find((n) => n.id === req.nodeId)
+        this.callbacks.addNodeLog(
+          req.fromNodeId,
+          'info',
+          `质检不通过，已向「${target?.title ?? req.nodeId}」写入修正指令并自动重跑（第 ${round + 1}/${MAX_RETRY_ROUNDS} 轮）。`
+        )
+      }
+    }
+
+    // 回合耗尽仍有不合格：strict 的质检节点置 failed 并中止；否则保持成功交付并警告
+    const workflow = this.getWorkflow()
+    let failedAny = false
+    for (const req of this.pendingRetries) {
+      if (!req.strict) continue
+      this.callbacks.setNodeStatus(req.fromNodeId, 'failed')
+      this.callbacks.addNodeLog(
+        req.fromNodeId,
+        'error',
+        `质检重试 ${MAX_RETRY_ROUNDS} 轮后仍有不合格项（strict 模式），本节点置为失败。`
+      )
+      failedAny = true
+    }
+    if (!failedAny) {
+      this.callbacks.addNodeLog(
+        '',
+        'warn',
+        `质检重试 ${MAX_RETRY_ROUNDS} 轮后仍有部分图片不合格，已按宽松模式交付（可在日志中查看问题项）。`
+      )
+    }
+    return !failedAny
   }
 
   private async executeLevels(levels: string[][]): Promise<boolean> {
@@ -390,6 +483,18 @@ export class WorkflowRunner {
       if (result.success) {
         if (result.outputs) {
           this.callbacks.setNodeOutputs(nodeId, result.outputs)
+        }
+
+        // 质检类节点可在成功时上报修正请求（本轮结束后统一应用并加跑一轮）
+        if (result.retry && result.retry.length > 0) {
+          for (const req of result.retry) {
+            this.pendingRetries.push({
+              fromNodeId: nodeId,
+              nodeId: req.nodeId,
+              feedback: req.feedback,
+              strict: req.strict,
+            })
+          }
         }
 
         result.result.inputHash = inputHash

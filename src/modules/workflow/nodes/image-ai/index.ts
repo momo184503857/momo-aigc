@@ -1,15 +1,10 @@
 import type { NodeModule, NodeRunResult } from '@/modules/workflow/nodes/types'
 import type { LocalImageAsset } from '@/modules/workflow/types/workflow'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
+import { collectImageAssets, assetUrl } from '@/modules/workflow/utils/imageAssets'
 import { canvasApi } from '@/services/canvasApi'
 import { generateImage } from '@/services/imageGeneration'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
-
-function isLocalImageAsset(value: unknown): value is LocalImageAsset {
-  if (!value || typeof value !== 'object') return false
-  const asset = value as Record<string, unknown>
-  return typeof asset.id === 'string' && typeof asset.fileName === 'string' && typeof asset.localPath === 'string' && typeof asset.previewUrl === 'string'
-}
 
 const imageAi: NodeModule = {
   type: 'image-ai',
@@ -30,7 +25,8 @@ const imageAi: NodeModule = {
     const model = typeof config.modelName === 'string' ? config.modelName : 'gpt-image-2'
     const ratio = typeof config.aspectRatio === 'string' ? config.aspectRatio : '1:1'
     const size = typeof config.outputSize === 'string' ? config.outputSize : '2K'
-    return `${model} · ${ratio} · ${size}`
+    const amended = typeof config.promptAmendment === 'string' && config.promptAmendment.trim() ? ' · 含修正' : ''
+    return `${model} · ${ratio} · ${size}${amended}`
   },
 
   async run(workflow, node): Promise<NodeRunResult> {
@@ -54,36 +50,41 @@ const imageAi: NodeModule = {
     if (!promptInput || typeof promptInput.result.value !== 'string' || !promptInput.result.value.trim()) {
       return { success: false, message: `节点「${node.title}」缺少有效 Prompt 输入。` }
     }
-    const prompt = promptInput.result.value
+    // 质检重试回合回写的修正指令拼接到 prompt 末尾
+    const amendment = typeof config.promptAmendment === 'string' ? config.promptAmendment.trim() : ''
+    const prompt = amendment
+      ? `${promptInput.result.value}\n\n[QA 修正指令]\n${amendment}`
+      : promptInput.result.value
 
-    // Collect reference images
+    // Collect reference images（兼容裸 asset 与 {image, imageList} 包装两种上游形态）
     const refImages: LocalImageAsset[] = []
     for (const port of node.inputs) {
       if (!port.id.startsWith('image_')) continue
       const input = inputs[port.id]
-      if (input && isLocalImageAsset(input.result.value)) {
-        refImages.push(input.result.value)
+      if (!input) continue
+      for (const asset of collectImageAssets(input.result.value)) {
+        if (!refImages.some((r) => r.id === asset.id)) refImages.push(asset)
       }
     }
 
-    const logs: NodeRunResult['logs'] = [{ level: 'info', message: `请求参数: ${JSON.stringify({ prompt: prompt.slice(0, 200), imageCount: refImages.length, aspectRatio, outputSize })}` }]
+    const logs: NodeRunResult['logs'] = [{ level: 'info', message: `请求参数: ${JSON.stringify({ prompt: prompt.slice(0, 200), imageCount: refImages.length, aspectRatio, outputSize, hasAmendment: !!amendment })}` }]
+    if (amendment) logs.push({ level: 'warn', message: `本次生成附带质检修正指令：${amendment.slice(0, 200)}` })
 
     try {
       const startedAt = Date.now()
 
-      // 构建 refImages 参数（保持顺序）
+      // 构建 refImages 参数（保持顺序；data: URL 需转 File 上传）
       const refImagesOrdered: Array<{ url?: string; file?: File }> = []
       for (const img of refImages) {
-        const src = img.previewUrl || img.localPath
-        if (src.startsWith('http')) {
-          refImagesOrdered.push({ url: src })
-        } else if (src.startsWith('data:')) {
+        const src = assetUrl(img)
+        if (src.startsWith('data:')) {
           logs.push({ level: 'info', message: `准备上传参考图: ${img.fileName}` })
           const blob = await (await fetch(src)).blob()
           const file = new File([blob], img.fileName || 'image.png', { type: blob.type })
           refImagesOrdered.push({ file })
         } else if (src) {
-          logs.push({ level: 'warn', message: `未知图片源格式: ${src.slice(0, 50)}...` })
+          // http(s)（OSS 公网/渠道托管）与站内相对路径 /api/files/（直传模式）均透传，
+          // 服务端 processUrl 识别 /api/files/ 前缀后本站透传给渠道
           refImagesOrdered.push({ url: src })
         }
       }
@@ -91,7 +92,9 @@ const imageAi: NodeModule = {
       // 获取生成数量
       const imageCount = typeof config.imageCount === 'number' ? Math.max(1, Math.min(5, config.imageCount)) : 1
 
-      // 调用统一生图函数（提交 + 阻塞轮询；结果转存由服务端完成）
+      // 调用统一生图函数（提交 + 阻塞轮询；结果转存由服务端完成）。
+      // 轮询预算 20 分钟：批量节点并发提交时超过每用户 5 并发的任务会停在 submitted 排队，
+      // 依赖前端持续轮询补派发，短预算会把排队误判为失败
       const result = await generateImage(
         {
           logicalModelId: channelModel.id,
@@ -103,7 +106,7 @@ const imageAi: NodeModule = {
           n: imageCount,
         },
         {
-          poll: { interval: 3000, maxAttempts: 120 },  // 阻塞式轮询，最多 6 分钟
+          poll: { interval: 3000, maxAttempts: 400, timeout: 1_230_000 },
         }
       )
 
@@ -138,6 +141,12 @@ const imageAi: NodeModule = {
         nodeTitle: node.title,
         projectId: workflow.id ? Number(workflow.id) : undefined,
       }).catch(() => {})
+
+      // 修正指令已生效并成功产出，清空避免污染后续手动重跑
+      if (amendment) {
+        logs.push({ level: 'info', message: '质检修正指令已生效，本轮生成成功后自动清空。' })
+        ;(config as { promptAmendment?: string }).promptAmendment = ''
+      }
 
       return {
         success: true,

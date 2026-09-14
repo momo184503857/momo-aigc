@@ -64,7 +64,7 @@ function buildImageModels() {
 
 function buildTextGroups() {
   const rows = db.prepare(`
-    SELECT m.id, m.model_id, m.display_name, m.logical_model_id,
+    SELECT m.id, m.model_id, m.display_name, m.logical_model_id, m.supports_vision,
            p.id AS provider_id, p.name AS provider_name, p.display_name AS provider_display_name, p.adapter
     FROM ai_models m JOIN api_providers p ON p.id = m.provider_id
     WHERE p.status = 'active' AND m.status = 'active' AND m.supports_chat = 1
@@ -87,6 +87,7 @@ function buildTextGroups() {
       logicalCode: logical?.code ?? null,
       capabilities: null,
       pricing: null,
+      supportsVision: !!row.supports_vision,
       kind: 'text',
     })
   }
