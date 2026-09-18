@@ -98,6 +98,7 @@ export const generationApi = {
     model?: string
     feature_id?: string
     suiteId?: number
+    remark?: string
     start_date?: string
     end_date?: string
   }): Promise<{ data: { data: { records: GenerationTaskRecord[]; total: number; page: number; pageSize: number } } }> {

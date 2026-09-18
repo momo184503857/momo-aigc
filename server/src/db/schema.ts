@@ -742,6 +742,9 @@ export function initSchema(): void {
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN prompt_segments TEXT DEFAULT '{}'`) } catch { /* column already exists */ }
   try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN negative_prompt TEXT DEFAULT ''`) } catch { /* column already exists */ }
 
+  // ── 迁移：generation_tasks 增加 remark 列（用户任务备注，任务卡铅笔按钮编辑）──
+  try { db.exec(`ALTER TABLE generation_tasks ADD COLUMN remark TEXT DEFAULT ''`) } catch { /* column already exists */ }
+
   // ────────────────────────────────────────────────────────────
   //  提示词工坊 · 结构化模块体系（重构版）
   //

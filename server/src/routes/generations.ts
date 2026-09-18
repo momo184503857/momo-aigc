@@ -695,6 +695,7 @@ generationsRouter.get('/', (req: AuthRequest, res) => {
   const suiteId = req.query.suiteId as string | undefined
   const startDate = req.query.start_date as string | undefined
   const endDate = req.query.end_date as string | undefined
+  const remarkKw = (req.query.remark as string | undefined)?.trim()
 
   let where = 'WHERE t.user_id = ?'
   const params: any[] = [req.user!.userId]
@@ -703,6 +704,12 @@ generationsRouter.get('/', (req: AuthRequest, res) => {
   if (model) { where += ' AND t.model = ?'; params.push(model) }
   if (featureId) { where += ' AND t.feature_id = ?'; params.push(featureId) }
   if (suiteId) { where += ' AND t.suite_id = ?'; params.push(Number(suiteId)) }
+  if (remarkKw) {
+    // LIKE 通配符转义，用户输入按字面匹配
+    const kw = remarkKw.replace(/[\\%_]/g, (c) => '\\' + c)
+    where += " AND t.remark LIKE '%' || ? || '%' ESCAPE '\\'"
+    params.push(kw)
+  }
   const range = bjDateRangeClause('t.created_at', startDate, endDate)
   if (range.clause) { where += range.clause; params.push(...range.params) }
 

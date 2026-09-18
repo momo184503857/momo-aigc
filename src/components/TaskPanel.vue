@@ -8,7 +8,7 @@ import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ImageEditorDialog from '@/components/ImageEditorDialog.vue'
 import PublishWorkDialog from '@/components/works/PublishWorkDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
-import { Close, List, Grid, FullScreen } from '@element-plus/icons-vue'
+import { Close, List, Grid, FullScreen, Search } from '@element-plus/icons-vue'
 import { formatCredits } from '@/types/adapter'
 
 const taskPanel = useTaskPanelStore()
@@ -184,6 +184,16 @@ const panelStyle = computed(() => ({
           format="YYYY-MM-DD"
           @change="tm.applyFilters"
         />
+        <el-input
+          v-model="tm.filterRemark.value"
+          placeholder="搜索备注"
+          size="small"
+          clearable
+          style="width: 160px"
+          :prefix-icon="Search"
+          @keyup.enter="tm.applyFilters"
+          @clear="tm.applyFilters"
+        />
       </div>
 
       <!-- Bulk / View mode controls -->
@@ -229,6 +239,7 @@ const panelStyle = computed(() => ({
           :selected-ids="tm.selectedIds.value"
           @regenerate="tm.handleRegenerate"
           @delete="tm.handleDelete"
+          @save-remark="tm.handleSaveRemark"
           @view-detail="showDetail"
           @download="tm.handleDownload"
           @copy-params="tm.handleCopyParams"
@@ -267,7 +278,7 @@ const panelStyle = computed(() => ({
   </div>
 
   <!-- Task Detail Dialog -->
-  <TaskDetailDialog ref="taskDetailDialog" :task="detailTask" @close="detailTask = null" />
+  <TaskDetailDialog ref="taskDetailDialog" :task="detailTask" @close="detailTask = null" @publish="handlePublish" />
 
   <!-- Image Compare Dialog -->
   <ImageCompareDialog

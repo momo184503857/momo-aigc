@@ -48,6 +48,10 @@ export const taskApi = {
   update(id: number, data: UpdateTaskParams) {
     return http.patch(`/tasks/${id}`, data)
   },
+  /** 任务备注（空串清除） */
+  updateRemark(id: number, remark: string) {
+    return http.patch(`/tasks/${id}/remark`, { remark })
+  },
   delete(id: number) {
     return http.delete(`/tasks/${id}`)
   },

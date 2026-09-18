@@ -50,6 +50,7 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
   const suiteId = req.query.suiteId as string | undefined
   const startDate = req.query.start_date as string | undefined
   const endDate = req.query.end_date as string | undefined
+  const remarkKw = (req.query.remark as string | undefined)?.trim()
 
   let where = 'WHERE user_id = ?'
   const params: any[] = [req.user!.userId]
@@ -69,6 +70,12 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
   if (suiteId) {
     where += ' AND suite_id = ?'
     params.push(suiteId)
+  }
+  if (remarkKw) {
+    // LIKE 通配符转义，用户输入按字面匹配
+    const kw = remarkKw.replace(/[\\%_]/g, (c) => '\\' + c)
+    where += " AND remark LIKE '%' || ? || '%' ESCAPE '\\'"
+    params.push(kw)
   }
   const range = bjDateRangeClause('created_at', startDate, endDate)
   if (range.clause) {
@@ -104,6 +111,21 @@ tasksRouter.get('/:id', (req: AuthRequest, res) => {
   }
 
   res.json({ success: true, data: parseRow(task) })
+})
+
+// Update task remark（用户任务备注；空串即清除）
+tasksRouter.patch('/:id/remark', (req: AuthRequest, res) => {
+  const task = db.prepare('SELECT id FROM generation_tasks WHERE id = ? AND user_id = ?').get(
+    req.params.id, req.user!.userId
+  )
+  if (!task) {
+    res.status(404).json({ success: false, error: '任务不存在' })
+    return
+  }
+  const remark = typeof req.body?.remark === 'string' ? req.body.remark.trim().slice(0, 200) : ''
+  db.prepare('UPDATE generation_tasks SET remark = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(remark, req.params.id)
+  const updated = db.prepare('SELECT * FROM generation_tasks WHERE id = ?').get(req.params.id)
+  res.json({ success: true, data: parseRow(updated) })
 })
 
 // Create task record — 已退役（编排层 POST /api/generations 取代），保留 410 一个过渡版本

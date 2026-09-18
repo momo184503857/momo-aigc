@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { CopyDocument, Download } from '@element-plus/icons-vue'
+import { CopyDocument, Download, Share } from '@element-plus/icons-vue'
 import type { TaskItem } from './TaskList.vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { getFeatureLabel } from '@/configs/featureConfig'
@@ -13,7 +13,7 @@ const { retryOnError } = useImageRetry()
 const modelCatalog = useModelCatalogStore()
 
 const props = defineProps<{ task: TaskItem | null }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; publish: [task: TaskItem] }>()
 
 const visible = ref(false)
 
@@ -109,6 +109,14 @@ const statusMap: Record<string, string> = {
         </div>
       </div>
     </div>
+    <template #footer>
+      <el-button
+        v-if="task?.status === 'completed' && task?.result_image_urls?.[0]"
+        type="primary"
+        :icon="Share"
+        @click="emit('publish', task!)"
+      >发布到作品库</el-button>
+    </template>
   </el-dialog>
 </template>
 

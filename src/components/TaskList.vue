@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
-import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, ArrowDown, Check, Edit, Share } from '@element-plus/icons-vue'
+import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, Check, EditPen } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { parseUTC, toBJMinute } from '@/utils/datetime'
@@ -35,6 +36,8 @@ export interface TaskItem {
   supplementaryImages?: { name: string; url: string }[]
   prompt_segments?: Record<string, string>
   negative_prompt?: string
+  /** 用户任务备注（任务卡铅笔按钮编辑） */
+  remark?: string
 }
 
 const modelCatalog = useModelCatalogStore()
@@ -58,7 +61,21 @@ const emit = defineEmits<{
   'retryImport': [task: TaskItem]
   'edit': [task: TaskItem]
   'publish': [task: TaskItem]
+  'saveRemark': [task: TaskItem, remark: string]
 }>()
+
+async function openRemarkEditor(task: TaskItem) {
+  try {
+    const { value } = await ElMessageBox.prompt('为这条任务添加备注，方便日后查找（留空保存即清除）', '任务备注', {
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      inputValue: task.remark || '',
+      inputPlaceholder: '选填，最多 200 字',
+      inputValidator: (v: string) => !v || v.length <= 200 || '备注不能超过 200 字',
+    })
+    emit('saveRemark', task, (value || '').trim())
+  } catch { /* cancelled */ }
+}
 
 const statusText = computed(() => (status: string) => {
   const map: Record<string, string> = {
@@ -234,42 +251,40 @@ function handleImageDragStart(e: DragEvent, url: string) {
           </div>
         </div>
         <div class="task-body">
-          <!-- Status + duration + model + params + time -->
+          <!-- Status + duration + time -->
           <div class="task-header">
             <span class="task-status-group">
               <el-tag :type="statusType(task.status)" size="small">{{ statusText(task.status) }}</el-tag>
               <span v-if="task.status === 'failed'" class="task-duration task-error-msg">{{ task.error_message || '生成失败' }}</span>
               <span v-else class="task-duration">{{ statusLabel(task) }}</span>
             </span>
-            <span class="task-model">{{ modelDisplayName(task.model) }}</span>
-            <span class="task-res">{{ aspectLabel(task) }}</span>
             <span class="task-time">{{ toBJMinute(task.created_at) }}</span>
           </div>
-          <!-- Prompt -->
-          <div class="task-prompt">
-            <span class="task-prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task)) }}</span>
-            <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.prompt)" title="复制提示词" />
-          </div>
-          <!-- Input image thumbs -->
-          <div v-if="task.input_image_urls?.length" class="task-input-thumbs">
-            <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
+          <div class="task-content-row">
+            <div class="task-content-main">
+              <!-- Prompt -->
+              <div class="task-prompt">
+                <span class="task-prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task)) }}</span>
+                <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.prompt)" title="复制提示词" />
+              </div>
+              <!-- Input image thumbs -->
+              <div v-if="task.input_image_urls?.length" class="task-input-thumbs">
+                <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
+              </div>
+            </div>
+            <div class="task-meta">
+              <span class="task-res">{{ aspectLabel(task) }}</span>
+              <span class="task-model">{{ modelDisplayName(task.model) }}</span>
+              <span v-if="task.remark" class="task-remark" :title="task.remark" @click="openRemarkEditor(task)">{{ task.remark }}</span>
+              <el-button class="task-remark-btn" :icon="EditPen" text size="small" title="备注" @click="openRemarkEditor(task)" />
+            </div>
           </div>
         </div>
         <div v-if="!bulkMode" class="task-actions">
           <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
-          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">重新编辑</el-button>
           <el-button size="small" :icon="Download" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)">下载</el-button>
-          <el-button size="small" :icon="Edit" :disabled="!task.result_image_urls?.[0]" @click="emit('edit', task)">编辑</el-button>
-          <el-dropdown trigger="click">
-            <el-button size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="emit('viewDetail', task)"><el-icon><View /></el-icon>详情</el-dropdown-item>
-                <el-dropdown-item v-if="task.status === 'completed' && task.result_image_urls?.[0]" @click="emit('publish', task)"><el-icon><Share /></el-icon>发布到作品库</el-dropdown-item>
-                <el-dropdown-item @click="emit('delete', task)"><el-icon><Delete /></el-icon>删除</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <el-button size="small" :icon="View" @click="emit('viewDetail', task)">详情</el-button>
+          <el-button size="small" :icon="Delete" @click="emit('delete', task)">删除</el-button>
         </div>
       </div>
     </div>
@@ -341,21 +356,10 @@ function handleImageDragStart(e: DragEvent, url: string) {
 
         <!-- Actions -->
         <div v-if="!bulkMode" class="grid-card-actions">
-          <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
-          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">重新编辑</el-button>
-          <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Download" @click="emit('download', task)">下载</el-button>
+          <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>          <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Download" @click="emit('download', task)">下载</el-button>
           <el-button v-else size="small" disabled>下载</el-button>
-          <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Edit" @click="emit('edit', task)">编辑</el-button>
-          <el-dropdown trigger="click">
-            <el-button size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="emit('viewDetail', task)">详情</el-dropdown-item>
-                <el-dropdown-item v-if="task.status === 'completed' && task.result_image_urls?.[0]" @click="emit('publish', task)">发布到作品库</el-dropdown-item>
-                <el-dropdown-item @click="emit('delete', task)">删除</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <el-button size="small" :icon="View" @click="emit('viewDetail', task)">详情</el-button>
+          <el-button size="small" :icon="Delete" @click="emit('delete', task)">删除</el-button>
         </div>
       </div>
     </div>
@@ -429,6 +433,11 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .task-model { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 .task-res { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 .task-time { font-size: var(--momo-font-size-sm); color: var(--el-text-color-placeholder); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; overflow: hidden; flex-shrink: 0; }
+.task-remark { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.task-remark-btn { height: 20px; padding: 0; }
+.task-content-row { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-height: 0; }
+.task-content-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 
 /* Prompt */
 .task-prompt {
@@ -452,7 +461,6 @@ function handleImageDragStart(e: DragEvent, url: string) {
   flex-shrink: 0; min-width: 80px;
 }
 .task-actions .el-button { margin-left: 0; width: 100%; }
-.task-actions .el-dropdown { margin-left: 0; width: 100%; }
 .task-actions .el-dropdown .el-button { width: 100%; margin-left: 0; }
 
 /* ─── Grid View ─── */
@@ -502,8 +510,6 @@ function handleImageDragStart(e: DragEvent, url: string) {
   border-top: 1px solid var(--el-border-color-lighter);
 }
 .grid-card-actions > .el-button { flex: 1; }
-.grid-card-actions > .el-dropdown { flex: 1; }
-.grid-card-actions > .el-dropdown > .el-button { width: 100%; }
 
 /* Input image thumbnails */
 .task-input-thumbs {

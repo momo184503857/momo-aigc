@@ -5,6 +5,7 @@ import { useServerStatusStore } from '@/stores/serverStatus'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { generationApi } from '@/services/generationApi'
 import { pointsApi } from '@/services/pointsApi'
+import { taskApi } from '@/services/taskApi'
 import { submitTask } from '@/services/imageGeneration'
 import { translateError } from '@/utils/errors'
 import { downloadUrl } from '@/utils/download'
@@ -57,6 +58,8 @@ const filterStartDate = ref('')
 const filterEndDate = ref('')
 const filterFeature = ref('')
 const filterDateRange = ref<[Date, Date] | null>(null)
+const filterRemark = ref('')
+const filterRemarkKw = ref('')
 
 // Compare dialog
 const compareVisible = ref(false)
@@ -147,6 +150,7 @@ export function useTaskManager() {
 
   function applyFilters() {
     filterFeatureId.value = filterFeature.value
+    filterRemarkKw.value = filterRemark.value.trim()
     if (filterDateRange.value) {
       filterStartDate.value = formatDate(filterDateRange.value[0])
       filterEndDate.value = formatDate(filterDateRange.value[1]) + ' 23:59:59'
@@ -169,6 +173,7 @@ export function useTaskManager() {
         feature_id: filterFeatureId.value || undefined,
         start_date: filterStartDate.value || undefined,
         end_date: filterEndDate.value || undefined,
+        remark: filterRemarkKw.value || undefined,
       })
       const records = res.data.data?.records || []
       total.value = res.data.data?.total || 0
@@ -453,6 +458,18 @@ export function useTaskManager() {
     } catch { /* cancelled */ }
   }
 
+  /** 任务备注：空串即清除 */
+  async function handleSaveRemark(task: TaskItem, remark: string) {
+    try {
+      await taskApi.updateRemark(task.id, remark)
+      const target = tasks.value.find((t) => t.id === task.id)
+      if (target) target.remark = remark
+      success(remark ? '备注已保存' : '备注已清除')
+    } catch (e) {
+      error(e, '备注保存失败')
+    }
+  }
+
   async function handleDownload(task: TaskItem) {
     const url = task.result_image_urls?.[0]
     if (!url) { warning('没有可下载的图片'); return }
@@ -625,6 +642,7 @@ export function useTaskManager() {
     total,
     filterFeature,
     filterDateRange,
+    filterRemark,
     featureOptions,
     dateShortcuts,
     hasActiveJobs,
@@ -643,6 +661,7 @@ export function useTaskManager() {
     handleRegenerate,
     handleEditDone,
     handleDelete,
+    handleSaveRemark,
     handleDownload,
     handleCopyParams,
     handleBatchDownload,
