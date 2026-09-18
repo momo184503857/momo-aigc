@@ -42,6 +42,20 @@ export const CANONICAL_LOGICAL_MODELS: LogicalModelSeed[] = [
     },
   },
   {
+    code: 'gpt-image-2.5-free',
+    name: 'gpt-image-2.5白嫖版',
+    kind: 'image',
+    default_params: {
+      resolutions: ['1K'],
+      aspectRatiosByResolution: {
+        '1K': ['1:1', '4:3', '3:4'],
+      },
+      aspectRatios: ASPECTS_10,
+      maxReferenceImages: 14,
+      maxPromptChars: 32000,
+    },
+  },
+  {
     code: 'gpt-image-2.5',
     name: 'image2.5',
     kind: 'image',
