@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, Check, EditPen } from '@element-plus/icons-vue'
-import { ElMessageBox } from 'element-plus'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { parseUTC, toBJMinute } from '@/utils/datetime'
@@ -64,17 +63,32 @@ const emit = defineEmits<{
   'saveRemark': [task: TaskItem, remark: string]
 }>()
 
+const editingRemarkId = ref<number | null>(null)
+const remarkDraft = ref('')
+const remarkInput = ref<HTMLInputElement | null>(null)
+
+function setRemarkInput(el: unknown) {
+  remarkInput.value = el instanceof HTMLInputElement ? el : null
+}
+
 async function openRemarkEditor(task: TaskItem) {
-  try {
-    const { value } = await ElMessageBox.prompt('为这条任务添加备注，方便日后查找（留空保存即清除）', '任务备注', {
-      confirmButtonText: '保存',
-      cancelButtonText: '取消',
-      inputValue: task.remark || '',
-      inputPlaceholder: '选填，最多 200 字',
-      inputValidator: (v: string) => !v || v.length <= 200 || '备注不能超过 200 字',
-    })
-    emit('saveRemark', task, (value || '').trim())
-  } catch { /* cancelled */ }
+  editingRemarkId.value = task.id
+  remarkDraft.value = task.remark || ''
+  await nextTick()
+  remarkInput.value?.focus()
+  remarkInput.value?.select()
+}
+
+function saveRemark(task: TaskItem) {
+  if (editingRemarkId.value !== task.id) return
+  const remark = remarkDraft.value.trim()
+  editingRemarkId.value = null
+  if (remark === (task.remark || '')) return
+  emit('saveRemark', task, remark)
+}
+
+function cancelRemarkEdit() {
+  editingRemarkId.value = null
 }
 
 const statusText = computed(() => (status: string) => {
@@ -275,8 +289,31 @@ function handleImageDragStart(e: DragEvent, url: string) {
             <div class="task-meta">
               <span class="task-res">{{ aspectLabel(task) }}</span>
               <span class="task-model">{{ modelDisplayName(task.model) }}</span>
-              <span v-if="task.remark" class="task-remark" :title="task.remark" @click="openRemarkEditor(task)">{{ task.remark }}</span>
-              <el-button class="task-remark-btn" :icon="EditPen" text size="small" title="备注" @click="openRemarkEditor(task)" />
+              <div class="task-remark-row">
+                <input
+                  v-if="editingRemarkId === task.id"
+                  :ref="setRemarkInput"
+                  v-model="remarkDraft"
+                  class="task-remark-input"
+                  maxlength="200"
+                  aria-label="任务备注"
+                  placeholder="添加备注"
+                  @blur="saveRemark(task)"
+                  @keydown.esc.stop.prevent="cancelRemarkEdit"
+                />
+                <template v-else>
+                  <span v-if="task.remark" class="task-remark" :title="task.remark">{{ task.remark }}</span>
+                  <el-button
+                    class="task-remark-btn"
+                    :icon="EditPen"
+                    text
+                    size="small"
+                    :title="task.remark ? '编辑备注' : '添加备注'"
+                    :aria-label="task.remark ? '编辑备注' : '添加备注'"
+                    @click="openRemarkEditor(task)"
+                  />
+                </template>
+              </div>
             </div>
           </div>
         </div>
@@ -434,8 +471,25 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .task-res { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 .task-time { font-size: var(--momo-font-size-sm); color: var(--el-text-color-placeholder); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; overflow: hidden; flex-shrink: 0; }
-.task-remark { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-.task-remark-btn { height: 20px; padding: 0; }
+.task-remark-row { display: flex; align-items: center; justify-content: flex-end; gap: 2px; max-width: 180px; }
+.task-remark { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); min-width: 0; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-remark-input {
+  width: 160px;
+  height: 24px;
+  padding: 0 var(--momo-space-2);
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--momo-radius-sm);
+  background: var(--el-bg-color);
+  color: var(--el-text-color-primary);
+  font: inherit;
+  font-size: var(--momo-font-size-sm);
+  outline: none;
+}
+.task-remark-input:focus {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+}
+.task-remark-btn { flex-shrink: 0; height: 20px; padding: 0; }
 .task-content-row { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-height: 0; }
 .task-content-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 

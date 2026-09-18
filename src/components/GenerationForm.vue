@@ -573,21 +573,21 @@ defineExpose({ setParams })
 
 /* ─── Params bar: one row of dropdowns above the generate button ─── */
 .params-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(112px, 1fr));
+  align-items: end;
+  gap: 12px;
   margin-bottom: 12px;
+  overflow-x: auto;
 }
 .param-item {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 6px;
-  flex: 1;
   min-width: 0;
 }
-.param-item.param-model-item { flex: 1.5; }
 .param-label {
-  flex-shrink: 0;
   font-size: var(--momo-font-size-sm);
   color: var(--el-text-color-regular);
 }

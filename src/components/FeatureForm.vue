@@ -470,47 +470,34 @@ defineExpose({ setParams })
         />
       </div>
 
-      <!-- Model + Channel -->
-      <div class="form-row-inline">
-        <label class="form-label-left">模型</label>
-        <div class="form-control-right">
-          <ModelChannelSelect v-model="selectedModelId" @change="handleModelChange" />
-        </div>
-      </div>
+    </div>
 
-      <!-- Resolution -->
-      <div class="form-row-inline">
-        <label class="form-label-left">分辨率</label>
-        <div class="form-control-right">
-          <el-radio-group v-model="resolution" @change="handleResolutionChange">
-            <el-radio-button v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</el-radio-button>
-          </el-radio-group>
+    <!-- Footer: shared four-column params bar + generate button -->
+    <div class="form-footer">
+      <div class="params-bar">
+        <div class="param-item param-model-item">
+          <label class="param-label">模型</label>
+          <ModelChannelSelect v-model="selectedModelId" class="param-model" @change="handleModelChange" />
         </div>
-      </div>
-
-      <!-- Aspect Ratio -->
-      <div class="form-row-inline">
-        <label class="form-label-left">宽高比</label>
-        <div class="form-control-right">
-          <el-select v-model="aspectRatio" style="width: 100%">
+        <div class="param-item">
+          <label class="param-label">分辨率</label>
+          <el-select v-model="resolution" class="param-select" @change="handleResolutionChange">
+            <el-option v-for="r in availableResolutions" :key="r" :label="r" :value="r" />
+          </el-select>
+        </div>
+        <div class="param-item">
+          <label class="param-label">宽高比</label>
+          <el-select v-model="aspectRatio" class="param-select">
             <el-option v-for="ar in availableAspectRatios" :key="ar" :label="ar" :value="ar" />
           </el-select>
         </div>
-      </div>
-
-      <!-- Count -->
-      <div class="form-row-inline">
-        <label class="form-label-left">生成数量</label>
-        <div class="form-control-right">
-          <el-select v-model="count" style="width: 100%">
+        <div class="param-item">
+          <label class="param-label">数量</label>
+          <el-select v-model="count" class="param-select">
             <el-option v-for="n in [1, 2, 3, 4, 5]" :key="n" :label="`${n}张`" :value="n" />
           </el-select>
         </div>
       </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="form-footer">
       <el-button
         type="primary"
         size="large"
@@ -638,6 +625,34 @@ defineExpose({ setParams })
   flex-shrink: 0;
   border-top: 1px solid var(--el-border-color-lighter);
   padding-top: 16px;
+}
+
+/* 与自由生图保持一致：四项生成参数固定在同一行 */
+.params-bar {
+  display: grid;
+  grid-template-columns: minmax(92px, 1.4fr) repeat(3, minmax(60px, 1fr));
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+}
+.param-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+.param-label {
+  font-size: var(--momo-font-size-sm);
+  color: var(--el-text-color-regular);
+}
+.param-select {
+  width: 100%;
+  min-width: 0;
+}
+.param-model {
+  min-width: 0;
 }
 
 .prompt-panel-row {
