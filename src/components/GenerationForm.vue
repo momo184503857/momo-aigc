@@ -349,14 +349,6 @@ defineExpose({ setParams })
         style="margin-bottom: 16px"
       />
 
-      <!-- Model + Channel -->
-      <div class="form-row-inline">
-        <label class="form-label-left">模型</label>
-        <div class="form-control-right">
-          <ModelChannelSelect v-model="selectedModelId" @change="handleModelChange" />
-        </div>
-      </div>
-
       <!-- Reference Images -->
       <div class="form-row-inline form-row-top">
         <label class="form-label-left">参考图片</label>
@@ -427,38 +419,6 @@ defineExpose({ setParams })
             <span v-if="promptExceeded" class="prompt-limit-exceeded">超出字数限制</span>
             <span class="prompt-count" :class="{ exceeded: promptExceeded }">{{ prompt.length }}/{{ maxPromptChars }}</span>
           </div>
-        </div>
-      </div>
-
-      <!-- Resolution -->
-      <div class="form-row-inline">
-        <label class="form-label-left">分辨率</label>
-        <div class="form-control-right">
-          <el-radio-group v-model="resolution" @change="handleResolutionChange">
-            <el-radio-button v-for="r in availableResolutions" :key="r" :value="r">
-              {{ r }}
-            </el-radio-button>
-          </el-radio-group>
-        </div>
-      </div>
-
-      <!-- Aspect Ratio -->
-      <div class="form-row-inline">
-        <label class="form-label-left">宽高比</label>
-        <div class="form-control-right">
-          <el-select v-model="aspectRatio" style="width: 100%">
-            <el-option v-for="ar in availableAspectRatios" :key="ar" :label="ar" :value="ar" />
-          </el-select>
-        </div>
-      </div>
-
-      <!-- Count -->
-      <div class="form-row-inline">
-        <label class="form-label-left">生成数量</label>
-        <div class="form-control-right">
-          <el-select v-model="count" style="width: 100%">
-            <el-option v-for="n in [1, 2, 3, 4, 5]" :key="n" :label="`${n}张`" :value="n" />
-          </el-select>
         </div>
       </div>
 
@@ -552,8 +512,32 @@ defineExpose({ setParams })
       </el-dialog>
     </div>
 
-    <!-- Footer: button pinned to bottom -->
+    <!-- Footer: params bar + generate button pinned to bottom -->
     <div class="form-footer">
+      <div class="params-bar">
+        <div class="param-item param-model-item">
+          <label class="param-label">模型</label>
+          <ModelChannelSelect v-model="selectedModelId" class="param-model" @change="handleModelChange" />
+        </div>
+        <div class="param-item">
+          <label class="param-label">分辨率</label>
+          <el-select v-model="resolution" class="param-select" @change="handleResolutionChange">
+            <el-option v-for="r in availableResolutions" :key="r" :label="r" :value="r" />
+          </el-select>
+        </div>
+        <div class="param-item">
+          <label class="param-label">宽高比</label>
+          <el-select v-model="aspectRatio" class="param-select">
+            <el-option v-for="ar in availableAspectRatios" :key="ar" :label="ar" :value="ar" />
+          </el-select>
+        </div>
+        <div class="param-item">
+          <label class="param-label">数量</label>
+          <el-select v-model="count" class="param-select">
+            <el-option v-for="n in [1, 2, 3, 4, 5]" :key="n" :label="`${n}张`" :value="n" />
+          </el-select>
+        </div>
+      </div>
       <el-button
         type="primary"
         size="large"
@@ -585,6 +569,36 @@ defineExpose({ setParams })
   padding-top: 16px;
   margin-top: 8px;
   border-top: 1px solid var(--el-border-color-lighter);
+}
+
+/* ─── Params bar: one row of dropdowns above the generate button ─── */
+.params-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.param-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.param-item.param-model-item { flex: 1.5; }
+.param-label {
+  flex-shrink: 0;
+  font-size: var(--momo-font-size-sm);
+  color: var(--el-text-color-regular);
+}
+.param-select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.param-model {
+  flex: 1;
+  min-width: 0;
 }
 
 .section-title {

@@ -189,7 +189,7 @@ const panelStyle = computed(() => ({
           placeholder="搜索备注"
           size="small"
           clearable
-          style="width: 160px"
+          class="remark-search"
           :prefix-icon="Search"
           @keyup.enter="tm.applyFilters"
           @clear="tm.applyFilters"
@@ -420,6 +420,11 @@ const panelStyle = computed(() => ({
   padding: 8px 16px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   flex-shrink: 0;
+  flex-wrap: wrap; /* 窄面板时搜索框换行，避免被压缩裁切 */
+}
+.remark-search {
+  flex: 1;
+  min-width: 150px;
 }
 
 /* Toolbar */
