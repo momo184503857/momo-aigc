@@ -299,36 +299,38 @@ function dataUrlToFile(dataUrl: string, filename: string): File {
 }
 
 // External setParams
-function setParams(params: {
+async function setParams(params: {
+  logicalModelId?: number | null
   modelId: string
   prompt: string
   resolution: string
   aspectRatio: string
   referenceImages?: { dataUrl: string; sourceUrl?: string }[]
+  promptSegments?: Record<string, string>
+  negativePrompt?: string
 }) {
+  await modelCatalog.ensureLoaded()
   // 旧参数携带模型名字符串：按名反查渠道模型（兼容历史任务「重新生成」）
-  const cm = modelCatalog.getModelByName(params.modelId)
-  if (cm) {
+  const cm = modelCatalog.getModel(params.logicalModelId) ?? modelCatalog.getModelByName(params.modelId)
+  if (cm?.capabilities) {
     selectedModelId.value = cm.id
-    if (!cm.capabilities?.resolutions?.includes(params.resolution)) {
-      resolution.value = cm.capabilities?.resolutions?.[0] ?? params.resolution
-    } else {
-      resolution.value = params.resolution
-    }
+    resolution.value = cm.capabilities.resolutions.includes(params.resolution)
+      ? params.resolution
+      : (cm.capabilities.resolutions[0] ?? params.resolution)
     const ratios = modelCatalog.aspectRatiosFor(cm, resolution.value)
     aspectRatio.value = ratios.includes(params.aspectRatio) ? params.aspectRatio : (ratios[0] ?? params.aspectRatio)
   }
   prompt.value = params.prompt
-  resolution.value = params.resolution
-  aspectRatio.value = params.aspectRatio
-  if (params.referenceImages && params.referenceImages.length > 0) {
-    referenceImages.value = params.referenceImages.map((img, i) => ({
+  promptSegments.value = { ...(params.promptSegments || {}) }
+  negativePrompt.value = params.negativePrompt || ''
+  referenceImages.value = (params.referenceImages || [])
+    .slice(0, maxReferenceImages.value)
+    .map((img, i) => ({
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}-${i}`,
       dataUrl: img.dataUrl,
       label: `参考图${i + 1}`,
       sourceUrl: img.sourceUrl,
     }))
-  }
 }
 
 defineExpose({ setParams })

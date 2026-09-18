@@ -319,6 +319,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
         </div>
         <div v-if="!bulkMode" class="task-actions">
           <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
+          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">复用参数</el-button>
           <el-button size="small" :icon="Download" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)">下载</el-button>
           <el-button size="small" :icon="View" @click="emit('viewDetail', task)">详情</el-button>
           <el-button size="small" :icon="Delete" @click="emit('delete', task)">删除</el-button>
@@ -393,7 +394,9 @@ function handleImageDragStart(e: DragEvent, url: string) {
 
         <!-- Actions -->
         <div v-if="!bulkMode" class="grid-card-actions">
-          <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>          <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Download" @click="emit('download', task)">下载</el-button>
+          <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
+          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">复用参数</el-button>
+          <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Download" @click="emit('download', task)">下载</el-button>
           <el-button v-else size="small" disabled>下载</el-button>
           <el-button size="small" :icon="View" @click="emit('viewDetail', task)">详情</el-button>
           <el-button size="small" :icon="Delete" @click="emit('delete', task)">删除</el-button>
@@ -560,10 +563,10 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .grid-duration { margin-left: 6px; font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
 
 .grid-card-actions {
-  display: flex; gap: 4px; padding: 6px 10px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 6px 10px;
   border-top: 1px solid var(--el-border-color-lighter);
 }
-.grid-card-actions > .el-button { flex: 1; }
+.grid-card-actions > .el-button { width: 100%; margin-left: 0; }
 
 /* Input image thumbnails */
 .task-input-thumbs {

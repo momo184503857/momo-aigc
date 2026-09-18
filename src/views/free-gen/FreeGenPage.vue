@@ -37,27 +37,32 @@ async function handleGenerate(params: {
 
 // ─── 复制参数（从任务面板跳转回来时） ───
 
-function handleCopyParamsFromTask(params: {
+async function handleCopyParamsFromTask(params: {
+  logicalModelId?: number | null
   modelId: string
   prompt: string
   resolution: string
   aspectRatio: string
   input_image_urls: string[]
   feature_id?: string
+  promptSegments?: Record<string, string>
+  negativePrompt?: string
 }) {
-  nextTick(() => {
-    generationForm.value?.setParams({
-      modelId: params.modelId,
-      prompt: params.prompt,
-      resolution: params.resolution,
-      aspectRatio: params.aspectRatio,
-      referenceImages: (params.input_image_urls || []).map((url: string) => ({
-        dataUrl: url,
-        sourceUrl: url,
-      })),
-    })
-    success('参数已复制到表单')
+  await nextTick()
+  await generationForm.value?.setParams({
+    logicalModelId: params.logicalModelId,
+    modelId: params.modelId,
+    prompt: params.prompt,
+    resolution: params.resolution,
+    aspectRatio: params.aspectRatio,
+    referenceImages: (params.input_image_urls || []).map((url: string) => ({
+      dataUrl: url,
+      sourceUrl: url,
+    })),
+    promptSegments: params.promptSegments,
+    negativePrompt: params.negativePrompt,
   })
+  success('参数已复用，生图张数保持不变')
 }
 
 // ─── 监听来自任务面板的参数复制事件（仅处理自由生图任务） ───
@@ -68,12 +73,15 @@ watch(() => tm.copyParamsEvent.value, (evt) => {
   // 仅处理自由生图任务；功能任务交由 WorkspacePage 处理
   if (task.feature_id && task.feature_id !== 'free-gen') return
   handleCopyParamsFromTask({
+    logicalModelId: task.logical_model_id,
     modelId: task.model,
     prompt: task.prompt,
     resolution: task.resolution,
     aspectRatio: task.aspectRatio,
     input_image_urls: task.input_image_urls || [],
     feature_id: task.feature_id,
+    promptSegments: task.prompt_segments,
+    negativePrompt: task.negative_prompt,
   })
 })
 
@@ -90,7 +98,7 @@ onMounted(async () => {
       // 仅处理自由生图任务
       if (params.feature_id && params.feature_id !== 'free-gen') return
       await nextTick()
-      handleCopyParamsFromTask(params)
+      await handleCopyParamsFromTask({ ...params, modelId: params.modelId || params.model })
     } catch { /* ignore parse errors */ }
   }
 })
@@ -105,7 +113,7 @@ onActivated(async () => {
       const params = JSON.parse(stored)
       if (params.feature_id && params.feature_id !== 'free-gen') return
       await nextTick()
-      handleCopyParamsFromTask(params)
+      await handleCopyParamsFromTask({ ...params, modelId: params.modelId || params.model })
     } catch { /* ignore parse errors */ }
   }
 })

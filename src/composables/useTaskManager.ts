@@ -395,7 +395,9 @@ export function useTaskManager() {
 
     if (currentRoute.name !== targetRouteName) {
       sessionStorage.setItem('regenerate_task', JSON.stringify({
+        logicalModelId: task.logical_model_id,
         model: task.model,
+        modelId: task.model,
         prompt: task.prompt,
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
@@ -403,6 +405,8 @@ export function useTaskManager() {
         input_image_urls: task.input_image_urls || [],
         feature_id: task.feature_id,
         supplementaryImages: task.supplementaryImages,
+        promptSegments: task.prompt_segments,
+        negativePrompt: task.negative_prompt,
       }))
       router.push(targetRoutePath)
       info(
@@ -489,7 +493,9 @@ export function useTaskManager() {
 
     if (currentRoute.name !== targetRouteName) {
       sessionStorage.setItem('regenerate_task', JSON.stringify({
+        logicalModelId: task.logical_model_id,
         model: task.model,
+        modelId: task.model,
         prompt: task.prompt,
         resolution: task.resolution,
         aspectRatio: task.aspectRatio,
@@ -497,6 +503,8 @@ export function useTaskManager() {
         input_image_urls: task.input_image_urls || [],
         feature_id: task.feature_id,
         supplementaryImages: task.supplementaryImages,
+        promptSegments: task.prompt_segments,
+        negativePrompt: task.negative_prompt,
       }))
       router.push(targetRoutePath)
       info(
