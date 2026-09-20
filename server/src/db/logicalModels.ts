@@ -68,6 +68,17 @@ export const CANONICAL_LOGICAL_MODELS: LogicalModelSeed[] = [
     },
   },
   {
+    code: 'gpt_web',
+    name: 'gpt_web',
+    kind: 'image',
+    default_params: {
+      resolutions: ['1K'],
+      aspectRatios: ASPECTS_GPT_IMAGE_25,
+      maxReferenceImages: 14,
+      maxPromptChars: 32000,
+    },
+  },
+  {
     code: 'gemini-3-pro-image-preview',
     name: 'banana pro',
     kind: 'image',
