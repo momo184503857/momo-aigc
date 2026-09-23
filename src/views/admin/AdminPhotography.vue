@@ -3,11 +3,25 @@ defineOptions({ name: 'AdminPhotography' })
 import { ref, computed, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error } = useUiFeedback()
-import { Plus, Delete, Top, Bottom, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, LoaderCircle } from '@lucide/vue'
 import { photographyApi } from '@/services/photographyApi'
 import type { PhotographyElement, PhotographyElementPrompt } from '@/services/photographyApi'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import PageLayout from '@/components/PageLayout.vue'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { UiEmptyState, UiNumberInput } from '@/components/ui'
 
 // ─── State ───
 interface ElementWithPrompts {
@@ -50,6 +64,16 @@ const modelCatalog = useModelCatalogStore()
 function modelDisplayName(modelId: string): string {
   return modelCatalog.displayNameFor(modelId)
 }
+
+/** 展示用：某个元素下未保存的提示词条数（保存按钮的可用性 + 头部脏标记都读它） */
+function dirtyCountOf(el: ElementWithPrompts): number {
+  return el.prompts.reduce((n, p) => n + (p._dirty ? 1 : 0), 0)
+}
+
+const dirtyTotal = computed(() => elements.value.reduce((n, el) => n + dirtyCountOf(el), 0))
+
+/** 保存中的元素 id：仅用于把 spinner 精确画到那一行的保存按钮上（纯视图态） */
+const savingElementId = ref<number | null>(null)
 
 function toggleElement(id: number) {
   const s = new Set(expandedElements.value)
@@ -177,6 +201,7 @@ function markDirty(prompt: PromptRow) {
 
 async function saveElementPrompts(el: ElementWithPrompts) {
   saving.value = true
+  savingElementId.value = el.id
   let ok = 0
   for (const p of el.prompts) {
     if (!p._dirty) continue
@@ -187,6 +212,7 @@ async function saveElementPrompts(el: ElementWithPrompts) {
     } catch { /* skip */ }
   }
   saving.value = false
+  savingElementId.value = null
   if (ok > 0) success(`已保存 ${ok} 条`)
 }
 
@@ -194,198 +220,266 @@ onMounted(() => load())
 </script>
 
 <template>
-  <PageLayout>
-    <template #header>
-      <span>AI摄影配置</span>
-    </template>
+  <PageLayout
+    title="AI摄影配置"
+    subtitle="为每个元素设置各模型下的系统提示词。生成时系统按元素顺序拼接提示词，并自动附加参考图映射说明。"
+  >
     <template #extra>
-      <el-button type="primary" :icon="Plus" @click="openCreateDialog">新增元素</el-button>
+      <Button @click="openCreateDialog"><Plus />新增元素</Button>
     </template>
 
-    <div v-loading="loading">
-      <div class="toolbar">
-        <el-alert
-          title="为每个元素设置各模型下的系统提示词。生成时系统会按元素顺序拼接提示词，并自动附加参考图映射说明。"
-          type="info" show-icon :closable="false" class="toolbar-alert"
-        />
-        <el-button size="small" @click="toggleAll">
-          {{ allExpanded ? '全部折叠' : '全部展开' }}
-        </el-button>
-      </div>
+    <template #filters>
+      <Button variant="ghost" size="sm" @click="toggleAll">
+        {{ allExpanded ? '全部折叠' : '全部展开' }}
+      </Button>
+      <span v-if="!loading && elements.length" class="text-muted-foreground ml-auto text-xs tabular-nums">
+        <span v-if="dirtyTotal > 0" class="text-warning font-medium">未保存 {{ dirtyTotal }} 处 · </span>
+        共 {{ elements.length }} 个元素
+      </span>
+    </template>
 
-      <div v-if="elements.length === 0 && !loading" class="empty-state">
-        <el-empty description="暂无元素，请点击「新增元素」添加">
-          <el-button type="primary" :icon="Plus" @click="openCreateDialog">新增元素</el-button>
-        </el-empty>
-      </div>
+    <div v-if="loading" class="flex flex-col gap-3">
+      <Skeleton v-for="i in 4" :key="i" class="h-12 w-full" />
+    </div>
 
-      <div class="elements-list">
-        <div v-for="(el, ei) in elements" :key="el.id" class="element-card"
-          :class="{ inactive: el.status !== 'active' }">
-          <div class="element-header" @click="toggleElement(el.id)">
-            <div class="element-header-left">
-              <el-icon class="chevron" :class="{ rotated: expandedElements.has(el.id) }">
-                <ArrowDown />
-              </el-icon>
-              <span class="element-label">{{ el.label }}</span>
-              <el-tag v-if="el.status !== 'active'" type="info" size="small" class="status-tag">已禁用</el-tag>
-              <span class="element-meta">
-                标识: {{ el.name }} · 最多 {{ el.max_images }} 张图
-              </span>
-            </div>
-            <div class="element-header-right" @click.stop>
-              <el-button size="small" :icon="Top" :disabled="ei === 0" @click="handleMoveUp(el, ei)" title="上移" />
-              <el-button size="small" :icon="Bottom" :disabled="ei === elements.length - 1" @click="handleMoveDown(el, ei)" title="下移" />
-              <el-button size="small" @click="openEditDialog(el)">编辑</el-button>
-              <el-button size="small" @click="handleToggleStatus(el)">
-                {{ el.status === 'active' ? '禁用' : '启用' }}
-              </el-button>
-              <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(el)" />
-            </div>
+    <UiEmptyState v-else-if="elements.length === 0" title="暂无元素，请点击「新增元素」添加">
+      <Button @click="openCreateDialog"><Plus />新增元素</Button>
+    </UiEmptyState>
+
+    <!-- 元素列表：贴页面灰底，用发丝线分行；每行的表头吸顶，动作与保存常驻可见 -->
+    <div v-else class="elements-list">
+      <div
+        v-for="(el, ei) in elements"
+        :key="el.id"
+        class="element"
+        :class="{ inactive: el.status !== 'active' }"
+      >
+        <div class="element-head">
+          <button
+            type="button"
+            class="element-title"
+            :aria-expanded="expandedElements.has(el.id)"
+            @click="toggleElement(el.id)"
+          >
+            <ChevronDown class="chevron" :class="{ rotated: expandedElements.has(el.id) }" />
+            <span class="element-label">{{ el.label }}</span>
+            <Badge v-if="el.status !== 'active'" variant="secondary">已禁用</Badge>
+            <Badge v-if="dirtyCountOf(el) > 0" variant="warning">{{ dirtyCountOf(el) }} 处未保存</Badge>
+            <span class="element-meta">
+              标识 {{ el.name }} · 最多 {{ el.max_images }} 张图 · {{ el.prompts.length }} 个模型
+            </span>
+          </button>
+
+          <div class="element-actions" @click.stop>
+            <Button variant="ghost" size="icon-sm" :disabled="ei === 0" title="上移" @click="handleMoveUp(el, ei)">
+              <ArrowUp />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :disabled="ei === elements.length - 1"
+              title="下移"
+              @click="handleMoveDown(el, ei)"
+            >
+              <ArrowDown />
+            </Button>
+            <Button variant="ghost" size="sm" @click="openEditDialog(el)">编辑</Button>
+            <Button variant="ghost" size="sm" @click="handleToggleStatus(el)">
+              {{ el.status === 'active' ? '禁用' : '启用' }}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="text-destructive hover:text-destructive"
+              title="删除"
+              @click="handleDelete(el)"
+            >
+              <Trash2 />
+            </Button>
+            <Button
+              size="sm"
+              :disabled="saving || dirtyCountOf(el) === 0"
+              @click="saveElementPrompts(el)"
+            >
+              <LoaderCircle v-if="saving && savingElementId === el.id" class="animate-spin" />
+              保存
+            </Button>
           </div>
+        </div>
 
-          <div v-show="expandedElements.has(el.id)" class="element-body">
-            <div class="element-prompts">
-              <div v-for="prompt in el.prompts" :key="prompt.id" class="prompt-row">
-                <div class="prompt-model">{{ modelDisplayName(prompt.model_id) }}</div>
-                <el-input
-                  v-model="prompt.system_prompt"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="该元素的系统提示词（可为空）"
-                  @input="markDirty(prompt)"
-                />
-              </div>
+        <div v-show="expandedElements.has(el.id)" class="element-body">
+          <p v-if="!el.prompts.length" class="text-muted-foreground text-sm">该元素还没有模型提示词</p>
+          <div v-for="prompt in el.prompts" :key="prompt.id" class="prompt-row">
+            <div class="prompt-model">
+              <span class="truncate">{{ modelDisplayName(prompt.model_id) }}</span>
+              <span v-if="prompt._dirty" class="dirty-dot" title="未保存" />
             </div>
-
-            <div class="element-footer">
-              <el-button
-                size="small"
-                type="primary"
-                :loading="saving"
-                @click="saveElementPrompts(el)"
-              >
-                保存提示词
-              </el-button>
-            </div>
+            <Textarea
+              v-model="prompt.system_prompt"
+              :rows="3"
+              class="resize-y"
+              placeholder="该元素的系统提示词（可为空）"
+              @input="markDirty(prompt)"
+            />
           </div>
         </div>
       </div>
     </div>
 
     <!-- Create/Edit Dialog -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px" @close="editingId = null">
-      <el-form label-width="100px">
-        <el-form-item label="元素标识">
-          <el-input v-model="dialogForm.name" placeholder="英文标识，如 face、pose" />
-        </el-form-item>
-        <el-form-item label="显示标签">
-          <el-input v-model="dialogForm.label" placeholder="中文标签，如 人脸、姿势" />
-        </el-form-item>
-        <el-form-item label="最大图片数">
-          <el-input-number v-model="dialogForm.max_images" :min="1" :max="10" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleDialogConfirm">确认</el-button>
-      </template>
-    </el-dialog>
+    <Dialog :open="dialogVisible" @update:open="(v: boolean) => { dialogVisible = v; if (!v) editingId = null }">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{{ dialogTitle }}</DialogTitle>
+        </DialogHeader>
+        <div class="flex flex-col gap-4">
+          <div class="grid gap-1.5">
+            <Label for="element-name">元素标识</Label>
+            <Input id="element-name" v-model="dialogForm.name" placeholder="英文标识，如 face、pose" />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="element-label">显示标签</Label>
+            <Input id="element-label" v-model="dialogForm.label" placeholder="中文标签，如 人脸、姿势" />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="element-max-images">最大图片数</Label>
+            <UiNumberInput id="element-max-images" v-model="dialogForm.max_images" :min="1" :max="10" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="dialogVisible = false">取消</Button>
+          <Button @click="handleDialogConfirm">确认</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </PageLayout>
 </template>
 
 <style scoped>
-.toolbar {
-  display: flex; align-items: flex-start; gap: 12px;
-  margin-bottom: 24px;
-}
-.toolbar-alert { flex: 1; }
-
-.empty-state {
-  padding: 60px 0;
-  display: flex; justify-content: center;
-}
-
 .elements-list {
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex;
+  flex-direction: column;
+  /* 分行靠发丝线而不是靠卡片：一屏能多看两三个元素 */
+  border-top: 1px solid var(--momo-color-border-soft);
 }
 
-.element-card {
-  border: 1px solid var(--el-border-color);
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  background: var(--el-bg-color);
+.element {
+  border-bottom: 1px solid var(--momo-color-border-soft);
 }
-.element-card.inactive {
-  opacity: 0.6;
+.element.inactive {
+  opacity: 0.62;
 }
 
-.element-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--el-fill-color-light);
-  cursor: pointer; user-select: none;
-  transition: background 0.15s;
+/* 吸顶表头：滚动到某个元素的长提示词里时，它的名字 / 动作 / 保存按钮不会滚走 */
+.element-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
   gap: 12px;
+  padding: 8px 0;
+  background: var(--momo-color-bg-page);
+  border-bottom: 1px solid transparent;
 }
-.element-header:hover { background: var(--el-fill-color); }
+.element-head:focus-within,
+.element:hover > .element-head {
+  border-bottom-color: var(--momo-color-border-soft);
+}
 
-.element-header-left {
-  display: flex; align-items: center; gap: 10px;
-  flex: 1; min-width: 0;
+.element-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .chevron {
-  transition: transform 0.25s;
-  font-size: var(--momo-font-size-base); color: var(--el-text-color-secondary);
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
+  color: var(--momo-color-text-secondary);
+  transition: transform 0.2s;
 }
-.chevron.rotated { transform: rotate(180deg); }
+.chevron.rotated {
+  transform: rotate(180deg);
+}
 
 .element-label {
-  font-size: var(--momo-font-size-base); font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-size: var(--momo-font-size-base);
+  font-weight: var(--momo-font-weight-semibold);
+  color: var(--momo-color-text);
   white-space: nowrap;
 }
 
-.status-tag { flex-shrink: 0; }
-
 .element-meta {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--momo-font-size-xs);
+  color: var(--momo-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
 }
 
-.element-header-right {
-  display: flex; align-items: center; gap: 4px;
+.element-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
 }
 
-/* Body */
+/* 提示词正文：模型名固定一列，与输入框左对齐成两栏，扫读时视线不用跳 */
 .element-body {
-  padding: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.element-prompts {
-  display: flex; flex-direction: column; gap: 10px;
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0 16px;
 }
 
 .prompt-row {
-  display: flex; gap: 12px; align-items: flex-start;
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
 }
 
 .prompt-model {
-  width: 180px; flex-shrink: 0;
-  font-size: var(--momo-font-size-sm); font-weight: 500;
-  color: var(--el-text-color-regular);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   padding-top: 8px;
+  font-size: var(--momo-font-size-sm);
+  color: var(--momo-color-text-secondary);
 }
 
-.element-footer {
-  display: flex; align-items: center; gap: 8px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--el-border-color-lighter);
+.dirty-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--momo-color-warning);
+}
+
+@media (max-width: 900px) {
+  .prompt-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .prompt-model {
+    padding-top: 0;
+  }
+  .element-head {
+    flex-wrap: wrap;
+  }
 }
 </style>

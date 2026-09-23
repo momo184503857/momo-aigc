@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AdminApp from '@/admin/AdminApp.vue'
+import FeedbackHost from '@/components/FeedbackHost.vue'
 
 const route = useRoute()
 // 登录/注册/忘记密码等无需鉴权的页面走 AuthLayout
@@ -22,4 +23,7 @@ const isAdminPage = computed(() => route.path.startsWith('/admin'))
   <MainLayout v-else>
     <router-view />
   </MainLayout>
+
+  <!-- /admin 路由由 AdminApp 自带 FeedbackHost，避免同一单例状态被挂载两次 -->
+  <FeedbackHost v-if="!isAdminPage" />
 </template>

@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Textarea } from '@/components/ui/textarea'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
@@ -16,25 +19,29 @@ const mergeMode = computed(() =>
 </script>
 
 <template>
-  <div class="config-section">
-    <label>知识库内容（规则、背景基调、检查清单等大段文本）</label>
-    <el-input
-      :model-value="content"
-      type="textarea"
-      :rows="14"
-      placeholder="例如：主图背景基调统一规则、动作多样性与证据规则、质检标准…"
-      @update:model-value="emit('update', { content: $event })"
-    />
+  <div class="flex flex-col gap-3">
+    <div class="grid gap-1.5">
+      <Label>知识库内容（规则、背景基调、检查清单等大段文本）</Label>
+      <Textarea
+        :model-value="content"
+        :rows="14"
+        placeholder="例如：主图背景基调统一规则、动作多样性与证据规则、质检标准…"
+        @update:model-value="emit('update', { content: String($event) })"
+      />
+    </div>
 
-    <label>与上游文本的合并顺序</label>
-    <el-radio-group :model-value="mergeMode" @update:model-value="emit('update', { mergeMode: $event })">
-      <el-radio value="rules-first">知识库在前</el-radio>
-      <el-radio value="upstream-first">上游在前</el-radio>
-    </el-radio-group>
+    <div class="grid gap-1.5">
+      <Label>与上游文本的合并顺序</Label>
+      <RadioGroup :model-value="mergeMode" @update:model-value="emit('update', { mergeMode: String($event) })">
+        <div class="flex items-center gap-2">
+          <RadioGroupItem id="merge-rules-first" value="rules-first" />
+          <Label for="merge-rules-first" class="font-normal">知识库在前</Label>
+        </div>
+        <div class="flex items-center gap-2">
+          <RadioGroupItem id="merge-upstream-first" value="upstream-first" />
+          <Label for="merge-upstream-first" class="font-normal">上游在前</Label>
+        </div>
+      </RadioGroup>
+    </div>
   </div>
 </template>
-
-<style scoped>
-.config-section { display: flex; flex-direction: column; gap: 12px; }
-.config-section label { color: var(--el-text-color-regular); font-size: var(--el-font-size-small); }
-</style>

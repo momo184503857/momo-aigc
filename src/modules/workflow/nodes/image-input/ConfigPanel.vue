@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { UiEmptyState } from '@/components/ui'
+import { Button } from '@/components/ui/button'
 import type { WorkflowNode, LocalImageAsset } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
@@ -51,24 +53,23 @@ function removeImage(imageId: string) {
 </script>
 
 <template>
-  <div class="config-section">
+  <div class="flex flex-col gap-3">
     <input ref="fileInputRef" type="file" accept="image/*" multiple style="display:none" @change="handleFiles" />
-    <el-button type="primary" plain @click="fileInputRef?.click()">添加图片</el-button>
+    <Button variant="outline" @click="fileInputRef?.click()">添加图片</Button>
     <div v-if="images().length" class="image-list">
       <div v-for="img in images()" :key="img.id" class="image-item">
         <img :src="img.previewUrl" :alt="img.fileName" />
         <span>{{ img.fileName }}</span>
-        <el-button link type="danger" @click="removeImage(img.id)">删除</el-button>
+        <Button variant="link" class="text-destructive" @click="removeImage(img.id)">删除</Button>
       </div>
     </div>
-    <el-empty v-else description="暂无图片" :image-size="80" />
+    <UiEmptyState v-else title="暂无图片" />
   </div>
 </template>
 
 <style scoped>
-.config-section { display: flex; flex-direction: column; gap: 12px; }
 .image-list { display: flex; flex-direction: column; gap: 8px; }
-.image-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--el-border-color-lighter); border-radius: var(--momo-radius-sm); }
+.image-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--momo-color-border-soft); border-radius: var(--momo-radius-sm); }
 .image-item img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--momo-radius-sm); }
-.image-item span { flex: 1; font-size: var(--el-font-size-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.image-item span { flex: 1; font-size: var(--momo-font-size-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

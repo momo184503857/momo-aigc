@@ -8,8 +8,20 @@ import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ImageEditorDialog from '@/components/ImageEditorDialog.vue'
 import PublishWorkDialog from '@/components/works/PublishWorkDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
-import { Close, List, Grid, FullScreen, Search } from '@element-plus/icons-vue'
+import { X, List, LayoutGrid, Columns2, PictureInPicture2, Search } from '@lucide/vue'
 import { formatCredits } from '@/types/adapter'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { UiDateRangePicker, UiPagination } from '@/components/ui'
 
 const taskPanel = useTaskPanelStore()
 const tm = useTaskManager()
@@ -105,6 +117,26 @@ function onBackdropClick() {
 const panelStyle = computed(() => ({
   width: taskPanel.panelWidth + 'px',
 }))
+
+// 功能筛选 Select 不接受空串值，用哨兵值映射「全部功能」
+const ALL_FEATURES = '__all__'
+function onFeatureFilterChange(v: unknown) {
+  tm.filterFeature.value = String(v) === ALL_FEATURES ? '' : String(v)
+  tm.applyFilters()
+}
+
+function onModeChange(v: unknown) {
+  if (v) taskPanel.setMode(String(v) as 'side-by-side' | 'overlay')
+}
+
+function onViewModeChange(v: unknown) {
+  if (v) tm.viewMode.value = String(v) as 'list' | 'grid'
+}
+
+function clearRemarkSearch() {
+  tm.filterRemark.value = ''
+  tm.applyFilters()
+}
 </script>
 
 <template>
@@ -138,94 +170,109 @@ const panelStyle = computed(() => ({
       <div class="task-panel-header">
         <div class="task-panel-header-left">
           <span class="task-panel-title">任务列表</span>
-          <el-tag type="info" size="small">积分: {{ formatCredits(tm.userPoints.value) }}</el-tag>
-          <el-tag v-if="tm.hasActiveJobs.value" type="warning" size="small">生成中...</el-tag>
+          <Badge variant="secondary">积分: {{ formatCredits(tm.userPoints.value) }}</Badge>
+          <Badge v-if="tm.hasActiveJobs.value" variant="warning">生成中...</Badge>
         </div>
         <div class="task-panel-header-right">
           <!-- Mode toggle -->
-          <el-button-group size="small">
-            <el-button
-              :type="taskPanel.isSideBySide ? 'primary' : 'default'"
-              @click="taskPanel.setMode('side-by-side')"
-            >
-              <el-icon><Grid /></el-icon>并排
-            </el-button>
-            <el-button
-              :type="taskPanel.isOverlay ? 'primary' : 'default'"
-              @click="taskPanel.setMode('overlay')"
-            >
-              <el-icon><FullScreen /></el-icon>浮动
-            </el-button>
-          </el-button-group>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            :model-value="taskPanel.isSideBySide ? 'side-by-side' : 'overlay'"
+            @update:model-value="onModeChange"
+          >
+            <ToggleGroupItem value="side-by-side" title="并排">
+              <Columns2 />并排
+            </ToggleGroupItem>
+            <ToggleGroupItem value="overlay" title="浮动">
+              <PictureInPicture2 />浮动
+            </ToggleGroupItem>
+          </ToggleGroup>
           <!-- Collapse -->
-          <el-button size="small" :icon="Close" @click="taskPanel.collapse()" title="收起" />
+          <Button size="sm" variant="outline" @click="taskPanel.collapse()" title="收起">
+            <X />
+          </Button>
         </div>
       </div>
 
       <!-- Filters -->
       <div class="task-panel-filters">
-        <el-select
-          v-model="tm.filterFeature.value"
-          placeholder="功能筛选"
-          size="small"
-          style="width: 120px"
-          clearable
-          @change="tm.applyFilters"
+        <Select
+          :model-value="tm.filterFeature.value || ALL_FEATURES"
+          @update:model-value="onFeatureFilterChange"
         >
-          <el-option v-for="opt in tm.featureOptions.value" :key="opt.id" :label="opt.label" :value="opt.id" />
-        </el-select>
-        <el-date-picker
-          v-model="tm.filterDateRange.value"
-          type="daterange"
-          size="small"
-          placeholder="日期范围"
+          <SelectTrigger class="w-30" size="sm">
+            <SelectValue placeholder="功能筛选" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="opt in tm.featureOptions.value"
+              :key="opt.id || ALL_FEATURES"
+              :value="opt.id || ALL_FEATURES"
+            >
+              {{ opt.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <UiDateRangePicker
+          :model-value="tm.filterDateRange.value"
           :shortcuts="tm.dateShortcuts"
-          style="width: 200px"
-          format="YYYY-MM-DD"
+          class="w-50"
+          @update:model-value="(v) => (tm.filterDateRange.value = v)"
           @change="tm.applyFilters"
         />
-        <el-input
-          v-model="tm.filterRemark.value"
-          placeholder="搜索备注"
-          size="small"
-          clearable
-          class="remark-search"
-          :prefix-icon="Search"
-          @keyup.enter="tm.applyFilters"
-          @clear="tm.applyFilters"
-        />
+        <div class="remark-search relative">
+          <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+          <Input
+            v-model="tm.filterRemark.value"
+            placeholder="搜索备注"
+            class="h-7 pl-7.5 text-[0.8rem]"
+            @keyup.enter="tm.applyFilters"
+          />
+          <button
+            v-if="tm.filterRemark.value"
+            type="button"
+            class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
+            @click="clearRemarkSearch"
+          >
+            <X class="size-3.5" />
+          </button>
+        </div>
       </div>
 
       <!-- Bulk / View mode controls -->
       <div class="task-panel-toolbar">
         <template v-if="tm.bulkMode.value">
           <span class="bulk-count">已选 {{ tm.selectedIds.value.size }} 项</span>
-          <el-button size="small" @click="tm.selectAllTasks">
+          <Button size="sm" variant="outline" @click="tm.selectAllTasks">
             {{ tm.selectedIds.value.size === tm.tasks.value.length && tm.tasks.value.length > 0 ? '取消全选' : '全选' }}
-          </el-button>
-          <el-button size="small" type="primary" :disabled="tm.selectedIds.value.size === 0" @click="tm.handleBatchDownload">
+          </Button>
+          <Button size="sm" :disabled="tm.selectedIds.value.size === 0" @click="tm.handleBatchDownload">
             批量下载
-          </el-button>
-          <el-button size="small" type="primary" :disabled="tm.selectedIds.value.size === 0" @click="tm.handleBatchPackDownload">
+          </Button>
+          <Button size="sm" :disabled="tm.selectedIds.value.size === 0" @click="tm.handleBatchPackDownload">
             打包下载
-          </el-button>
-          <el-button size="small" type="danger" :disabled="tm.selectedIds.value.size === 0" @click="tm.handleBatchDelete">
+          </Button>
+          <Button size="sm" variant="destructive" :disabled="tm.selectedIds.value.size === 0" @click="tm.handleBatchDelete">
             删除
-          </el-button>
-          <el-button size="small" @click="tm.toggleBulkMode">
-            <el-icon><Close /></el-icon>取消
-          </el-button>
+          </Button>
+          <Button size="sm" variant="outline" @click="tm.toggleBulkMode">
+            <X />取消
+          </Button>
         </template>
         <template v-else>
-          <el-button size="small" @click="tm.toggleBulkMode">批量操作</el-button>
-          <el-button-group size="small">
-            <el-button :type="tm.viewMode.value === 'list' ? 'primary' : 'default'" @click="tm.viewMode.value = 'list'">
-              <el-icon><List /></el-icon>
-            </el-button>
-            <el-button :type="tm.viewMode.value === 'grid' ? 'primary' : 'default'" @click="tm.viewMode.value = 'grid'">
-              <el-icon><Grid /></el-icon>
-            </el-button>
-          </el-button-group>
+          <Button size="sm" variant="outline" @click="tm.toggleBulkMode">批量操作</Button>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            :model-value="tm.viewMode.value"
+            @update:model-value="onViewModeChange"
+          >
+            <ToggleGroupItem value="list" title="列表视图"><List /></ToggleGroupItem>
+            <ToggleGroupItem value="grid" title="网格视图"><LayoutGrid /></ToggleGroupItem>
+          </ToggleGroup>
         </template>
       </div>
 
@@ -265,12 +312,11 @@ const panelStyle = computed(() => ({
           />
           条
         </label>
-        <el-pagination
+        <UiPagination
           :current-page="tm.page.value"
           :page-size="tm.pageSize.value"
           :total="tm.total.value"
-          layout="total, prev, pager, next"
-          :pager-count="5"
+          :show-size-selector="false"
           @current-change="tm.handlePageChange"
         />
       </div>
@@ -318,8 +364,8 @@ const panelStyle = computed(() => ({
   bottom: 0;
   z-index: 2000;
   display: flex;
-  background: var(--el-bg-color);
-  box-shadow: var(--el-box-shadow);
+  background: var(--momo-color-bg);
+  box-shadow: var(--momo-shadow-lg);
   max-width: calc(100vw - var(--momo-sidebar-collapsed-width));
   animation: task-panel-slide-in 0.25s ease-out;
 }
@@ -334,8 +380,8 @@ const panelStyle = computed(() => ({
 }
 
 .task-panel.overlay {
-  box-shadow: var(--el-box-shadow-dark);
-  border-left: 1px solid var(--el-border-color-lighter);
+  box-shadow: var(--momo-shadow-lg);
+  border-left: 1px solid var(--momo-color-border-soft);
 }
 
 /* Splitter */
@@ -343,7 +389,7 @@ const panelStyle = computed(() => ({
   width: 10px;
   flex-shrink: 0;
   cursor: col-resize;
-  background: var(--el-border-color);
+  background: var(--momo-color-border-soft);
   transition: background 0.2s, box-shadow 0.2s;
   display: flex;
   align-items: center;
@@ -357,21 +403,21 @@ const panelStyle = computed(() => ({
   width: 2px;
   height: 24px;
   border-radius: 1px;
-  background: var(--el-text-color-placeholder);
+  background: var(--momo-color-text-placeholder);
   transition: background 0.2s, height 0.2s;
 }
 
 .task-panel-splitter:hover,
 .task-panel-splitter.dragging {
-  background: var(--el-color-primary-light-5);
-  box-shadow: 0 0 8px var(--el-color-primary-light-3);
+  background: var(--momo-color-brand-border);
+  box-shadow: 0 0 8px var(--momo-color-ring);
 }
 
 .task-panel-splitter:hover::before,
 .task-panel-splitter:hover::after,
 .task-panel-splitter.dragging::before,
 .task-panel-splitter.dragging::after {
-  background: var(--momo-color-bg);
+  background: var(--momo-color-brand);
   height: 32px;
 }
 
@@ -389,8 +435,9 @@ const panelStyle = computed(() => ({
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--momo-color-border-soft);
   flex-shrink: 0;
 }
 
@@ -398,18 +445,21 @@ const panelStyle = computed(() => ({
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .task-panel-title {
   font-size: var(--momo-font-size-lg);
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
+  white-space: nowrap;
 }
 
 .task-panel-header-right {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 /* Filters */
@@ -418,7 +468,7 @@ const panelStyle = computed(() => ({
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--momo-color-border-soft);
   flex-shrink: 0;
   flex-wrap: wrap; /* 窄面板时搜索框换行，避免被压缩裁切 */
 }
@@ -433,14 +483,15 @@ const panelStyle = computed(() => ({
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--momo-color-border-soft);
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .bulk-count {
   font-size: var(--momo-font-size-base);
   font-weight: 500;
-  color: var(--el-color-primary);
+  color: var(--momo-color-brand);
   margin-right: 4px;
 }
 
@@ -459,12 +510,12 @@ const panelStyle = computed(() => ({
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--momo-color-border-soft);
 }
 
 .page-size-label {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-secondary);
   white-space: nowrap;
   display: flex;
   align-items: center;
@@ -474,11 +525,11 @@ const panelStyle = computed(() => ({
 .page-size-inline-input {
   width: 36px;
   border: none;
-  border-bottom: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--momo-color-border);
   background: transparent;
   text-align: center;
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
   padding: 2px 0;
   outline: none;
   -moz-appearance: textfield;
@@ -489,6 +540,6 @@ const panelStyle = computed(() => ({
   margin: 0;
 }
 .page-size-inline-input:focus {
-  border-bottom-color: var(--el-color-primary);
+  border-bottom-color: var(--momo-color-brand);
 }
 </style>

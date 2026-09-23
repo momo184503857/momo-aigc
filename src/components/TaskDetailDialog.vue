@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { CopyDocument, Download, Share } from '@element-plus/icons-vue'
+import { Copy, Download, Share2 } from '@lucide/vue'
 import type { TaskItem } from './TaskList.vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { getFeatureLabel } from '@/configs/featureConfig'
 import { useClipboard } from '@/composables/useClipboard'
 import { downloadUrl } from '@/utils/download'
 import { useImageRetry } from '@/composables/useImageRetry'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 const { copy } = useClipboard()
 const { retryOnError } = useImageRetry()
 
@@ -39,110 +48,156 @@ const statusMap: Record<string, string> = {
   importing: '下载中', completed: '已完成', failed: '生成失败', unknown: '状态未知',
 }
 
+function statusVariant(status: string): 'success' | 'destructive' | 'secondary' {
+  if (status === 'completed') return 'success'
+  if (status === 'failed') return 'destructive'
+  return 'secondary'
+}
 </script>
 
 <template>
-  <el-dialog
-    v-model="visible"
-    title="任务详情"
-    :width="'var(--momo-dialog-lg)'"
-    @close="close"
-  >
-    <div v-if="task" class="detail-content">
-      <el-descriptions :column="2" border size="small">
-        <el-descriptions-item label="任务ID">
-          <span class="id-value">{{ task.task_no || '-' }}</span>
-          <el-button v-if="task.task_no" :icon="CopyDocument" size="small" text type="primary" title="复制任务ID" @click="copy(task.task_no || '')" />
-        </el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag :type="task.status === 'completed' ? 'success' : task.status === 'failed' ? 'danger' : 'info'" size="small">
-            {{ statusMap[task.status] || task.status }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="功能">{{ task.feature_id ? getFeatureLabel(task.feature_id) : '-' }}</el-descriptions-item>
-        <el-descriptions-item label="模型">{{ modelDisplayName(task.model) }}</el-descriptions-item>
-        <el-descriptions-item label="分辨率">{{ task.resolution }}</el-descriptions-item>
-        <el-descriptions-item label="宽高比">{{ task.aspectRatio }}</el-descriptions-item>
-        <el-descriptions-item label="进度">{{ task.progress }}%</el-descriptions-item>
-        <el-descriptions-item label="提交时间">{{ task.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="完成时间">{{ task.completed_at || '-' }}</el-descriptions-item>
-        <!-- 自由生图：直接显示完整提示词 -->
-        <el-descriptions-item v-if="!task.feature_id || task.feature_id === 'free-gen'" label="提示词" :span="2">
-          <div class="prompt-block">{{ task.prompt }}</div>
-        </el-descriptions-item>
+  <Dialog :open="visible" @update:open="(v: boolean) => { if (!v) close() }">
+    <DialogContent class="sm:max-w-4xl">
+      <DialogHeader>
+        <DialogTitle>任务详情</DialogTitle>
+      </DialogHeader>
 
-        <!-- 功能/AI摄影：拆分为补充提示词 + 最终提示词 -->
-        <template v-else>
-          <el-descriptions-item label="补充提示词" :span="2">
-            <div class="prompt-block">{{ task.user_prompt || '-' }}</div>
-          </el-descriptions-item>
-          <el-descriptions-item label="最终提示词" :span="2">
-            <div class="prompt-block">{{ task.prompt }}</div>
-          </el-descriptions-item>
-        </template>
-        <el-descriptions-item label="错误信息" :span="2" v-if="task.error_message">
-          <span style="color: var(--el-color-danger)">{{ task.error_message }}</span>
-        </el-descriptions-item>
-      </el-descriptions>
+      <div v-if="task" class="max-h-[70vh] overflow-y-auto">
+        <dl class="grid grid-cols-2 overflow-hidden rounded-lg border text-sm">
+          <div class="detail-cell">
+            <dt>任务ID</dt>
+            <dd class="flex items-center gap-1">
+              <span class="font-mono break-all">{{ task.task_no || '-' }}</span>
+              <Button v-if="task.task_no" variant="ghost" size="icon-xs" title="复制任务ID" @click="copy(task.task_no || '')">
+                <Copy />
+              </Button>
+            </dd>
+          </div>
+          <div class="detail-cell">
+            <dt>状态</dt>
+            <dd>
+              <Badge :variant="statusVariant(task.status)">{{ statusMap[task.status] || task.status }}</Badge>
+            </dd>
+          </div>
+          <div class="detail-cell">
+            <dt>功能</dt>
+            <dd>{{ task.feature_id ? getFeatureLabel(task.feature_id) : '-' }}</dd>
+          </div>
+          <div class="detail-cell">
+            <dt>模型</dt>
+            <dd>{{ modelDisplayName(task.model) }}</dd>
+          </div>
+          <div class="detail-cell">
+            <dt>分辨率</dt>
+            <dd>{{ task.resolution }}</dd>
+          </div>
+          <div class="detail-cell">
+            <dt>宽高比</dt>
+            <dd>{{ task.aspectRatio }}</dd>
+          </div>
+          <div class="detail-cell">
+            <dt>进度</dt>
+            <dd>{{ task.progress }}%</dd>
+          </div>
+          <div class="detail-cell">
+            <dt>提交时间</dt>
+            <dd>{{ task.created_at }}</dd>
+          </div>
+          <div class="detail-cell">
+            <dt>完成时间</dt>
+            <dd>{{ task.completed_at || '-' }}</dd>
+          </div>
+          <!-- 自由生图：直接显示完整提示词 -->
+          <div v-if="!task.feature_id || task.feature_id === 'free-gen'" class="detail-cell col-span-2">
+            <dt>提示词</dt>
+            <dd class="prompt-block">{{ task.prompt }}</dd>
+          </div>
 
-      <!-- Result Images -->
-      <div v-if="task.result_image_urls?.length" class="result-section">
-        <h4>生成结果</h4>
-        <div class="result-images">
-          <div v-for="(url, i) in task.result_image_urls" :key="i" class="result-img-wrap">
-            <img
-              :src="url"
-              class="result-img"
-              @error="retryOnError($event, url)"
-              @click="openImage(url)"
-            />
-            <el-button size="small" :icon="Download" @click="handleDownload(url)">下载</el-button>
+          <!-- 功能/AI摄影：拆分为补充提示词 + 最终提示词 -->
+          <template v-else>
+            <div class="detail-cell col-span-2">
+              <dt>补充提示词</dt>
+              <dd class="prompt-block">{{ task.user_prompt || '-' }}</dd>
+            </div>
+            <div class="detail-cell col-span-2">
+              <dt>最终提示词</dt>
+              <dd class="prompt-block">{{ task.prompt }}</dd>
+            </div>
+          </template>
+          <div v-if="task.error_message" class="detail-cell col-span-2">
+            <dt>错误信息</dt>
+            <dd class="text-destructive">{{ task.error_message }}</dd>
+          </div>
+        </dl>
+
+        <!-- Result Images -->
+        <div v-if="task.result_image_urls?.length" class="mt-5">
+          <h4 class="text-foreground mb-3 text-sm font-semibold">生成结果</h4>
+          <div class="flex flex-wrap gap-3">
+            <div v-for="(url, i) in task.result_image_urls" :key="i" class="flex flex-col items-center gap-2">
+              <img
+                :src="url"
+                class="bg-muted max-h-100 max-w-100 cursor-zoom-in rounded-md object-contain"
+                @error="retryOnError($event, url)"
+                @click="openImage(url)"
+              />
+              <Button size="sm" variant="outline" @click="handleDownload(url)">
+                <Download />
+                下载
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Images -->
+        <div v-if="task.input_image_urls?.length" class="mt-5">
+          <h4 class="text-foreground mb-3 text-sm font-semibold">参考图片</h4>
+          <div class="flex flex-wrap gap-2">
+            <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="size-30 rounded-sm object-cover" />
           </div>
         </div>
       </div>
 
-      <!-- Input Images -->
-      <div v-if="task.input_image_urls?.length" class="result-section">
-        <h4>参考图片</h4>
-        <div class="ref-images">
-          <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="ref-img" />
-        </div>
-      </div>
-    </div>
-    <template #footer>
-      <el-button
-        v-if="task?.status === 'completed' && task?.result_image_urls?.[0]"
-        type="primary"
-        :icon="Share"
-        @click="emit('publish', task!)"
-      >发布到作品库</el-button>
-    </template>
-  </el-dialog>
+      <DialogFooter v-if="task?.status === 'completed' && task?.result_image_urls?.[0]">
+        <Button @click="emit('publish', task!)">
+          <Share2 />
+          发布到作品库
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <style scoped>
-.detail-content { max-height: 70vh; overflow-y: auto; }
-
-.id-value { font-family: monospace; margin-right: 2px; word-break: break-all; }
+.detail-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--momo-color-border-soft);
+}
+.detail-cell:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+.detail-cell.col-span-2:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+.detail-cell > dt {
+  flex-shrink: 0;
+  width: 64px;
+  color: var(--momo-color-text-tertiary);
+  line-height: 22px;
+}
+.detail-cell > dd {
+  flex: 1;
+  min-width: 0;
+  line-height: 22px;
+  word-break: break-all;
+}
 
 .prompt-block {
-  white-space: pre-wrap; word-break: break-all;
-  max-height: 160px; overflow-y: auto;
-}
-
-.result-section { margin-top: 20px; }
-.result-section h4 { margin-bottom: 12px; color: var(--el-text-color-primary); }
-
-.result-images { display: flex; gap: 12px; flex-wrap: wrap; }
-.result-img-wrap { display: flex; flex-direction: column; gap: 8px; align-items: center; }
-.result-img {
-  max-width: 400px; max-height: 400px;
-  border-radius: var(--momo-radius-md); cursor: pointer;
-  object-fit: contain; background: var(--el-fill-color);
-}
-.ref-images { display: flex; gap: 8px; flex-wrap: wrap; }
-.ref-img {
-  width: 120px; height: 120px;
-  border-radius: var(--momo-radius-sm); object-fit: cover;
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow-y: auto;
 }
 </style>

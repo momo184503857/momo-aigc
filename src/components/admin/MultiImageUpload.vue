@@ -8,7 +8,10 @@
 import { computed, ref } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { ossApi } from '@/services/ossApi'
-import { Close, Loading, UploadFilled } from '@element-plus/icons-vue'
+import { X, LoaderCircle, Upload } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { UiImagePreview } from '@/components/ui'
+import { useImagePreview } from '@/composables/useImagePreview'
 
 defineOptions({ name: 'MultiImageUpload' })
 
@@ -110,6 +113,9 @@ function onCellDrop(idx: number, e: DragEvent) {
   dragIdx.value = null
   overIdx.value = null
 }
+
+// ── 纯 UI：图片预览（原 EP 图片组预览 preview-src-list，仅保留点击预览当前张） ──
+const { visible: previewVisible, url: previewUrl, open: openPreview } = useImagePreview()
 </script>
 
 <template>
@@ -132,20 +138,28 @@ function onCellDrop(idx: number, e: DragEvent) {
         @drop="sortable ? onCellDrop(idx, $event) : undefined"
       >
         <div class="img-wrap">
-          <el-image :src="url" fit="cover" :preview-src-list="images" :initial-index="idx" preview-teleported />
+          <img :src="url" :alt="`图片 ${idx + 1}`" @click.stop="openPreview(url)" />
           <div class="img-overlay">
-            <el-button text size="small" :icon="Close" title="删除" @click.stop="removeImage(idx)" />
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              class="m-0.5 text-white hover:bg-black/30 hover:text-white"
+              title="删除"
+              @click.stop="removeImage(idx)"
+            >
+              <X />
+            </Button>
           </div>
         </div>
         <div v-if="captionPrefix" class="img-caption">{{ captionPrefix }}{{ idx + 1 }}</div>
       </div>
 
       <div v-for="i in uploadingCount" :key="`loading-${i}`" class="img-cell">
-        <div class="img-loading"><el-icon class="is-loading"><Loading /></el-icon></div>
+        <div class="img-loading"><LoaderCircle class="size-5 animate-spin" /></div>
       </div>
 
       <div v-if="!full" class="upload-trigger" @click="triggerUpload">
-        <el-icon size="22"><UploadFilled /></el-icon>
+        <Upload class="size-5.5" />
         <span>点击或拖拽上传</span>
         <span class="upload-tip">{{ images.length }} / {{ max }}</span>
       </div>
@@ -161,6 +175,7 @@ function onCellDrop(idx: number, e: DragEvent) {
       style="display: none"
       @change="onFileChange"
     />
+    <UiImagePreview v-model="previewVisible" :url="previewUrl" />
   </div>
 </template>
 
@@ -175,7 +190,7 @@ function onCellDrop(idx: number, e: DragEvent) {
   position: relative;
   border-radius: var(--momo-radius-sm);
   overflow: hidden;
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
   display: flex;
   flex-direction: column;
 }
@@ -190,10 +205,12 @@ function onCellDrop(idx: number, e: DragEvent) {
   aspect-ratio: 1;
   overflow: hidden;
 }
-.img-cell .el-image {
+.img-wrap img {
   width: 100%;
   height: 100%;
   display: block;
+  object-fit: cover;
+  cursor: zoom-in;
 }
 .img-caption {
   flex: none;
@@ -201,7 +218,7 @@ function onCellDrop(idx: number, e: DragEvent) {
   text-align: center;
   font-size: var(--momo-font-size-xs);
   color: var(--momo-color-text-secondary);
-  background: var(--el-fill-color-light);
+  background: var(--momo-color-bg-muted);
   user-select: none;
 }
 .img-cell.dragging {
@@ -222,7 +239,7 @@ function onCellDrop(idx: number, e: DragEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
 }
 .img-overlay {
   position: absolute;
@@ -237,14 +254,9 @@ function onCellDrop(idx: number, e: DragEvent) {
 .img-cell:hover .img-overlay {
   opacity: 1;
 }
-.img-overlay .el-button {
-  color: #fff;
-  margin: 2px;
-  padding: 4px;
-}
 .upload-trigger {
   aspect-ratio: 1;
-  border: 1px dashed var(--el-border-color);
+  border: 1px dashed var(--momo-color-border);
   border-radius: var(--momo-radius-sm);
   display: flex;
   flex-direction: column;
@@ -252,12 +264,12 @@ function onCellDrop(idx: number, e: DragEvent) {
   justify-content: center;
   gap: 4px;
   cursor: pointer;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   transition: border-color 0.15s, color 0.15s;
 }
 .upload-trigger:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
+  border-color: var(--momo-color-brand);
+  color: var(--momo-color-brand);
 }
 .upload-trigger span {
   font-size: var(--momo-font-size-xs);

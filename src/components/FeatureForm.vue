@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import type { ModelId } from '@/types/adapter'
 import { formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -18,7 +17,23 @@ import ModelChannelSelect from './ModelChannelSelect.vue'
 import SupplementaryImageUpload from './SupplementaryImageUpload.vue'
 import type { SupplementaryImage } from './SupplementaryImageUpload.vue'
 import { templateApi } from '@/services/templateApi'
-import { StarFilled } from '@element-plus/icons-vue'
+import { Star, TriangleAlert, Info, LoaderCircle, Wand2, LayoutTemplate } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 const { warning } = useUiFeedback()
 
@@ -76,6 +91,7 @@ const supplementaryImages = ref<SupplementaryImage[]>([])
 // Template selector state
 const showTemplateSelector = ref(false)
 const templateTargetSlot = ref('')
+const starredOpen = ref(false)
 
 // Starred templates for quick access
 const starredTemplates = ref<StarredTemplate[]>([])
@@ -220,6 +236,19 @@ const canGenerate = computed(() => {
   return true
 })
 
+// 仅 UI：把 canGenerate 的判定原因显性化，避免"按钮为什么是灰的"
+const blockingHint = computed(() => {
+  if (!serverStatus.loaded) return '正在检查服务状态…'
+  if (!serverStatus.canGenerate) return '暂无可用模型渠道，请联系管理员配置'
+  const missing = (config.value?.imageSlots || [])
+    .filter(s => s.required && getSlotImages(s.key).length === 0)
+    .map(s => s.label)
+  if (missing.length) return `还需上传：${missing.join('、')}`
+  if (supplementaryImages.value.some(img => !img.name.trim())) return '请为所有补充图片命名'
+  if (!selectedModelId.value) return '请选择生成模型'
+  return ''
+})
+
 function buildFullPrompt(): string {
   const sys = systemPrompt.value
   const user = userPrompt.value.trim()
@@ -309,6 +338,13 @@ function handleStarredSelect(slotKey: string, template: StarredTemplate) {
   }
 }
 
+// 仅 UI：弹层内选完收藏模板后收起
+function pickStarred(template: StarredTemplate) {
+  if (!slots.value.length) return
+  handleStarredSelect(slots.value[0].key, template)
+  starredOpen.value = false
+}
+
 // Exposed for copyParams
 function setParams(params: {
   modelId: string
@@ -368,97 +404,132 @@ defineExpose({ setParams })
 </script>
 
 <template>
-  <div v-if="config" class="feature-form" v-loading="promptLoading">
-    <div class="form-scroll-area">
+  <div
+    v-if="config"
+    class="relative flex h-full min-h-0 flex-col"
+    @keydown.meta.enter="canGenerate && handleGenerate()"
+    @keydown.ctrl.enter="canGenerate && handleGenerate()"
+  >
+    <div v-if="promptLoading" class="bg-background/60 absolute inset-0 z-10 flex items-center justify-center">
+      <LoaderCircle class="text-muted-foreground size-6 animate-spin" />
+    </div>
+
+    <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
       <!-- API Key warning -->
-      <el-alert
-        v-if="serverStatus.loaded && !serverStatus.canGenerate"
-        title="暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型"
-        type="warning"
-        show-icon
-        :closable="false"
-        style="margin-bottom: 16px"
-      />
+      <Alert v-if="serverStatus.loaded && !serverStatus.canGenerate" variant="warning" class="mb-4">
+        <TriangleAlert />
+        <AlertTitle>暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型</AlertTitle>
+      </Alert>
 
       <!-- Prompt load error -->
-      <el-alert
-        v-if="promptError"
-        title="提示词加载失败，将使用默认配置"
-        type="info"
-        show-icon
-        :closable="false"
-        style="margin-bottom: 16px"
-      />
+      <Alert v-if="promptError" class="mb-4">
+        <Info />
+        <AlertTitle>提示词加载失败，将使用默认配置</AlertTitle>
+      </Alert>
 
-      <!-- Reference Images Section -->
-      <div v-if="slots.length > 0" class="form-row-inline">
-        <label class="form-label-left">上传图片</label>
-        <div class="form-control-right">
-          <div class="reference-slots">
-            <ImageSlotUpload
-              v-for="(slot, i) in slots" :key="slot.key"
-              :label="slot.label"
-              :max-count="slot.maxCount"
-              :required="slot.required"
-              :model-value="getSlotImages(slot.key)"
-              :show-template-btn="i === 0"
-              :starred-templates="[]"
-              @update:model-value="setSlotImages(slot.key, $event)"
-              @template-select="handleTemplateSelect(slot.key)"
-              @starred-select="(t) => handleStarredSelect(slot.key, t)"
-            />
+      <!-- ① 参考图 -->
+      <section v-if="slots.length > 0" class="pb-5">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div class="min-w-0">
+            <h2 class="text-[13px] font-semibold">
+              参考图
+              <span class="text-muted-foreground ml-1.5 font-normal">
+                {{ slots.length }} 张 · 支持拖拽图片到框内
+              </span>
+            </h2>
           </div>
-          <!-- 收藏模板行（始终显示，横跨两个槽位） -->
-          <div class="starred-row-shared">
-            <!-- 有收藏：缩略图 -->
-            <div
-              v-for="t in starredTemplates"
-              :key="t.id"
-              class="starred-thumb-shared"
-              :title="t.name"
-              @click="handleStarredSelect(slots[0].key, t)"
+          <div class="flex shrink-0 items-center gap-1.5">
+            <Popover v-model:open="starredOpen">
+              <PopoverTrigger as-child>
+                <Button size="sm" variant="ghost" class="gap-1.5">
+                  <Star class="size-3.5" />
+                  收藏模板
+                  <Badge v-if="starredTemplates.length" variant="secondary" class="ml-0.5 h-4 px-1 text-[10px]">
+                    {{ starredTemplates.length }}
+                  </Badge>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" class="w-88 p-3">
+                <p class="text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
+                  收藏模板
+                </p>
+                <div v-if="starredTemplates.length" class="max-h-64 grid grid-cols-4 gap-2 overflow-y-auto">
+                  <button
+                    v-for="t in starredTemplates"
+                    :key="t.id"
+                    type="button"
+                    :title="t.name"
+                    class="hover:border-primary aspect-square cursor-pointer overflow-hidden rounded-md border border-border p-0 transition-colors hover:ring-2 hover:ring-ring/30"
+                    @click="pickStarred(t)"
+                  >
+                    <img :src="t.public_url" :alt="t.name" class="size-full object-cover" />
+                  </button>
+                </div>
+                <p v-else class="text-muted-foreground py-6 text-center text-[13px]">
+                  还没有收藏的模板
+                </p>
+                <div class="mt-2.5 flex items-center justify-between gap-2 border-t pt-2.5">
+                  <span class="text-muted-foreground text-[11px]">点击即填入第一个参考图位</span>
+                  <RouterLink to="/templates" class="text-[12px] text-primary hover:underline">
+                    去模板图库收藏 ›
+                  </RouterLink>
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button
+              size="sm"
+              variant="ghost"
+              class="gap-1.5"
+              @click="handleTemplateSelect(slots[0].key)"
             >
-              <img :src="t.public_url" :alt="t.name" />
-            </div>
-
-            <!-- 无收藏：空状态占位 -->
-            <span v-if="starredTemplates.length === 0" class="starred-empty">
-              还没有收藏的模板
-            </span>
-
-            <!-- 引导：始终在行末尾，点击跳转模板图库添加收藏 -->
-            <router-link to="/templates" class="starred-guide">
-              <el-icon><StarFilled /></el-icon>
-              <span class="starred-guide-title">收藏模板</span>
-              <span class="starred-guide-link">去模板图库添加 ›</span>
-            </router-link>
+              <Wand2 class="size-3.5" />
+              模板库
+            </Button>
           </div>
         </div>
-      </div>
 
-      <!-- Supplementary Images -->
-      <div v-if="config.hasSupplementaryImages" class="form-row-inline form-row-top">
-        <label class="form-label-left">可选，最多5张，每张需要命名（如：领口、袖口、面料）</label>
-        <div class="form-control-right">
-          <SupplementaryImageUpload v-model="supplementaryImages" />
-        </div>
-      </div>
-
-      <!-- User Prompt -->
-      <div v-if="config.hasUserPrompt" class="form-row-inline form-row-top">
-        <label class="form-label-left">{{ userPromptLabel }}</label>
-        <div class="form-control-right">
-          <el-input
-            v-model="userPrompt"
-            type="textarea"
-            :rows="3"
-            :placeholder="userPromptPlaceholder"
+        <div class="flex flex-wrap items-start gap-4">
+          <ImageSlotUpload
+            v-for="slot in slots" :key="slot.key"
+            :label="slot.label"
+            :max-count="slot.maxCount"
+            :required="slot.required"
+            :model-value="getSlotImages(slot.key)"
+            :show-template-btn="false"
+            :starred-templates="[]"
+            :size="164"
+            align-left
+            @update:model-value="setSlotImages(slot.key, $event)"
           />
         </div>
-      </div>
+      </section>
 
-      <!-- Prompt Editor Panel -->
-      <div class="prompt-panel-row">
+      <!-- ② 细节补充 -->
+      <section v-if="config.hasSupplementaryImages" class="pb-5">
+        <div class="mb-3">
+          <h2 class="text-[13px] font-semibold">
+            细节补充
+            <span class="text-muted-foreground ml-1.5 font-normal">可选，最多 5 张，每张需命名（如：领口、袖口、面料）</span>
+          </h2>
+        </div>
+        <SupplementaryImageUpload v-model="supplementaryImages" />
+      </section>
+
+      <!-- ③ 生成描述 -->
+      <section v-if="config.hasUserPrompt" class="pb-3">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <h2 class="text-[13px] font-semibold">{{ userPromptLabel }}</h2>
+          <span class="text-muted-foreground text-[11px] tabular-nums">{{ userPrompt.length }} 字</span>
+        </div>
+        <Textarea
+          v-model="userPrompt"
+          :rows="3"
+          :placeholder="userPromptPlaceholder"
+        />
+      </section>
+
+      <!-- ④ 提示词（高级，默认收起） -->
+      <section class="pb-1">
         <PromptEditorPanel
           v-model="promptPanelModel"
           title="查看/编辑完整提示词"
@@ -468,52 +539,71 @@ defineExpose({ setParams })
           :rows="4"
           @reset="resetSystemPrompt"
         />
-      </div>
-
+      </section>
     </div>
 
-    <!-- Footer: shared four-column params bar + generate button -->
-    <div class="form-footer">
-      <div class="params-bar">
-        <div class="param-item param-model-item">
-          <label class="param-label">模型</label>
-          <ModelChannelSelect v-model="selectedModelId" class="param-model" @change="handleModelChange" />
+    <!-- Sticky 生成栏：参数收进一行，主操作独占右侧 -->
+    <div class="bg-background shrink-0 border-t px-5 py-3">
+      <div class="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">模型</span>
+            <ModelChannelSelect v-model="selectedModelId" class="w-44" @change="handleModelChange" />
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">分辨率</span>
+            <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
+              <SelectTrigger class="w-24">
+                <SelectValue placeholder="选择分辨率" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">比例</span>
+            <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
+              <SelectTrigger class="w-20">
+                <SelectValue placeholder="宽高比" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">张数</span>
+            <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
+              <SelectTrigger class="w-18">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 张</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div class="param-item">
-          <label class="param-label">分辨率</label>
-          <el-select v-model="resolution" class="param-select" @change="handleResolutionChange">
-            <el-option v-for="r in availableResolutions" :key="r" :label="r" :value="r" />
-          </el-select>
-        </div>
-        <div class="param-item">
-          <label class="param-label">宽高比</label>
-          <el-select v-model="aspectRatio" class="param-select">
-            <el-option v-for="ar in availableAspectRatios" :key="ar" :label="ar" :value="ar" />
-          </el-select>
-        </div>
-        <div class="param-item">
-          <label class="param-label">数量</label>
-          <el-select v-model="count" class="param-select">
-            <el-option v-for="n in [1, 2, 3, 4, 5]" :key="n" :label="`${n}张`" :value="n" />
-          </el-select>
+
+        <div class="ml-auto flex items-center gap-3">
+          <span
+            class="text-[11px] tabular-nums"
+            :class="blockingHint ? 'text-destructive' : 'text-muted-foreground'"
+          >
+            {{ blockingHint || '⌘/Ctrl + Enter 快速生成' }}
+          </span>
+          <Button size="lg" class="min-w-40 gap-2" :disabled="!canGenerate" @click="handleGenerate">
+            {{ generateButtonLabel }}
+          </Button>
         </div>
       </div>
-      <el-button
-        type="primary"
-        size="large"
-        :disabled="!canGenerate"
-        style="width: 100%"
-        @click="handleGenerate"
-      >
-        {{ generateButtonLabel }}
-      </el-button>
     </div>
   </div>
 
   <!-- Unknown feature fallback -->
-  <div v-else class="placeholder-content">
-    <span class="placeholder-text">未知功能</span>
-    <span class="placeholder-hint">该功能尚未配置</span>
+  <div v-else class="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+    <span class="text-foreground/80 text-xl font-medium">未知功能</span>
+    <span class="text-sm">该功能尚未配置</span>
   </div>
 
   <!-- Template selector dialog -->
@@ -523,149 +613,3 @@ defineExpose({ setParams })
     @select="handleTemplateConfirm"
   />
 </template>
-
-<style scoped>
-.feature-form {
-  height: 100%; display: flex; flex-direction: column;
-}
-
-.form-scroll-area {
-  flex: 1; overflow-y: auto; min-height: 0;
-  padding-bottom: 8px;
-}
-
-.reference-slots {
-  display: flex; gap: 16px;
-}
-.reference-slots :deep(.slot-upload) {
-  flex: 1; min-width: 0;
-}
-
-.starred-row-shared {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  overflow-x: auto;
-  padding: 4px 0;
-}
-.starred-row-shared::-webkit-scrollbar {
-  height: 4px;
-}
-.starred-row-shared::-webkit-scrollbar-thumb {
-  background: var(--el-border-color);
-  border-radius: 2px;
-}
-.starred-thumb-shared {
-  width: 96px;
-  height: 96px;
-  flex-shrink: 0;
-  border-radius: var(--momo-radius-sm);
-  overflow: hidden;
-  border: 2px solid var(--el-border-color-light);
-  cursor: pointer;
-  transition: border-color 0.2s, transform 0.15s;
-}
-.starred-thumb-shared:hover {
-  border-color: var(--el-color-primary);
-  transform: scale(1.08);
-}
-.starred-thumb-shared img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.starred-guide {
-  flex-shrink: 0;
-  width: 96px;
-  height: 96px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  border: 2px dashed var(--el-border-color);
-  border-radius: var(--momo-radius-sm);
-  color: var(--el-text-color-secondary);
-  text-align: center;
-  text-decoration: none;
-  transition: border-color 0.2s, color 0.2s;
-}
-.starred-guide:hover { border-color: var(--el-color-primary); color: var(--el-color-primary); }
-.starred-guide .el-icon { font-size: 20px; }
-.starred-guide-title { font-size: var(--momo-font-size-sm); font-weight: 500; }
-.starred-guide-link { font-size: var(--momo-font-size-xs); }
-
-.starred-empty {
-  flex-shrink: 0;
-  align-self: center;
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-placeholder);
-}
-
-.form-row-inline {
-  display: flex; align-items: flex-start; gap: 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  padding-bottom: 14px; margin-bottom: 14px;
-}
-
-.form-row-top { align-items: flex-start; }
-
-.form-label-left {
-  width: 72px; flex-shrink: 0; text-align: right;
-  font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular);
-  padding-top: 6px;
-}
-
-.form-control-right {
-  flex: 1; min-width: 0;
-}
-
-.form-footer {
-  flex-shrink: 0;
-  border-top: 1px solid var(--el-border-color-lighter);
-  padding-top: 16px;
-}
-
-/* 与自由生图保持一致：四项生成参数固定在同一行 */
-.params-bar {
-  display: grid;
-  grid-template-columns: minmax(92px, 1.4fr) repeat(3, minmax(60px, 1fr));
-  align-items: end;
-  gap: 8px;
-  margin-bottom: 12px;
-  overflow-x: auto;
-}
-.param-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  min-width: 0;
-}
-.param-label {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-regular);
-}
-.param-select {
-  width: 100%;
-  min-width: 0;
-}
-.param-model {
-  min-width: 0;
-}
-
-.prompt-panel-row {
-  padding-bottom: 14px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.placeholder-content {
-  height: 100%; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 12px;
-  color: var(--el-text-color-secondary);
-}
-.placeholder-text { font-size: var(--momo-font-size-xl); font-weight: 500; color: var(--el-text-color-regular); }
-.placeholder-hint { font-size: var(--momo-font-size-base); }
-</style>

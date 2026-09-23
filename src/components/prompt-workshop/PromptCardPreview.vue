@@ -8,8 +8,11 @@ import { ref, computed, watch } from 'vue'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import UiImagePreview from '@/components/ui/UiImagePreview.vue'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { promptCardsApi, type PromptCardItem } from '@/services/promptCardsApi'
-import { ArrowLeft, ArrowRight, Star, CollectionTag, CopyDocument } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Star, Bookmark, Copy } from '@lucide/vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -76,223 +79,80 @@ function copyContent() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" width="720px" :show-close="true" class="card-preview-dialog" align-center>
-    <div v-if="card" class="preview-layout">
-      <!-- 左：大图区 -->
-      <div class="preview-left">
-        <div class="main-image-wrap">
-          <img
-            v-if="currentUrl"
-            :src="currentUrl"
-            alt="预览图"
-            class="main-image"
-            @click="openMain"
-          />
-          <div v-if="images.length > 1" class="nav-btn nav-prev" @click="prev">
-            <el-icon size="18"><ArrowLeft /></el-icon>
+  <Dialog :open="visible" @update:open="(v: boolean) => (visible = v)">
+    <DialogContent class="sm:max-w-3xl">
+      <DialogTitle class="sr-only">卡片预览</DialogTitle>
+      <div v-if="card" class="flex gap-5 max-[720px]:flex-col">
+        <!-- 左：大图区 -->
+        <div class="flex flex-[0_0_360px] flex-col gap-2.5 max-[720px]:w-full max-[720px]:flex-none">
+          <div class="relative aspect-square w-full overflow-hidden rounded-md bg-muted">
+            <img
+              v-if="currentUrl"
+              :src="currentUrl"
+              alt="预览图"
+              class="size-full cursor-zoom-in object-contain"
+              @click="openMain"
+            />
+            <div
+              v-if="images.length > 1"
+              class="absolute top-1/2 left-2 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/45 text-white opacity-80 transition-opacity hover:opacity-100"
+              @click="prev"
+            >
+              <ArrowLeft class="size-4.5" />
+            </div>
+            <div
+              v-if="images.length > 1"
+              class="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/45 text-white opacity-80 transition-opacity hover:opacity-100"
+              @click="next"
+            >
+              <ArrowRight class="size-4.5" />
+            </div>
+            <div v-if="images.length > 1" class="absolute right-2 bottom-2 rounded-sm bg-black/50 px-2 py-0.5 text-xs text-white">{{ activeIdx + 1 }} / {{ images.length }}</div>
           </div>
-          <div v-if="images.length > 1" class="nav-btn nav-next" @click="next">
-            <el-icon size="18"><ArrowRight /></el-icon>
+          <div v-if="images.length > 1" class="flex gap-1.5 overflow-x-auto pb-1">
+            <div
+              v-for="(img, idx) in images"
+              :key="idx"
+              class="h-14 w-14 shrink-0 cursor-pointer overflow-hidden rounded-sm border-2 transition-[opacity,border-color]"
+              :class="idx === activeIdx ? 'border-primary opacity-100' : 'border-transparent opacity-70'"
+              @click="selectIdx(idx)"
+            >
+              <img :src="img" alt="缩略图" class="size-full object-cover" />
+            </div>
           </div>
-          <div v-if="images.length > 1" class="image-counter">{{ activeIdx + 1 }} / {{ images.length }}</div>
         </div>
-        <div v-if="images.length > 1" class="thumbs">
-          <div
-            v-for="(img, idx) in images"
-            :key="idx"
-            class="thumb"
-            :class="{ active: idx === activeIdx }"
-            @click="selectIdx(idx)"
-          >
-            <img :src="img" alt="缩略图" />
+
+        <!-- 右：信息区 -->
+        <div class="flex min-w-0 flex-1 flex-col gap-3">
+          <div class="flex items-center gap-2">
+            <Badge v-if="card.module" :variant="card.module.type === 'forbidden' ? 'destructive' : card.module.type === 'requirement' ? 'warning' : 'default'">
+              {{ card.module.name }}
+            </Badge>
+            <Badge v-if="card.is_official" variant="warning">官方</Badge>
+          </div>
+
+          <div class="rounded-md bg-(--momo-color-bg-soft) px-3.5 py-3 text-base leading-7 break-words whitespace-pre-wrap text-foreground">{{ card.content }}</div>
+
+          <div v-if="card.remark" class="text-muted-foreground flex gap-2 text-sm leading-6">
+            <span class="shrink-0 font-semibold">备注</span>
+            <span class="break-words whitespace-pre-wrap">{{ card.remark }}</span>
+          </div>
+
+          <div class="text-muted-foreground flex items-center gap-4 text-sm">
+            <span class="flex items-center gap-1"><Star class="size-4" /> {{ card.like_count }}</span>
+            <span class="flex items-center gap-1"><Bookmark class="size-4" /> {{ card.favorite_count }}</span>
+            <span class="flex items-center gap-1"><Copy class="size-4" /> {{ card.reuse_count }}</span>
+            <span class="ml-auto text-(--momo-color-text-placeholder)">{{ card.author?.nickname || card.author?.username || '匿名' }}</span>
+          </div>
+
+          <div class="mt-auto flex gap-2.5 pt-2">
+            <Button variant="outline" @click="copyContent"><Copy />复制内容</Button>
+            <Button @click="handleReuse"><Copy />复用到拼接预览</Button>
           </div>
         </div>
       </div>
-
-      <!-- 右：信息区 -->
-      <div class="preview-right">
-        <div class="right-top">
-          <el-tag v-if="card.module" :type="card.module.type === 'forbidden' ? 'danger' : card.module.type === 'requirement' ? 'warning' : 'primary'" effect="plain">
-            {{ card.module.name }}
-          </el-tag>
-          <el-tag v-if="card.is_official" type="warning" size="small">官方</el-tag>
-        </div>
-
-        <div class="content-box">{{ card.content }}</div>
-
-        <div v-if="card.remark" class="remark-box">
-          <span class="remark-label">备注</span>
-          <span class="remark-text">{{ card.remark }}</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat"><el-icon><Star /></el-icon> {{ card.like_count }}</span>
-          <span class="stat"><el-icon><CollectionTag /></el-icon> {{ card.favorite_count }}</span>
-          <span class="stat"><el-icon><CopyDocument /></el-icon> {{ card.reuse_count }}</span>
-          <span class="author-name">{{ card.author?.nickname || card.author?.username || '匿名' }}</span>
-        </div>
-
-        <div class="action-row">
-          <el-button @click="copyContent" :icon="CopyDocument">复制内容</el-button>
-          <el-button type="primary" :icon="CopyDocument" @click="handleReuse">复用到拼接预览</el-button>
-        </div>
-      </div>
-    </div>
-  </el-dialog>
+    </DialogContent>
+  </Dialog>
 
   <UiImagePreview v-model="bigVisible" :url="bigUrl" />
 </template>
-
-<style scoped>
-.preview-layout {
-  display: flex;
-  gap: 20px;
-  padding: 4px 4px 0;
-}
-.preview-left {
-  flex: 0 0 360px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.main-image-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  background: var(--el-fill-color);
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-}
-.main-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  cursor: zoom-in;
-}
-.nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0.8;
-  transition: opacity 0.15s;
-}
-.nav-btn:hover {
-  opacity: 1;
-}
-.nav-prev { left: 8px; }
-.nav-next { right: 8px; }
-.image-counter {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  font-size: var(--momo-font-size-xs);
-  color: #fff;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 2px 8px;
-  border-radius: var(--momo-radius-sm);
-}
-.thumbs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-.thumb {
-  flex: 0 0 56px;
-  height: 56px;
-  border-radius: var(--momo-radius-sm);
-  overflow: hidden;
-  cursor: pointer;
-  border: 2px solid transparent;
-  opacity: 0.7;
-  transition: opacity 0.15s, border-color 0.15s;
-}
-.thumb.active {
-  border-color: var(--el-color-primary);
-  opacity: 1;
-}
-.thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.preview-right {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.right-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.content-box {
-  font-size: var(--momo-font-size-base);
-  color: var(--el-text-color-primary);
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--el-fill-color-lighter);
-  border-radius: var(--momo-radius-md);
-  padding: 12px 14px;
-}
-.remark-box {
-  display: flex;
-  gap: 8px;
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-  line-height: 1.6;
-}
-.remark-label {
-  flex-shrink: 0;
-  font-weight: 600;
-}
-.remark-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.stat-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-}
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.author-name {
-  margin-left: auto;
-  color: var(--el-text-color-placeholder);
-}
-.action-row {
-  display: flex;
-  gap: 10px;
-  margin-top: auto;
-  padding-top: 8px;
-}
-
-@media (max-width: 720px) {
-  .preview-layout {
-    flex-direction: column;
-  }
-  .preview-left {
-    flex: none;
-    width: 100%;
-  }
-}
-</style>

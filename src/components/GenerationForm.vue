@@ -4,7 +4,7 @@
  * 从 ToolFlux 复制并改造：去掉 ChannelId/Electron/提示词库，接入 Web API
  */
 import { ref, computed } from 'vue'
-import { Plus, Delete, Picture, Collection, Search, Star, StarFilled } from '@element-plus/icons-vue'
+import { Plus, Trash2, Image, Library, Search, Star, LoaderCircle, TriangleAlert } from '@lucide/vue'
 import { formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -13,6 +13,26 @@ import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import { usePromptLibrary } from '@/composables/usePromptLibrary'
 import TemplateSelector from './TemplateSelector.vue'
 import ModelChannelSelect from './ModelChannelSelect.vue'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
 
 const emit = defineEmits<{
   (e: 'generate', params: {
@@ -339,31 +359,32 @@ defineExpose({ setParams })
 <template>
   <div class="generation-form">
     <div class="form-scroll-area">
-      <h3 class="section-title">生成参数</h3>
+      <h3 class="text-foreground mb-3.5 text-base font-semibold">生成参数</h3>
 
       <!-- Key missing warning -->
-      <el-alert
+      <Alert
         v-if="serverStatus.loaded && !serverStatus.canGenerate"
-        title="暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型"
-        type="warning"
-        :closable="false"
-        show-icon
-        style="margin-bottom: 16px"
-      />
+        variant="warning"
+        class="mb-4"
+      >
+        <TriangleAlert />
+        <AlertTitle>暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型</AlertTitle>
+      </Alert>
 
       <!-- Reference Images -->
-      <div class="form-row-inline form-row-top">
-        <label class="form-label-left">参考图片</label>
-        <div class="form-control-right">
-          <div class="control-header">
-            <el-button
-              size="small"
-              :icon="Picture"
-              @click="showTemplateSelector = true"
+      <div class="form-row">
+        <label class="form-label">参考图片</label>
+        <div class="min-w-0 flex-1">
+          <div class="mb-1.5 flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
               :disabled="!canAddImage"
+              @click="showTemplateSelector = true"
             >
+              <Image />
               从模板库选择
-            </el-button>
+            </Button>
           </div>
           <div
             class="images-container"
@@ -376,7 +397,7 @@ defineExpose({ setParams })
             <div
               v-for="(img, index) in referenceImages"
               :key="img.id"
-              class="image-item"
+              class="image-item group"
               :class="{ 'is-dragging': draggedIndex === index }"
               draggable="true"
               @dragstart="handleDragStart(index)"
@@ -384,42 +405,48 @@ defineExpose({ setParams })
               @dragend="handleDragEnd"
               @click="openPreview(img.dataUrl)"
             >
-              <img :src="img.dataUrl" :alt="img.label" draggable="false" />
-              <el-button
-                class="remove-btn"
-                type="danger"
-                :icon="Delete"
-                circle
-                size="small"
+              <img :src="img.dataUrl" :alt="img.label" draggable="false" class="size-full object-cover" />
+              <Button
+                variant="destructive"
+                size="icon-xs"
+                class="absolute top-1 right-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                 @click.stop="handleRemoveImage(index)"
-              />
+              >
+                <Trash2 />
+              </Button>
             </div>
-            <div v-if="canAddImage" class="add-image-btn" @click="handleAddImage">
-              <el-icon size="28"><Plus /></el-icon>
-              <span>添加图片</span>
+            <div
+              v-if="canAddImage"
+              class="border-border text-muted-foreground hover:border-primary hover:text-primary flex size-25 cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed transition-colors"
+              @click="handleAddImage"
+            >
+              <Plus class="size-7" :stroke-width="1.5" />
+              <span class="mt-1 text-xs">添加图片</span>
             </div>
           </div>
-          <p v-if="referenceImages.length > 0" class="image-hint">可拖拽排序，最多{{ maxReferenceImages }}张</p>
+          <p v-if="referenceImages.length > 0" class="text-muted-foreground/70 mt-1.5 text-xs">可拖拽排序，最多{{ maxReferenceImages }}张</p>
         </div>
       </div>
 
       <!-- Prompt -->
-      <div class="form-row-inline form-row-top">
-        <label class="form-label-left">提示词 <span class="required">*</span></label>
-        <div class="form-control-right">
-          <div class="control-header">
-            <el-button size="small" :icon="Collection" @click="openPromptLibrary">从提示词库选择</el-button>
+      <div class="form-row border-b-0 pb-0">
+        <label class="form-label">提示词 <span class="text-destructive">*</span></label>
+        <div class="min-w-0 flex-1">
+          <div class="mb-1.5 flex justify-end">
+            <Button size="sm" variant="outline" @click="openPromptLibrary">
+              <Library />
+              从提示词库选择
+            </Button>
           </div>
-          <el-input
+          <Textarea
             v-model="prompt"
-            type="textarea"
             :rows="4"
             placeholder="描述你想要生成的图片..."
-            :class="{ 'prompt-exceeded': promptExceeded }"
+            :class="{ 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20': promptExceeded }"
           />
-          <div class="prompt-footer">
-            <span v-if="promptExceeded" class="prompt-limit-exceeded">超出字数限制</span>
-            <span class="prompt-count" :class="{ exceeded: promptExceeded }">{{ prompt.length }}/{{ maxPromptChars }}</span>
+          <div class="mt-1 flex justify-between">
+            <span v-if="promptExceeded" class="text-destructive text-xs">超出字数限制</span>
+            <span class="text-xs" :class="promptExceeded ? 'text-destructive font-medium' : 'text-muted-foreground/70'">{{ prompt.length }}/{{ maxPromptChars }}</span>
           </div>
         </div>
       </div>
@@ -431,124 +458,139 @@ defineExpose({ setParams })
       />
 
       <!-- Image Preview Lightbox -->
-      <Teleport to="body">
-        <div v-if="previewVisible" class="preview-overlay" @click="previewVisible = false">
-          <img :src="previewImageUrl" @click.stop />
-        </div>
-      </Teleport>
+      <UiImagePreview v-model="previewVisible" :url="previewImageUrl" />
 
       <!-- Prompt Library Dialog -->
-      <el-dialog v-model="showPromptLibrary" title="选择提示词" width="760px" :close-on-click-modal="false">
-        <!-- 筛选容器：模糊搜索 + 仅看收藏 -->
-        <div class="pl-filter-bar">
-          <el-input
-            v-model="promptLibraryKeyword"
-            :prefix-icon="Search"
-            placeholder="搜索提示词标题和正文"
-            clearable
-            class="pl-filter-search"
-          />
-          <div class="pl-filter-fav">
-            <span class="pl-filter-fav-label">仅看收藏</span>
-            <el-switch v-model="promptLibraryOnlyFavorites" />
+      <Dialog :open="showPromptLibrary" @update:open="(v: boolean) => (showPromptLibrary = v)">
+        <DialogContent class="sm:max-w-3xl" @pointer-down-outside.prevent>
+          <DialogHeader>
+            <DialogTitle>选择提示词</DialogTitle>
+          </DialogHeader>
+
+          <!-- 筛选容器：模糊搜索 + 仅看收藏 -->
+          <div class="mb-3 flex items-center gap-4">
+            <div class="relative w-80 max-w-full">
+              <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+              <Input v-model="promptLibraryKeyword" placeholder="搜索提示词标题和正文" class="pl-8" />
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-foreground/80 text-sm">仅看收藏</span>
+              <Switch v-model="promptLibraryOnlyFavorites" />
+            </div>
           </div>
-        </div>
 
-        <!-- Tag filter -->
-        <div v-if="promptLibraryAllTags.length > 0" class="pl-tag-filter">
-          <el-tag
-            :type="!promptLibraryActiveTag ? 'primary' : 'info'"
-            size="small"
-            class="pl-tag-chip"
-            @click="promptLibraryActiveTag = undefined"
-          >
-            全部
-          </el-tag>
-          <el-tag
-            v-for="tag in promptLibraryAllTags"
-            :key="tag"
-            :type="promptLibraryActiveTag === tag ? 'primary' : 'info'"
-            size="small"
-            class="pl-tag-chip"
-            @click="promptLibraryActiveTag = tag"
-          >
-            {{ tag }}
-          </el-tag>
-        </div>
+          <!-- Tag filter -->
+          <div v-if="promptLibraryAllTags.length > 0" class="mb-3.5 flex flex-wrap gap-1.5">
+            <Badge
+              :variant="!promptLibraryActiveTag ? 'default' : 'secondary'"
+              class="cursor-pointer select-none"
+              @click="promptLibraryActiveTag = undefined"
+            >
+              全部
+            </Badge>
+            <Badge
+              v-for="tag in promptLibraryAllTags"
+              :key="tag"
+              :variant="promptLibraryActiveTag === tag ? 'default' : 'secondary'"
+              class="cursor-pointer select-none"
+              @click="promptLibraryActiveTag = tag"
+            >
+              {{ tag }}
+            </Badge>
+          </div>
 
-        <div v-if="promptLibraryLoading" style="text-align:center;padding:40px">
-          <el-icon class="is-loading" :size="24"><Collection /></el-icon>
-          <p style="margin-top:8px;color:var(--el-text-color-secondary)">加载中...</p>
-        </div>
-        <div v-else-if="promptLibraryDisplayItems.length === 0" style="text-align:center;padding:40px">
-          <el-empty v-if="promptLibraryItems.length === 0" description="提示词库为空，请先在提示词库页面添加" :image-size="50" />
-          <el-empty v-else description="没有匹配的提示词" :image-size="50" />
-        </div>
-        <div v-else class="prompt-select-list">
-          <div v-for="item in promptLibraryDisplayItems" :key="item.id" class="prompt-select-item" @click="selectPromptFromLibrary(item)">
-            <el-icon class="psi-fav" :class="{ active: item.is_starred }" :size="16" @click.stop="togglePromptFavorite(item)">
-              <StarFilled v-if="item.is_starred" />
-              <Star v-else />
-            </el-icon>
-            <div class="psi-main">
-              <div class="psi-name">{{ item.name }}</div>
-              <div class="psi-content">{{ item.content }}</div>
-              <div v-if="item.tags.length > 0" class="psi-tags">
-                <el-tag v-for="tag in item.tags" :key="tag" size="small">{{ tag }}</el-tag>
+          <div v-if="promptLibraryLoading" class="py-10 text-center">
+            <LoaderCircle class="text-muted-foreground mx-auto size-6 animate-spin" />
+            <p class="text-muted-foreground mt-2 text-sm">加载中...</p>
+          </div>
+          <template v-else-if="promptLibraryDisplayItems.length === 0">
+            <UiEmptyState v-if="promptLibraryItems.length === 0" title="提示词库为空，请先在提示词库页面添加" />
+            <UiEmptyState v-else title="没有匹配的提示词" />
+          </template>
+          <div v-else class="flex max-h-110 flex-col gap-2 overflow-y-auto">
+            <div
+              v-for="item in promptLibraryDisplayItems"
+              :key="item.id"
+              class="border-border-light hover:border-primary hover:bg-accent flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 transition-colors"
+              @click="selectPromptFromLibrary(item)"
+            >
+              <Star
+                class="mt-0.5 size-4 shrink-0 cursor-pointer transition-colors"
+                :class="item.is_starred ? 'fill-warning text-warning' : 'text-muted-foreground/50 hover:text-warning'"
+                @click.stop="togglePromptFavorite(item)"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="text-foreground mb-1 text-sm font-semibold">{{ item.name }}</div>
+                <div class="text-foreground/80 line-clamp-2 text-sm break-all whitespace-pre-wrap">{{ item.content }}</div>
+                <div v-if="item.tags.length > 0" class="mt-1.5 flex flex-wrap gap-1">
+                  <Badge v-for="tag in item.tags" :key="tag" variant="secondary">{{ tag }}</Badge>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- 分页器 -->
-        <div v-if="promptLibraryTotal > promptLibraryPageSize" class="pl-pagination">
-          <el-pagination
-            v-model:current-page="promptLibraryPage"
-            :page-size="promptLibraryPageSize"
-            :total="promptLibraryTotal"
-            layout="prev, pager, next, total"
-            background
-            small
-          />
-        </div>
-      </el-dialog>
+          <!-- 分页器 -->
+          <div v-if="promptLibraryTotal > promptLibraryPageSize" class="mt-3.5 flex justify-center">
+            <UiPagination
+              v-model:current-page="promptLibraryPage"
+              :page-size="promptLibraryPageSize"
+              :page-sizes="[promptLibraryPageSize]"
+              :total="promptLibraryTotal"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
 
     <!-- Footer: params bar + generate button pinned to bottom -->
     <div class="form-footer">
       <div class="params-bar">
-        <div class="param-item param-model-item">
+        <div class="param-item">
           <label class="param-label">模型</label>
-          <ModelChannelSelect v-model="selectedModelId" class="param-model" @change="handleModelChange" />
+          <ModelChannelSelect v-model="selectedModelId" class="w-full" @change="handleModelChange" />
         </div>
         <div class="param-item">
           <label class="param-label">分辨率</label>
-          <el-select v-model="resolution" class="param-select" @change="handleResolutionChange">
-            <el-option v-for="r in availableResolutions" :key="r" :label="r" :value="r" />
-          </el-select>
+          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
+            <SelectTrigger class="w-full">
+              <SelectValue placeholder="选择分辨率" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div class="param-item">
           <label class="param-label">宽高比</label>
-          <el-select v-model="aspectRatio" class="param-select">
-            <el-option v-for="ar in availableAspectRatios" :key="ar" :label="ar" :value="ar" />
-          </el-select>
+          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
+            <SelectTrigger class="w-full">
+              <SelectValue placeholder="选择宽高比" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div class="param-item">
           <label class="param-label">数量</label>
-          <el-select v-model="count" class="param-select">
-            <el-option v-for="n in [1, 2, 3, 4, 5]" :key="n" :label="`${n}张`" :value="n" />
-          </el-select>
+          <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
+            <SelectTrigger class="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }}张</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
-      <el-button
-        type="primary"
-        size="large"
+      <Button
+        size="lg"
+        class="w-full"
         :disabled="!canGenerate"
-        style="width: 100%"
         @click="handleGenerate"
       >
         {{ generateButtonLabel }}
-      </el-button>
+      </Button>
     </div>
   </div>
 </template>
@@ -570,7 +612,7 @@ defineExpose({ setParams })
   flex-shrink: 0;
   padding-top: 16px;
   margin-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--momo-color-border-soft);
 }
 
 /* ─── Params bar: one row of dropdowns above the generate button ─── */
@@ -591,162 +633,56 @@ defineExpose({ setParams })
 }
 .param-label {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-regular);
-}
-.param-select {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-}
-.param-model {
-  flex: 1;
-  min-width: 0;
-}
-
-.section-title {
-  font-size: var(--el-font-size-medium);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin: 0 0 14px 0;
+  color: var(--momo-color-text-secondary);
 }
 
 /* ─── Inline row layout: label left, control right ─── */
-.form-row-inline {
+.form-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding-bottom: 14px;
   margin-bottom: 14px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-.form-row-inline.form-row-top {
-  align-items: flex-start;
-}
-/* Last row: no separator */
-.form-scroll-area > .form-row-inline:last-of-type {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
+  border-bottom: 1px solid var(--momo-color-border-soft);
 }
 
-.form-label-left {
+.form-label {
   width: 72px;
   flex-shrink: 0;
   text-align: right;
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-regular);
-  line-height: 32px;
-}
-.form-row-top .form-label-left {
+  color: var(--momo-color-text-secondary);
   line-height: 32px;
   padding-top: 2px;
 }
 
-.form-control-right {
-  flex: 1;
-  min-width: 0;
-}
-
-.control-header {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 6px;
-}
-
-.required { color: var(--el-color-danger); }
-
 /* ─── Images ─── */
 .images-container {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  min-height: 104px; border-radius: var(--momo-radius-md); padding: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 104px;
+  border-radius: var(--momo-radius-md);
+  padding: 4px;
   transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
   border: 2px dashed transparent;
 }
 .images-container.is-drag-over {
-  background: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 4px var(--el-color-primary-light-5);
+  background: var(--momo-color-brand-subtle);
+  border-color: var(--momo-color-brand);
+  box-shadow: 0 0 0 4px var(--momo-color-ring);
 }
 .image-item {
-  position: relative; width: 100px; height: 100px;
-  border-radius: var(--momo-radius-md); overflow: hidden;
-  border: 2px solid var(--el-border-color);
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: var(--momo-radius-md);
+  overflow: hidden;
+  border: 2px solid var(--momo-color-border);
   cursor: grab;
   transition: border-color 0.2s, opacity 0.2s;
 }
-.image-item:hover { border-color: var(--el-color-primary); }
-.image-item.is-dragging { opacity: 0.5; border-color: var(--el-color-primary); }
-.image-item img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
-
-.remove-btn {
-  position: absolute; top: 3px; right: 3px;
-  opacity: 0; transition: opacity 0.2s;
-}
-.image-item:hover .remove-btn { opacity: 1; }
-
-.add-image-btn {
-  width: 100px; height: 100px;
-  border: 2px dashed var(--el-border-color); border-radius: var(--momo-radius-md);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  cursor: pointer; color: var(--el-text-color-secondary);
-  transition: border-color 0.2s, color 0.2s;
-}
-.add-image-btn:hover { border-color: var(--el-color-primary); color: var(--el-color-primary); }
-.add-image-btn span { font-size: var(--momo-font-size-sm); margin-top: 4px; }
-
-.image-hint {
-  font-size: var(--momo-font-size-xs); color: var(--el-text-color-placeholder); margin-top: 6px;
-}
-
-/* ─── Prompt ─── */
-.prompt-footer { display: flex; justify-content: space-between; margin-top: 4px; }
-.prompt-count { font-size: var(--momo-font-size-xs); color: var(--el-text-color-placeholder); }
-.prompt-count.exceeded { color: var(--el-color-danger); font-weight: 500; }
-.prompt-limit-exceeded { font-size: var(--momo-font-size-xs); color: var(--el-color-danger); }
-.prompt-exceeded :deep(.el-textarea__inner) { border-color: var(--el-color-danger); }
-
-.pl-filter-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
-.pl-filter-search { max-width: 320px; }
-.pl-filter-fav { display: flex; align-items: center; gap: 8px; }
-.pl-filter-fav-label { font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); }
-
-.pl-tag-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-.pl-tag-chip { cursor: pointer; user-select: none; }
-
-.prompt-select-list {
-  max-height: 440px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.prompt-select-item {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 12px; border: 1px solid var(--el-border-color-light);
-  border-radius: var(--momo-radius-md); cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-}
-.prompt-select-item:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-.psi-fav { flex-shrink: 0; cursor: pointer; margin-top: 2px; color: var(--el-text-color-placeholder); transition: color 0.2s; }
-.psi-fav:hover { color: var(--el-color-warning); }
-.psi-fav.active { color: var(--el-color-warning); }
-.psi-main { flex: 1; min-width: 0; }
-.psi-name { font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary); margin-bottom: 4px; }
-.psi-content {
-  font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); white-space: pre-wrap; word-break: break-all;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.psi-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-.pl-pagination { display: flex; justify-content: center; margin-top: 14px; }
-
-/* ─── Preview Lightbox ─── */
-.preview-overlay {
-  position: fixed; inset: 0; z-index: 9999;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--momo-color-overlay);
-  cursor: pointer;
-}
-.preview-overlay img {
-  max-width: 90vw; max-height: 90vh;
-  object-fit: contain; border-radius: var(--momo-radius-sm);
-  cursor: default;
-}
+.image-item:hover { border-color: var(--momo-color-brand); }
+.image-item.is-dragging { opacity: 0.5; border-color: var(--momo-color-brand); }
+.image-item img { pointer-events: none; }
 </style>

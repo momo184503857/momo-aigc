@@ -6,17 +6,25 @@
  * 管理员在后台配置元素及每元素的系统提示词。
  */
 import { ref, computed, onMounted, watch } from 'vue'
-import type { ModelId } from '@/types/adapter'
 import { formatCredits } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { photographyApi } from '@/services/photographyApi'
-import type { PhotographyElement } from '@/services/photographyApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import PromptEditorPanel from './PromptEditorPanel.vue'
 import ModelChannelSelect from './ModelChannelSelect.vue'
-import { Plus, Delete, Camera } from '@element-plus/icons-vue'
+import { Plus, Trash2, X, LoaderCircle } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { UiEmptyState, UiNumberInput } from '@/components/ui'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 const { warning } = useUiFeedback()
 const serverStatus = useServerStatusStore()
@@ -553,28 +561,38 @@ onMounted(() => loadElements())
           <label>模型</label>
           <ModelChannelSelect
             v-model="selectedModelId"
-            style="width: 380px"
+            class="w-95"
             @change="handleModelChange"
           />
         </div>
         <div class="param-item">
           <label>分辨率</label>
-          <el-select v-model="resolution" placeholder="分辨率" style="width: 140px" @change="handleResolutionChange">
-            <el-option v-for="r in availableResolutions" :key="r" :label="r" :value="r" />
-          </el-select>
+          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
+            <SelectTrigger class="w-35">
+              <SelectValue placeholder="分辨率" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div class="param-item">
           <label>宽高比</label>
-          <el-select v-model="aspectRatio" placeholder="宽高比" style="width: 140px">
-            <el-option v-for="r in availableAspectRatios" :key="r" :label="r" :value="r" />
-          </el-select>
+          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
+            <SelectTrigger class="w-35">
+              <SelectValue placeholder="宽高比" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="r in availableAspectRatios" :key="r" :value="r">{{ r }}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div class="param-item">
           <label>数量</label>
-          <el-input-number v-model="count" :min="1" :max="5" />
+          <UiNumberInput v-model="count" :min="1" :max="5" class="w-35" />
         </div>
         <div v-if="currentPrice" class="param-item price">
-          <span class="price-tag">{{ formatCredits(currentPrice) }} /张</span>
+          <span class="text-warning text-sm font-medium whitespace-nowrap">{{ formatCredits(currentPrice) }} /张</span>
         </div>
       </div>
 
@@ -595,45 +613,50 @@ onMounted(() => loadElements())
           <div
             v-for="(img, index) in poolImages"
             :key="img.id"
-            class="pool-card"
+            class="pool-card group"
             :class="{ dragging: poolDragIndex === index }"
             draggable="true"
             @dragstart="handlePoolDragStart(index, $event)"
             @dragover.prevent="handlePoolDragOverItem(index, $event)"
             @dragend="handlePoolDragEnd"
           >
-            <img :src="img.dataUrl" class="pool-thumb" />
+            <img :src="img.dataUrl" class="size-full object-cover" />
             <span class="pool-label">图{{ ['一','二','三','四','五','六','七','八','九','十'][index] }}</span>
-            <el-button
-              class="pool-remove"
-              :icon="Delete"
-              size="small"
-              circle
+            <Button
+              variant="destructive"
+              size="icon-xs"
+              class="absolute top-0.5 right-0.5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
               @click.stop="handleRemoveFromPool(index)"
-            />
+            >
+              <Trash2 />
+            </Button>
           </div>
-          <div v-if="poolImages.length < MAX_POOL" class="pool-add" @click="handleUpload">
-            <el-icon size="32"><Plus /></el-icon>
-            <span>添加图片</span>
+          <div
+            v-if="poolImages.length < MAX_POOL"
+            class="border-border-strong text-muted-foreground/70 hover:border-primary hover:text-primary flex size-25 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-sm border-2 border-dashed transition-colors"
+            @click="handleUpload"
+          >
+            <Plus class="size-8" :stroke-width="1.5" />
+            <span class="text-xs">添加图片</span>
           </div>
         </div>
-        <p v-if="poolImages.length > 0" class="hint">可拖拽图片排序，拖到下方元素区进行分配（支持一图多用）</p>
+        <p v-if="poolImages.length > 0" class="text-muted-foreground/70 mt-1.5 text-xs">可拖拽图片排序，拖到下方元素区进行分配（支持一图多用）</p>
       </div>
 
       <!-- ─── Element zones ─── -->
       <div class="elements-section">
         <label class="section-label">元素分配</label>
 
-        <div v-if="elementsLoading" class="elements-loading">
-          <el-icon class="is-loading" size="20"><Camera /></el-icon>
+        <div v-if="elementsLoading" class="text-muted-foreground flex items-center gap-2 p-6">
+          <LoaderCircle class="size-5 animate-spin" />
           <span>加载元素配置...</span>
         </div>
 
-        <div v-else-if="photoElements.length === 0" class="elements-empty">
-          <el-empty description="暂无元素配置，请联系管理员" :image-size="80" />
+        <div v-else-if="photoElements.length === 0" class="py-5">
+          <UiEmptyState title="暂无元素配置，请联系管理员" />
         </div>
 
-        <div v-else class="element-zones">
+        <div v-else class="flex flex-wrap gap-3.5">
           <div
             v-for="el in photoElements"
             :key="el.id"
@@ -651,26 +674,32 @@ onMounted(() => loadElements())
               <span class="zone-count">{{ getAssignedCount(el.id) }}/{{ el.max_images }}</span>
             </div>
             <div class="zone-slot">
-              <div v-if="getAssignedCount(el.id) === 0" class="zone-placeholder">
-                <el-icon size="24"><Plus /></el-icon>
+              <div v-if="getAssignedCount(el.id) === 0" class="text-muted-foreground/70 flex flex-col items-center justify-center gap-1 py-4 text-sm">
+                <Plus class="size-6" :stroke-width="1.5" />
                 <span>拖动图片到此处</span>
               </div>
-              <div v-else class="zone-images">
+              <div v-else class="flex flex-wrap gap-1.5">
                 <div
                   v-for="img in getAssignedImages(el.id)"
                   :key="img.id"
-                  class="zone-thumb-wrap"
+                  class="group border-border relative size-18 overflow-hidden rounded-sm border"
                 >
-                  <img :src="img.dataUrl" class="zone-thumb" />
-                  <span class="zone-remove" @click="handleRemoveFromElement(el.id, img.id)">&times;</span>
+                  <img :src="img.dataUrl" class="size-full object-cover" />
+                  <button
+                    type="button"
+                    class="absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    @click="handleRemoveFromElement(el.id, img.id)"
+                  >
+                    <X class="size-3" />
+                  </button>
                 </div>
                 <!-- Empty slot indicator -->
                 <div
                   v-for="n in (el.max_images - getAssignedCount(el.id))"
                   :key="'empty-' + n"
-                  class="zone-empty-slot"
+                  class="border-border text-muted-foreground/50 flex size-18 items-center justify-center rounded-sm border border-dashed"
                 >
-                  <el-icon size="16"><Plus /></el-icon>
+                  <Plus class="size-4" />
                 </div>
               </div>
             </div>
@@ -681,14 +710,13 @@ onMounted(() => loadElements())
       <!-- ─── User prompt ─── -->
       <div class="prompt-section">
         <label class="section-label">提示词 <span class="optional">(可选)</span></label>
-        <el-input
+        <Textarea
           v-model="userPrompt"
-          type="textarea"
           :rows="3"
           placeholder="描述你想要的摄影效果..."
           maxlength="5000"
-          show-word-limit
         />
+        <p class="text-muted-foreground/70 mt-1 text-right text-xs">{{ userPrompt.length }}/5000</p>
       </div>
 
       <!-- ─── Element prompt editor panel ─── -->
@@ -706,15 +734,14 @@ onMounted(() => loadElements())
 
       <!-- ─── Generate bar ─── -->
       <div class="generate-bar">
-        <el-button
-          type="primary"
-          size="large"
+        <Button
+          size="lg"
           :disabled="!canGenerate"
           @click="handleGenerate"
         >
           {{ generateButtonLabel }}
-        </el-button>
-        <span v-if="!canGenerate && serverStatus.loaded" class="gen-hint">
+        </Button>
+        <span v-if="!canGenerate && serverStatus.loaded" class="text-muted-foreground text-sm">
           {{ serverStatus.canGenerate ? '请至少分配一张图片到元素' : '暂无可用模型，请联系管理员配置渠道与模型' }}
         </span>
       </div>
@@ -737,18 +764,18 @@ onMounted(() => loadElements())
 
 /* ─── Params row ─── */
 .params-row {
-  display: flex; gap: 16px; align-items: flex-end;
-  flex-wrap: wrap; margin-bottom: 20px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 .param-item { display: flex; flex-direction: column; gap: 6px; }
 .param-item label {
-  font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary);
+  font-size: var(--momo-font-size-sm);
+  color: var(--momo-color-text-secondary);
 }
 .price { margin-left: auto; }
-.price-tag {
-  font-size: var(--momo-font-size-sm); color: var(--el-color-warning);
-  font-weight: 500; white-space: nowrap;
-}
 
 /* ─── Sections ─── */
 .prompt-section { margin-bottom: 24px; }
@@ -757,31 +784,38 @@ onMounted(() => loadElements())
 
 .section-label {
   display: block;
-  font-size: var(--momo-font-size-base); font-weight: 600;
-  color: var(--el-text-color-primary); margin-bottom: 10px;
+  font-size: var(--momo-font-size-base);
+  font-weight: 600;
+  color: var(--momo-color-text);
+  margin-bottom: 10px;
 }
-.optional { font-weight: 400; color: var(--el-text-color-placeholder); font-size: var(--momo-font-size-sm); }
+.optional { font-weight: 400; color: var(--momo-color-text-placeholder); font-size: var(--momo-font-size-sm); }
 .count-hint {
-  font-weight: 400; color: var(--el-text-color-secondary); font-size: var(--momo-font-size-sm);
+  font-weight: 400;
+  color: var(--momo-color-text-secondary);
+  font-size: var(--momo-font-size-sm);
 }
 
 /* ─── Image pool ─── */
 .pool-grid {
-  display: flex; flex-wrap: wrap; gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   min-height: 80px;
   padding: 8px;
-  border: 2px dashed var(--el-border-color);
+  border: 2px dashed var(--momo-color-border);
   border-radius: var(--momo-radius-md);
   transition: border-color 0.2s, background 0.2s;
 }
 .pool-grid.drag-over {
-  border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  border-color: var(--momo-color-brand);
+  background: var(--momo-color-brand-subtle);
 }
 
 .pool-card {
   position: relative;
-  width: 100px; height: 100px;
+  width: 100px;
+  height: 100px;
   border-radius: var(--momo-radius-sm);
   overflow: hidden;
   border: 2px solid transparent;
@@ -789,81 +823,57 @@ onMounted(() => loadElements())
   transition: border-color 0.2s, opacity 0.2s;
   flex-shrink: 0;
 }
-.pool-card:hover { border-color: var(--el-color-primary); }
+.pool-card:hover { border-color: var(--momo-color-brand); }
 .pool-card.dragging { opacity: 0.4; }
 
-.pool-thumb { width: 100%; height: 100%; object-fit: cover; }
-
 .pool-label {
-  position: absolute; bottom: 4px; left: 0; right: 0;
-  text-align: center; font-size: 12px; font-weight: 600;
-  color: var(--el-color-white);
-  background: rgba(0,0,0,0.45);
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
   padding: 2px 0;
   pointer-events: none;
 }
 
-.pool-remove {
-  position: absolute; top: 2px; right: 2px;
-  opacity: 0; transition: opacity 0.2s;
-}
-.pool-card:hover .pool-remove { opacity: 1; }
-
-.pool-add {
-  width: 100px; height: 100px;
-  border: 2px dashed var(--el-border-color-dark);
-  border-radius: var(--momo-radius-sm);
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 4px;
-  cursor: pointer; color: var(--el-text-color-placeholder);
-  transition: border-color 0.2s, color 0.2s;
-  flex-shrink: 0;
-}
-.pool-add:hover { border-color: var(--el-color-primary); color: var(--el-color-primary); }
-.pool-add span { font-size: var(--momo-font-size-sm); }
-
-.hint { font-size: var(--momo-font-size-xs); color: var(--el-text-color-placeholder); margin-top: 6px; }
-
 /* ─── Element zones ─── */
-.elements-loading {
-  display: flex; align-items: center; gap: 8px;
-  padding: 24px; color: var(--el-text-color-secondary);
-}
-.elements-empty { padding: 20px; }
-
-.element-zones {
-  display: flex; flex-wrap: wrap; gap: 14px;
-}
-
 .element-zone {
   width: 180px;
-  border: 2px dashed var(--el-border-color);
+  border: 2px dashed var(--momo-color-border);
   border-radius: var(--momo-radius-md);
   overflow: hidden;
-  background: var(--el-fill-color-lighter);
+  background: var(--momo-color-bg-soft);
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 .element-zone.drag-over {
-  border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  box-shadow: 0 0 0 4px var(--el-color-primary-light-5);
+  border-color: var(--momo-color-brand);
+  background: var(--momo-color-brand-subtle);
+  box-shadow: 0 0 0 4px var(--momo-color-ring);
 }
 .element-zone.has-images {
   border-style: solid;
 }
 
 .zone-header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 8px 10px;
-  background: var(--el-fill-color);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--momo-color-bg-muted);
+  border-bottom: 1px solid var(--momo-color-border-soft);
 }
 .zone-label {
-  font-size: var(--momo-font-size-sm); font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-size: var(--momo-font-size-sm);
+  font-weight: 600;
+  color: var(--momo-color-text);
 }
 .zone-count {
-  font-size: var(--momo-font-size-xs); color: var(--el-text-color-secondary);
+  font-size: var(--momo-font-size-xs);
+  color: var(--momo-color-text-secondary);
 }
 
 .zone-slot {
@@ -871,51 +881,12 @@ onMounted(() => loadElements())
   min-height: 72px;
 }
 
-.zone-placeholder {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 4px;
-  padding: 16px 0; color: var(--el-text-color-placeholder);
-  font-size: var(--momo-font-size-sm);
-}
-
-.zone-images {
-  display: flex; flex-wrap: wrap; gap: 6px;
-}
-
-.zone-thumb-wrap {
-  position: relative;
-  width: 72px; height: 72px;
-  border-radius: var(--momo-radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--el-border-color);
-}
-
-.zone-thumb { width: 100%; height: 100%; object-fit: cover; }
-
-.zone-remove {
-  position: absolute; top: 2px; right: 2px;
-  width: 20px; height: 20px; line-height: 18px; text-align: center;
-  background: rgba(0,0,0,0.6); color: var(--el-color-white);
-  border-radius: 50%; font-size: 14px; cursor: pointer;
-  opacity: 0; transition: opacity 0.2s;
-}
-.zone-thumb-wrap:hover .zone-remove { opacity: 1; }
-
-.zone-empty-slot {
-  width: 72px; height: 72px;
-  border: 1px dashed var(--el-border-color);
-  border-radius: var(--momo-radius-sm);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--el-text-color-placeholder);
-}
-
 /* ─── Generate bar ─── */
 .generate-bar {
-  display: flex; align-items: center; gap: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-.gen-hint {
-  font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary);
+  border-top: 1px solid var(--momo-color-border-soft);
 }
 </style>

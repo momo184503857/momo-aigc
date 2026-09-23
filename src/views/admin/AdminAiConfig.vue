@@ -22,7 +22,46 @@ import {
   type LogicalModelRow,
   type LogicalModelRouteRow,
 } from '@/services/aiConfigApi'
-import { Plus, Refresh, Edit, Delete, Key, Connection, UploadFilled, ChatDotRound, CopyDocument, QuestionFilled, Rank, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, RefreshCw, Pencil, Trash2, Key, Unplug, Upload, MessageCircle, Copy, CircleHelp, ArrowUp, ArrowDown, LoaderCircle, CircleCheck, CircleX, X, GripVertical, ChevronDown, Eye, EyeOff } from '@lucide/vue'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { UiEmptyState, UiNumberInput } from '@/components/ui'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const { copy } = useClipboard()
@@ -218,6 +257,15 @@ function openModelEdit(row: ModelRow) {
   modelDialog.value = true
 }
 
+/** 纯 UI：数组型字段（多选/复选组）勾选切换，保持原数组语义 */
+function toggleArrayValue(list: string[], option: string, checked: boolean): string[] {
+  const next = [...list]
+  const idx = next.indexOf(option)
+  if (checked && idx < 0) next.push(option)
+  if (!checked && idx >= 0) next.splice(idx, 1)
+  return next
+}
+
 /** 勾选「支持生图」时自动勾选并锁定「支持识图」（生图模型必定支持识图） */
 function onGenChange(v: any) {
   modelForm.value.supports_image_gen = !!v
@@ -318,6 +366,8 @@ const keyDialog = ref(false)
 const keyEditing = ref<ProviderKeyRow | null>(null)
 const keyForm = ref({ name: '', key: '', priority: null as number | null })
 const keySubmitting = ref(false)
+// 纯 UI：密码可见性切换（原 EP 输入框 show-password）
+const showKeyInput = ref(false)
 
 function openKeyCreate() {
   if (!selected.value) return
@@ -470,6 +520,15 @@ async function onDebugImageChange(uploadFile: any) {
   debugImage.value = { name: file.name, mimeType, base64: dataUrl.split(',')[1] ?? '', dataUrl }
 }
 
+/** 原生 file input 适配：包装成 onDebugImageChange 期望的 { raw } 结构 */
+const debugFileInput = ref<HTMLInputElement | null>(null)
+function onDebugFileInput(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file) onDebugImageChange({ raw: file })
+  input.value = ''
+}
+
 async function runDebug() {
   if (!selected.value) return
   if (!debugModel.value) { warning('请选择模型'); return }
@@ -576,6 +635,13 @@ async function commitRename(row: LogicalModelRow) {
   }
 }
 
+/** 纯 UI：售卖价写回（salePricing 类型可空，模板内不做可选链写回；清空 = 删除该分辨率，与 v-model 置 undefined 等价） */
+function setSalePrice(row: LogicalModelRow, resolution: string, value: number | undefined) {
+  if (!row.salePricing) row.salePricing = {}
+  if (value === undefined) delete row.salePricing[resolution]
+  else row.salePricing[resolution] = value
+}
+
 async function saveSalePricing(row: LogicalModelRow) {
   const resolutions = row.defaultParams.resolutions ?? []
   const pricing = row.salePricing ?? {}
@@ -677,6 +743,12 @@ function routeState(route: LogicalModelRouteRow): { label: string; type: 'succes
   if (route.modelStatus !== 'active') return { label: '模型已停用', type: 'info' }
   if (!route.hasActiveKey) return { label: '无可用 Key', type: 'danger' }
   return { label: '可路由', type: 'success' }
+}
+
+/** 纯 UI：原 EP tag type → Badge variant */
+function tagVariant(type: 'success' | 'info' | 'warning' | 'danger') {
+  const map = { success: 'success', info: 'secondary', warning: 'warning', danger: 'destructive' } as const
+  return map[type]
 }
 
 function routeCostSummary(route: LogicalModelRouteRow): string {
@@ -799,718 +871,966 @@ onMounted(() => {
 
 <template>
   <PageLayout>
-    <template #header><h2>配置</h2></template>
+    <template #header>
+      <div class="min-w-0">
+        <h2>配置</h2>
+        <p class="text-muted-foreground mt-1 text-sm">渠道接入 · 模型能力与成本 · Key 池与路由 · 图片存储</p>
+      </div>
+    </template>
     <template #extra>
-      <div class="default-vision-picker" title="业务侧 AI 识别共用出口，如成套生图第一步的服装风格/季节识别">
-        <span class="picker-label">默认识图模型</span>
-        <el-select
-          v-model="defaultVisionValue"
-          :loading="defaultVisionSaving"
-          clearable placeholder="未配置" style="width: 280px"
-          @change="saveDefaultVision"
+      <div class="flex items-center gap-2" title="业务侧 AI 识别共用出口，如成套生图第一步的服装风格/季节识别">
+        <span class="text-muted-foreground shrink-0 text-sm">默认识图模型</span>
+        <Select
+          :model-value="defaultVisionValue"
+          :disabled="defaultVisionSaving"
+          @update:model-value="(v) => saveDefaultVision(String(v))"
         >
-          <el-option v-for="opt in visionModelOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
-        </el-select>
+          <SelectTrigger class="w-70">
+            <SelectValue placeholder="未配置" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="opt in visionModelOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          v-if="defaultVisionValue"
+          variant="ghost"
+          size="icon-sm"
+          title="清除默认识图模型"
+          :disabled="defaultVisionSaving"
+          @click="saveDefaultVision('')"
+        >
+          <X />
+        </Button>
       </div>
     </template>
 
-    <el-tabs v-model="activeTab" class="config-main-tabs">
+    <Tabs v-model="activeTab">
+      <TabsList>
+        <TabsTrigger value="providers">服务商与模型</TabsTrigger>
+        <TabsTrigger value="logical">逻辑模型</TabsTrigger>
+        <TabsTrigger value="storage">存储</TabsTrigger>
+      </TabsList>
+
       <!-- ═══ Tab 1：服务商与模型（渠道 / 渠道模型 / Key / 调试调用）═══ -->
-      <el-tab-pane label="服务商与模型" name="providers">
-        <div class="toolbar">
-          <div class="hint">管理平台渠道、渠道模型成本与 Key。每个渠道只使用优先级最高的启用 Key；调用失败后直接切换到下一渠道。</div>
-          <div class="toolbar-actions">
-            <el-button type="primary" :icon="Plus" @click="openProviderCreate">新增服务商</el-button>
-            <el-button :icon="Refresh" @click="loadAll">刷新</el-button>
+      <TabsContent value="providers">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p class="text-muted-foreground min-w-0 flex-1 text-sm">管理平台渠道、渠道模型成本与 Key。每个渠道只使用优先级最高的启用 Key；调用失败后直接切换到下一渠道。</p>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-muted-foreground text-xs">{{ providers.length }} 个渠道</span>
+            <Button @click="openProviderCreate"><Plus />新增服务商</Button>
+            <Button variant="outline" :disabled="loading" @click="loadAll">
+              <LoaderCircle v-if="loading" class="animate-spin" />
+              <RefreshCw v-else />
+              刷新
+            </Button>
           </div>
         </div>
 
-        <div v-loading="loading" class="config-layout">
+        <div class="flex min-h-100 flex-col items-stretch gap-4 lg:flex-row">
           <!-- 左：服务商列表 -->
-          <aside class="provider-list">
+          <aside class="flex max-h-180 w-full shrink-0 flex-col gap-2.5 overflow-y-auto lg:w-[300px]">
             <div
               v-for="p in providers"
               :key="p.id"
-              class="provider-card"
-              :class="{ active: p.id === selectedId, disabled: p.status !== 'active' }"
+              class="cursor-pointer rounded-lg border bg-card p-3 transition-colors hover:border-primary/50"
+              :class="[
+                p.id === selectedId ? 'border-primary ring-1 ring-primary ring-inset' : 'border-border',
+                p.status !== 'active' && 'opacity-60',
+              ]"
               @click="selectedId = p.id"
             >
-              <div class="provider-title">
-                <span class="status-dot" :class="p.status === 'active' ? 'on' : 'off'" />
-                <span class="provider-name">{{ p.name }}</span>
-                <el-tag size="small" type="info" effect="plain">{{ p.adapter_label }}</el-tag>
+              <div class="flex items-center gap-2">
+                <span
+                  class="size-2 shrink-0 rounded-full"
+                  :class="p.status === 'active' ? 'bg-success' : 'bg-destructive'"
+                />
+                <span class="text-foreground min-w-0 truncate font-semibold">{{ p.name }}</span>
+                <Badge variant="secondary">{{ p.adapter_label }}</Badge>
               </div>
-              <div class="provider-code">{{ p.code }} · {{ p.base_url }}</div>
-              <div class="provider-meta">
+              <div class="text-muted-foreground mt-1.5 truncate text-xs">{{ p.code }} · {{ p.base_url }}</div>
+              <div class="text-muted-foreground mt-1.5 flex justify-between gap-2 text-xs">
                 <span>Keys {{ p.keys.length }} · {{ p.models.length }} 模型</span>
-                <span v-if="p.has_active_key" class="primary-hint">首Key {{ p.first_key_hint }}</span>
-                <span v-else class="primary-hint missing" title="该渠道所有 Key 已停用或耗尽，其下模型实际不可用">
+                <span v-if="p.has_active_key" class="font-mono">{{ p.first_key_hint }}</span>
+                <span v-else class="text-destructive font-mono" title="该渠道所有 Key 已停用或耗尽，其下模型实际不可用">
                   无可用 Key
                 </span>
               </div>
             </div>
-            <div v-if="!providers.length && !loading" class="empty-hint">
+            <div v-if="loading" class="flex flex-col gap-2">
+              <Skeleton class="h-20 w-full" />
+              <Skeleton class="h-20 w-full" />
+            </div>
+            <div v-else-if="!providers.length" class="text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm">
               还没有服务商，点击右上角「新增服务商」开始配置。
             </div>
           </aside>
 
           <!-- 右：所选服务商详情 -->
-          <section v-if="selected" class="provider-detail">
-            <div class="detail-header">
-              <div class="detail-title">
-                <h3>{{ selected.name }}</h3>
-                <el-tag v-if="selected.display_name" size="small" effect="plain" class="detail-alias">用户可见：{{ selected.display_name }}</el-tag>
-                <span class="detail-url">{{ selected.base_url }}</span>
+          <section v-if="selected" class="min-w-0 flex-1 rounded-lg border bg-card p-4">
+            <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-lg font-semibold">{{ selected.name }}</h3>
+                  <Badge variant="outline">{{ selected.adapter_label }}</Badge>
+                  <Badge :variant="selected.status === 'active' ? 'success' : 'destructive'">
+                    {{ selected.status === 'active' ? '已启用' : '已停用' }}
+                  </Badge>
+                  <Badge v-if="selected.display_name" variant="secondary">用户可见：{{ selected.display_name }}</Badge>
+                </div>
+                <p class="text-muted-foreground mt-1 font-mono text-xs break-all">{{ selected.base_url }}</p>
               </div>
-              <div class="detail-actions">
-                <el-button :icon="Connection" :loading="testingProvider" @click="testProvider(selected)">测试连接</el-button>
-                <el-button :icon="Edit" @click="openProviderEdit(selected)">编辑</el-button>
-                <el-button type="danger" plain :icon="Delete" @click="deleteProvider(selected)">删除</el-button>
+              <div class="flex shrink-0 flex-wrap items-center gap-2">
+                <Button variant="outline" :disabled="testingProvider" @click="testProvider(selected)">
+                  <LoaderCircle v-if="testingProvider" class="animate-spin" />
+                  <Unplug v-else />
+                  测试连接
+                </Button>
+                <Button variant="outline" @click="openProviderEdit(selected)"><Pencil />编辑</Button>
+                <Button variant="destructive" @click="deleteProvider(selected)"><Trash2 />删除</Button>
               </div>
             </div>
-            <p v-if="selected.remark" class="detail-remark">{{ selected.remark }}</p>
+            <p v-if="selected.remark" class="text-muted-foreground mt-2 text-sm">{{ selected.remark }}</p>
 
-            <el-tabs v-model="detailTab">
+            <Separator class="my-3" />
+
+            <Tabs v-model="detailTab">
+              <TabsList>
+                <TabsTrigger value="models">模型管理</TabsTrigger>
+                <TabsTrigger value="keys">Key 管理</TabsTrigger>
+                <TabsTrigger value="debug">调试调用</TabsTrigger>
+              </TabsList>
+
               <!-- Tab 1：模型管理 -->
-              <el-tab-pane label="模型管理" name="models">
-                <div class="tab-toolbar">
-                  <span class="tab-hint">模型归属于该服务商；支持生图的模型必定支持识图。</span>
-                  <el-button type="primary" size="small" :icon="Plus" @click="openModelCreate">新增模型</el-button>
+              <TabsContent value="models">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <span class="text-muted-foreground min-w-0 flex-1 text-xs">模型归属于该服务商；支持生图的模型必定支持识图。</span>
+                  <Button size="sm" @click="openModelCreate"><Plus />新增模型</Button>
                 </div>
-                <el-table :data="selected.models" size="default" empty-text="暂无模型">
-                  <el-table-column prop="model_id" label="模型 ID" min-width="200" show-overflow-tooltip />
-                  <el-table-column prop="display_name" label="显示名" min-width="140" show-overflow-tooltip>
-                    <template #default="{ row }">{{ row.display_name || '—' }}</template>
-                  </el-table-column>
-                  <el-table-column label="识图" width="90" align="center">
-                    <template #default="{ row }">
-                      <el-tag v-if="row.supports_vision" size="small" type="success" effect="light">识图</el-tag>
-                      <span v-else class="cap-no">—</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="生图" width="90" align="center">
-                    <template #default="{ row }">
-                      <el-tag v-if="row.supports_image_gen" size="small" type="warning" effect="light">生图</el-tag>
-                      <span v-else class="cap-no">—</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="文字" width="80" align="center">
-                    <template #default="{ row }">
-                      <el-tag v-if="row.supports_chat" size="small" type="info" effect="light">文字</el-tag>
-                      <span v-else class="cap-no">—</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="逻辑模型" min-width="170" show-overflow-tooltip>
-                    <template #default="{ row }">
-                      <el-tag v-if="row.logical_code" size="small" effect="plain">{{ row.logical_code }}</el-tag>
-                      <span v-else class="cap-no">—</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="成本价（元/张）" min-width="170" show-overflow-tooltip>
-                    <template #default="{ row }">
-                      <span v-if="row.cost_pricing && Object.keys(row.cost_pricing).length" class="pricing-cell">
-                        {{ Object.entries(row.cost_pricing).map(([r, p]) => `${r}:¥${p}`).join(' · ') }}
-                      </span>
-                      <span v-else-if="row.supports_image_gen" class="cap-no">未配置</span>
-                      <span v-else class="cap-no">—</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="状态" width="90" align="center">
-                    <template #default="{ row }">
-                      <el-switch
-                        :model-value="row.status === 'active'"
-                        @change="(v: any) => toggleModelStatus(row, v)"
-                      />
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip>
-                    <template #default="{ row }">{{ row.remark || '—' }}</template>
-                  </el-table-column>
-                  <el-table-column label="操作" width="130" align="center">
-                    <template #default="{ row }">
-                      <el-button link type="primary" :icon="Edit" @click="openModelEdit(row)">编辑</el-button>
-                      <el-button link type="danger" :icon="Delete" @click="deleteModel(row)">删除</el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
-              </el-tab-pane>
+                <div class="overflow-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>模型 ID</TableHead>
+                        <TableHead>显示名</TableHead>
+                        <TableHead class="w-20 text-center">识图</TableHead>
+                        <TableHead class="w-20 text-center">生图</TableHead>
+                        <TableHead class="w-20 text-center">文字</TableHead>
+                        <TableHead>逻辑模型</TableHead>
+                        <TableHead>成本价（元/张）</TableHead>
+                        <TableHead class="w-20 text-center">状态</TableHead>
+                        <TableHead>备注</TableHead>
+                        <TableHead class="w-32 text-center">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow v-for="row in selected.models" :key="row.id">
+                        <TableCell class="max-w-50 truncate" :title="row.model_id">{{ row.model_id }}</TableCell>
+                        <TableCell class="max-w-36 truncate" :title="row.display_name">{{ row.display_name || '—' }}</TableCell>
+                        <TableCell class="text-center">
+                          <Badge v-if="row.supports_vision" variant="success">识图</Badge>
+                          <span v-else class="text-muted-foreground/60">—</span>
+                        </TableCell>
+                        <TableCell class="text-center">
+                          <Badge v-if="row.supports_image_gen" variant="warning">生图</Badge>
+                          <span v-else class="text-muted-foreground/60">—</span>
+                        </TableCell>
+                        <TableCell class="text-center">
+                          <Badge v-if="row.supports_chat" variant="secondary">文字</Badge>
+                          <span v-else class="text-muted-foreground/60">—</span>
+                        </TableCell>
+                        <TableCell class="max-w-44 truncate" :title="row.logical_code || ''">
+                          <Badge v-if="row.logical_code" variant="outline">{{ row.logical_code }}</Badge>
+                          <span v-else class="text-muted-foreground/60">—</span>
+                        </TableCell>
+                        <TableCell class="max-w-44 truncate" :title="row.cost_pricing ? Object.entries(row.cost_pricing).map(([r, p]) => `${r}:¥${p}`).join(' · ') : ''">
+                          <span v-if="row.cost_pricing && Object.keys(row.cost_pricing).length" class="font-mono text-xs">
+                            {{ Object.entries(row.cost_pricing).map(([r, p]) => `${r}:¥${p}`).join(' · ') }}
+                          </span>
+                          <span v-else-if="row.supports_image_gen" class="text-muted-foreground/60">未配置</span>
+                          <span v-else class="text-muted-foreground/60">—</span>
+                        </TableCell>
+                        <TableCell class="text-center">
+                          <Switch
+                            :model-value="row.status === 'active'"
+                            @update:model-value="(v: boolean) => toggleModelStatus(row, v)"
+                          />
+                        </TableCell>
+                        <TableCell class="max-w-36 truncate" :title="row.remark">{{ row.remark || '—' }}</TableCell>
+                        <TableCell class="text-center">
+                          <div class="flex items-center justify-center gap-1">
+                            <Button variant="ghost" size="sm" class="text-primary" @click="openModelEdit(row)"><Pencil />编辑</Button>
+                            <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="deleteModel(row)"><Trash2 />删除</Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      <TableEmpty v-if="!selected.models.length" :colspan="10">
+                        <UiEmptyState title="暂无模型" />
+                      </TableEmpty>
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
 
               <!-- Tab 2：Key 池管理 -->
-              <el-tab-pane :label="`Key 管理`" name="keys">
-                <div class="tab-toolbar">
-                  <span class="tab-hint">Key 明文存储、可查看复制；调用按优先级（小者优先）取第一个可用 Key，上游欠费自动切换到下一个。</span>
-                  <el-button type="primary" size="small" :icon="Key" @click="openKeyCreate">新增 Key</el-button>
+              <TabsContent value="keys">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <span class="text-muted-foreground min-w-0 flex-1 text-xs">Key 明文存储、可查看复制；调用按优先级（小者优先）取第一个可用 Key，上游欠费自动切换到下一个。</span>
+                  <Button size="sm" @click="openKeyCreate"><Key />新增 Key</Button>
                 </div>
-                <el-table :data="selected.keys" size="default" empty-text="暂无 Key">
-                  <el-table-column prop="name" label="名称" min-width="120" show-overflow-tooltip />
-                  <el-table-column label="Key" min-width="220">
-                    <template #default="{ row }">
-                      <div v-if="row.key" class="key-cell">
-                        <code class="key-plain" :title="row.key">{{ row.key }}</code>
-                        <el-button
-                          link type="primary" :icon="CopyDocument"
-                          @click="copy(row.key, { successMsg: 'Key 已复制' })"
-                        >复制</el-button>
-                      </div>
-                      <el-tooltip
-                        v-else
-                        content="历史加密数据无法读取：编辑该 Key 重新保存一次即可查看与复制"
-                      >
-                        <code class="key-hint">{{ row.key_hint || '—' }}（不可读）</code>
-                      </el-tooltip>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="优先级" width="90" align="center">
-                    <template #default="{ row }">
-                      <el-tag size="small" effect="plain">{{ row.priority }}</el-tag>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="状态" width="130" align="center">
-                    <template #default="{ row }">
-                      <el-switch
-                        v-if="row.status !== 'exhausted'"
-                        :model-value="row.status === 'active'"
-                        @change="(v: any) => toggleKeyStatus(row, v)"
-                      />
-                      <el-tooltip v-else :content="`耗尽时间：${row.exhausted_at || '—'}（上游判定欠费/额度耗尽，已自动停用轮换）`">
-                        <el-tag size="small" type="danger" effect="dark">已耗尽</el-tag>
-                      </el-tooltip>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="最近检测" min-width="140">
-                    <template #default="{ row }">
-                      <template v-if="row.last_checked_at">
-                        <span :class="['check-result', row.last_check_ok ? 'ok' : 'fail']">
-                          {{ row.last_check_ok ? '正常' : '异常' }}
-                        </span>
-                        <span class="check-time">{{ row.last_checked_at }}</span>
-                      </template>
-                      <span v-else class="cap-no">未检测</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="操作" width="220" align="center">
-                    <template #default="{ row }">
-                      <el-button
-                        v-if="row.status === 'exhausted'"
-                        link type="success" @click="reactivateKey(row)"
-                      >重新启用</el-button>
-                      <el-button
-                        link type="success" :loading="testingKeyId === row.id" @click="testKey(row)"
-                      >测试</el-button>
-                      <el-button link type="primary" :icon="Edit" @click="openKeyEdit(row)">编辑</el-button>
-                      <el-button link type="danger" :icon="Delete" @click="deleteKey(row)">删除</el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
-              </el-tab-pane>
+                <div class="overflow-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>名称</TableHead>
+                        <TableHead>Key</TableHead>
+                        <TableHead class="w-20 text-center">优先级</TableHead>
+                        <TableHead class="w-32 text-center">状态</TableHead>
+                        <TableHead>最近检测</TableHead>
+                        <TableHead class="w-56 text-center">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow v-for="row in selected.keys" :key="row.id">
+                        <TableCell class="max-w-32 truncate" :title="row.name">{{ row.name }}</TableCell>
+                        <TableCell>
+                          <div v-if="row.key" class="flex min-w-0 items-center gap-1">
+                            <code class="min-w-0 flex-1 truncate font-mono text-sm" :title="row.key">{{ row.key }}</code>
+                            <Button
+                              variant="ghost" size="sm" class="text-primary"
+                              @click="copy(row.key, { successMsg: 'Key 已复制' })"
+                            ><Copy />复制</Button>
+                          </div>
+                          <code
+                            v-else
+                            class="font-mono text-sm"
+                            title="历史加密数据无法读取：编辑该 Key 重新保存一次即可查看与复制"
+                          >{{ row.key_hint || '—' }}（不可读）</code>
+                        </TableCell>
+                        <TableCell class="text-center">
+                          <Badge variant="outline">{{ row.priority }}</Badge>
+                        </TableCell>
+                        <TableCell class="text-center">
+                          <Switch
+                            v-if="row.status !== 'exhausted'"
+                            :model-value="row.status === 'active'"
+                            @update:model-value="(v: boolean) => toggleKeyStatus(row, v)"
+                          />
+                          <Badge
+                            v-else
+                            variant="destructive"
+                            :title="`耗尽时间：${row.exhausted_at || '—'}（上游判定欠费/额度耗尽，已自动停用轮换）`"
+                          >已耗尽</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <template v-if="row.last_checked_at">
+                            <span :class="row.last_check_ok ? 'text-success' : 'text-destructive'">
+                              {{ row.last_check_ok ? '正常' : '异常' }}
+                            </span>
+                            <span class="text-muted-foreground ml-1.5 text-xs">{{ row.last_checked_at }}</span>
+                          </template>
+                          <span v-else class="text-muted-foreground/60">未检测</span>
+                        </TableCell>
+                        <TableCell class="text-center">
+                          <div class="flex items-center justify-center gap-1">
+                            <Button
+                              v-if="row.status === 'exhausted'"
+                              variant="ghost" size="sm" class="text-success"
+                              @click="reactivateKey(row)"
+                            >重新启用</Button>
+                            <Button
+                              variant="ghost" size="sm" class="text-success"
+                              :disabled="testingKeyId === row.id"
+                              @click="testKey(row)"
+                            >
+                              <LoaderCircle v-if="testingKeyId === row.id" class="animate-spin" />
+                              测试
+                            </Button>
+                            <Button variant="ghost" size="sm" class="text-primary" @click="openKeyEdit(row)"><Pencil />编辑</Button>
+                            <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="deleteKey(row)"><Trash2 />删除</Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      <TableEmpty v-if="!selected.keys.length" :colspan="6">
+                        <UiEmptyState title="暂无 Key" />
+                      </TableEmpty>
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
 
               <!-- Tab 3：调试调用 -->
-              <el-tab-pane label="调试调用" name="debug">
-                <div class="debug-panel">
-                  <div class="debug-form">
-                    <div class="debug-row">
-                      <label>模型</label>
-                      <el-select v-model="debugModel" placeholder="选择模型" style="width: 320px">
-                        <el-option
+              <TabsContent value="debug">
+                <div class="flex w-full max-w-[760px] flex-col gap-4">
+                  <div class="grid gap-1.5">
+                    <Label for="debug-model">模型</Label>
+                    <Select v-model="debugModel">
+                      <SelectTrigger id="debug-model" class="w-full sm:w-80">
+                        <SelectValue placeholder="选择模型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
                           v-for="m in activeModels"
                           :key="m.id"
                           :value="m.model_id"
-                          :label="m.display_name ? `${m.display_name}（${m.model_id}）` : m.model_id"
                         >
-                          <span>{{ m.display_name || m.model_id }}</span>
-                          <el-tag v-if="m.supports_vision" size="small" type="success" effect="light" style="margin-left:8px">识图</el-tag>
-                          <el-tag v-if="m.supports_image_gen" size="small" type="warning" effect="light" style="margin-left:4px">生图</el-tag>
-                        </el-option>
-                      </el-select>
-                    </div>
-                    <div class="debug-row">
-                      <label>提示词</label>
-                      <el-input
-                        v-model="debugPrompt" type="textarea" :rows="3"
-                        placeholder="输入调试提示词" style="flex:1"
+                          <span class="flex items-center gap-1">
+                            <span>{{ m.display_name || m.model_id }}</span>
+                            <Badge v-if="m.supports_vision" variant="success">识图</Badge>
+                            <Badge v-if="m.supports_image_gen" variant="warning">生图</Badge>
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div class="grid gap-1.5">
+                    <Label for="debug-prompt">提示词</Label>
+                    <Textarea
+                      id="debug-prompt"
+                      v-model="debugPrompt" :rows="3"
+                      placeholder="输入调试提示词"
+                    />
+                  </div>
+                  <div class="grid gap-1.5">
+                    <Label>图片</Label>
+                    <div class="flex flex-wrap items-center gap-2.5">
+                      <input
+                        ref="debugFileInput"
+                        type="file"
+                        accept="image/*"
+                        class="hidden"
+                        :disabled="!debugModelRow?.supports_vision"
+                        @change="onDebugFileInput"
                       />
+                      <Button variant="outline" :disabled="!debugModelRow?.supports_vision" @click="debugFileInput?.click()">
+                        <Upload />
+                        {{ debugImage ? '重新选择图片' : '选择图片' }}
+                      </Button>
+                      <template v-if="debugImage">
+                        <img :src="debugImage.dataUrl" class="media-tile size-14" alt="调试图片" />
+                        <span class="text-muted-foreground max-w-56 truncate text-xs">{{ debugImage.name }}（{{ debugImage.mimeType }}）</span>
+                        <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="debugImage = null">移除</Button>
+                      </template>
                     </div>
-                    <div class="debug-row">
-                      <label>图片</label>
-                      <div class="image-control">
-                        <el-upload
-                          :show-file-list="false" :auto-upload="false" accept="image/*"
-                          :on-change="onDebugImageChange" :disabled="!debugModelRow?.supports_vision"
-                        >
-                          <el-button :icon="UploadFilled" :disabled="!debugModelRow?.supports_vision">
-                            {{ debugImage ? '重新选择图片' : '选择图片' }}
-                          </el-button>
-                        </el-upload>
-                        <template v-if="debugImage">
-                          <img :src="debugImage.dataUrl" class="debug-thumb" alt="调试图片" />
-                          <span class="debug-image-name">{{ debugImage.name }}（{{ debugImage.mimeType }}）</span>
-                          <el-button link type="danger" @click="debugImage = null">移除</el-button>
-                        </template>
-                        <span v-if="debugModelRow && !debugModelRow.supports_vision" class="cap-no">
-                          所选模型不支持识图
-                        </span>
-                        <span v-else class="cap-hint">仅「支持识图」的模型可上传图片</span>
-                      </div>
-                    </div>
-                    <div class="debug-row">
-                      <label></label>
-                      <div>
-                        <el-button
-                          type="primary" :icon="ChatDotRound" :loading="debugCalling"
-                          :disabled="!debugModel" @click="runDebug"
-                        >调用（走第一个可用 Key）</el-button>
-                      </div>
-                    </div>
+                    <p v-if="debugModelRow && !debugModelRow.supports_vision" class="text-muted-foreground/60 text-xs">
+                      所选模型不支持识图
+                    </p>
+                    <p v-else class="text-muted-foreground text-xs">仅「支持识图」的模型可上传图片</p>
+                  </div>
+                  <div>
+                    <Button :disabled="debugCalling || !debugModel" @click="runDebug">
+                      <LoaderCircle v-if="debugCalling" class="animate-spin" />
+                      <MessageCircle v-else />
+                      调用（走第一个可用 Key）
+                    </Button>
                   </div>
 
-                  <div v-if="debugError" class="debug-error">{{ debugError }}</div>
-                  <div v-if="debugResult" class="debug-result">
-                    <div class="debug-meta">
+                  <Alert v-if="debugError" variant="destructive">
+                    <CircleX />
+                    <AlertDescription class="whitespace-pre-wrap">{{ debugError }}</AlertDescription>
+                  </Alert>
+                  <div v-if="debugResult" class="flex flex-col gap-2">
+                    <p class="text-muted-foreground text-xs">
                       耗时 {{ debugResult.latencyMs }}ms
                       <template v-if="debugResult.usage">
                         · 输入 {{ debugResult.usage.promptTokens ?? '—' }} tok / 输出 {{ debugResult.usage.completionTokens ?? '—' }} tok
                       </template>
-                    </div>
-                    <pre class="debug-text">{{ debugResult.text }}</pre>
-                    <el-collapse v-if="debugResult.reasoning">
-                      <el-collapse-item title="思维链（reasoning_content）">
-                        <pre class="debug-reasoning">{{ debugResult.reasoning }}</pre>
-                      </el-collapse-item>
-                    </el-collapse>
+                    </p>
+                    <pre class="text-foreground bg-muted rounded-lg p-3.5 text-sm leading-relaxed break-words whitespace-pre-wrap">{{ debugResult.text }}</pre>
+                    <Collapsible>
+                      <CollapsibleTrigger class="text-muted-foreground hover:text-foreground cursor-pointer text-sm">
+                        思维链（reasoning_content）
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <pre class="text-muted-foreground mt-2 text-xs leading-relaxed break-words whitespace-pre-wrap">{{ debugResult.reasoning }}</pre>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </div>
                 </div>
-              </el-tab-pane>
-            </el-tabs>
+              </TabsContent>
+            </Tabs>
           </section>
 
-          <section v-else-if="!loading" class="provider-detail empty-detail">
-            <el-empty description="选择左侧服务商查看详情，或新增一个服务商" />
+          <section v-else-if="!loading" class="min-w-0 flex-1 rounded-lg border bg-card">
+            <div class="flex h-full min-h-80 items-center justify-center">
+              <UiEmptyState title="选择左侧服务商查看详情，或新增一个服务商" />
+            </div>
           </section>
         </div>
-      </el-tab-pane>
+      </TabsContent>
 
       <!-- ═══ Tab 2：逻辑模型（代码内置清单，仅显示名可改）═══ -->
-      <el-tab-pane label="逻辑模型" name="logical">
-        <section class="logical-section">
-          <div class="section-head">
-            <h3 class="section-title">逻辑模型</h3>
-            <span class="section-hint">标准模型能力由平台代码定义；管理员维护显示名和前台统一售卖价。</span>
+      <TabsContent value="logical">
+        <section class="rounded-lg border bg-card p-4">
+          <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 class="text-sm font-semibold">逻辑模型</h3>
+            <span class="text-muted-foreground min-w-0 flex-1 text-xs">标准模型能力由平台代码定义；管理员维护显示名和前台统一售卖价。</span>
           </div>
-          <el-table :data="allLogicalModels" size="small" height="calc(100vh - 330px)">
-            <el-table-column prop="code" label="Code" min-width="220" show-overflow-tooltip />
-            <el-table-column label="显示名" min-width="200">
-              <template #default="{ row }">
-                <el-input
-                  v-if="renamingId === row.id"
-                  v-model="renamingValue" size="small" maxlength="100"
-                  @keyup.enter="commitRename(row)"
-                  @keyup.esc="renamingId = null"
-                  @blur="commitRename(row)"
-                />
-                <div v-else class="name-cell">
-                  <span class="name-text">{{ row.name }}</span>
-                  <el-button link type="primary" :icon="Edit" @click="startRename(row)">改名</el-button>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column label="类型" width="80" align="center">
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.kind === 'image' ? 'warning' : 'info'" effect="light">
-                  {{ row.kind === 'image' ? '生图' : '文字' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="能力定义" min-width="260" show-overflow-tooltip>
-              <template #default="{ row }">{{ logicalCapabilitySummary(row) }}</template>
-            </el-table-column>
-            <el-table-column label="统一售卖价（积分/张）" min-width="320">
-              <template #default="{ row }">
-                <div v-if="row.kind === 'image'" class="pricing-block">
-                  <div v-for="resolution in (row.defaultParams.resolutions || [])" :key="resolution" class="pricing-row">
-                    <span class="pricing-label sale-label">
-                      {{ resolution }}
-                      <el-tooltip placement="top" effect="dark" :show-after="100">
-                        <template #content>
-                          <div class="cost-tip">
-                            <div class="cost-tip-title">各渠道成本价 · {{ row.name }} · {{ resolution }}</div>
-                            <template v-if="costEntries(row.id, resolution).length">
-                              <div
-                                v-for="(c, i) in costEntries(row.id, resolution)"
-                                :key="i"
-                                class="cost-tip-row"
-                                :class="{ 'cost-tip-disabled': c.disabled }"
-                              >
-                                <span class="cost-tip-name">{{ c.channel }} · {{ c.model }}<template v-if="c.disabled">（已停用）</template></span>
-                                <b>{{ fmtCost(c.price) }}</b>
-                              </div>
-                            </template>
-                            <div v-else class="cost-tip-empty">暂无配置该分辨率成本价的渠道</div>
-                          </div>
-                        </template>
-                        <el-icon class="cost-help"><QuestionFilled /></el-icon>
-                      </el-tooltip>
-                    </span>
-                    <el-input-number
-                      v-model="row.salePricing[resolution]"
-                      :min="0" :step="0.01" :precision="2" size="small" style="width: 120px"
+          <!-- 滚动盒必须是 Table 自带的 table-container：外层 div 滚动时 sticky 表头会被内层 overflow-x-auto 容器吃掉（同 MyQuotaPage） -->
+          <div class="overflow-hidden rounded-lg border [&_[data-slot=table-container]]:max-h-[calc(100vh_-_330px)]">
+            <Table class="[&_th]:bg-card [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:shadow-[inset_0_-1px_0_var(--border)]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>显示名</TableHead>
+                  <TableHead class="w-20 text-center">类型</TableHead>
+                  <TableHead>能力定义</TableHead>
+                  <TableHead class="min-w-80">统一售卖价（积分/张）</TableHead>
+                  <TableHead class="w-28 text-center">关联渠道模型</TableHead>
+                  <TableHead class="w-24 text-center">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="row in allLogicalModels" :key="row.id">
+                  <TableCell class="max-w-56 truncate" :title="row.code">{{ row.code }}</TableCell>
+                  <TableCell>
+                    <Input
+                      v-if="renamingId === row.id"
+                      v-model="renamingValue" class="h-7 text-[0.8rem]" maxlength="100"
+                      @keyup.enter="commitRename(row)"
+                      @keyup.esc="renamingId = null"
+                      @blur="commitRename(row)"
                     />
-                  </div>
-                  <el-button size="small" type="primary" plain @click="saveSalePricing(row)">保存售价</el-button>
-                </div>
-                <span v-else class="cap-no">—</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="modelCount" label="关联渠道模型" width="110" align="center" />
-            <el-table-column label="操作" width="100" fixed="right" align="center">
-              <template #default="{ row }">
-                <el-button v-if="row.kind === 'image'" link type="primary" :icon="Edit" @click="openRouteEditor(row)">
-                  编辑
-                </el-button>
-                <span v-else class="cap-no">—</span>
-              </template>
-            </el-table-column>
-          </el-table>
+                    <div v-else class="flex min-h-6 items-center gap-1.5">
+                      <span class="min-w-0 flex-1 truncate">{{ row.name }}</span>
+                      <Button variant="ghost" size="sm" class="text-primary" @click="startRename(row)"><Pencil />改名</Button>
+                    </div>
+                  </TableCell>
+                  <TableCell class="text-center">
+                    <Badge :variant="row.kind === 'image' ? 'warning' : 'secondary'">
+                      {{ row.kind === 'image' ? '生图' : '文字' }}
+                    </Badge>
+                  </TableCell>
+                  <TableCell class="max-w-64 truncate" :title="logicalCapabilitySummary(row)">{{ logicalCapabilitySummary(row) }}</TableCell>
+                  <TableCell>
+                    <div v-if="row.kind === 'image'" class="flex w-full flex-col gap-1.5">
+                      <div v-for="resolution in (row.defaultParams.resolutions || [])" :key="resolution" class="flex flex-wrap items-center gap-2.5">
+                        <span class="inline-flex min-w-15 items-center gap-1 text-xs font-semibold">
+                          {{ resolution }}
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <CircleHelp class="text-muted-foreground hover:text-primary size-3.5 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" class="max-w-90">
+                              <div class="cost-tip">
+                                <div class="cost-tip-title">各渠道成本价 · {{ row.name }} · {{ resolution }}</div>
+                                <template v-if="costEntries(row.id, resolution).length">
+                                  <div
+                                    v-for="(c, i) in costEntries(row.id, resolution)"
+                                    :key="i"
+                                    class="cost-tip-row"
+                                    :class="{ 'cost-tip-disabled': c.disabled }"
+                                  >
+                                    <span class="cost-tip-name">{{ c.channel }} · {{ c.model }}<template v-if="c.disabled">（已停用）</template></span>
+                                    <b>{{ fmtCost(c.price) }}</b>
+                                  </div>
+                                </template>
+                                <div v-else class="cost-tip-empty">暂无配置该分辨率成本价的渠道</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </span>
+                        <div class="w-32 shrink-0">
+                          <UiNumberInput
+                            :model-value="row.salePricing?.[resolution]"
+                            :min="0" :step="0.01" :precision="2"
+                            @update:model-value="(v) => setSalePrice(row, resolution, v)"
+                          />
+                        </div>
+                      </div>
+                      <Button size="sm" variant="outline" class="mt-2 w-fit" @click="saveSalePricing(row)">保存售价</Button>
+                    </div>
+                    <span v-else class="text-muted-foreground/60">—</span>
+                  </TableCell>
+                  <TableCell class="text-center">{{ row.modelCount }}</TableCell>
+                  <TableCell class="text-center">
+                    <Button v-if="row.kind === 'image'" variant="ghost" size="sm" class="text-primary" @click="openRouteEditor(row)">
+                      <Pencil />编辑
+                    </Button>
+                    <span v-else class="text-muted-foreground/60">—</span>
+                  </TableCell>
+                </TableRow>
+                <TableEmpty v-if="!allLogicalModels.length" :colspan="7">
+                  <UiEmptyState title="暂无数据" />
+                </TableEmpty>
+              </TableBody>
+            </Table>
+          </div>
         </section>
-      </el-tab-pane>
+      </TabsContent>
 
       <!-- ═══ Tab 3：存储（直接传 / 阿里云 OSS）═══ -->
-      <el-tab-pane label="存储" name="storage">
-        <section v-loading="storageLoading" class="logical-section storage-section">
-          <div class="section-head">
-            <h3 class="section-title">图片存储模式</h3>
-            <span class="section-hint">参考图、结果图与素材库存放位置。配置仅存数据库（不入代码仓库），切换后立即生效、无需重启。</span>
+      <TabsContent value="storage">
+        <section class="w-full max-w-160 rounded-lg border bg-card p-4">
+          <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 class="text-sm font-semibold">图片存储模式</h3>
+            <span class="text-muted-foreground min-w-0 flex-1 text-xs">参考图、结果图与素材库存放位置。配置仅存数据库（不入代码仓库），切换后立即生效、无需重启。</span>
           </div>
 
-          <el-radio-group v-model="storageForm.mode" class="storage-mode-group">
-            <el-radio-button value="direct">直接传（默认）</el-radio-button>
-            <el-radio-button value="oss">阿里云 OSS</el-radio-button>
-          </el-radio-group>
-          <p class="storage-mode-desc">
+          <div v-if="storageLoading" class="flex flex-col gap-3">
+            <Skeleton class="h-8 w-64" />
+            <Skeleton class="h-20 w-full" />
+          </div>
+          <template v-else>
+          <ToggleGroup
+            type="single" variant="outline"
+            :model-value="storageForm.mode"
+            @update:model-value="(v) => { if (v) storageForm.mode = String(v) as 'direct' | 'oss' }"
+          >
+            <ToggleGroupItem value="direct">直接传（默认）</ToggleGroupItem>
+            <ToggleGroupItem value="oss">阿里云 OSS</ToggleGroupItem>
+          </ToggleGroup>
+          <p class="text-muted-foreground mt-2 mb-4 text-xs leading-[1.7]">
             {{ storageForm.mode === 'direct'
               ? '图片保存在本机磁盘（server/data/uploads/），由本站 /api/files/ 提供访问；参考图提交时直传 AI 渠道（ToAPIs 走官方上传接口，OpenAI 兼容/火山走 base64）。无需任何云存储与 CORS 配置，适合自部署与开源开箱即用。'
               : '浏览器直传 OSS bucket（需 bucket 允许跨域 POST），结果图经转存 Worker 流式入桶。适合已有阿里云 OSS 的部署，图片走 CDN 公网分发。' }}
           </p>
 
           <template v-if="storageForm.mode === 'oss'">
-            <div class="storage-form">
-              <div class="storage-field">
-                <label class="field-label">Endpoint</label>
-                <el-input v-model="storageForm.endpoint" placeholder="oss-cn-hangzhou.aliyuncs.com" maxlength="120" />
-                <span class="field-help">OSS 地域域名，不含 bucket 名</span>
+            <div class="mb-4 grid gap-3.5 sm:grid-cols-2">
+              <div class="grid gap-1">
+                <Label for="oss-endpoint" class="text-xs font-semibold">Endpoint</Label>
+                <Input id="oss-endpoint" v-model="storageForm.endpoint" placeholder="oss-cn-hangzhou.aliyuncs.com" maxlength="120" />
+                <span class="text-muted-foreground text-xs">OSS 地域域名，不含 bucket 名</span>
               </div>
-              <div class="storage-field">
-                <label class="field-label">Bucket <i class="required">*</i></label>
-                <el-input v-model="storageForm.bucket" placeholder="your-bucket-name" maxlength="120" />
-                <span class="field-help">需开启公共读（图片 URL 直接展示）并配置 CORS 允许 POST</span>
+              <div class="grid gap-1">
+                <Label for="oss-bucket" class="text-xs font-semibold">Bucket <span class="text-destructive">*</span></Label>
+                <Input id="oss-bucket" v-model="storageForm.bucket" placeholder="your-bucket-name" maxlength="120" />
+                <span class="text-muted-foreground text-xs">需开启公共读（图片 URL 直接展示）并配置 CORS 允许 POST</span>
               </div>
-              <div class="storage-field">
-                <label class="field-label">AccessKey ID <i class="required">*</i></label>
-                <el-input v-model="storageForm.accessKeyId" maxlength="120" />
+              <div class="grid gap-1">
+                <Label for="oss-ak" class="text-xs font-semibold">AccessKey ID <span class="text-destructive">*</span></Label>
+                <Input id="oss-ak" v-model="storageForm.accessKeyId" maxlength="120" />
               </div>
-              <div class="storage-field">
-                <label class="field-label">AccessKey Secret <i class="required">*</i></label>
-                <el-input v-model="storageForm.accessKeySecret" type="password" show-password maxlength="120" />
-                <span class="field-help">仅存本站数据库，不会写入代码仓库</span>
+              <div class="grid gap-1">
+                <Label for="oss-sk" class="text-xs font-semibold">AccessKey Secret <span class="text-destructive">*</span></Label>
+                <Input id="oss-sk" v-model="storageForm.accessKeySecret" type="password" maxlength="120" />
+                <span class="text-muted-foreground text-xs">仅存本站数据库，不会写入代码仓库</span>
               </div>
-              <div class="storage-field">
-                <label class="field-label">结果转存 Worker URL</label>
-                <el-input v-model="storageForm.resultImportWorkerUrl" placeholder="选填；不配则结果转存改由服务端直接下载上传" maxlength="300" />
-                <span class="field-help">流式转存函数（FC Worker）地址；直接传模式下不需要</span>
+              <div class="grid gap-1 sm:col-span-2">
+                <Label for="oss-worker" class="text-xs font-semibold">结果转存 Worker URL</Label>
+                <Input id="oss-worker" v-model="storageForm.resultImportWorkerUrl" placeholder="选填；不配则结果转存改由服务端直接下载上传" maxlength="300" />
+                <span class="text-muted-foreground text-xs">流式转存函数（FC Worker）地址；直接传模式下不需要</span>
               </div>
             </div>
           </template>
 
-          <div v-if="storageTestResult" class="storage-test-result" :class="storageTestResult.ok ? 'ok' : 'fail'">
-            {{ storageTestResult.ok ? '✓ ' : '✕ ' }}{{ storageTestResult.message }}
-          </div>
+          <Alert
+            v-if="storageTestResult"
+            :variant="storageTestResult.ok ? 'default' : 'destructive'"
+            class="mb-3"
+          >
+            <CircleCheck v-if="storageTestResult.ok" />
+            <CircleX v-else />
+            <AlertDescription>{{ storageTestResult.message }}</AlertDescription>
+          </Alert>
 
-          <div class="toolbar-actions storage-actions">
-            <el-button v-if="storageForm.mode === 'oss'" :loading="storageTesting" @click="testStorageConfig">测试连接</el-button>
-            <el-button type="primary" :loading="storageSaving" @click="saveStorageConfig">保存</el-button>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <Button v-if="storageForm.mode === 'oss'" variant="outline" :disabled="storageTesting" @click="testStorageConfig">
+              <LoaderCircle v-if="storageTesting" class="animate-spin" />
+              测试连接
+            </Button>
+            <Button :disabled="storageSaving" @click="saveStorageConfig">
+              <LoaderCircle v-if="storageSaving" class="animate-spin" />
+              保存
+            </Button>
           </div>
+          </template>
         </section>
-      </el-tab-pane>
-    </el-tabs>
+      </TabsContent>
+    </Tabs>
 
     <!-- 服务商弹窗 -->
-    <el-dialog
-      v-model="providerDialog"
-      :title="providerEditing ? '编辑服务商' : '新增服务商'"
-      width="560px" destroy-on-close
-    >
-      <el-form label-width="90px">
-        <el-form-item label="名称" required>
-          <el-input v-model="providerForm.name" placeholder="如：火山引擎" maxlength="100" />
-        </el-form-item>
-        <el-form-item label="用户可见名">
-          <el-input v-model="providerForm.display_name" placeholder="选填，如 TA；留空则向用户显示「名称」" maxlength="100" />
-          <div class="form-hint">模型下拉、计费说明等用户侧界面显示此名（用于隐藏真实渠道商）；管理后台始终显示真实名称。留空 = 显示「名称」。</div>
-        </el-form-item>
-        <el-form-item label="标识">
-          <el-input
-            v-model="providerForm.code" placeholder="选填，留空自动生成；小写字母/数字/中划线，如 volcengine"
-            :disabled="!!providerEditing" maxlength="50"
-          />
-          <div class="form-hint">机器用的唯一英文标识（任务记录溯源用），不影响协议与调用；创建后不可改。</div>
-        </el-form-item>
-        <el-form-item label="连接方式" required>
-          <el-select v-model="providerForm.adapter" style="width: 100%" popper-class="adapter-select-popper">
-            <el-option v-for="a in adapters" :key="a.code" :value="a.code" :label="a.label">
-              <div class="adapter-option">
-                <span class="adapter-label">{{ a.label }}</span>
-                <span class="adapter-desc">{{ a.description }}</span>
-              </div>
-            </el-option>
-          </el-select>
-          <div class="form-hint">
-            {{ adapters.find((a) => a.code === providerForm.adapter)?.description || '协议兼容 OpenAI 的服务商直接选「OpenAI 兼容生图」' }}
+    <Dialog :open="providerDialog" @update:open="(v: boolean) => (providerDialog = v)">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{{ providerEditing ? '编辑服务商' : '新增服务商' }}</DialogTitle>
+        </DialogHeader>
+        <div v-if="providerDialog" class="flex flex-col gap-4">
+          <div class="grid gap-1.5">
+            <Label for="provider-name">名称 <span class="text-destructive">*</span></Label>
+            <Input id="provider-name" v-model="providerForm.name" placeholder="如：火山引擎" maxlength="100" />
           </div>
-        </el-form-item>
-        <el-form-item label="Base URL" required>
-          <el-input v-model="providerForm.base_url" placeholder="https://your-api.example.com" />
-          <div class="form-hint">填站点根地址即可，一般无需带 /v1（带 /v1 也能自动兼容）。</div>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="providerForm.remark" type="textarea" :rows="2" placeholder="选填" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="providerDialog = false">取消</el-button>
-        <el-button type="primary" :loading="providerSubmitting" @click="submitProvider">保存</el-button>
-      </template>
-    </el-dialog>
+          <div class="grid gap-1.5">
+            <Label for="provider-display-name">用户可见名</Label>
+            <Input id="provider-display-name" v-model="providerForm.display_name" placeholder="选填，如 TA；留空则向用户显示「名称」" maxlength="100" />
+            <div class="form-hint">模型下拉、计费说明等用户侧界面显示此名（用于隐藏真实渠道商）；管理后台始终显示真实名称。留空 = 显示「名称」。</div>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="provider-code">标识</Label>
+            <Input
+              id="provider-code"
+              v-model="providerForm.code" placeholder="选填，留空自动生成；小写字母/数字/中划线，如 volcengine"
+              :disabled="!!providerEditing" maxlength="50"
+            />
+            <div class="form-hint">机器用的唯一英文标识（任务记录溯源用），不影响协议与调用；创建后不可改。</div>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="provider-adapter">连接方式 <span class="text-destructive">*</span></Label>
+            <Select v-model="providerForm.adapter">
+              <SelectTrigger id="provider-adapter" class="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent class="max-w-120">
+                <SelectItem v-for="a in adapters" :key="a.code" :value="a.code">
+                  <div class="flex max-w-full items-center justify-between gap-3">
+                    <span class="shrink-0">{{ a.label }}</span>
+                    <span class="text-muted-foreground min-w-0 flex-1 truncate text-right text-xs">{{ a.description }}</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <div class="form-hint">
+              {{ adapters.find((a) => a.code === providerForm.adapter)?.description || '协议兼容 OpenAI 的服务商直接选「OpenAI 兼容生图」' }}
+            </div>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="provider-base-url">Base URL <span class="text-destructive">*</span></Label>
+            <Input id="provider-base-url" v-model="providerForm.base_url" placeholder="https://your-api.example.com" />
+            <div class="form-hint">填站点根地址即可，一般无需带 /v1（带 /v1 也能自动兼容）。</div>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="provider-remark">备注</Label>
+            <Textarea id="provider-remark" v-model="providerForm.remark" :rows="2" placeholder="选填" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="providerDialog = false">取消</Button>
+          <Button :disabled="providerSubmitting" @click="submitProvider">
+            <LoaderCircle v-if="providerSubmitting" class="animate-spin" />
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- 模型弹窗（渠道模型：关联逻辑模型 + 能力覆盖 + 定价） -->
-    <el-dialog
-      v-model="modelDialog"
-      :title="modelEditing ? '编辑模型' : '新增模型'"
-      width="640px" destroy-on-close
-    >
-      <el-form label-width="110px">
-        <el-form-item label="模型 ID" required>
-          <el-input v-model="modelForm.model_id" placeholder="调用 API 时使用的模型名（渠道叫法），如 gpt-4o-image" />
-          <div class="form-hint">同一逻辑模型在不同渠道可不同名（渠道映射语义）</div>
-        </el-form-item>
-        <el-form-item label="显示名">
-          <el-input v-model="modelForm.display_name" placeholder="选填，默认取逻辑模型名" />
-        </el-form-item>
-        <el-form-item label="支持识图">
-          <el-checkbox
-            v-model="modelForm.supports_vision"
-            :disabled="modelForm.supports_image_gen"
-          >支持上传图片作为输入</el-checkbox>
-          <div v-if="modelForm.supports_image_gen" class="form-hint">生图模型必定支持识图，已自动勾选</div>
-        </el-form-item>
-        <el-form-item label="支持生图">
-          <el-checkbox :model-value="modelForm.supports_image_gen" @change="onGenChange">
-            支持输出图片（勾选后自动要求支持识图）
-          </el-checkbox>
-        </el-form-item>
-        <el-form-item v-if="modelForm.supports_image_gen" label="逻辑模型" required>
-          <el-select v-model="modelForm.logical_model_id" placeholder="选择逻辑模型（继承能力定义）" style="width: 100%">
-            <el-option
-              v-for="lm in logicalModels" :key="lm.id" :value="lm.id"
-              :label="`${lm.name}（${lm.code}）`"
-            />
-          </el-select>
-          <div v-if="modelLogical" class="form-hint">
-            模板能力：{{ modelLogical.defaultParams?.resolutions?.join(' / ') || '—' }}；
-            宽高比 {{ (modelLogical.defaultParams?.aspectRatios?.length ?? 0) }} 种；
-            参考图 ≤ {{ modelLogical.defaultParams?.maxReferenceImages ?? '—' }}
+    <Dialog :open="modelDialog" @update:open="(v: boolean) => (modelDialog = v)">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{{ modelEditing ? '编辑模型' : '新增模型' }}</DialogTitle>
+        </DialogHeader>
+        <div v-if="modelDialog" class="flex max-h-[65vh] flex-col gap-4 overflow-y-auto pr-1">
+          <div class="grid gap-1.5">
+            <Label for="model-id">模型 ID <span class="text-destructive">*</span></Label>
+            <Input id="model-id" v-model="modelForm.model_id" placeholder="调用 API 时使用的模型名（渠道叫法），如 gpt-4o-image" />
+            <div class="form-hint">同一逻辑模型在不同渠道可不同名（渠道映射语义）</div>
           </div>
-        </el-form-item>
-        <el-form-item v-if="modelForm.supports_image_gen && modelLogical" label="能力覆盖">
-          <div class="override-block">
-            <div class="override-row">
-              <span class="override-label">分辨率（不勾=全部继承）</span>
-              <el-checkbox-group v-model="modelForm.overrideResolutions">
-                <el-checkbox v-for="r in (modelLogical.defaultParams?.resolutions || [])" :key="r" :value="r">{{ r }}</el-checkbox>
-              </el-checkbox-group>
-            </div>
-            <div class="override-row">
-              <span class="override-label">宽高比（不勾=全部继承）</span>
-              <el-select v-model="modelForm.overrideRatios" multiple collapse-tags collapse-tags-tooltip style="width: 100%">
-                <el-option v-for="r in modelLogicalRatios" :key="r" :value="r" :label="r" />
-              </el-select>
-            </div>
-            <div class="override-row">
-              <span class="override-label">上限收窄（选填）</span>
-              <div class="override-inputs">
-                参考图 ≤ <el-input-number v-model="modelForm.overrideMaxRef" :min="0" :max="modelLogical.defaultParams?.maxReferenceImages ?? 20" size="small" placeholder="继承" />
-                提示词 ≤ <el-input-number v-model="modelForm.overrideMaxPromptChars" :min="100" :max="modelLogical.defaultParams?.maxPromptChars ?? 32000" :step="500" size="small" placeholder="继承" />
-              </div>
-            </div>
-            <div class="form-hint">覆盖只允许收窄（不能超出逻辑模型能力）；生效能力即时反映在定价行</div>
+          <div class="grid gap-1.5">
+            <Label for="model-display-name">显示名</Label>
+            <Input id="model-display-name" v-model="modelForm.display_name" placeholder="选填，默认取逻辑模型名" />
           </div>
-        </el-form-item>
-        <el-form-item v-if="modelForm.supports_image_gen && modelLogical" label="成本价" required>
-          <div class="pricing-block">
-            <div v-for="r in modelEffectiveResolutions" :key="r" class="pricing-row">
-              <span class="pricing-label">{{ r }}</span>
-              <el-input-number
-                :model-value="modelForm.costPricing[r]"
-                @update:model-value="(v: any) => modelForm.costPricing[r] = v"
-                :min="0" :step="0.01" :precision="2" size="small" style="width: 140px"
-                placeholder="元"
+
+          <Separator class="my-1" />
+
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <label class="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox
+                :model-value="modelForm.supports_vision"
+                :disabled="modelForm.supports_image_gen"
+                @update:model-value="(v) => modelForm.supports_vision = v === true"
               />
-              <span class="pricing-unit">元 / 张</span>
-            </div>
-            <div v-if="modelEffectiveResolutions.length === 0" class="form-hint">生效能力为空（覆盖过度收窄），请调整</div>
+              支持识图
+            </label>
+            <span v-if="modelForm.supports_image_gen" class="form-hint min-w-0 flex-1">生图模型必定支持识图，已自动勾选</span>
+            <label class="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox :model-value="modelForm.supports_image_gen" @update:model-value="onGenChange" />
+              支持生图
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox
+                :model-value="modelForm.supports_chat"
+                @update:model-value="(v) => modelForm.supports_chat = v === true"
+              />
+              支持文字
+            </label>
           </div>
-        </el-form-item>
-        <el-form-item label="支持文字">
-          <el-checkbox v-model="modelForm.supports_chat">支持文字调用（画布文字 AI 节点可选；不计积分）</el-checkbox>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="modelForm.remark" type="textarea" :rows="2" placeholder="选填" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="modelDialog = false">取消</el-button>
-        <el-button type="primary" :loading="modelSubmitting" @click="submitModel">保存</el-button>
-      </template>
-    </el-dialog>
+          <div class="form-hint">支持识图 = 支持上传图片作为输入；支持生图 = 支持输出图片（勾选后自动要求支持识图）；支持文字 = 支持文字调用（画布文字 AI 节点可选；不计积分）</div>
+
+          <div v-if="modelForm.supports_image_gen" class="grid gap-1.5">
+            <Label for="model-logical">逻辑模型 <span class="text-destructive">*</span></Label>
+            <Select
+              :model-value="modelForm.logical_model_id === null ? undefined : String(modelForm.logical_model_id)"
+              @update:model-value="(v) => { modelForm.logical_model_id = Number(v) }"
+            >
+              <SelectTrigger id="model-logical" class="w-full">
+                <SelectValue placeholder="选择逻辑模型（继承能力定义）" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="lm in logicalModels" :key="lm.id" :value="String(lm.id)">
+                  {{ lm.name }}（{{ lm.code }}）
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <div v-if="modelLogical" class="form-hint">
+              模板能力：{{ modelLogical.defaultParams?.resolutions?.join(' / ') || '—' }}；
+              宽高比 {{ (modelLogical.defaultParams?.aspectRatios?.length ?? 0) }} 种；
+              参考图 ≤ {{ modelLogical.defaultParams?.maxReferenceImages ?? '—' }}
+            </div>
+          </div>
+
+          <div v-if="modelForm.supports_image_gen && modelLogical" class="grid gap-1.5">
+            <Label>能力覆盖</Label>
+            <div class="w-full rounded-lg border border-dashed p-2.5">
+              <div class="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-2 last:mb-0">
+                <span class="text-muted-foreground w-36 shrink-0 text-xs">分辨率（不勾=全部继承）</span>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <label
+                    v-for="r in (modelLogical.defaultParams?.resolutions || [])"
+                    :key="r"
+                    class="flex cursor-pointer items-center gap-1.5 text-sm"
+                  >
+                    <Checkbox
+                      :model-value="modelForm.overrideResolutions.includes(r)"
+                      @update:model-value="(v) => modelForm.overrideResolutions = toggleArrayValue(modelForm.overrideResolutions, r, v === true)"
+                    />
+                    {{ r }}
+                  </label>
+                </div>
+              </div>
+              <!-- TODO(multiple-select): 原 EP Select 多选（multiple + collapse-tags）无对应物，改为 Popover + Checkbox 列表（值仍为字符串数组，语义等价） -->
+              <div class="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-2 last:mb-0">
+                <span class="text-muted-foreground w-36 shrink-0 text-xs">宽高比（不勾=全部继承）</span>
+                <Popover>
+                  <PopoverTrigger as-child>
+                    <Button
+                      variant="outline"
+                      class="min-w-0 flex-1 justify-between font-normal sm:max-w-[420px]"
+                    >
+                      <span class="truncate">
+                        {{ modelForm.overrideRatios.length ? modelForm.overrideRatios.join('、') : '全部继承' }}
+                      </span>
+                      <ChevronDown class="size-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent class="max-h-72 w-64 overflow-y-auto p-2" align="start">
+                    <label
+                      v-for="r in modelLogicalRatios"
+                      :key="r"
+                      class="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+                    >
+                      <Checkbox
+                        :model-value="modelForm.overrideRatios.includes(r)"
+                        @update:model-value="(v) => modelForm.overrideRatios = toggleArrayValue(modelForm.overrideRatios, r, v === true)"
+                      />
+                      {{ r }}
+                    </label>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2 last:mb-0">
+                <span class="text-muted-foreground w-36 shrink-0 text-xs">上限收窄（选填）</span>
+                <div class="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                  参考图 ≤
+                  <div class="w-32 shrink-0">
+                    <UiNumberInput
+                      :model-value="modelForm.overrideMaxRef ?? undefined"
+                      :min="0" :max="modelLogical.defaultParams?.maxReferenceImages ?? 20"
+                      @update:model-value="(v) => modelForm.overrideMaxRef = v ?? null"
+                    />
+                  </div>
+                  提示词 ≤
+                  <div class="w-36 shrink-0">
+                    <UiNumberInput
+                      :model-value="modelForm.overrideMaxPromptChars ?? undefined"
+                      :min="100" :max="modelLogical.defaultParams?.maxPromptChars ?? 32000" :step="500"
+                      @update:model-value="(v) => modelForm.overrideMaxPromptChars = v ?? null"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div class="form-hint mt-1">覆盖只允许收窄（不能超出逻辑模型能力）；生效能力即时反映在定价行</div>
+            </div>
+          </div>
+
+          <div v-if="modelForm.supports_image_gen && modelLogical" class="grid gap-1.5">
+            <Label>成本价 <span class="text-destructive">*</span></Label>
+            <div class="w-full rounded-lg border border-dashed p-2.5">
+              <div v-for="r in modelEffectiveResolutions" :key="r" class="mb-1.5 flex flex-wrap items-center gap-2.5 last:mb-0">
+                <span class="w-15 font-semibold">{{ r }}</span>
+                <div class="w-35 shrink-0">
+                  <UiNumberInput
+                    :model-value="modelForm.costPricing[r]"
+                    :min="0" :step="0.01" :precision="2"
+                    @update:model-value="(v) => modelForm.costPricing[r] = v as number"
+                  />
+                </div>
+                <span class="text-muted-foreground text-xs">元 / 张</span>
+              </div>
+              <div v-if="modelEffectiveResolutions.length === 0" class="form-hint">生效能力为空（覆盖过度收窄），请调整</div>
+            </div>
+          </div>
+
+          <Separator class="my-1" />
+
+          <div class="grid gap-1.5">
+            <Label for="model-remark">备注</Label>
+            <Textarea id="model-remark" v-model="modelForm.remark" :rows="2" placeholder="选填" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="modelDialog = false">取消</Button>
+          <Button :disabled="modelSubmitting" @click="submitModel">
+            <LoaderCircle v-if="modelSubmitting" class="animate-spin" />
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- 逻辑模型渠道优先路由弹窗 -->
-    <el-dialog
-      v-model="routeDialog"
-      :title="`编辑逻辑模型 · ${routeEditing?.name || ''}`"
-      width="var(--momo-dialog-md)"
-      destroy-on-close
-    >
-      <div class="route-editor-intro">
-        <div>
-          <strong>{{ routeEditing?.code }}</strong>
-          <span>开启“参与路由”的渠道才会按下方顺序尝试；成本价只用于诊断，不参与排序。</span>
-        </div>
-        <el-tag type="info" effect="plain">全分辨率共用</el-tag>
-      </div>
-
-      <div v-if="routeDraft.length" class="route-list" role="list" aria-label="渠道优先路由顺序">
-        <div
-          v-for="(route, index) in routeDraft"
-          :key="route.channelModelId"
-          class="route-item"
-          :class="{
-            'route-item-dragging': draggedRouteId === route.channelModelId,
-            'route-item-disabled': !route.routeEnabled,
-          }"
-          role="listitem"
-          draggable="true"
-          @dragstart="startRouteDrag($event, route)"
-          @dragend="draggedRouteId = null"
-          @dragover.prevent
-          @drop.prevent="dropRoute(route)"
-        >
-          <button
-            type="button"
-            class="route-drag-handle"
-            :aria-label="`拖动调整 ${route.providerName} 的顺序`"
-            title="按住拖动调整顺序"
-          >
-            <el-icon><Rank /></el-icon>
-          </button>
-          <span class="route-index">{{ index + 1 }}</span>
-          <div class="route-main">
-            <div class="route-title-row">
-              <strong>{{ route.providerName }}</strong>
-              <span class="route-model-name">{{ route.modelName }}</span>
-              <el-tag size="small" :type="routeState(route).type" effect="light">
-                {{ routeState(route).label }}
-              </el-tag>
+    <Dialog :open="routeDialog" @update:open="(v: boolean) => (routeDialog = v)">
+      <DialogContent class="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{{ `编辑逻辑模型 · ${routeEditing?.name || ''}` }}</DialogTitle>
+        </DialogHeader>
+        <div v-if="routeDialog">
+          <div class="route-editor-intro">
+            <div>
+              <strong>{{ routeEditing?.code }}</strong>
+              <span>开启“参与路由”的渠道才会按下方顺序尝试；成本价只用于诊断，不参与排序。</span>
             </div>
-            <div class="route-meta">
-              <code>{{ route.modelId }}</code>
-              <span>{{ routeCostSummary(route) }}</span>
+            <Badge variant="secondary">全分辨率共用</Badge>
+          </div>
+
+          <div v-if="routeDraft.length" class="route-list" role="list" aria-label="渠道优先路由顺序">
+            <div
+              v-for="(route, index) in routeDraft"
+              :key="route.channelModelId"
+              class="route-item"
+              :class="{
+                'route-item-dragging': draggedRouteId === route.channelModelId,
+                'route-item-disabled': !route.routeEnabled,
+              }"
+              role="listitem"
+              draggable="true"
+              @dragstart="startRouteDrag($event, route)"
+              @dragend="draggedRouteId = null"
+              @dragover.prevent
+              @drop.prevent="dropRoute(route)"
+            >
+              <button
+                type="button"
+                class="route-drag-handle"
+                :aria-label="`拖动调整 ${route.providerName} 的顺序`"
+                title="按住拖动调整顺序"
+              >
+                <GripVertical class="size-4" />
+              </button>
+              <span class="route-index">{{ index + 1 }}</span>
+              <div class="route-main">
+                <div class="route-title-row">
+                  <strong>{{ route.providerName }}</strong>
+                  <span class="route-model-name">{{ route.modelName }}</span>
+                  <Badge :variant="tagVariant(routeState(route).type)">
+                    {{ routeState(route).label }}
+                  </Badge>
+                </div>
+                <div class="route-meta">
+                  <code>{{ route.modelId }}</code>
+                  <span>{{ routeCostSummary(route) }}</span>
+                </div>
+              </div>
+              <div class="route-toggle">
+                <span>参与路由</span>
+                <Switch
+                  :model-value="route.routeEnabled"
+                  draggable="false"
+                  :aria-label="`${route.providerName} 参与当前逻辑模型路由`"
+                  @update:model-value="(v: boolean) => route.routeEnabled = v"
+                />
+              </div>
+              <div class="route-keyboard-actions" aria-label="键盘调整顺序">
+                <Button
+                  variant="outline" size="icon-sm" :disabled="index === 0"
+                  :aria-label="`上移 ${route.providerName}`" title="上移"
+                  @click="moveRoute(index, -1)"
+                ><ArrowUp /></Button>
+                <Button
+                  variant="outline" size="icon-sm" :disabled="index === routeDraft.length - 1"
+                  :aria-label="`下移 ${route.providerName}`" title="下移"
+                  @click="moveRoute(index, 1)"
+                ><ArrowDown /></Button>
+              </div>
             </div>
           </div>
-          <div class="route-toggle">
-            <span>参与路由</span>
-            <el-switch
-              v-model="route.routeEnabled"
-              :aria-label="`${route.providerName} 参与当前逻辑模型路由`"
-              draggable="false"
-            />
-          </div>
-          <div class="route-keyboard-actions" aria-label="键盘调整顺序">
-            <el-button
-              circle size="small" :icon="ArrowUp" :disabled="index === 0"
-              :aria-label="`上移 ${route.providerName}`"
-              @click="moveRoute(index, -1)"
-            />
-            <el-button
-              circle size="small" :icon="ArrowDown" :disabled="index === routeDraft.length - 1"
-              :aria-label="`下移 ${route.providerName}`"
-              @click="moveRoute(index, 1)"
-            />
-          </div>
+          <UiEmptyState v-else title="该逻辑模型尚未接入生图渠道" />
         </div>
-      </div>
-      <el-empty v-else description="该逻辑模型尚未接入生图渠道" :image-size="72" />
-
-      <template #footer>
-        <el-button @click="routeDialog = false">取消</el-button>
-        <el-button type="primary" :loading="routeSaving" :disabled="routeDraft.length === 0" @click="saveRouteConfig">
-          保存路由配置
-        </el-button>
-      </template>
-    </el-dialog>
+        <DialogFooter>
+          <Button variant="outline" @click="routeDialog = false">取消</Button>
+          <Button :disabled="routeSaving || routeDraft.length === 0" @click="saveRouteConfig">
+            <LoaderCircle v-if="routeSaving" class="animate-spin" />
+            保存路由配置
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Key 弹窗 -->
-    <el-dialog
-      v-model="keyDialog"
-      :title="keyEditing ? '编辑 Key' : '新增 Key'"
-      width="520px" destroy-on-close
-    >
-      <el-form label-width="90px">
-        <el-form-item label="名称" required>
-          <el-input v-model="keyForm.name" placeholder="如：生产 Key A / 备用-充值卡B" maxlength="100" />
-        </el-form-item>
-        <el-form-item :label="keyEditing ? '新 Key' : 'API Key'" :required="!keyEditing">
-          <el-input
-            v-model="keyForm.key" type="password" show-password
-            :placeholder="keyEditing ? '留空表示不修改 Key 内容' : 'ark-... / sk-...'"
-          />
-        </el-form-item>
-        <el-form-item label="优先级" required>
-          <el-input-number
-            v-model="keyForm.priority" :min="1" :step="1" :precision="0" step-strictly
-            :disabled="keyEditing?.status === 'exhausted'"
-          />
-          <div v-if="keyEditing?.status === 'exhausted'" class="form-hint">已耗尽的 Key 不能修改优先级，请先重新启用或删除</div>
-          <div v-else class="form-hint">正整数，数字越小越先用；同优先级按录入先后排序</div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="keyDialog = false">取消</el-button>
-        <el-button type="primary" :loading="keySubmitting" @click="submitKey">保存</el-button>
-      </template>
-    </el-dialog>
+    <Dialog :open="keyDialog" @update:open="(v: boolean) => { keyDialog = v; if (!v) showKeyInput = false }">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{{ keyEditing ? '编辑 Key' : '新增 Key' }}</DialogTitle>
+        </DialogHeader>
+        <div v-if="keyDialog" class="flex flex-col gap-4">
+          <div class="grid gap-1.5">
+            <Label for="key-name">名称 <span class="text-destructive">*</span></Label>
+            <Input id="key-name" v-model="keyForm.name" placeholder="如：生产 Key A / 备用-充值卡B" maxlength="100" />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="key-value">{{ keyEditing ? '新 Key' : 'API Key' }}<span v-if="!keyEditing" class="text-destructive"> *</span></Label>
+            <div class="relative">
+              <Input
+                id="key-value"
+                v-model="keyForm.key"
+                :type="showKeyInput ? 'text' : 'password'"
+                :placeholder="keyEditing ? '留空表示不修改 Key 内容' : 'ark-... / sk-...'"
+                class="pr-9"
+              />
+              <button
+                type="button"
+                class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+                :title="showKeyInput ? '隐藏密码' : '显示密码'"
+                @click="showKeyInput = !showKeyInput"
+              >
+                <EyeOff v-if="showKeyInput" class="size-4" />
+                <Eye v-else class="size-4" />
+              </button>
+            </div>
+          </div>
+          <div class="grid gap-1.5">
+            <Label>优先级 <span class="text-destructive">*</span></Label>
+            <div class="w-40">
+              <UiNumberInput
+                :model-value="keyForm.priority ?? undefined"
+                :min="1" :step="1" :precision="0" step-strictly
+                :disabled="keyEditing?.status === 'exhausted'"
+                @update:model-value="(v) => keyForm.priority = v ?? null"
+              />
+            </div>
+            <div v-if="keyEditing?.status === 'exhausted'" class="form-hint">已耗尽的 Key 不能修改优先级，请先重新启用或删除</div>
+            <div v-else class="form-hint">正整数，数字越小越先用；同优先级按录入先后排序</div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="keyDialog = false">取消</Button>
+          <Button :disabled="keySubmitting" @click="submitKey">
+            <LoaderCircle v-if="keySubmitting" class="animate-spin" />
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </PageLayout>
 </template>
 
 <style scoped>
-.logical-section {
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--momo-radius-md, 8px);
-  padding: 14px 16px;
-}
-.section-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.section-title {
-  margin: 0;
-  font-size: var(--momo-font-size-base, 14px);
-  font-weight: 600;
-}
-.section-hint {
-  flex: 1;
-  font-size: var(--momo-font-size-xs, 12px);
-  color: var(--el-text-color-secondary);
+.form-hint {
+  font-size: var(--momo-font-size-xs);
+  color: var(--momo-color-text-tertiary);
+  line-height: 1.6;
 }
 
 /* ── 逻辑模型渠道优先路由 ── */
@@ -1636,418 +1956,6 @@ onMounted(() => {
   display: flex;
   gap: var(--momo-space-1);
   flex-shrink: 0;
-}
-
-/* ── 存储配置页签 ── */
-.storage-section {
-  max-width: 640px;
-}
-.storage-mode-group {
-  margin-bottom: 8px;
-}
-.storage-mode-desc {
-  margin: 0 0 16px;
-  font-size: var(--momo-font-size-xs, 12px);
-  line-height: 1.7;
-  color: var(--el-text-color-secondary);
-}
-.storage-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-.storage-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.field-label {
-  font-size: var(--momo-font-size-xs, 12px);
-  font-weight: 600;
-  color: var(--el-text-color-regular);
-}
-.field-label .required {
-  color: var(--el-color-danger);
-  font-style: normal;
-}
-.field-help {
-  font-size: var(--momo-font-size-xs, 12px);
-  color: var(--el-text-color-secondary);
-}
-.storage-test-result {
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  border-radius: var(--momo-radius-sm, 6px);
-  font-size: var(--momo-font-size-xs, 12px);
-}
-.storage-test-result.ok {
-  background: var(--el-color-success-light-9);
-  color: var(--el-color-success);
-}
-.storage-test-result.fail {
-  background: var(--el-color-danger-light-9);
-  color: var(--el-color-danger);
-}
-.storage-actions {
-  justify-content: flex-end;
-}
-.name-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 24px;
-}
-.name-text {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.override-block,
-.pricing-block {
-  width: 100%;
-  border: 1px dashed var(--el-border-color-lighter);
-  border-radius: 6px;
-  padding: 10px 12px;
-}
-.override-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.override-row:last-child { margin-bottom: 0; }
-.override-label {
-  width: 150px;
-  flex-shrink: 0;
-  font-size: var(--momo-font-size-xs, 12px);
-  color: var(--el-text-color-secondary);
-}
-.override-inputs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--momo-font-size-xs, 12px);
-  color: var(--el-text-color-secondary);
-}
-.pricing-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-.pricing-row:last-child { margin-bottom: 0; }
-.pricing-label {
-  width: 60px;
-  font-weight: 600;
-}
-.sale-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  width: auto;
-  min-width: 60px;
-}
-.cost-help {
-  color: var(--el-text-color-secondary);
-  cursor: help;
-  font-size: 14px;
-}
-.cost-help:hover { color: var(--el-color-primary); }
-.pricing-unit {
-  font-size: var(--momo-font-size-xs, 12px);
-  color: var(--el-text-color-secondary);
-}
-
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-.toolbar .hint {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-}
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.default-vision-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.picker-label {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-}
-
-.config-layout {
-  display: flex;
-  gap: 16px;
-  align-items: stretch;
-  min-height: 400px;
-}
-
-/* 左：服务商列表 */
-.provider-list {
-  width: 300px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 720px;
-  overflow-y: auto;
-}
-
-.provider-card {
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--momo-radius-md);
-  padding: 12px 14px;
-  cursor: pointer;
-  transition: border-color var(--momo-transition-fast), box-shadow var(--momo-transition-fast);
-}
-.provider-card:hover { border-color: var(--el-color-primary-light-5); }
-.provider-card.active {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
-}
-.provider-card.disabled { opacity: 0.6; }
-
-.provider-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.provider-name {
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.status-dot.on { background: var(--el-color-success); }
-.status-dot.off { background: var(--el-color-danger); }
-
-.provider-code {
-  margin-top: 6px;
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.provider-meta {
-  margin-top: 6px;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-}
-.primary-hint { font-family: monospace; }
-.primary-hint.missing { color: var(--el-color-danger); }
-
-.empty-hint {
-  padding: 32px 12px;
-  text-align: center;
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-placeholder);
-  border: 1px dashed var(--el-border-color-lighter);
-  border-radius: var(--momo-radius-md);
-}
-
-/* 右：详情 */
-.provider-detail {
-  flex: 1;
-  min-width: 0;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--momo-radius-md);
-  padding: 16px 20px;
-}
-
-.detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-}
-.detail-title h3 {
-  margin: 0;
-  font-size: var(--momo-font-size-lg);
-  color: var(--el-text-color-primary);
-}
-.detail-url {
-  display: block;
-  margin-top: 4px;
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-  word-break: break-all;
-}
-.detail-alias {
-  margin-left: 8px;
-  vertical-align: middle;
-}
-.detail-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.detail-remark {
-  margin: 8px 0 0;
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-}
-
-.empty-detail { display: flex; align-items: center; justify-content: center; }
-
-.tab-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.tab-hint {
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-}
-
-.pricing-cell {
-  font-family: monospace;
-  font-size: var(--momo-font-size-xs, 12px);
-}
-.cap-no { color: var(--el-text-color-placeholder); }
-.cap-hint { font-size: var(--momo-font-size-xs); color: var(--el-text-color-secondary); }
-.key-hint { font-family: monospace; font-size: var(--momo-font-size-sm); }
-.key-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.key-plain {
-  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: monospace; font-size: var(--momo-font-size-sm);
-}
-
-.check-result.ok { color: var(--el-color-success); }
-.check-result.fail { color: var(--el-color-danger); }
-.check-time {
-  margin-left: 6px;
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-}
-
-.form-hint {
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-  line-height: 1.6;
-}
-
-.adapter-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  max-width: 100%;
-}
-.adapter-label {
-  flex-shrink: 0;
-}
-.adapter-desc {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--momo-font-size-xs, 12px);
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: right;
-}
-
-/* 调试面板 */
-.debug-panel { max-width: 760px; }
-.debug-form { display: flex; flex-direction: column; gap: 14px; }
-.debug-row { display: flex; align-items: flex-start; gap: 12px; }
-.debug-row > label {
-  width: 56px;
-  flex-shrink: 0;
-  text-align: right;
-  padding-top: 5px;
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-primary);
-}
-.image-control {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.debug-thumb {
-  width: 56px; height: 56px;
-  object-fit: cover;
-  border-radius: var(--momo-radius-sm);
-  border: 1px solid var(--el-border-color-lighter);
-}
-.debug-image-name {
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.debug-error {
-  margin-top: 14px;
-  padding: 10px 12px;
-  border-radius: var(--momo-radius-md);
-  background: var(--el-color-danger-light-9);
-  color: var(--el-color-danger);
-  font-size: var(--momo-font-size-sm);
-  white-space: pre-wrap;
-}
-
-.debug-result { margin-top: 14px; }
-.debug-meta {
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-  margin-bottom: 8px;
-}
-.debug-text {
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--el-fill-color-lighter);
-  border-radius: var(--momo-radius-md);
-  font-size: var(--momo-font-size-sm);
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--el-text-color-primary);
-}
-.debug-reasoning {
-  margin: 0;
-  font-size: var(--momo-font-size-xs);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  color: var(--el-text-color-secondary);
-}
-</style>
-
-<!-- 下拉 popper 挂载在 body 下，scoped 样式够不到，须用全局样式约束宽度 -->
-<style>
-.adapter-select-popper {
-  max-width: 480px;
-}
-.adapter-select-popper .el-select-dropdown__item {
-  height: auto;
-  line-height: 1.5;
-  padding: 8px 12px;
 }
 </style>
 

@@ -1,9 +1,15 @@
 <template>
   <PageLayout title="提示词专家" subtitle="拆图四玩法：原版拆解 / 拆解融合 / 原图保真换脸换装 / 空间叙事衍生">
     <div class="expert-page">
-      <el-tabs v-model="activeTab" type="border-card" class="expert-tabs">
+      <Tabs v-model="activeTab" class="expert-tabs">
+        <TabsList>
+          <TabsTrigger value="decompose">📋 原版拆解(18项)</TabsTrigger>
+          <TabsTrigger value="fusion">🧩 拆解融合</TabsTrigger>
+          <TabsTrigger value="swap">🔁 原图保真换脸换装</TabsTrigger>
+          <TabsTrigger value="derive">🎞️ 空间叙事衍生</TabsTrigger>
+        </TabsList>
         <!-- ══════ Tab1 原版拆解 18 项 ══════ -->
-        <el-tab-pane label="📋 原版拆解(18项)" name="decompose">
+        <TabsContent value="decompose" class="mt-4">
           <div class="pane-body">
             <div class="left-col">
               <div class="f-label">上传电商主图（自动提取主色/亮度/构图）</div>
@@ -37,31 +43,30 @@
                 </div>
               </div>
               <div class="f-label">生成的完整 Prompt</div>
-              <el-input
+              <Textarea
                 v-model="decomposePrompt"
-                type="textarea"
                 :rows="16"
                 placeholder="填写拆解信息后点击「生成 Prompt」，或使用智能推理补全空项"
               />
               <div class="btn-row">
-                <el-button type="primary" @click="buildDecomposePrompt">⚡ 生成 Prompt</el-button>
-                <el-button @click="copyText(decomposePrompt)">📋 复制</el-button>
-                <el-button :disabled="!decomposePrompt" @click="saveDecompose">💾 存入提示词库</el-button>
-                <el-button :disabled="!decomposePrompt" @click="applyToGenerator">🎯 应用到生成器</el-button>
+                <Button @click="buildDecomposePrompt">⚡ 生成 Prompt</Button>
+                <Button variant="outline" @click="copyText(decomposePrompt)">📋 复制</Button>
+                <Button variant="outline" :disabled="!decomposePrompt" @click="saveDecompose">💾 存入提示词库</Button>
+                <Button variant="outline" :disabled="!decomposePrompt" @click="applyToGenerator">🎯 应用到生成器</Button>
               </div>
             </div>
           </div>
-        </el-tab-pane>
+        </TabsContent>
 
         <!-- ══════ Tab2 拆解融合 ══════ -->
-        <el-tab-pane label="🧩 拆解融合" name="fusion">
+        <TabsContent value="fusion" class="mt-4">
           <div class="pane-body">
             <div class="left-col">
               <ExpertSlotForm ref="fusionFormRef" v-model="fusionSlots" :slots="FUSION_SLOTS" />
               <div class="f-label" style="margin-top: 12px">模特人设（可选，面部 DNA 锚定）</div>
               <PersonaPicker v-model="fusionPersona" />
               <div class="f-label" style="margin-top: 12px">风格/场景基调补充（可选）</div>
-              <el-input v-model="fusionExtra" type="textarea" :rows="3" placeholder="留空则自动以主图为基准" />
+              <Textarea v-model="fusionExtra" :rows="3" placeholder="留空则自动以主图为基准" />
             </div>
             <div class="right-col">
               <GenPanel
@@ -74,19 +79,19 @@
               />
             </div>
           </div>
-        </el-tab-pane>
+        </TabsContent>
 
         <!-- ══════ Tab3 原图保真换脸换装 ══════ -->
-        <el-tab-pane label="🔁 原图保真换脸换装" name="swap">
+        <TabsContent value="swap" class="mt-4">
           <div class="pane-body">
             <div class="left-col">
               <ExpertSlotForm ref="swapFormRef" v-model="swapSlots" :slots="SWAP_SLOTS" />
-              <el-alert
-                type="info" :closable="false" show-icon style="margin-top: 12px"
-                title="基底主图为绝对基准：场景/光影/姿态/构图/色调 100% 保留，仅替换脸型/发型/服装（重拍而非换图）。"
-              />
+              <Alert class="mt-3">
+                <Info />
+                <AlertTitle>基底主图为绝对基准：场景/光影/姿态/构图/色调 100% 保留，仅替换脸型/发型/服装（重拍而非换图）。</AlertTitle>
+              </Alert>
               <div class="f-label" style="margin-top: 12px">服装细节补充（可选）</div>
-              <el-input v-model="swapExtra" type="textarea" :rows="3" placeholder="如：领口盘扣保留、下摆开叉位置以参考图为准" />
+              <Textarea v-model="swapExtra" :rows="3" placeholder="如：领口盘扣保留、下摆开叉位置以参考图为准" />
             </div>
             <div class="right-col">
               <GenPanel
@@ -99,10 +104,10 @@
               />
             </div>
           </div>
-        </el-tab-pane>
+        </TabsContent>
 
         <!-- ══════ Tab4 空间叙事衍生 ══════ -->
-        <el-tab-pane label="🎞️ 空间叙事衍生" name="derive">
+        <TabsContent value="derive" class="mt-4">
           <div class="pane-body">
             <div class="left-col">
               <div class="f-label">上传优质电商主图（衍生基底）</div>
@@ -115,19 +120,18 @@
                 @update:model-value="deriveImage = $event"
               />
               <div class="f-label" style="margin-top: 12px">衍生主题名 <span class="req">*</span></div>
-              <el-input v-model="deriveTheme.name" placeholder="如：临湖茶室系列" />
+              <Input v-model="deriveTheme.name" placeholder="如：临湖茶室系列" />
               <div class="f-label" style="margin-top: 12px">空间动线（用 → 分隔 5 个点位）<span class="req">*</span></div>
-              <el-input v-model="deriveTheme.path" placeholder="如：湖畔石阶 → 茶室门口 → 落地窗前 → 露台茶席 → 庭院小径" />
+              <Input v-model="deriveTheme.path" placeholder="如：湖畔石阶 → 茶室门口 → 落地窗前 → 露台茶席 → 庭院小径" />
               <div class="f-label" style="margin-top: 12px">各点位场景描述（每行一个，可留空自动生成）</div>
-              <el-input
+              <Textarea
                 v-model="derivePointsText"
-                type="textarea"
                 :rows="5"
                 placeholder="每行一个点位描述；留空将按动线自动补全「场景元素 + 模特姿态」"
               />
               <div class="btn-row" style="margin-top: 12px">
-                <el-button type="primary" @click="saveDerivedTheme">💾 存入我的主题库</el-button>
-                <el-button type="primary" plain @click="goSuiteWithDerived">🎬 生成套系</el-button>
+                <Button @click="saveDerivedTheme">💾 存入我的主题库</Button>
+                <Button variant="outline" @click="goSuiteWithDerived">🎬 生成套系</Button>
               </div>
             </div>
             <div class="right-col">
@@ -140,15 +144,16 @@
               <div v-else class="hint">填写主题名与动线后自动预览 5 点位</div>
             </div>
           </div>
-        </el-tab-pane>
-      </el-tabs>
+        </TabsContent>
+      </Tabs>
     </div>
   </PageLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { Info } from '@lucide/vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ImageSlotUpload, { type SlotImage } from '@/components/ImageSlotUpload.vue'
 import ExpertSlotForm, { type ExpertSlotDef } from '@/components/sg/ExpertSlotForm.vue'
@@ -170,6 +175,11 @@ import {
 } from '@/utils/decomposeExperts'
 import { analyzeImage, type ImageAnalysis } from '@/utils/imageAnalysis'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 defineOptions({ name: 'ExpertPage' })
 
@@ -523,14 +533,13 @@ const GenPanel = defineComponent({
       h('div', { class: 'f-label' }, props.title),
       h('div', { class: 'prompt-box' }, props.prompt || '上传参考图后自动生成 Prompt（含锁定模板）'),
       h('div', { class: 'btn-row' }, [
-        h('button', {
-          class: 'el-button el-button--primary',
+        h(Button, {
           disabled: props.generating,
           onClick: () => emit('generate'),
-        }, props.generating ? '提交中…' : '🎨 直连生成 1 张'),
-        h('button', { class: 'el-button', onClick: () => emit('copy') }, '📋 复制 Prompt'),
+        }, () => props.generating ? '提交中…' : '🎨 直连生成 1 张'),
+        h(Button, { variant: 'outline', onClick: () => emit('copy') }, () => '📋 复制 Prompt'),
         props.taskId
-          ? h('button', { class: 'el-button el-button--primary is-plain', onClick: () => { window.open(`#/results?taskId=${props.taskId}`, '_blank') } }, '查看任务')
+          ? h(Button, { variant: 'secondary', onClick: () => { window.open(`#/results?taskId=${props.taskId}`, '_blank') } }, () => '查看任务')
           : null,
       ]),
     ])

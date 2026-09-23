@@ -1,26 +1,25 @@
 <script setup lang="ts">
-import { QuestionFilled } from '@element-plus/icons-vue'
+import { CircleHelp } from '@lucide/vue'
 import { useHelp } from '@/composables/useHelp'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const { open, available } = useHelp()
 </script>
 
 <template>
-  <el-tooltip
-    :disabled="available"
-    content="该页面暂未提供帮助文档"
-    placement="bottom"
-  >
-    <span class="help-button-wrap">
-      <el-button size="small" :disabled="!available" :icon="QuestionFilled" @click="open">
-        使用帮助
-      </el-button>
-    </span>
-  </el-tooltip>
+  <Tooltip :disabled="available">
+    <TooltipTrigger as-child>
+      <!-- disabled 按钮不派发指针事件，需由外层 span 承接 hover -->
+      <span class="inline-flex">
+        <Button variant="outline" size="sm" :disabled="!available" @click="open">
+          <CircleHelp />
+          使用帮助
+        </Button>
+      </span>
+    </TooltipTrigger>
+    <TooltipContent side="bottom">
+      该页面暂未提供帮助文档
+    </TooltipContent>
+  </Tooltip>
 </template>
-
-<style scoped>
-.help-button-wrap {
-  display: inline-flex;
-}
-</style>

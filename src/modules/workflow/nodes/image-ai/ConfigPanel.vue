@@ -1,7 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Info, TriangleAlert } from '@lucide/vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { UiNumberInput } from '@/components/ui'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
@@ -63,40 +75,82 @@ const amendment = computed(() => {
 </script>
 
 <template>
-  <div class="config-section">
-    <el-alert title="API 密钥已在管理后台统一配置" type="info" show-icon :closable="false" />
+  <div class="flex flex-col gap-3">
+    <Alert>
+      <Info />
+      <AlertTitle>API 密钥已在管理后台统一配置</AlertTitle>
+    </Alert>
 
-    <label>模型名称</label>
-    <el-select :model-value="props.node.config.logicalModelId ?? props.node.config.modelName" @update:model-value="onModelChange(Number($event))">
-      <el-option v-for="m in availableModels" :key="m.value" :label="m.label" :value="m.value" />
-    </el-select>
+    <div class="grid gap-1.5">
+      <Label>模型名称</Label>
+      <Select :model-value="props.node.config.logicalModelId != null ? String(props.node.config.logicalModelId) : ''" @update:model-value="onModelChange(Number($event))">
+        <SelectTrigger class="w-full">
+          <span class="flex-1 truncate text-left">{{ selectedModel?.displayName ?? (props.node.config.modelName || '选择模型') }}</span>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="m in availableModels" :key="m.value" :value="String(m.value)">
+            {{ m.label }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
 
-    <el-divider>生成参数</el-divider>
+    <div class="flex items-center gap-2">
+      <Separator class="flex-1" />
+      <span class="text-muted-foreground text-xs">生成参数</span>
+      <Separator class="flex-1" />
+    </div>
 
-    <label>画幅比例</label>
-    <el-select :model-value="props.node.config.aspectRatio" @update:model-value="emit('update', { aspectRatio: $event })">
-      <el-option v-for="r in validAspectRatios" :key="r" :label="r" :value="r" />
-    </el-select>
+    <div class="grid gap-1.5">
+      <Label>画幅比例</Label>
+      <Select :model-value="String(props.node.config.aspectRatio ?? '')" @update:model-value="emit('update', { aspectRatio: String($event) })">
+        <SelectTrigger class="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="r in validAspectRatios" :key="r" :value="String(r)">
+            {{ r }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
 
-    <label>输出尺寸</label>
-    <el-select :model-value="props.node.config.outputSize" @update:model-value="emit('update', { outputSize: $event })">
-      <el-option v-for="res in validResolutions" :key="res" :label="res" :value="res" />
-    </el-select>
+    <div class="grid gap-1.5">
+      <Label>输出尺寸</Label>
+      <Select :model-value="String(props.node.config.outputSize ?? '')" @update:model-value="emit('update', { outputSize: String($event) })">
+        <SelectTrigger class="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="res in validResolutions" :key="res" :value="String(res)">
+            {{ res }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
 
-    <el-divider>输入端口</el-divider>
+    <div class="flex items-center gap-2">
+      <Separator class="flex-1" />
+      <span class="text-muted-foreground text-xs">输入端口</span>
+      <Separator class="flex-1" />
+    </div>
 
-    <label>参考图数量</label>
-    <UiNumberInput :model-value="imageCount" :min="1" :max="9" @update:model-value="emit('update', { imageCount: $event })" />
+    <div class="grid gap-1.5">
+      <Label>参考图数量</Label>
+      <UiNumberInput :model-value="imageCount" :min="1" :max="9" @update:model-value="emit('update', { imageCount: $event })" />
+    </div>
 
     <template v-if="amendment">
-      <el-divider>质检修正</el-divider>
-      <el-alert type="warning" show-icon :closable="false" title="本节点带有质检回写的修正指令，将在下次生成时拼接到提示词末尾；生成成功后自动清空。" />
-      <el-input :model-value="amendment" type="textarea" :rows="4" @update:model-value="emit('update', { promptAmendment: $event })" />
+      <div class="flex items-center gap-2">
+        <Separator class="flex-1" />
+        <span class="text-muted-foreground text-xs">质检修正</span>
+        <Separator class="flex-1" />
+      </div>
+      <Alert variant="warning">
+        <TriangleAlert />
+        <AlertTitle>本节点带有质检回写的修正指令，将在下次生成时拼接到提示词末尾；生成成功后自动清空。</AlertTitle>
+      </Alert>
+      <Textarea :model-value="amendment" :rows="4" @update:model-value="emit('update', { promptAmendment: String($event) })" />
     </template>
   </div>
 </template>
-
-<style scoped>
-.config-section { display: flex; flex-direction: column; gap: 12px; }
-.config-section label { color: var(--el-text-color-regular); font-size: var(--el-font-size-small); }
-</style>

@@ -1,0 +1,175 @@
+/* ============================================
+   墨墨 AI 生图 — Tailwind v4 + shadcn-vue 语义层
+
+   本文件只做两件事：
+   1. 引入 Tailwind / 动画工具类
+   2. 把 shadcn 语义 token（--background / --primary / --sidebar-* …）
+      桥接到 styles/tokens/ 里已有的 --momo-* 真源
+
+   颜色值一律不在这里硬编码，改配色只需改 tokens/_colors.css。
+   ============================================ */
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* reka-ui 用 data-state / data-orientation 表达状态，而组件里的 data-open: / data-checked: /
+   data-horizontal: 等简写变体默认会编译成 [data-open] 这类字面属性选择器（永不命中）。
+   这里把它们映射到真实属性，shadcn 组件的进出场动画、选中态配色、横竖布局才生效。 */
+@custom-variant data-open (&:where([data-state="open"]));
+@custom-variant data-closed (&:where([data-state="closed"]));
+@custom-variant data-checked (&:where([data-state="checked"]));
+@custom-variant data-unchecked (&:where([data-state="unchecked"]));
+@custom-variant data-active (&:where([data-active], [data-state="active"]));
+@custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
+@custom-variant data-vertical (&:where([data-orientation="vertical"]));
+
+@theme inline {
+  --font-sans: var(--momo-font-sans);
+  --font-mono: var(--momo-font-mono);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* 圆角阶梯与 tokens/_radii.css 严格对齐（基准 8px） */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* 阴影阶梯复用 momo token，避免出现第二套阴影语言 */
+  --shadow-sm: var(--momo-shadow-sm);
+  --shadow-md: var(--momo-shadow-md);
+  --shadow-lg: var(--momo-shadow-lg);
+  --font-heading: var(--font-sans);
+}
+
+:root {
+  --radius: 8px;
+
+  --background: var(--momo-color-bg-page);
+  --foreground: var(--momo-color-text);
+
+  --card: var(--momo-color-bg);
+  --card-foreground: var(--momo-color-text);
+
+  --popover: var(--momo-color-bg);
+  --popover-foreground: var(--momo-color-text);
+
+  --primary: var(--momo-color-brand);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--momo-color-bg-muted);
+  --secondary-foreground: var(--momo-color-text);
+
+  --muted: var(--momo-color-bg-muted);
+  --muted-foreground: var(--momo-color-text-tertiary);
+
+  --accent: var(--momo-color-brand-subtle);
+  --accent-foreground: var(--momo-color-brand-active);
+
+  --destructive: var(--momo-color-danger);
+  --destructive-foreground: #ffffff;
+
+  --success: var(--momo-color-success);
+  --success-foreground: #ffffff;
+
+  --warning: var(--momo-color-warning);
+  --warning-foreground: #ffffff;
+
+  --border: var(--momo-color-border-soft);
+  --input: var(--momo-color-border);
+  --ring: var(--momo-color-brand);
+
+  --sidebar: var(--momo-color-bg);
+  --sidebar-foreground: var(--momo-color-text-secondary);
+  --sidebar-primary: var(--momo-color-brand);
+  --sidebar-primary-foreground: var(--momo-color-brand-active);
+  --sidebar-accent: var(--momo-color-bg-muted);
+  --sidebar-accent-foreground: var(--momo-color-text);
+  --sidebar-border: var(--momo-color-border-soft);
+  --sidebar-ring: var(--momo-color-brand);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* 键盘焦点统一可见，鼠标点击不残留焦点环 */
+  :focus-visible {
+    outline: 2px solid var(--momo-color-brand);
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================
+   复用型语义工具类
+   只收录跨页面高频重复的布局/表面原语，其余一律用原生 Tailwind 类
+   ============================================ */
+
+/* 表格型页面：内容撑满但不超过阅读上限 */
+@utility content-max {
+  width: 100%;
+  max-width: var(--momo-content-max-width);
+  margin-inline: auto;
+}
+
+/* 表单型 / 阅读型页面：更窄的单列宽度 */
+@utility content-narrow {
+  width: 100%;
+  max-width: var(--momo-content-narrow-width);
+  margin-inline: auto;
+}
+
+/* 标准白色承载面：工具栏、筛选区、非 Card 语义的内容块 */
+@utility surface {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--momo-radius-xl);
+  box-shadow: var(--momo-shadow-sm);
+}
+
+/* 图片/媒体网格容器：统一缩略图圆角与描边，避免各页面各写一套 */
+@utility media-tile {
+  border-radius: var(--momo-radius-md);
+  border: 1px solid var(--border);
+  background-color: var(--momo-color-bg-muted);
+  object-fit: cover;
+}
+

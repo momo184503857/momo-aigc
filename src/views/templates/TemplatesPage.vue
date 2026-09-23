@@ -1,14 +1,53 @@
 <script setup lang="ts">
+/**
+ * TemplatesPage - 模板图库
+ *
+ * IA：图 = 主角；名称回答「这是哪张」，标签回答「去哪找它」，尺寸/体积只是选参考图
+ * 时的次要校验，压到最后一行 11px。收藏序列（在工作台按顺序出现）是独立任务，
+ * 所以单开一个「收藏设置」模式，而不是往每张卡上塞按钮。
+ *
+ * 操作分层：预览与「更多」在图块悬停层里；批量选择圈只在悬停/已选时出现；
+ * 批量动作集中在吸顶工具栏的选择态。
+ */
 defineOptions({ name: 'TemplatesPage' })
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
-import { Upload, Edit, Delete, Check, Close, StarFilled, Setting } from '@element-plus/icons-vue'
+import {
+  Upload, Pencil, Trash2, Check, X, Star, LoaderCircle,
+  ChevronDown, Ellipsis, Eye, GripVertical, RefreshCw, TriangleAlert,
+} from '@lucide/vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
 import { ossApi } from '@/services/ossApi'
 import PageLayout from '@/components/PageLayout.vue'
 import GalleryTagInput from '@/components/gallery/GalleryTagInput.vue'
-import { UiImagePreview } from '@/components/ui'
+import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useImagePreview } from '@/composables/useImagePreview'
 
 interface TemplateItem {
@@ -37,6 +76,10 @@ const pageSize = ref(20)
 const total = ref(0)
 const selectedTagId = ref<number | undefined>(undefined)
 const pageSizeOptions = [20, 40, 60, 100]
+// 仅 UI：首屏拉取失败时的可重试落点
+const loadFailed = ref(false)
+// 仅 UI：标签筛选弹层
+const tagPopoverOpen = ref(false)
 
 // Selection
 const selectedIds = ref(new Set<number>())
@@ -63,6 +106,23 @@ const dragState = ref<{
 
 const zoneItemsRef = ref<HTMLElement | null>(null)
 
+// ─── 仅 UI：派生展示信息 ───
+const activeTagName = computed(() =>
+  selectedTagId.value
+    ? (tags.value.find((t) => t.id === selectedTagId.value)?.name || '未知标签')
+    : '全部标签',
+)
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / (pageSize.value || 1))))
+/** 尺寸/体积/标签压成一行次要信息 */
+function templateSpec(t: TemplateItem): string {
+  const parts: string[] = []
+  if (t.width && t.height) parts.push(`${t.width}×${t.height}`)
+  const size = formatSize(t.size_bytes)
+  if (size) parts.push(size)
+  if (t.tags?.length) parts.push(t.tags.map((tag) => tag.name).join(' / '))
+  return parts.join(' · ')
+}
+
 async function loadTemplates() {
   loading.value = true
   try {
@@ -74,8 +134,10 @@ async function loadTemplates() {
     const data = res.data.data
     templates.value = data.records || []
     total.value = data.total || 0
+    loadFailed.value = false
   } catch {
     error('加载图库失败')
+    loadFailed.value = true
   } finally {
     loading.value = false
   }
@@ -392,471 +454,393 @@ async function removeFromStarred(tmpl: TemplateItem) {
   <PageLayout>
     <template #header>
       <h2>模板图库</h2>
+      <p class="text-muted-foreground mt-1 max-w-3xl text-[13px] leading-normal">
+        上传、打标签并检索参考图。被收藏的图片会按你排定的顺序出现在工作台的「收藏模板」里。
+      </p>
     </template>
     <template #extra>
-      <el-button
-        :type="starredMode ? 'warning' : 'default'"
-        :icon="Setting"
+      <Button
+        :variant="starredMode ? 'secondary' : 'outline'"
+        size="sm"
+        class="gap-1.5"
         @click="toggleStarredMode"
       >
-        {{ starredMode ? '退出收藏设置' : '设置收藏' }}
-      </el-button>
-      <el-button type="primary" :icon="Upload" :loading="uploading" @click="handleUpload">
+        <X v-if="starredMode" class="size-3.5" /><Star v-else class="size-3.5" />
+        {{ starredMode ? '退出收藏设置' : '收藏设置' }}
+      </Button>
+      <Button size="sm" class="gap-1.5" :disabled="uploading" @click="handleUpload">
+        <LoaderCircle v-if="uploading" class="size-3.5 animate-spin" />
+        <Upload v-else class="size-3.5" />
         上传图片
-      </el-button>
+      </Button>
     </template>
 
-    <!-- Tag filter -->
-    <div v-if="tags.length > 0" class="tag-filter">
-      <el-tag
-        :type="!selectedTagId ? 'primary' : 'info'"
-        size="small"
-        class="tag-chip"
-        @click="selectedTagId = undefined"
-      >
-        全部
-      </el-tag>
-      <el-tag
-        v-for="tag in tags"
-        :key="tag.id"
-        :type="selectedTagId === tag.id ? 'primary' : 'info'"
-        size="small"
-        class="tag-chip"
-        @click="selectedTagId = tag.id"
-      >
-        {{ tag.name }} ({{ tag.usage_count }})
-      </el-tag>
+    <!-- 吸顶工具栏：标签筛选 / 列表概览 / 选择态动作 -->
+    <div class="bg-background sticky top-0 z-20 mb-3 border-b pb-2.5">
+      <div class="flex flex-wrap items-center gap-2">
+        <Popover v-model:open="tagPopoverOpen">
+          <PopoverTrigger as-child>
+            <Button variant="outline" size="sm" class="max-w-60 gap-1.5">
+              <span class="text-muted-foreground">标签</span>
+              <span class="truncate">{{ activeTagName }}</span>
+              <ChevronDown class="size-3.5 shrink-0" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" class="w-64 p-0">
+            <div class="px-3 pt-3 pb-2">
+              <p class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+                按标签筛选
+              </p>
+            </div>
+            <div v-if="tags.length" class="max-h-72 overflow-y-auto px-2 pb-2">
+              <button
+                type="button"
+                class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors"
+                :class="cn(
+                  selectedTagId === undefined
+                    ? 'bg-muted font-medium text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )"
+                @click="selectedTagId = undefined; tagPopoverOpen = false"
+              >
+                <span>全部标签</span>
+                <Check v-if="selectedTagId === undefined" class="size-3.5 shrink-0" />
+              </button>
+              <button
+                v-for="tag in tags"
+                :key="tag.id"
+                type="button"
+                class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors"
+                :class="cn(
+                  selectedTagId === tag.id
+                    ? 'bg-muted font-medium text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )"
+                @click="selectedTagId = tag.id; tagPopoverOpen = false"
+              >
+                <span class="truncate">{{ tag.name }}</span>
+                <span class="text-muted-foreground/70 shrink-0 text-[11px] tabular-nums">
+                  {{ tag.usage_count }}
+                </span>
+              </button>
+            </div>
+            <p v-else class="text-muted-foreground px-3 py-6 text-center text-[13px]">
+              还没有标签，编辑图片时可新建
+            </p>
+          </PopoverContent>
+        </Popover>
+
+        <Separator orientation="vertical" class="h-4" />
+
+        <span class="text-muted-foreground text-[12px] tabular-nums">
+          共 {{ total }} 张 · 第 {{ currentPage }} / {{ pageCount }} 页
+        </span>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title="刷新"
+          aria-label="刷新图库"
+          :disabled="loading"
+          @click="loadTemplates"
+        >
+          <RefreshCw class="size-4" :class="cn('transition-transform', loading && 'animate-spin')" />
+        </Button>
+
+        <!-- 选择态：只有选了东西才出现，替代原来常驻的批量条 -->
+        <template v-if="selectedIds.size > 0 && !starredMode">
+          <Separator orientation="vertical" class="h-4" />
+          <span class="text-[13px] font-medium tabular-nums">已选 {{ selectedIds.size }} 张</span>
+          <div class="ml-auto flex items-center gap-2">
+            <Button variant="ghost" size="sm" class="gap-1.5" @click="clearSelection">
+              <X class="size-3.5" />取消选择
+            </Button>
+            <Button variant="destructive" size="sm" class="gap-1.5" @click="batchDelete">
+              <Trash2 class="size-3.5" />批量删除
+            </Button>
+          </div>
+        </template>
+      </div>
+
+      <!-- 收藏模式说明：贴着工具栏，不再单独占一条彩色横幅 -->
+      <p v-if="starredMode" class="text-muted-foreground flex items-center gap-1.5 pt-2 text-[12px]">
+        <GripVertical class="size-3.5 shrink-0" />
+        把图片拖到下方「收藏序列」即可设为收藏；在序列里左右拖动调整顺序，越靠左越靠前。
+      </p>
     </div>
 
-    <!-- Batch bar -->
-    <div v-if="selectedIds.size > 0 && !starredMode" class="batch-bar">
-      <span class="batch-info">已选择 {{ selectedIds.size }} 项</span>
-      <el-button size="small" @click="clearSelection">取消选择</el-button>
-      <el-button size="small" type="danger" @click="batchDelete">批量删除</el-button>
+    <!-- 加载失败 -->
+    <div
+      v-if="loadFailed && !loading && templates.length === 0"
+      class="border-destructive/30 bg-destructive/5 flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-12 text-center"
+    >
+      <TriangleAlert class="text-destructive size-6" :stroke-width="1.5" />
+      <p class="text-[13px] font-medium">图库加载失败</p>
+      <Button size="sm" variant="outline" class="mt-1 gap-1.5" @click="loadTemplates">
+        <RefreshCw class="size-3.5" />重试
+      </Button>
     </div>
 
-    <!-- Starred mode hint -->
-    <div v-if="starredMode" class="starred-hint-bar">
-      <el-icon :color="'var(--momo-color-warning)'"><StarFilled /></el-icon>
-      <span>将上方图片拖到下方区域设为收藏，拖动调整顺序，越靠左越靠前</span>
-    </div>
+    <!-- 图块即数据表面：1px 描边，不再套一层灰底卡 -->
+    <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(172px,1fr))] gap-3">
+      <template v-if="loading && templates.length === 0">
+        <div v-for="i in 12" :key="`sk-${i}`" class="overflow-hidden rounded-lg border">
+          <Skeleton class="aspect-square w-full rounded-none" />
+          <div class="flex flex-col gap-1.5 p-2.5">
+            <Skeleton class="h-3.5 w-4/5" />
+            <Skeleton class="h-3 w-2/5" />
+          </div>
+        </div>
+      </template>
 
-    <!-- Grid -->
-    <div v-loading="loading">
-      <el-empty v-if="!loading && templates.length === 0" description="暂无图片，点击右上角上传" :image-size="60" />
+      <template v-else-if="templates.length === 0">
+        <div class="col-span-full">
+          <UiEmptyState
+            title="图库还是空的"
+            description="上传 PNG / JPG / WebP 参考图（单张 ≤10MB），打上标签后即可在工作台按标签取用。"
+          >
+            <Button size="sm" class="gap-1.5" :disabled="uploading" @click="handleUpload">
+              <Upload class="size-3.5" />上传图片
+            </Button>
+          </UiEmptyState>
+        </div>
+      </template>
 
-      <div v-else class="tpl-grid">
-        <div
+      <template v-else>
+        <article
           v-for="t in templates"
           :key="t.id"
-          class="tpl-card"
-          :class="{
-            selected: selectedIds.has(t.id),
-            'is-star-source': starredMode && t.is_starred,
-          }"
+          class="group relative flex flex-col overflow-hidden rounded-lg border bg-card transition-colors hover:border-input"
+          :class="cn(
+            selectedIds.has(t.id) && !starredMode && 'border-primary ring-1 ring-primary/45',
+            starredMode && t.is_starred && 'border-dashed opacity-60',
+          )"
           :draggable="starredMode"
           @dragstart="handleGridDragStart($event, t)"
         >
-          <!-- Selection circle -->
-          <div v-if="!starredMode" class="select-circle" :class="{ checked: selectedIds.has(t.id) }" @click.stop="toggleSelect(t.id)">
-            <el-icon v-if="selectedIds.has(t.id)" size="14"><Check /></el-icon>
+          <div
+            class="relative aspect-square overflow-hidden bg-muted"
+            :class="starredMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'"
+            @click="!starredMode && openPreview(t.public_url)"
+          >
+            <img
+              :src="t.public_url"
+              :alt="t.name || t.original_filename"
+              draggable="false"
+              loading="lazy"
+              class="size-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
+            />
+
+            <!-- 收藏状态：图块角标 -->
+            <div v-if="t.is_starred" class="absolute top-1.5 right-1.5 z-10">
+              <Badge variant="warning" class="h-5 gap-1 border border-border/60 px-1.5 text-[11px]">
+                <Star class="size-3 fill-current" />收藏
+              </Badge>
+            </div>
+
+            <!-- 拖拽模式下的把手：明确「这张可以拖」 -->
+            <div
+              v-if="starredMode"
+              class="bg-background/90 absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-[11px]"
+            >
+              <GripVertical class="text-muted-foreground size-3.5" />拖入下方
+            </div>
+
+            <!-- 批量选择圈：悬停或已选时才现身 -->
+            <button
+              v-else
+              type="button"
+              :aria-label="selectedIds.has(t.id) ? '取消选择' : '选择这张'"
+              :aria-pressed="selectedIds.has(t.id)"
+              class="absolute right-1.5 bottom-1.5 z-20 flex size-6 cursor-pointer items-center justify-center rounded-md border transition-[opacity,background-color,color]"
+              :class="cn(
+                'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+                selectedIds.has(t.id)
+                  ? 'border-primary bg-primary text-primary-foreground opacity-100'
+                  : 'border-background/80 bg-foreground/35 text-transparent hover:bg-foreground/55',
+              )"
+              @click.stop="toggleSelect(t.id)"
+            >
+              <Check class="size-3.5" />
+            </button>
+
+            <!-- 悬停操作层：预览 + 更多 -->
+            <div
+              v-if="!starredMode"
+              class="absolute left-1.5 bottom-1.5 z-20 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"
+            >
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                title="看大图"
+                aria-label="看大图"
+                class="shadow-sm"
+                @click.stop="openPreview(t.public_url)"
+              >
+                <Eye class="size-3.5" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button
+                    variant="secondary"
+                    size="icon-sm"
+                    title="更多操作"
+                    aria-label="更多操作"
+                    class="shadow-sm"
+                    @click.stop
+                  >
+                    <Ellipsis class="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-40" @click.stop>
+                  <DropdownMenuItem @click="openEdit(t)"><Pencil />编辑名称与标签</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem class="text-destructive" @click="handleDelete(t)">
+                    <Trash2 />删除图片
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
-          <!-- Star indicator -->
-          <div v-if="t.is_starred" class="star-badge">
-            <el-icon size="14" :color="'var(--momo-color-warning)'"><StarFilled /></el-icon>
-          </div>
-
-          <!-- Image -->
-          <div class="tpl-thumb" @click="openPreview(t.public_url)">
-            <img :src="t.public_url" :alt="t.name" draggable="false" />
-          </div>
-
-          <!-- Info -->
-          <div class="tpl-info">
-            <div class="tpl-name" :title="t.name || t.original_filename">
+          <div class="min-w-0 px-2.5 py-2">
+            <p
+              class="truncate text-[13px] leading-5 font-medium"
+              :title="t.name || t.original_filename"
+            >
               {{ t.name || t.original_filename }}
-            </div>
-            <div v-if="t.tags && t.tags.length > 0" class="tpl-tags">
-              <el-tag v-for="tag in t.tags" :key="tag.id" size="small">{{ tag.name }}</el-tag>
-            </div>
-            <div class="tpl-meta">
-              <span v-if="t.width && t.height">{{ t.width }}x{{ t.height }}</span>
-              <span>{{ formatSize(t.size_bytes) }}</span>
-            </div>
+            </p>
+            <p class="text-muted-foreground mt-0.5 truncate text-[11px] tabular-nums" :title="templateSpec(t)">
+              {{ templateSpec(t) || '未标注尺寸' }}
+            </p>
           </div>
-
-          <!-- Actions -->
-          <div v-if="!starredMode" class="tpl-actions">
-            <el-button size="small" :icon="Edit" @click="openEdit(t)">编辑</el-button>
-            <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(t)">删除</el-button>
-          </div>
-        </div>
-      </div>
+        </article>
+      </template>
     </div>
 
-    <!-- Pagination -->
-    <div v-if="total > 0 && !starredMode" class="pagination-area">
-      <el-pagination
-        v-if="total > pageSize"
+    <!-- 分页（收藏模式下不需要翻页，故整条隐藏） -->
+    <div
+      v-if="total > 0 && !starredMode"
+      class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3"
+    >
+      <span v-if="total <= pageSize" class="text-muted-foreground text-[12px] tabular-nums">
+        共 {{ total }} 张图片，全部在本页
+      </span>
+      <UiPagination
+        v-else
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
         :page-sizes="pageSizeOptions"
         :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        background
+        :disabled="loading"
+        class="ml-auto"
         @current-change="handlePageChange"
         @size-change="handlePageSizeChange"
       />
-      <span v-else class="total-count">共 {{ total }} 张图片</span>
     </div>
 
-    <!-- ─── Starred drop zone ─── -->
-    <div v-if="starredMode" class="starred-zone-wrapper">
+    <!-- ─── 收藏序列（收藏模式下的投放区，紧凑成一条横向磁贴带）─── -->
+    <div v-if="starredMode" class="sticky bottom-0 z-10 bg-background pt-3">
+      <div class="mb-1.5 flex items-center justify-between gap-3">
+        <div class="flex items-baseline gap-2">
+          <span class="text-[13px] font-medium">收藏序列</span>
+          <span class="text-muted-foreground text-[11px] tabular-nums">
+            {{ starredList.length }} 张 · 越靠左越靠前
+          </span>
+        </div>
+        <span v-if="dragState" class="text-muted-foreground text-[11px]">松手即保存顺序</span>
+      </div>
       <div
-        class="starred-drop-zone"
-        :class="{ 'is-active': isDropZoneActive }"
+        class="border-border bg-card relative rounded-lg border-2 border-dashed p-2.5 transition-colors"
+        :class="{ 'border-primary bg-accent': isDropZoneActive }"
         @dragover="handleDropZoneDragOver"
         @dragleave="handleDropZoneDragLeave"
         @drop="handleDropZoneDrop"
       >
-        <div v-if="starredList.length === 0" class="zone-empty">
-          <el-icon size="48" color="var(--el-text-color-placeholder)"><StarFilled /></el-icon>
-          <p>将上方图片拖到这里设为收藏模板</p>
+        <div v-if="starredList.length === 0" class="flex min-h-24 flex-col items-center justify-center gap-1 text-center">
+          <Star class="text-muted-foreground/40 size-6" :stroke-width="1.5" />
+          <p class="text-muted-foreground text-[13px]">把上方图片拖到这里设为收藏模板</p>
         </div>
-        <div v-else ref="zoneItemsRef" class="zone-items">
+        <div v-else ref="zoneItemsRef" class="zone-items flex min-h-24 items-start gap-2.5 overflow-x-auto pb-1">
           <div
             v-for="(t, index) in starredList"
             :key="t.id"
-            class="zone-item"
+            class="zone-item group/zone flex w-24 shrink-0 cursor-grab flex-col gap-1 select-none"
             :class="{ 'is-dragging': dragState && dragState.index === index }"
             @mousedown="handleItemMouseDown($event, index)"
           >
-            <div class="zone-item-img">
-              <img :src="t.public_url" :alt="t.name" />
-              <span class="zone-item-order">{{ index + 1 }}</span>
-              <span class="zone-item-remove" @click.stop="removeFromStarred(t)">&times;</span>
+            <div class="border-border group-hover/zone:border-primary relative aspect-square overflow-hidden rounded-md border-2 transition-colors">
+              <img :src="t.public_url" :alt="t.name" class="pointer-events-none size-full object-cover" />
+              <span
+                class="bg-primary text-primary-foreground absolute top-1 left-1 flex size-4.5 items-center justify-center rounded text-[10px] font-semibold tabular-nums"
+              >{{ index + 1 }}</span>
+              <button
+                type="button"
+                class="zone-item-remove bg-foreground/70 text-background absolute top-1 right-1 flex size-4.5 cursor-pointer items-center justify-center rounded opacity-0 transition-opacity group-hover/zone:opacity-100"
+                aria-label="从收藏序列移除"
+                @click.stop="removeFromStarred(t)"
+              >
+                <X class="size-3" />
+              </button>
             </div>
-            <div class="zone-item-name" :title="t.name || t.original_filename">
+            <p class="text-muted-foreground truncate text-center text-[11px]" :title="t.name || t.original_filename">
               {{ t.name || t.original_filename }}
-            </div>
+            </p>
           </div>
         </div>
         <!-- Floating drag preview -->
         <div
           v-if="dragState"
-          class="drag-preview"
+          class="border-primary pointer-events-none fixed z-9999 h-24 w-24 overflow-hidden rounded-md border-2 opacity-90 shadow-lg"
           :style="{
             left: (dragState.mouseX - dragState.offsetX) + 'px',
             top: zoneItemsRef?.getBoundingClientRect().top + 'px',
           }"
         >
-          <img :src="starredList[dragState.index]?.public_url" />
+          <img :src="starredList[dragState.index]?.public_url" class="size-full object-cover" />
         </div>
       </div>
     </div>
 
     <!-- Edit dialog -->
-    <el-dialog
-      v-model="showEditDialog"
-      title="编辑图片"
-      width="960px"
-      class="edit-dialog-lg"
-      :close-on-click-modal="false"
-      destroy-on-close
-    >
-      <el-form v-if="editingImage" label-position="top">
-        <el-form-item label="标签">
-          <GalleryTagInput v-model="editingTagIds" />
-        </el-form-item>
-        <el-form-item label="文件名">
-          <el-input v-model="editingFileName" placeholder="输入文件名" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showEditDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveEdit">保存</el-button>
-      </template>
-    </el-dialog>
+    <Dialog :open="showEditDialog" @update:open="(v: boolean) => (showEditDialog = v)">
+      <DialogContent class="sm:max-w-4xl" @pointer-down-outside.prevent>
+        <DialogHeader>
+          <DialogTitle>编辑图片</DialogTitle>
+        </DialogHeader>
+        <div v-if="editingImage" class="flex flex-col gap-4">
+          <div class="grid gap-1.5">
+            <Label>标签</Label>
+            <GalleryTagInput v-model="editingTagIds" />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="edit-filename">文件名</Label>
+            <Input id="edit-filename" v-model="editingFileName" placeholder="输入文件名" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showEditDialog = false">取消</Button>
+          <Button @click="saveEdit">保存</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <UiImagePreview v-model="previewVisible" :url="previewUrl" />
   </PageLayout>
 </template>
 
 <style scoped>
-/* ─── Tag filter ─── */
-.tag-filter {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  margin-bottom: 14px;
-}
-.tag-chip { cursor: pointer; user-select: none; }
-
-/* ─── Batch bar ─── */
-.batch-bar {
-  display: flex; align-items: center; gap: 12px;
-  padding: 8px 16px; margin-bottom: 12px;
-  background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-color-primary-light-5);
-  border-radius: var(--el-border-radius-base);
-}
-.batch-info { font-size: var(--momo-font-size-base); color: var(--el-color-primary); margin-right: auto; }
-
-/* ─── Starred mode hint ─── */
-.starred-hint-bar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 16px; margin-bottom: 12px;
-  background: var(--momo-color-warning-subtle);
-  border: 1px solid var(--momo-color-warning);
-  border-radius: var(--momo-radius-sm);
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-warning);
-}
-
-/* ─── Grid ─── */
-.tpl-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-}
-.tpl-card {
-  background: var(--el-fill-color-lighter);
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  border: 1px solid var(--el-border-color-light);
-  transition: box-shadow 0.2s, border-color 0.2s, opacity 0.2s;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-.tpl-card:hover { box-shadow: var(--el-box-shadow-light); }
-.tpl-card.selected { border-color: var(--el-color-primary); box-shadow: 0 0 0 2px var(--el-color-primary-light-5); }
-.tpl-card.is-star-source {
-  opacity: 0.6;
-  border-style: dashed;
-}
-
-/* Selection circle */
-.select-circle {
-  position: absolute; top: 10px; left: 10px; z-index: 2;
-  width: 24px; height: 24px; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.9);
-  background: rgba(0,0,0,0.25);
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-.select-circle.checked {
-  background: var(--el-color-primary);
-  border-color: var(--el-color-primary);
-}
-.select-circle .el-icon { color: var(--momo-color-text-inverse); }
-
-/* Thumb */
-.tpl-thumb {
-  aspect-ratio: 1;
-  overflow: hidden;
-  background: var(--el-fill-color);
-  cursor: pointer;
-}
-.tpl-thumb img {
-  width: 100%; height: 100%; object-fit: cover;
-  transition: transform 0.3s;
-}
-.tpl-card[draggable="true"] .tpl-thumb { cursor: grab; }
-.tpl-thumb:hover img { transform: scale(1.05); }
-
-/* Info */
-.tpl-info {
-  padding: 10px 12px;
-  flex: 1;
-}
-.tpl-name {
-  font-weight: 600; font-size: var(--momo-font-size-base); color: var(--el-text-color-primary);
-  margin-bottom: 4px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.tpl-meta {
-  display: flex; gap: 6px;
-  font-size: var(--momo-font-size-xs); color: var(--el-text-color-secondary);
-  margin-top: 4px;
-}
-.tpl-tags {
-  display: flex; flex-wrap: wrap; gap: 4px;
-}
-
-/* Actions */
-.tpl-actions {
-  display: flex; gap: 4px;
-  padding: 0 12px 10px;
-}
-
-/* Star badge */
-.star-badge {
-  position: absolute; top: 10px; right: 10px; z-index: 2;
-  display: flex; align-items: center;
-  background: rgba(0,0,0,0.5); border-radius: 999px;
-  padding: 3px;
-}
-
-/* Star hint in dialog */
-.star-hint {
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-placeholder);
-  margin-left: 8px;
-}
-
-/* ─── Pagination ─── */
-.pagination-area {
-  margin-top: 14px;
-  display: flex; justify-content: space-between; align-items: center;
-}
-.total-count { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
-
-/* ─── Starred drop zone ─── */
-.starred-zone-wrapper {
-  position: sticky;
-  bottom: 0;
-  margin-top: 20px;
-  padding-top: 12px;
-  background: linear-gradient(transparent 0px, var(--el-bg-color) 12px);
-  z-index: 10;
-}
-
-.starred-drop-zone {
-  min-height: 180px;
-  border: 2px dashed var(--el-border-color);
-  border-radius: var(--momo-radius-lg);
-  background: var(--el-fill-color-blank);
-  padding: 16px;
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-  user-select: none;
-}
-.starred-drop-zone.is-active {
-  border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  box-shadow: 0 0 0 4px var(--el-color-primary-light-8);
-}
-
-.zone-empty {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  min-height: 148px;
-  color: var(--el-text-color-placeholder);
-}
-.zone-empty p {
-  margin-top: 12px;
-  font-size: var(--momo-font-size-base);
-}
-
-.zone-items {
-  display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  padding: 4px 0;
-  min-height: 148px;
-  align-items: flex-start;
-}
+/* 拖拽落位判定依赖 .zone-item 的真实几何；此处只补一条细滚动条，其余用工具类 */
 .zone-items::-webkit-scrollbar {
   height: 6px;
 }
 .zone-items::-webkit-scrollbar-thumb {
-  background: var(--el-border-color);
+  background: var(--momo-color-border);
   border-radius: 3px;
-}
-
-.zone-item {
-  flex-shrink: 0;
-  width: 130px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  cursor: grab;
-  transition: opacity 0.2s, transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 .zone-item.is-dragging {
   opacity: 0.25;
   cursor: grabbing;
   transform: scale(0.95);
-}
-
-.zone-item-img {
-  position: relative;
-  width: 130px;
-  height: 130px;
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  border: 2px solid var(--el-border-color-light);
-  transition: border-color 0.2s;
-}
-.zone-item:hover .zone-item-img {
-  border-color: var(--el-color-primary);
-}
-.zone-item-img img {
-  width: 100%; height: 100%; object-fit: cover;
-  pointer-events: none;
-}
-
-.zone-item-order {
-  position: absolute; top: 4px; left: 4px;
-  width: 22px; height: 22px; line-height: 22px;
-  text-align: center;
-  background: var(--el-color-primary);
-  color: #fff;
-  border-radius: 50%;
-  font-size: 11px; font-weight: 700;
-}
-
-.zone-item-remove {
-  position: absolute; top: 4px; right: 4px;
-  width: 22px; height: 22px; line-height: 20px;
-  text-align: center;
-  background: var(--momo-color-overlay);
-  color: var(--momo-color-text-inverse);
-  border-radius: 50%;
-  font-size: 14px; cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-.zone-item:hover .zone-item-remove {
-  opacity: 1;
-}
-
-.zone-item-name {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-regular);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  text-align: center;
-}
-
-/* Floating drag preview */
-.drag-preview {
-  position: fixed;
-  width: 130px;
-  height: 130px;
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-  border: 3px solid var(--el-color-primary);
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.92;
-  transition: box-shadow 0.2s;
-}
-.drag-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-</style>
-
-<style>
-.edit-dialog-lg .el-dialog {
-  height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-.edit-dialog-lg .el-dialog__body {
-  flex: 1;
-  overflow: auto;
 }
 </style>

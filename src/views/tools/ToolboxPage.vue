@@ -1,48 +1,71 @@
 <script setup lang="ts">
-import { Box, MagicStick, Brush, Document, User } from '@element-plus/icons-vue'
+/**
+ * AI 工具箱 —— 批量工具入口
+ *
+ * 定位是「启动器」：用户来这里只为选一个工具并立刻进入，因此列表按可扫读的行式
+ * 清单排布（图标 / 名称 / 输入约束 / 说明），而不是五张大卡片。
+ */
+import type { Component } from 'vue'
+import { Archive, ArrowRight, ChevronRight, FileText, Paintbrush, Settings, Upload, User, Wand2, Workflow, ListChecks } from '@lucide/vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 import PageLayout from '@/components/PageLayout.vue'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 interface ToolItem {
   id: string
   title: string
   description: string
-  icon: any
+  icon: Component
+  /** 纯视图信息：该工具单次可接受的素材规模，取自各页面自身的上传约束 */
+  meta: string[]
   disabled?: boolean
 }
+
+/** 批量工具的共用流程（纯视图说明，不驱动任何路由或状态机） */
+const PIPELINE: { label: string; icon: Component }[] = [
+  { label: '上传素材', icon: Upload },
+  { label: '配置提示词与参数', icon: Settings },
+  { label: '批量提交任务', icon: ListChecks },
+]
 
 const tools: ToolItem[] = [
   {
     id: 'batch-clothes-swap',
     title: '批量换姿势',
     description: '上传多张模特图和一张衣服图，批量生成换装效果图',
-    icon: MagicStick,
+    icon: Wand2,
+    meta: ['模特图 ≤ 20', '衣服图 × 1'],
   },
   {
     id: 'batch-pose-swap',
     title: '批量换衣服',
     description: '上传一张模特图和多张衣服图，批量生成换装效果图',
-    icon: Brush,
+    icon: Paintbrush,
+    meta: ['模特图 × 1', '衣服图 ≤ 20'],
   },
   {
     id: 'batch-spreadsheet',
     title: '批量传表格做图',
     description: '上传 Excel 表格，批量提交生图任务',
-    icon: Document,
+    icon: FileText,
+    meta: ['1 行 = 1 任务', '结果可批量下载'],
   },
   {
     id: 'batch-face-swap',
     title: '批量换脸',
     description: '上传多张衣服图和一张模特脸图，批量生成换脸效果图',
     icon: User,
+    meta: ['衣服图 ≤ 20', '脸图 × 1'],
   },
   {
     id: 'placeholder-1',
     title: '敬请期待',
     description: '更多 AI 工具正在开发中，即将上线……',
-    icon: Box,
+    icon: Archive,
+    meta: [],
     disabled: true,
   },
 ]
@@ -64,79 +87,95 @@ function handleToolClick(tool: ToolItem) {
   <PageLayout>
     <template #header>
       <h2>AI 工具箱</h2>
+      <p class="text-muted-foreground mt-0.5 text-[13px]">
+        批量流水线入口：一组素材 × 一次配置，提交为多个生图任务
+      </p>
     </template>
 
-    <div class="tool-grid">
-      <div
-        v-for="tool in tools"
-        :key="tool.id"
-        class="tool-card"
-        :class="{ disabled: tool.disabled }"
-        @click="handleToolClick(tool)"
-      >
-        <div class="tool-card-icon">
-          <el-icon :size="32"><component :is="tool.icon" /></el-icon>
-        </div>
-        <div class="tool-card-body">
-          <h3 class="tool-card-title">{{ tool.title }}</h3>
-          <p class="tool-card-desc">{{ tool.description }}</p>
-        </div>
+    <template #extra>
+      <Badge variant="secondary" class="tabular-nums">{{ tools.filter(t => !t.disabled).length }} 个工具可用</Badge>
+      <Button variant="outline" size="sm" class="gap-1.5" @click="router.push('/results')">
+        <ArrowRight class="size-3.5" />
+        生成结果
+      </Button>
+    </template>
+
+    <div class="content-max flex flex-col gap-4">
+      <!-- 共用流程说明：一行带过，避免每页重复解释 -->
+      <div class="border-border bg-muted/30 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2">
+        <span class="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium tracking-wider uppercase">
+          <Workflow class="size-3.5" />
+          批量流程
+        </span>
+        <span
+          v-for="(s, i) in PIPELINE"
+          :key="s.label"
+          class="flex items-center gap-2 text-[12.5px]"
+        >
+          <span class="border-border bg-background text-muted-foreground flex size-5 items-center justify-center rounded-full border text-[10px] font-semibold tabular-nums">
+            {{ i + 1 }}
+          </span>
+          <span class="text-foreground/80">{{ s.label }}</span>
+          <ChevronRight v-if="i < PIPELINE.length - 1" class="text-muted-foreground/50 size-3.5" />
+        </span>
+        <span class="text-muted-foreground ml-auto hidden text-[11.5px] xl:inline">
+          提交后可在右侧任务面板查看进度
+        </span>
       </div>
+
+      <!-- 工具清单：行式排列，输入约束前置到一行内可读 -->
+      <section class="border-border bg-card overflow-hidden rounded-lg border">
+        <h3 class="sr-only">批量工具</h3>
+        <ul class="divide-border divide-y">
+          <li v-for="tool in tools" :key="tool.id">
+            <button
+              type="button"
+              :disabled="tool.disabled"
+              :aria-label="tool.disabled ? undefined : `进入${tool.title}`"
+              class="group hover:bg-muted/60 flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+              @click="handleToolClick(tool)"
+            >
+              <span
+                class="border-border bg-background flex size-9 shrink-0 items-center justify-center rounded-md border"
+                :class="tool.disabled ? 'text-muted-foreground/60' : 'text-foreground/80'"
+              >
+                <component :is="tool.icon" class="size-4.5" :stroke-width="1.75" />
+              </span>
+
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-2">
+                  <span class="truncate text-[14px] font-medium">{{ tool.title }}</span>
+                  <Badge v-if="tool.disabled" variant="outline" class="h-4 shrink-0 px-1.5 text-[10px]">
+                    开发中
+                  </Badge>
+                </span>
+                <span class="text-muted-foreground mt-0.5 block truncate text-[12.5px]">
+                  {{ tool.description }}
+                </span>
+              </span>
+
+              <span v-if="tool.meta.length" class="hidden shrink-0 items-center gap-1.5 md:flex">
+                <span
+                  v-for="m in tool.meta"
+                  :key="m"
+                  class="text-muted-foreground bg-muted border-border rounded border px-1.5 py-0.5 text-[11px] whitespace-nowrap tabular-nums"
+                >
+                  {{ m }}
+                </span>
+              </span>
+
+              <ChevronRight
+                v-if="!tool.disabled"
+                class="text-muted-foreground/40 group-hover:text-foreground size-4 shrink-0 transition-colors"
+              />
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <p class="text-muted-foreground text-[11.5px]">
+        所有批量任务按「1 张素材 = 1 个任务」提交，消耗按模型分辨率单价 × 任务数计算，任务间提交间隔 3 秒。
+      </p>
     </div>
   </PageLayout>
 </template>
-
-<style scoped>
-.tool-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-}
-
-.tool-card {
-  background: var(--el-fill-color-lighter);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: var(--momo-radius-md);
-  padding: 24px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.tool-card:hover:not(.disabled) {
-  box-shadow: var(--el-box-shadow-light);
-  border-color: var(--el-border-color);
-}
-
-.tool-card.disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.tool-card-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  background: var(--el-fill-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--el-color-primary);
-}
-
-.tool-card-title {
-  font-size: var(--momo-font-size-lg);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin: 0;
-}
-
-.tool-card-desc {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-  margin: 0;
-  line-height: 1.5;
-}
-</style>

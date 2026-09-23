@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
@@ -10,19 +12,15 @@ function updateText(value: string) {
 </script>
 
 <template>
-  <div class="config-section">
-    <label>文本内容</label>
-    <el-input
-      :model-value="typeof props.node.config.text === 'string' ? props.node.config.text : ''"
-      type="textarea"
-      :rows="10"
-      placeholder="输入商品信息、卖点或补充说明"
-      @update:model-value="updateText"
-    />
+  <div class="flex flex-col gap-3">
+    <div class="grid gap-1.5">
+      <Label>文本内容</Label>
+      <Textarea
+        :model-value="typeof props.node.config.text === 'string' ? props.node.config.text : ''"
+        :rows="10"
+        placeholder="输入商品信息、卖点或补充说明"
+        @update:model-value="updateText(String($event))"
+      />
+    </div>
   </div>
 </template>
-
-<style scoped>
-.config-section { display: flex; flex-direction: column; gap: 12px; }
-.config-section label { color: var(--el-text-color-regular); font-size: var(--el-font-size-small); }
-</style>

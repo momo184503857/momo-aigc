@@ -1,7 +1,35 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import * as Icons from '@element-plus/icons-vue'
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronRight,
+  Crop,
+  Eye,
+  FileText,
+  FolderPlus,
+  Image,
+  ListChecks,
+  MessageCircle,
+  Monitor,
+  MousePointer2,
+  Notebook,
+  Pencil,
+  Play,
+  Scissors,
+  Settings,
+  TriangleAlert,
+  Unplug,
+  WandSparkles,
+} from '@lucide/vue'
 import type { Component } from 'vue'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { getNodeTheme } from '@/modules/workflow/nodes/nodeRegistry'
@@ -19,10 +47,22 @@ const activeTab = ref('config')
 const collapsed = ref(true)
 
 const theme = computed(() => selectedNode.value ? getNodeTheme(selectedNode.value.type) : { icon: 'Setting', color: '#86909c' })
-const nodeIcon = computed(() => {
-  const icons = Icons as Record<string, Component>
-  return icons[theme.value.icon] ?? icons.Setting
-})
+/** 节点主题图标：注册表存的是 EP 图标名，这里映射到 Lucide 等价图标 */
+const nodeIcons: Record<string, Component> = {
+  Picture: Image,
+  View: Eye,
+  Crop,
+  FolderAdd: FolderPlus,
+  Notebook,
+  Monitor,
+  ChatDotRound: MessageCircle,
+  Finished: ListChecks,
+  MagicStick: WandSparkles,
+  EditPen: Pencil,
+  Scissor: Scissors,
+  Setting: Settings,
+}
+const nodeIcon = computed(() => nodeIcons[theme.value.icon] ?? Settings)
 
 function isLocalImageAsset(v: unknown): v is LocalImageAsset {
   if (!v || typeof v !== 'object') return false
@@ -130,47 +170,55 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   <aside class="panel" :class="{ 'panel--collapsed': collapsed }">
     <!-- 折叠时的展开按钮 -->
     <div v-if="collapsed" class="panel__toggle" @click="collapsed = false" title="展开属性面板">
-      <el-icon :size="14"><component :is="Icons.ArrowLeft" /></el-icon>
+      <ArrowLeft class="size-3.5" />
     </div>
 
     <!-- 展开状态 -->
     <template v-if="!collapsed">
       <!-- 收起按钮 -->
       <div class="panel__collapse-btn" @click="collapsed = true" title="收起属性面板">
-        <el-icon :size="14"><component :is="Icons.ArrowRight" /></el-icon>
+        <ArrowRight class="size-3.5" />
       </div>
 
       <template v-if="selectedNode">
         <!-- 节点头部 -->
         <div class="panel__head">
           <div class="panel__node-badge" :style="{ background: theme.color + '15', color: theme.color }">
-            <el-icon :size="18"><component :is="nodeIcon" /></el-icon>
+            <component :is="nodeIcon" class="size-4.5" />
           </div>
           <div class="panel__node-info">
-            <el-input :model-value="selectedNode.title" size="small" class="panel__title-input" @update:model-value="workflowStore.updateNodeTitle(selectedNode.id, $event)" />
+            <Input :model-value="selectedNode.title" class="panel__title-input" @update:model-value="workflowStore.updateNodeTitle(selectedNode.id, String($event))" />
             <span class="panel__node-type" :style="{ color: theme.color }">{{ statusLabels[selectedNode.status] || selectedNode.status }}</span>
           </div>
         </div>
 
         <!-- 操作按钮 -->
         <div class="panel__actions">
-          <el-button :icon="Icons.VideoPlay" type="primary" size="small" @click="runSelectedNode">运行</el-button>
-          <el-button v-if="selectedNode.status === 'paused'" :icon="Icons.VideoPlay" type="success" size="small" @click="workflowStore.confirmPausedNode">继续</el-button>
+          <Button size="sm" @click="runSelectedNode"><Play />运行</Button>
+          <Button v-if="selectedNode.status === 'paused'" size="sm" class="bg-(--momo-color-success) text-white hover:bg-(--momo-color-success)/90" @click="workflowStore.confirmPausedNode"><Play />继续</Button>
           <div class="panel__actions-spacer" />
-          <el-switch :model-value="selectedNode.disabled" active-text="禁用" size="small" @update:model-value="workflowStore.setNodeDisabled(selectedNode.id, Boolean($event))" />
+          <div class="flex items-center gap-1.5">
+            <Switch :model-value="selectedNode.disabled" @update:model-value="workflowStore.setNodeDisabled(selectedNode.id, Boolean($event))" />
+            <Label class="text-muted-foreground text-xs">禁用</Label>
+          </div>
         </div>
 
         <!-- Tabs -->
-        <el-tabs v-model="activeTab" class="panel__tabs">
-          <el-tab-pane name="config">
-            <template #label><el-icon><component :is="Icons.Setting" /></el-icon><span>配置</span></template>
+        <Tabs v-model="activeTab" class="panel__tabs">
+          <TabsList class="mx-4">
+            <TabsTrigger value="config"><Settings />配置</TabsTrigger>
+            <TabsTrigger value="io"><Unplug />端口</TabsTrigger>
+            <TabsTrigger value="result"><FileText />结果</TabsTrigger>
+            <TabsTrigger value="logs"><TriangleAlert />日志</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="config" class="panel__tab-content">
             <div class="panel__tab-body">
               <component :is="configPanel" v-if="configPanel" :node="selectedNode" @update="handleConfigUpdate" />
             </div>
-          </el-tab-pane>
+          </TabsContent>
 
-          <el-tab-pane name="io">
-            <template #label><el-icon><component :is="Icons.Connection" /></el-icon><span>端口</span></template>
+          <TabsContent value="io" class="panel__tab-content">
             <div class="panel__tab-body">
               <div class="panel__section-title">输入端口</div>
               <div class="panel__port-list">
@@ -185,7 +233,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
                 <div class="panel__port-list">
                   <div v-for="input in resolvedInputs" :key="input.targetPortId" class="panel__port-item">
                     <span class="panel__port-from">{{ input.sourceTitle }}</span>
-                    <el-icon :size="12"><component :is="Icons.Right" /></el-icon>
+                    <ChevronRight class="size-3 shrink-0" />
                     <span class="panel__port-name">{{ input.targetPortId }}</span>
                   </div>
                 </div>
@@ -199,37 +247,38 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
                 <div v-if="!outputSummary.length" class="panel__empty">无输出端口</div>
               </div>
             </div>
-          </el-tab-pane>
+          </TabsContent>
 
-          <el-tab-pane name="result">
-            <template #label><el-icon><component :is="Icons.Document" /></el-icon><span>结果</span></template>
+          <TabsContent value="result" class="panel__tab-content">
             <div class="panel__tab-body">
               <template v-if="isOutputEditable && selectedResult">
                 <div v-if="selectedNode.type === 'prompt-splitter' && selectedResult.dataType === 'Text' && selectedResult.value && typeof selectedResult.value === 'object' && !Array.isArray(selectedResult.value)">
                   <div v-for="(val, key) in selectedResult.value" :key="key" class="panel__split-item">
                     <label>{{ key }}</label>
-                    <el-input :model-value="editingPromptSplitterOutputs[key] ?? (val as string)" type="textarea" :rows="2" @update:model-value="editingPromptSplitterOutputs = { ...editingPromptSplitterOutputs, [key]: $event }" />
+                    <Textarea :model-value="editingPromptSplitterOutputs[key] ?? (val as string)" :rows="2" @update:model-value="editingPromptSplitterOutputs = { ...editingPromptSplitterOutputs, [key]: String($event) }" />
                   </div>
                 </div>
-                <el-input v-else :model-value="editingOutputText || resultText" type="textarea" :rows="6" @focus="beginEditOutput" @update:model-value="editingOutputText = $event" />
-                <el-button type="primary" :icon="Icons.Edit" size="small" style="margin-top:8px" @click="saveOutputEdit">保存编辑</el-button>
-                <el-alert type="warning" title="编辑后下游节点将标记为需重跑" show-icon :closable="false" style="margin-top:8px" />
+                <Textarea v-else :model-value="editingOutputText || resultText" :rows="6" @focus="beginEditOutput" @update:model-value="editingOutputText = String($event)" />
+                <Button size="sm" class="mt-2" @click="saveOutputEdit"><Pencil />保存编辑</Button>
+                <Alert variant="warning" class="mt-2">
+                  <TriangleAlert />
+                  <AlertTitle>编辑后下游节点将标记为需重跑</AlertTitle>
+                </Alert>
               </template>
-              <el-input v-else-if="resultText" :model-value="resultText" type="textarea" :rows="6" readonly />
+              <Textarea v-else-if="resultText" :model-value="resultText" :rows="6" readonly />
               <div v-if="resultImages.length" class="panel__image-grid">
                 <img v-for="img in resultImages" :key="img.id" :src="img.previewUrl" :alt="img.fileName" class="panel__image-thumb" />
               </div>
               <div v-if="!selectedResult && !isOutputEditable" class="panel__empty">暂无运行结果</div>
             </div>
-          </el-tab-pane>
+          </TabsContent>
 
-          <el-tab-pane name="logs">
-            <template #label><el-icon><component :is="Icons.Warning" /></el-icon><span>日志</span></template>
+          <TabsContent value="logs" class="panel__tab-content">
             <div class="panel__tab-body">
               <div v-if="imageAiTaskId" class="panel__task-id"><span>Task ID</span><code>{{ imageAiTaskId }}</code></div>
               <div v-if="selectedNode.logs.length" class="panel__log-actions">
-                <el-button size="small" text @click="copyLogs">复制</el-button>
-                <el-button size="small" text type="danger" @click="workflowStore.clearNodeLogs(selectedNode.id)">清空</el-button>
+                <Button size="sm" variant="ghost" @click="copyLogs">复制</Button>
+                <Button size="sm" variant="ghost" class="text-destructive hover:text-destructive" @click="workflowStore.clearNodeLogs(selectedNode.id)">清空</Button>
               </div>
               <div v-if="selectedNode.logs.length" class="panel__log-console">
                 <div v-for="log in selectedNode.logs" :key="log.id" class="panel__log-line" :class="`is-${log.level}`">
@@ -240,12 +289,12 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
               </div>
               <div v-else class="panel__empty">暂无日志</div>
             </div>
-          </el-tab-pane>
-        </el-tabs>
+          </TabsContent>
+        </Tabs>
       </template>
 
       <div v-else class="panel__empty-panel">
-        <el-icon :size="48" color="var(--el-text-color-placeholder)"><component :is="Icons.Pointer" /></el-icon>
+        <MousePointer2 class="text-(--momo-color-text-placeholder) size-12" />
         <span>点击节点查看详情</span>
       </div>
     </template>
@@ -259,8 +308,8 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--el-bg-color);
-  border-left: 1px solid var(--el-border-color-lighter);
+  background: var(--momo-color-bg);
+  border-left: 1px solid var(--momo-color-border-soft);
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
@@ -279,12 +328,12 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-tertiary);
   transition: color 0.2s, background 0.2s;
 }
 .panel__toggle:hover {
-  color: var(--el-color-primary);
-  background: var(--el-fill-color-lighter);
+  color: var(--momo-color-brand);
+  background: var(--momo-color-bg-soft);
 }
 
 .panel__collapse-btn {
@@ -298,13 +347,13 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-tertiary);
   transition: color 0.2s, background 0.2s;
   z-index: 10;
 }
 .panel__collapse-btn:hover {
-  color: var(--el-color-primary);
-  background: var(--el-fill-color-lighter);
+  color: var(--momo-color-brand);
+  background: var(--momo-color-bg-soft);
 }
 
 .panel__head {
@@ -312,7 +361,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   gap: 10px;
   padding: 16px 16px 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--momo-color-border-soft);
 }
 
 .panel__node-badge {
@@ -333,8 +382,9 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   gap: 2px;
 }
 
-.panel__title-input :deep(.el-input__wrapper) {
-  box-shadow: none !important;
+.panel__title-input {
+  height: auto;
+  border-color: transparent;
   padding: 0;
   font-weight: 600;
   font-size: 14px;
@@ -350,30 +400,19 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--momo-color-border-soft);
 }
 
 .panel__actions-spacer { flex: 1; }
 
 .panel__tabs {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  min-height: 0;
+  gap: 0;
 }
 
-.panel__tabs :deep(.el-tabs__header) {
-  margin: 0;
-  padding: 0 16px;
-}
-
-.panel__tabs :deep(.el-tabs__item) {
-  gap: 4px;
-  font-size: 13px;
-}
-
-.panel__tabs :deep(.el-tabs__content) {
-  flex: 1;
+.panel__tab-content {
+  min-height: 0;
   overflow: auto;
 }
 
@@ -384,7 +423,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
 .panel__section-title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 8px 0 4px;
@@ -407,7 +446,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   gap: 6px;
   padding: 5px 8px;
   border-radius: 6px;
-  background: var(--el-fill-color-lighter);
+  background: var(--momo-color-bg-soft);
   font-size: 12px;
 }
 
@@ -424,11 +463,11 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
 .tag--image { background: var(--momo-color-success-subtle); color: var(--momo-color-success); }
 .tag--any { background: var(--momo-color-info-subtle); color: var(--momo-color-info); }
 
-.panel__port-name { flex: 1; color: var(--el-text-color-regular); }
-.panel__port-from { color: var(--el-text-color-secondary); font-size: 11px; }
+.panel__port-name { flex: 1; color: var(--momo-color-text-secondary); }
+.panel__port-from { color: var(--momo-color-text-tertiary); font-size: 11px; }
 
 .panel__empty {
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   font-size: 12px;
   padding: 8px 0;
 }
@@ -439,13 +478,13 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   gap: 4px;
   padding: 8px;
   margin-bottom: 6px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--momo-color-border-soft);
   border-radius: 6px;
 }
 .panel__split-item label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-tertiary);
 }
 
 .panel__image-grid {
@@ -459,7 +498,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 6px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--momo-color-border-soft);
 }
 
 .panel__task-id {
@@ -468,12 +507,12 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   gap: 8px;
   padding: 6px 10px;
   margin-bottom: 8px;
-  background: var(--el-color-info-light-9);
+  background: var(--momo-color-info-subtle);
   border-radius: 6px;
   font-size: 11px;
 }
-.panel__task-id span { color: var(--el-text-color-secondary); }
-.panel__task-id code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--el-color-info-dark-2); }
+.panel__task-id span { color: var(--momo-color-text-tertiary); }
+.panel__task-id code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--momo-color-text-secondary); }
 
 .panel__log-actions { display: flex; gap: 4px; margin-bottom: 6px; }
 .panel__log-console {
@@ -500,7 +539,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   font-size: 13px;
 }
 </style>

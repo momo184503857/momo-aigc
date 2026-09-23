@@ -1,64 +1,87 @@
 <template>
-  <PageLayout title="成套提示词" subtitle="主题库选主题 → 自动组装 5 张成套提示词 → 复制到任意生图工具使用">
-    <template #extra>
-      <el-button @click="router.push('/themes')">去主题库换主题</el-button>
-    </template>
-
-    <!-- 未选择主题：空态引导 -->
-    <div v-if="!theme" class="sp-empty">
-      <el-empty description="还没有选择主题">
-        <el-button type="primary" @click="router.push('/themes')">去主题库选择</el-button>
-      </el-empty>
-    </div>
-
-    <el-card v-else shadow="never" class="sp-card" v-loading="!assetsReady">
-      <!-- 主题信息头 -->
-      <div class="sp-theme-head">
+  <PageLayout>
+    <template #header>
+      <!-- 主题身份常驻页头：换主题/复制时都要能对上「这是哪一套」 -->
+      <div v-if="theme" class="flex min-w-0 items-start gap-3">
         <img
           v-if="theme.cover_url"
-          class="sp-cover"
+          class="media-tile size-11 shrink-0"
           :src="theme.cover_url"
           alt="主题主图"
           @error="retryOnError($event, theme.cover_url)"
         />
-        <div v-else class="sp-cover sp-cover-placeholder">
-          <el-icon size="28"><Picture /></el-icon>
+        <div
+          v-else
+          class="bg-muted text-muted-foreground flex size-11 shrink-0 items-center justify-center rounded-md"
+        >
+          <Image class="size-5" />
         </div>
-        <div class="sp-theme-meta">
-          <div class="sp-theme-name">
-            {{ theme.name }}
-            <el-tag v-if="theme.is_global" type="warning" size="small">官方</el-tag>
-            <el-tag v-else-if="theme.is_mine" size="small" effect="plain" :type="theme.is_public ? 'success' : 'info'">
+
+        <div class="min-w-0">
+          <p class="text-muted-foreground mb-0.5 text-[11px] tracking-wider uppercase">
+            成套提示词 · {{ pointCount }} 张一套
+          </p>
+          <h2 class="flex min-w-0 items-center gap-2">
+            <span class="truncate">{{ theme.name }}</span>
+            <Badge v-if="theme.is_global" variant="warning" class="shrink-0">官方</Badge>
+            <Badge
+              v-else-if="theme.is_mine"
+              :variant="theme.is_public ? 'success' : 'secondary'"
+              class="shrink-0"
+            >
               {{ theme.is_public ? '公开' : '私有' }}
-            </el-tag>
-          </div>
-          <div class="sp-meta-row">
-            <span class="sp-meta-label">季节</span>
-            <span>{{ seasonText }}</span>
-          </div>
-          <div v-if="theme.path" class="sp-meta-row">
-            <span class="sp-meta-label">动线</span>
-            <span>{{ theme.path }}</span>
-          </div>
-          <div class="sp-meta-row">
-            <span class="sp-meta-label">点位</span>
-            <span>{{ pointCount }} 个画面{{ theme.points.length ? '' : '（主题未配置点位，按默认 5 张组装）' }}</span>
-          </div>
+            </Badge>
+          </h2>
+          <p class="text-muted-foreground mt-1 line-clamp-2 max-w-4xl text-[12.5px] leading-normal">
+            <span class="text-muted-foreground/80">季节 {{ seasonText }}</span>
+            <span v-if="theme.path" class="mx-2 opacity-40">·</span>
+            <span v-if="theme.path">动线 {{ theme.path }}</span>
+            <template v-if="!theme.points.length">
+              <span class="mx-2 opacity-40">·</span>
+              <span class="text-muted-foreground/70">主题未配置点位，按默认 5 张组装</span>
+            </template>
+          </p>
         </div>
       </div>
+      <div v-else class="min-w-0">
+        <h2>成套提示词</h2>
+        <p class="text-muted-foreground mt-1 max-w-3xl text-[13px] leading-normal">
+          主题库选主题 → 自动组装 5 张成套提示词 → 复制到任意生图工具使用
+        </p>
+      </div>
+    </template>
 
-      <el-divider />
+    <template #extra>
+      <Button variant="outline" size="sm" @click="router.push('/themes')">换主题</Button>
+    </template>
 
-      <!-- Prompt 预览与复制（外层 v-else 已保证 theme 非空） -->
+    <!-- 未选择主题：空态引导 -->
+    <div v-if="!theme" class="flex min-h-[45vh] items-center justify-center">
+      <UiEmptyState title="还没有选择主题">
+        <Button @click="router.push('/themes')">去主题库选择</Button>
+      </UiEmptyState>
+    </div>
+
+    <!-- 主体：提示词工作区自己就是一块承载面，不再套装饰性卡片 -->
+    <div v-else class="border-border mt-1 max-w-[1200px] border-t pt-4">
+      <div v-if="!assetsReady" class="flex flex-col gap-4">
+        <Skeleton class="h-4 w-1/3" />
+        <div class="grid gap-4 md:grid-cols-2">
+          <Skeleton class="h-64 rounded-md" />
+          <Skeleton class="h-64 rounded-md" />
+        </div>
+        <Skeleton class="h-32 rounded-md" />
+      </div>
+      <!-- 外层 v-else 已保证 theme 非空 -->
       <PromptPreview
-        v-if="assetsReady"
+        v-else
         :result="assembleResult!"
         :locks="lockSelections"
         :include-common="includeCommon"
         @update:locks="lockSelections = $event"
         @update:include-common="includeCommon = $event"
       />
-    </el-card>
+    </div>
   </PageLayout>
 </template>
 
@@ -71,9 +94,14 @@
  */
 import { ref, computed, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { Picture } from '@element-plus/icons-vue'
+import { Image } from '@lucide/vue'
 import PageLayout from '@/components/PageLayout.vue'
 import PromptPreview from '@/components/sg/PromptPreview.vue'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { UiEmptyState } from '@/components/ui'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { sgApi, toPromptEntry, type SgLockTemplate } from '@/services/sgApi'
@@ -190,6 +218,7 @@ const assembleResult = computed<AssembleResult | null>(() => {
 .sp-card {
   display: flex;
   flex-direction: column;
+  padding: var(--momo-space-5, 20px);
 }
 
 .sp-theme-head {

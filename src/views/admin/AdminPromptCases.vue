@@ -4,13 +4,34 @@
  * 管理员可添加/编辑/删除官方案例图（选字段 + 关键词 + 上传图 + 填 prompt）。
  */
 defineOptions({ name: 'AdminPromptCases' })
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { adminPromptCasesApi } from '@/services/promptCasesApi'
 import { ossApi } from '@/services/ossApi'
+import { useImagePreview } from '@/composables/useImagePreview'
 import { SEGMENT_META } from '@/utils/promptAssembler'
 import PageLayout from '@/components/PageLayout.vue'
-import { Plus, Delete, Upload, Refresh } from '@element-plus/icons-vue'
+import { Plus, Pencil, Trash2, Upload, RefreshCw } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { UiEmptyState, UiImagePreview, UiNumberInput } from '@/components/ui'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 
@@ -42,11 +63,47 @@ const form = ref({
 })
 const uploading = ref(false)
 
+const { visible: previewVisible, url: previewUrl, open: openPreview } = useImagePreview()
+
 const segmentLabels = SEGMENT_META.map((m) => ({ key: m.key, label: m.label }))
 
 function segmentLabel(key: string): string {
   return SEGMENT_META.find((m) => m.key === key)?.label || key
 }
+
+/** 全部字段（视图态：左轨的「全部」项，不对应接口参数） */
+const ALL_KEY = '__all__'
+
+// ── 视图派生：左轨计数 + 按字段分组的案例 ──
+// 未筛选时接口一次返回全量，左轨的分段计数即为真实值；
+// 已筛选时不显示计数，避免用局部数据冒充全局数字。
+const segmentCounts = computed<Record<string, number> | null>(() => {
+  if (filterSegment.value) return null
+  const map: Record<string, number> = {}
+  cases.value.forEach((c) => { map[c.segment_key] = (map[c.segment_key] || 0) + 1 })
+  return map
+})
+
+/** 按 SEGMENT_META 的顺序分组，未知字段名兜底排在末尾 */
+const groupedCases = computed<Array<{ key: string; label: string; items: CaseRow[] }>>(() => {
+  const buckets = new Map<string, CaseRow[]>()
+  cases.value.forEach((c) => {
+    const list = buckets.get(c.segment_key) || []
+    list.push(c)
+    buckets.set(c.segment_key, list)
+  })
+  const order = [...segmentLabels.map((s) => s.key), ...Array.from(buckets.keys())]
+  const seen = new Set<string>()
+  const out: Array<{ key: string; label: string; items: CaseRow[] }> = []
+  for (const key of order) {
+    if (seen.has(key)) continue
+    seen.add(key)
+    const items = buckets.get(key)
+    if (!items?.length) continue
+    out.push({ key, label: segmentLabel(key), items })
+  }
+  return out
+})
 
 async function loadCases() {
   loading.value = true
@@ -58,6 +115,14 @@ async function loadCases() {
   } finally {
     loading.value = false
   }
+}
+
+/** 左轨切换字段：语义等价于原来的「字段下拉 + 清除筛选」，少一层控件 */
+function selectSegment(key: string) {
+  const next = key === ALL_KEY ? '' : key
+  if (next === filterSegment.value) return
+  filterSegment.value = next
+  loadCases()
 }
 
 function openCreate() {
@@ -148,103 +213,247 @@ onMounted(() => loadCases())
 </script>
 
 <template>
-  <PageLayout>
-    <template #header>
-      <h2>提示词案例管理</h2>
-    </template>
+  <PageLayout
+    title="提示词案例管理"
+    subtitle="官方案例图按字段归档：字段 + 关键词 + 参考图 + 提示词快照。"
+    content-padding="0"
+  >
     <template #extra>
-      <el-button type="primary" :icon="Plus" @click="openCreate">添加案例</el-button>
+      <Button @click="openCreate"><Plus />添加案例</Button>
     </template>
 
-    <!-- 筛选 -->
-    <div class="filter-bar">
-      <el-select v-model="filterSegment" placeholder="全部字段" clearable style="width: 140px" @change="loadCases">
-        <el-option v-for="s in segmentLabels" :key="s.key" :label="s.label" :value="s.key" />
-      </el-select>
-      <el-button :icon="Refresh" @click="loadCases" circle size="small" />
+    <template #filters>
+      <Button variant="ghost" size="sm" class="gap-1.5" @click="loadCases">
+        <RefreshCw class="size-3.5" />刷新
+      </Button>
+      <span v-if="!loading && cases.length" class="text-muted-foreground ml-auto text-xs tabular-nums">
+        {{ filterSegment ? segmentLabel(filterSegment) : '全部字段' }} · 本页 {{ cases.length }} 条
+      </span>
+    </template>
+
+    <div class="flex h-full min-h-0">
+      <!-- 左轨：字段即分组，替代原先的下拉筛选 + 独立的清除按钮 -->
+      <nav class="w-48 shrink-0 overflow-y-auto border-r bg-background py-2">
+        <button
+          type="button"
+          class="rail-item"
+          :class="{ 'is-active': !filterSegment }"
+          @click="selectSegment(ALL_KEY)"
+        >
+          <span class="truncate">全部字段</span>
+          <span v-if="segmentCounts" class="rail-count">{{ cases.length }}</span>
+        </button>
+        <div class="bg-border my-2 h-px" />
+        <button
+          v-for="s in segmentLabels"
+          :key="s.key"
+          type="button"
+          class="rail-item"
+          :class="{ 'is-active': filterSegment === s.key }"
+          @click="selectSegment(s.key)"
+        >
+          <span class="truncate">{{ s.label }}</span>
+          <span v-if="segmentCounts" class="rail-count">{{ segmentCounts[s.key] || 0 }}</span>
+        </button>
+      </nav>
+
+      <!-- 右栏：按字段分组的案例图集，字段名吸顶 -->
+      <div class="min-w-0 flex-1 overflow-y-auto">
+        <div v-if="loading" class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 p-4">
+          <Skeleton v-for="i in 8" :key="i" class="h-[240px] w-full rounded-md" />
+        </div>
+
+        <UiEmptyState v-else-if="!cases.length" :title="filterSegment ? '该字段下还没有案例' : '还没有案例'">
+          <Button @click="openCreate"><Plus />添加案例</Button>
+        </UiEmptyState>
+
+        <template v-else>
+          <section v-for="group in groupedCases" :key="group.key">
+          <h3 class="group-head sticky">
+            {{ group.label }}
+            <span class="text-muted-foreground font-normal tabular-nums">{{ group.items.length }}</span>
+          </h3>
+          <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 pb-5">
+            <article v-for="row in group.items" :key="row.id" class="case-card">
+              <button
+                type="button"
+                class="flex aspect-[4/3] w-full cursor-zoom-in items-center justify-center overflow-hidden bg-muted"
+                title="查看大图"
+                @click="openPreview(row.image_url)"
+              >
+                <img v-if="row.image_url" :src="row.image_url" class="size-full object-cover" loading="lazy" alt="案例参考图" />
+                <span v-else class="text-muted-foreground/60 text-xs">未上传参考图</span>
+              </button>
+
+              <div class="p-2.5">
+                <div class="flex items-center gap-1.5">
+                  <span class="truncate text-sm font-medium" :title="row.keyword">{{ row.keyword }}</span>
+                  <span class="text-muted-foreground/70 ml-auto shrink-0 text-[11px] tabular-nums" title="排序">#{{ row.sort_order }}</span>
+                </div>
+                <div v-if="row.model" class="text-muted-foreground mt-0.5 truncate text-[11px]">{{ row.model }}</div>
+
+                <div class="mt-2 border-t pt-2">
+                  <p
+                    v-if="row.prompt_snapshot"
+                    class="text-muted-foreground/90 line-clamp-2 min-h-8 text-[11px] leading-snug"
+                    :title="row.prompt_snapshot"
+                  >{{ row.prompt_snapshot }}</p>
+                  <p v-else class="text-muted-foreground/60 min-h-8 text-[11px]">无提示词快照</p>
+                </div>
+
+                <div class="-mx-1 -mb-1 flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="sm" class="h-6 gap-1 px-1.5 text-[11px]" @click="openEdit(row)">
+                    <Pencil class="size-3" />编辑
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="text-destructive hover:text-destructive h-6 gap-1 px-1.5 text-[11px]"
+                    @click="handleDelete(row)"
+                  >
+                    <Trash2 class="size-3" />删除
+                  </Button>
+                </div>
+              </div>
+            </article>
+          </div>
+          </section>
+        </template>
+      </div>
     </div>
 
-    <el-table :data="cases" v-loading="loading" stripe>
-      <el-table-column label="预览" width="80">
-        <template #default="{ row }">
-          <img v-if="row.image_url" :src="row.image_url" class="case-thumb" />
-        </template>
-      </el-table-column>
-      <el-table-column label="字段" width="100">
-        <template #default="{ row }">{{ segmentLabel(row.segment_key) }}</template>
-      </el-table-column>
-      <el-table-column prop="keyword" label="关键词" width="120" />
-      <el-table-column prop="prompt_snapshot" label="提示词快照" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="model" label="模型" width="140" />
-      <el-table-column prop="sort_order" label="排序" width="70" />
-      <el-table-column label="操作" width="120" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(row)" />
-        </template>
-      </el-table-column>
-    </el-table>
-
     <!-- 编辑弹窗 -->
-    <el-dialog v-model="editVisible" :title="editingCase ? '编辑案例' : '添加案例'" width="560px" :close-on-click-modal="false">
-      <el-form label-position="top">
-        <el-form-item label="字段">
-          <el-select v-model="form.segment_key" style="width: 100%">
-            <el-option v-for="s in segmentLabels" :key="s.key" :label="s.label" :value="s.key" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="关键词">
-          <el-input v-model="form.keyword" placeholder="如：柔光、侧光、逆光" />
-        </el-form-item>
-        <el-form-item label="参考图">
-          <div class="upload-area">
-            <div v-if="form.image_url" class="upload-preview">
-              <img :src="form.image_url" alt="预览" />
-              <el-button size="small" @click="form.image_url = ''">更换</el-button>
-            </div>
-            <label v-else class="upload-trigger" :class="{ loading: uploading }">
-              <el-icon size="24"><Upload /></el-icon>
-              <span>{{ uploading ? '上传中...' : '点击上传' }}</span>
-              <input type="file" accept="image/*" style="display:none" @change="onFileChange" />
-            </label>
+    <Dialog :open="editVisible" @update:open="(v: boolean) => (editVisible = v)">
+      <DialogContent class="sm:max-w-lg" @pointer-down-outside.prevent>
+        <DialogHeader>
+          <DialogTitle>{{ editingCase ? '编辑案例' : '添加案例' }}</DialogTitle>
+        </DialogHeader>
+        <div class="flex flex-col gap-4">
+          <div class="grid gap-1.5">
+            <Label for="case-segment">字段</Label>
+            <Select
+              :model-value="form.segment_key"
+              @update:model-value="(v) => (form.segment_key = String(v))"
+            >
+              <SelectTrigger id="case-segment" class="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="s in segmentLabels" :key="s.key" :value="s.key">
+                  {{ s.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </el-form-item>
-        <el-form-item label="提示词快照（可选）">
-          <el-input v-model="form.prompt_snapshot" type="textarea" :rows="3" placeholder="生成该图时的完整提示词（可复现）" />
-        </el-form-item>
-        <el-row :gutter="16">
-          <el-col :span="16">
-            <el-form-item label="模型（可选）">
-              <el-input v-model="form.model" placeholder="如 gpt-image-2" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="排序">
-              <el-input-number v-model="form.sort_order" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave">保存</el-button>
-      </template>
-    </el-dialog>
+          <div class="grid gap-1.5">
+            <Label for="case-keyword">关键词</Label>
+            <Input id="case-keyword" v-model="form.keyword" placeholder="如：柔光、侧光、逆光" />
+          </div>
+          <div class="grid gap-1.5">
+            <Label>参考图</Label>
+            <div class="upload-area">
+              <div v-if="form.image_url" class="upload-preview">
+                <img :src="form.image_url" alt="预览" />
+                <Button variant="outline" size="sm" @click="form.image_url = ''">更换</Button>
+              </div>
+              <label v-else class="upload-trigger" :class="{ loading: uploading }">
+                <Upload class="size-6" />
+                <span>{{ uploading ? '上传中...' : '点击上传' }}</span>
+                <input type="file" accept="image/*" style="display:none" @change="onFileChange" />
+              </label>
+            </div>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="case-prompt">提示词快照（可选）</Label>
+            <Textarea id="case-prompt" v-model="form.prompt_snapshot" :rows="3" placeholder="生成该图时的完整提示词（可复现）" />
+          </div>
+          <div class="grid grid-cols-[2fr_1fr] gap-4">
+            <div class="grid gap-1.5">
+              <Label for="case-model">模型（可选）</Label>
+              <Input id="case-model" v-model="form.model" placeholder="如 gpt-image-2" />
+            </div>
+            <div class="grid gap-1.5">
+              <Label for="case-sort">排序</Label>
+              <UiNumberInput id="case-sort" v-model="form.sort_order" :min="0" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="editVisible = false">取消</Button>
+          <Button @click="handleSave">保存</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <UiImagePreview v-model="previewVisible" :url="previewUrl" />
   </PageLayout>
 </template>
 
 <style scoped>
-.filter-bar {
+/* 左轨条目 */
+.rail-item {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: var(--momo-font-size-sm);
+  color: var(--momo-color-text-secondary);
+  text-align: left;
+  border-left: 2px solid transparent;
 }
-.case-thumb {
-  width: 50px;
-  height: 50px;
-  border-radius: var(--momo-radius-sm);
-  object-fit: cover;
+.rail-item:hover {
+  color: var(--momo-color-text);
+  background: var(--momo-color-bg-muted);
 }
+.rail-item.is-active {
+  color: var(--momo-color-text);
+  font-weight: var(--momo-font-weight-medium);
+  background: var(--momo-color-brand-subtle);
+  border-left-color: var(--momo-color-brand);
+}
+.rail-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--momo-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--momo-color-text-tertiary);
+}
+
+/* 分组标题：吸顶，滚动时始终知道自己在看哪个字段 */
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  margin-bottom: 12px;
+  font-size: var(--momo-font-size-xs);
+  font-weight: var(--momo-font-weight-medium);
+  letter-spacing: 0.04em;
+  color: var(--momo-color-text-secondary);
+  background: var(--momo-color-bg-page);
+  border-bottom: 1px solid var(--momo-color-border-soft);
+}
+.group-head.sticky {
+  top: 0;
+  z-index: 1;
+}
+
+/* 案例卡片：图在上、信息在下，一条发丝线分组，不加阴影 */
+.case-card {
+  border: 1px solid var(--momo-color-border-soft);
+  border-radius: var(--momo-radius-md);
+  background: var(--momo-color-bg);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.case-card:hover {
+  border-color: var(--momo-color-border);
+}
+
 .upload-area { width: 100%; }
 .upload-preview {
   display: flex;
@@ -256,7 +465,7 @@ onMounted(() => loadCases())
   height: 100px;
   object-fit: cover;
   border-radius: var(--momo-radius-sm);
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--momo-color-border-soft);
 }
 .upload-trigger {
   display: flex;
@@ -266,14 +475,14 @@ onMounted(() => loadCases())
   gap: 6px;
   width: 100px;
   height: 100px;
-  border: 2px dashed var(--el-border-color);
+  border: 2px dashed var(--momo-color-border);
   border-radius: var(--momo-radius-sm);
   cursor: pointer;
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-secondary);
 }
 .upload-trigger:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
+  border-color: var(--momo-color-brand);
+  color: var(--momo-color-brand);
 }
 .upload-trigger.loading {
   opacity: 0.6;

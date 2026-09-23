@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Info } from '@lucide/vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
@@ -28,40 +40,44 @@ function onModelChange(modelId: number) {
 </script>
 
 <template>
-  <div class="config-section">
-    <el-alert
-      title="识图模型对全部输入图组检；不合格时自动生成修正指令并重跑对应生图节点（最多 2 轮）。"
-      type="info"
-      show-icon
-      :closable="false"
-    />
+  <div class="flex flex-col gap-3">
+    <Alert>
+      <Info />
+      <AlertTitle>识图模型对全部输入图组检；不合格时自动生成修正指令并重跑对应生图节点（最多 2 轮）。</AlertTitle>
+    </Alert>
 
-    <label>识图模型{{ noVisionModel ? '（暂无支持识图的模型，将退用普通文字模型，结果可能不可靠）' : '' }}</label>
-    <el-select
-      :model-value="props.node.config.channelModelId"
-      placeholder="选择识图模型"
-      @update:model-value="onModelChange(Number($event))"
-    >
-      <el-option v-for="m in visionModels" :key="m.value" :label="m.label" :value="m.value" />
-    </el-select>
+    <div class="grid gap-1.5">
+      <Label>识图模型{{ noVisionModel ? '（暂无支持识图的模型，将退用普通文字模型，结果可能不可靠）' : '' }}</Label>
+      <Select
+        :model-value="props.node.config.channelModelId != null ? String(props.node.config.channelModelId) : ''"
+        @update:model-value="onModelChange(Number($event))"
+      >
+        <SelectTrigger class="w-full">
+          <SelectValue placeholder="选择识图模型" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="m in visionModels" :key="m.value" :value="String(m.value)">
+            {{ m.label }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
 
-    <label>质检提示词（检查清单）</label>
-    <el-input
-      :model-value="qaPrompt"
-      type="textarea"
-      :rows="10"
-      @update:model-value="emit('update', { qaPrompt: $event })"
-    />
+    <div class="grid gap-1.5">
+      <Label>质检提示词（检查清单）</Label>
+      <Textarea
+        :model-value="qaPrompt"
+        :rows="10"
+        @update:model-value="emit('update', { qaPrompt: String($event) })"
+      />
+    </div>
 
-    <el-switch
-      :model-value="strict"
-      active-text="严格模式（重试耗尽仍不合格则置失败）"
-      @update:model-value="emit('update', { strict: Boolean($event) })"
-    />
+    <div class="flex items-center gap-2">
+      <Switch
+        :model-value="strict"
+        @update:model-value="emit('update', { strict: Boolean($event) })"
+      />
+      <Label>严格模式（重试耗尽仍不合格则置失败）</Label>
+    </div>
   </div>
 </template>
-
-<style scoped>
-.config-section { display: flex; flex-direction: column; gap: 12px; }
-.config-section label { color: var(--el-text-color-regular); font-size: var(--el-font-size-small); }
-</style>

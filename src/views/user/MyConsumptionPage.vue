@@ -1,11 +1,29 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { ChevronRight, Coins, Wallet } from '@lucide/vue'
 import { toBJDate } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { pointsApi } from '@/services/pointsApi'
-import { formatCredits } from '@/types/adapter'
+import { ceilCreditValue, formatCredits } from '@/types/adapter'
+import { cn } from '@/lib/utils'
 import PageLayout from '@/components/PageLayout.vue'
 import { CHART_COLORS, CHART_NEUTRALS, withAlpha } from '@/plugins/echartsPalette'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { UiDateRangePicker, UiEmptyState } from '@/components/ui'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 defineOptions({ name: 'MyConsumption' })
 
@@ -25,12 +43,12 @@ const dateRange = ref<[Date, Date]>([
 ])
 
 const dateShortcuts = [
-  { text: '最近7天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 7); return [s, e] } },
-  { text: '最近30天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 30); return [s, e] } },
-  { text: '最近90天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 90); return [s, e] } },
+  { text: '最近7天', value: (): [Date, Date] => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 7); return [s, e] } },
+  { text: '最近30天', value: (): [Date, Date] => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 30); return [s, e] } },
+  { text: '最近90天', value: (): [Date, Date] => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 90); return [s, e] } },
 ]
 
-// el-date-picker value-format="YYYY-MM-DD"：选过后 v-model 变字符串，初始是 Date，两种都要兼容。
+// 原生 date input（替代原 EP 日期范围选择器）value-format="YYYY-MM-DD"：选过后 v-model 变字符串，初始是 Date，两种都要兼容。
 function fmtDate(d: Date | string): string {
   return typeof d === 'string' ? d.slice(0, 10) : toBJDate(d.toISOString())
 }
@@ -157,150 +175,232 @@ onMounted(() => {
   loadSummary()
   loadDaily()
 })
+
+/* ─────────────────────────────────────────────
+   以下为纯视图层派生：区间合计、粒度文案与折叠状态。
+   全部由已有接口数据推导，不新增请求、不改变任何查询条件。
+   ───────────────────────────────────────────── */
+
+/** 充值趋势属于次要信息，默认折叠，避免把明细表挤出首屏 */
+const rechargeOpen = ref(false)
+
+/** 与 formatCredits 完全同一取整口径，仅去掉「积分」后缀；单位在表头声明一次 */
+function credits(value: number): string {
+  return ceilCreditValue(value, 2).toFixed(2)
+}
+
+const rangeSpent = computed(() => daily.value.reduce((s, d) => s + d.spent, 0))
+const rangePersonal = computed(() => daily.value.reduce((s, d) => s + d.personal, 0))
+const rangeRecharged = computed(() => daily.value.reduce((s, d) => s + d.recharged, 0))
+const rangeCount = computed(() => daily.value.reduce((s, d) => s + d.count, 0))
+
+const granularityLabel = computed(
+  () => ({ day: '按日', week: '按周', month: '按月' })[granularity.value],
+)
 </script>
 
 <template>
   <PageLayout>
-    <template #header><h2>我的消耗</h2></template>
+    <template #header>
+      <h2>我的消耗</h2>
+      <p class="text-muted-foreground mt-1 text-[13px]">
+        按日 / 周 / 月查看积分消耗与充值明细。
+      </p>
+    </template>
 
-    <el-alert type="info" :closable="false" show-icon style="margin-bottom: 16px">
-      平台 Key 消耗为实际扣费；个人 Key 消耗按平台单价折算（实际 ToAPIs 花费以你的 ToAPIs 账户为准）。
-    </el-alert>
+    <template #extra>
+      <RouterLink to="/my-quota">
+        <Button variant="outline" size="sm" class="gap-1.5">
+          <Coins class="size-3.5" />
+          积分流水
+        </Button>
+      </RouterLink>
+      <RouterLink to="/pricing">
+        <Button variant="ghost" size="sm" class="gap-1.5">
+          <Wallet class="size-3.5" />
+          计费说明
+        </Button>
+      </RouterLink>
+    </template>
 
-    <!-- KPI -->
-    <div class="kpi-row">
-      <div class="kpi-card primary">
-        <div class="kpi-label">当前余额</div>
-        <div class="kpi-value">{{ formatCredits(summary.balance, { creditDigits: 2 }) }}</div>
+    <div class="content-max flex flex-col gap-4">
+      <!-- ════ 账户总览 + 当前筛选区间的派生合计（收进一条分隔带，不再是三张大卡片）════ -->
+      <section class="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+        <dl class="flex min-w-0 flex-wrap items-end gap-x-8 gap-y-3">
+          <div class="min-w-0">
+            <dt class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">当前余额</dt>
+            <dd class="mt-1.5 text-[19px] leading-none font-semibold tabular-nums">
+              {{ formatCredits(summary.balance, { creditDigits: 2 }) }}
+            </dd>
+          </div>
+          <div class="min-w-0">
+            <dt class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">累计消费</dt>
+            <dd class="mt-1.5 text-[19px] leading-none font-semibold tabular-nums">
+              {{ formatCredits(summary.total_consumed, { creditDigits: 2 }) }}
+            </dd>
+          </div>
+          <div class="min-w-0">
+            <dt class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">累计充值</dt>
+            <dd class="text-muted-foreground mt-1.5 text-[19px] leading-none font-semibold tabular-nums">
+              {{ formatCredits(summary.total_recharged, { creditDigits: 2 }) }}
+            </dd>
+          </div>
+          <div class="min-w-0 border-l pl-8 max-md:border-l-0 max-md:pl-0">
+            <dt class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+              区间消耗
+              <span class="normal-case">{{ granularityLabel }}</span>
+            </dt>
+            <dd class="text-destructive mt-1.5 text-[19px] leading-none font-semibold tabular-nums">
+              {{ formatCredits(rangeSpent, { creditDigits: 2 }) }}
+            </dd>
+          </div>
+        </dl>
+
+        <!-- 区间口径说明：原先是整条 Alert，降权为一行注释 -->
+        <p class="text-muted-foreground max-w-96 text-[12px] leading-5">
+          区间合计随筛选变化。平台 Key 为实际扣费；个人 Key 按平台单价折算，实际 ToAPIs 花费以你的 ToAPIs 账户为准。
+        </p>
+      </section>
+
+      <!-- ════ 筛选工具条：唯一影响本页数据的一组控件，吸顶常驻 ════ -->
+      <div class="bg-background sticky top-0 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 border-y py-2.5">
+        <UiDateRangePicker
+          :model-value="dateRange"
+          :shortcuts="dateShortcuts"
+          @update:model-value="(v) => { if (v) dateRange = v }"
+        />
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          :model-value="granularity"
+          @update:model-value="(v) => { if (v) { granularity = String(v) as 'day' | 'week' | 'month' } }"
+        >
+          <ToggleGroupItem value="day">日</ToggleGroupItem>
+          <ToggleGroupItem value="week">周</ToggleGroupItem>
+          <ToggleGroupItem value="month">月</ToggleGroupItem>
+        </ToggleGroup>
+        <Badge variant="secondary" class="tabular-nums">
+          {{ daily.length }} 个周期
+        </Badge>
+        <span v-if="rangeCount" class="text-muted-foreground text-[12px] tabular-nums">
+          共 {{ rangeCount }} 笔
+        </span>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">累计消费</div>
-        <div class="kpi-value">{{ formatCredits(summary.total_consumed, { creditDigits: 2 }) }}</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">累计充值</div>
-        <div class="kpi-value">{{ formatCredits(summary.total_recharged, { creditDigits: 2 }) }}</div>
-      </div>
-    </div>
 
-    <!-- 控件 -->
-    <div class="toolbar">
-      <el-date-picker
-        v-model="dateRange"
-        type="daterange"
-        range-separator="至"
-        start-placeholder="开始日期"
-        end-placeholder="结束日期"
-        :shortcuts="dateShortcuts"
-        value-format="YYYY-MM-DD"
-        style="width:280px"
-      />
-      <el-radio-group v-model="granularity" size="small">
-        <el-radio-button value="day">日</el-radio-button>
-        <el-radio-button value="week">周</el-radio-button>
-        <el-radio-button value="month">月</el-radio-button>
-      </el-radio-group>
-    </div>
+      <!-- ════ 消耗趋势：本页的主视觉 ════ -->
+      <section class="min-w-0">
+        <div class="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <h3 class="text-[13px] font-semibold">消耗趋势</h3>
+          <span class="text-muted-foreground text-[12px]">平台 Key / 个人 Key 双序列</span>
+        </div>
+        <div class="rounded-lg border bg-card p-3">
+          <Skeleton v-if="loading" class="h-[300px] w-full" />
+          <VChart v-else-if="daily.length > 0" :option="consumptionOption" style="height:300px" autoresize />
+          <UiEmptyState
+            v-else
+            title="该时段暂无消耗记录"
+            description="换个日期区间，或先去工作台生成一张图再回来看看。"
+          />
+        </div>
+      </section>
 
-    <!-- 消耗趋势 -->
-    <div class="chart-card" v-loading="loading">
-      <div class="chart-card-header">消耗趋势</div>
-      <VChart v-if="daily.length > 0" :option="consumptionOption" style="height:340px" autoresize />
-      <el-empty v-else description="该时段暂无消耗记录" />
-    </div>
+      <!-- ════ 充值趋势：次要，默认折叠 ════ -->
+      <Collapsible v-model:open="rechargeOpen">
+        <CollapsibleTrigger
+          class="hover:bg-muted/40 flex w-full cursor-pointer items-center gap-2 rounded-md py-2 text-left transition-colors"
+        >
+          <ChevronRight :class="cn('text-muted-foreground size-3.5 shrink-0 transition-transform', rechargeOpen && 'rotate-90')" />
+          <h3 class="text-[13px] font-semibold">充值趋势</h3>
+          <span class="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
+            管理员充值与退款计入余额，不影响消耗
+          </span>
+          <span class="text-success text-[12px] font-medium tabular-nums">
+            {{ formatCredits(rangeRecharged, { creditDigits: 2 }) }}
+          </span>
+        </CollapsibleTrigger>
+        <CollapsibleContent class="mt-1.5">
+          <div class="rounded-lg border bg-card p-3">
+            <VChart v-if="daily.length > 0" :option="rechargeOption" style="height:240px" autoresize />
+            <UiEmptyState
+              v-else
+              title="该时段暂无充值记录"
+              description="积分由管理员统一充值，如需调整请联系管理员。"
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
-    <!-- 充值趋势 -->
-    <div class="chart-card">
-      <div class="chart-card-header">充值趋势</div>
-      <VChart v-if="daily.length > 0" :option="rechargeOption" style="height:340px" autoresize />
-      <el-empty v-else description="该时段暂无充值记录" />
-    </div>
+      <!-- ════ 明细表 ════ -->
+      <section class="min-w-0">
+        <div class="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <h3 class="text-[13px] font-semibold">消耗明细</h3>
+          <span class="text-muted-foreground text-[12px]">
+            {{ granularityLabel }}倒序 · 共 {{ tableData.length }} 行 · 单位：积分
+          </span>
+        </div>
 
-    <!-- 明细表 -->
-    <div class="chart-card">
-      <div class="chart-card-header">消耗明细</div>
-      <el-table :data="tableData" stripe size="small" empty-text="暂无数据">
-        <el-table-column prop="date" label="周期" min-width="140" />
-        <el-table-column label="平台消耗" min-width="200">
-          <template #default="{ row }">
-            <span style="color: var(--el-color-danger); font-weight: 600">
-              {{ formatCredits(row.spent, { creditDigits: 2 }) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="个人消耗" min-width="200">
-          <template #default="{ row }">
-            <span style="color: var(--el-color-primary); font-weight: 600">
-              {{ formatCredits(row.personal, { creditDigits: 2 }) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="充值" min-width="200">
-          <template #default="{ row }">
-            <span style="color: var(--el-color-success); font-weight: 600">
-              {{ formatCredits(row.recharged, { creditDigits: 2 }) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="count" label="笔数" width="100" />
-      </el-table>
+        <div class="overflow-hidden rounded-lg border bg-card [&_[data-slot=table-container]]:max-h-[62vh]">
+          <Table class="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-card [&_th]:h-9 [&_th]:shadow-[inset_0_-1px_0_var(--border)] [&_td]:py-1.5 [&_td]:text-[13px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead class="w-[130px] text-[11px] font-medium tracking-wider uppercase">周期</TableHead>
+                <TableHead class="w-[150px] text-right text-[11px] font-medium tracking-wider uppercase">平台消耗</TableHead>
+                <TableHead class="w-[150px] text-right text-[11px] font-medium tracking-wider uppercase">个人消耗</TableHead>
+                <TableHead class="w-[150px] text-right text-[11px] font-medium tracking-wider uppercase">充值</TableHead>
+                <TableHead class="w-[86px] text-right text-[11px] font-medium tracking-wider uppercase">笔数</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="loading">
+                <TableRow v-for="i in 5" :key="`sk-${i}`">
+                  <TableCell :colspan="5"><Skeleton class="h-5 w-full" /></TableCell>
+                </TableRow>
+              </template>
+              <template v-else>
+                <TableRow v-for="row in tableData" :key="row.date">
+                  <TableCell class="text-muted-foreground font-medium tabular-nums">{{ row.date }}</TableCell>
+                  <TableCell class="text-right tabular-nums">
+                    <span :class="row.spent ? 'text-destructive font-semibold' : 'text-muted-foreground/50'">
+                      {{ row.spent ? credits(row.spent) : '—' }}
+                    </span>
+                  </TableCell>
+                  <TableCell class="text-right tabular-nums">
+                    <span :class="row.personal ? 'text-primary font-semibold' : 'text-muted-foreground/50'">
+                      {{ row.personal ? credits(row.personal) : '—' }}
+                    </span>
+                  </TableCell>
+                  <TableCell class="text-right tabular-nums">
+                    <span :class="row.recharged ? 'text-success font-semibold' : 'text-muted-foreground/50'">
+                      {{ row.recharged ? credits(row.recharged) : '—' }}
+                    </span>
+                  </TableCell>
+                  <TableCell class="text-right tabular-nums">
+                    <span :class="row.count ? '' : 'text-muted-foreground/50'">{{ row.count || '—' }}</span>
+                  </TableCell>
+                </TableRow>
+                <TableEmpty v-if="!tableData.length" :colspan="5">
+                  <UiEmptyState
+                    title="该时段暂无数据"
+                    description="上方筛选为空时不会返回任何周期，放宽日期范围即可。"
+                  />
+                </TableEmpty>
+              </template>
+            </TableBody>
+            <TableFooter v-if="!loading && tableData.length">
+              <TableRow>
+                <TableCell class="text-[12px] font-medium">
+                  合计 · {{ granularityLabel }} {{ tableData.length }} 个周期
+                </TableCell>
+                <TableCell class="text-destructive text-right font-semibold tabular-nums">{{ credits(rangeSpent) }}</TableCell>
+                <TableCell class="text-primary text-right font-semibold tabular-nums">{{ credits(rangePersonal) }}</TableCell>
+                <TableCell class="text-success text-right font-semibold tabular-nums">{{ credits(rangeRecharged) }}</TableCell>
+                <TableCell class="text-right font-medium tabular-nums">{{ rangeCount }}</TableCell>
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </div>
+      </section>
     </div>
   </PageLayout>
 </template>
-
-<style scoped>
-.kpi-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.kpi-card {
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--momo-radius-md, 10px);
-  padding: 18px 20px;
-}
-.kpi-card.primary {
-  background: var(--el-color-warning-light-9);
-  border-color: var(--el-color-warning-light-5);
-}
-.kpi-label {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 8px;
-}
-.kpi-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--el-text-color-primary);
-  line-height: 1.2;
-  word-break: break-all;
-}
-
-.toolbar {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.chart-card {
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--momo-radius-md, 10px);
-  padding: 20px;
-  margin-bottom: 20px;
-}
-.chart-card-header {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 12px;
-}
-
-@media (max-width: 768px) {
-  .kpi-row { grid-template-columns: 1fr; }
-}
-</style>

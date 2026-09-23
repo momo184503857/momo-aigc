@@ -10,13 +10,21 @@
  * 生图复用 generation_tasks，故任务同时出现在全局任务列表。
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { ElMessageBox } from 'element-plus'
-import { Download, Document, Delete, Refresh, MagicStick, Box } from '@element-plus/icons-vue'
+import {
+  Archive,
+  Download,
+  FileText,
+  LoaderCircle,
+  RefreshCw,
+  Trash2,
+  TriangleAlert,
+  Wand2,
+} from '@lucide/vue'
 import * as XLSX from 'xlsx'
 
 import { downloadRowsAsZip } from '@/utils/buyerShowZip'
 
-import { useUiFeedback } from '@/composables/useUiFeedback'
+import { useUiFeedback, promptDialog, confirmDialog } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { pointsApi } from '@/services/pointsApi'
 import { submitTask } from '@/services/imageGeneration'
@@ -30,6 +38,27 @@ import { UiImagePreview, UiEmptyState } from '@/components/ui'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const serverStatus = useServerStatusStore()
@@ -115,14 +144,17 @@ function handleResolutionChange() {
   }
 }
 
-// ─── Selection（沿用 el-table selection-change 镜像到 row.selected 的惯用法）───
+// ─── Selection（行内 Checkbox 直接写 row.selected，表头 Checkbox 全选）───
 
 const selectedRows = computed(() => tableData.value.filter(r => r.selected))
 const selectedCount = computed(() => selectedRows.value.length)
 
-function onSelectionChange(rows: TableRow[]) {
-  const set = new Set(rows)
-  tableData.value.forEach(r => { r.selected = set.has(r) })
+const allSelected = computed(() => tableData.value.length > 0 && tableData.value.every(r => r.selected))
+const someSelected = computed(() => tableData.value.some(r => r.selected) && !allSelected.value)
+
+function toggleAll() {
+  const newVal = !allSelected.value
+  tableData.value.forEach(r => { r.selected = newVal })
 }
 
 const submittableRows = computed(() =>
@@ -208,14 +240,13 @@ function handleFileUpload(e: Event) {
       const hasCurrent = tableData.value.length > 0
       let name = ''
       try {
-        const p = await ElMessageBox.prompt(
+        const p = await promptDialog(
           `${hasCurrent ? '当前任务将自动归档为历史。\n' : ''}为这个任务起个名字（可选，留空用「时间 · N个商品」）：`,
           '新建买家秀任务',
           {
-            confirmButtonText: '创建任务',
-            cancelButtonText: '取消',
+            confirmText: '创建任务',
+            cancelText: '取消',
             inputPlaceholder: '例如：618女装第一批',
-            inputValidator: () => true,
           }
         )
         name = (p.value || '').trim()
@@ -397,10 +428,10 @@ async function handleGenerate() {
   const total = estimateCost.value
   try {
     const costText = `预计消耗：${formatCredits(total)}`
-    await ElMessageBox.confirm(
+    await confirmDialog(
       `选中待生成：${count} 个 × ${countN.value} 张\n${costText}`,
       '确认生成',
-      { confirmButtonText: '确认生成', cancelButtonText: '取消', type: 'info' }
+      { confirmText: '确认生成', cancelText: '取消' }
     )
   } catch { return }
 
@@ -672,134 +703,188 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="bs-panel">
-    <el-alert
+  <div class="flex flex-col gap-3">
+    <Alert
       v-if="serverStatus.loaded && !serverStatus.canGenerate"
-      title="暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型"
-      type="warning" show-icon :closable="false" class="bs-alert"
-    />
+      variant="warning"
+    >
+      <TriangleAlert />
+      <AlertTitle>暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型</AlertTitle>
+    </Alert>
 
     <!-- 空态 -->
-    <div v-if="tableData.length === 0" class="bs-empty">
+    <div v-if="tableData.length === 0" class="flex flex-col items-center gap-4 pt-12">
       <UiEmptyState title="还没有任务" description="下载模板、填好商品ID/主图链接/提示词后上传，即可批量制作买家秀。" />
-      <div class="bs-empty-actions">
-        <el-button :icon="Download" @click="downloadTemplate">下载模板</el-button>
-        <el-button type="primary" :icon="Document" @click="fileInputRef?.click()">上传表格</el-button>
+      <div class="flex gap-3">
+        <Button variant="outline" @click="downloadTemplate"><Download />下载模板</Button>
+        <Button @click="fileInputRef?.click()"><FileText />上传表格</Button>
       </div>
     </div>
 
     <!-- 工作区 -->
     <template v-else>
-      <div class="bs-toolbar">
-        <div class="bs-actions">
-          <el-button :icon="Download" @click="downloadTemplate">下载模板</el-button>
-          <el-button type="primary" :icon="Document" @click="fileInputRef?.click()">上传新表格</el-button>
-          <el-button :icon="Box" :disabled="!currentBatchId" @click="archiveCurrent">归档当前任务</el-button>
-          <el-button :icon="Delete" text type="danger" @click="clearAll">清空当前任务</el-button>
-          <span class="bs-summary">共 {{ tableData.length }} 条，已选 {{ selectedCount }} 条</span>
+      <div class="bg-muted flex flex-col gap-3 rounded-lg p-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <Button variant="outline" @click="downloadTemplate"><Download />下载模板</Button>
+          <Button @click="fileInputRef?.click()"><FileText />上传新表格</Button>
+          <Button variant="outline" :disabled="!currentBatchId" @click="archiveCurrent"><Archive />归档当前任务</Button>
+          <Button variant="ghost" class="text-destructive hover:text-destructive" @click="clearAll"><Trash2 />清空当前任务</Button>
+          <span class="text-muted-foreground ml-auto text-sm">共 {{ tableData.length }} 条，已选 {{ selectedCount }} 条</span>
         </div>
 
-        <div class="bs-params">
-          <div class="param-row">
-            <label class="param-label">模型</label>
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="flex items-center gap-2">
+            <label class="text-muted-foreground text-sm whitespace-nowrap">模型</label>
             <ModelChannelSelect
               v-model="selectedModelId"
-              style="width: 360px"
+              class="w-[360px]"
               @change="handleModelChange"
             />
           </div>
-          <div class="param-row">
-            <label class="param-label">分辨率</label>
-            <el-radio-group v-model="resolution" @change="handleResolutionChange">
-              <el-radio-button v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</el-radio-button>
-            </el-radio-group>
+          <div class="flex items-center gap-2">
+            <label class="text-muted-foreground text-sm whitespace-nowrap">分辨率</label>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              :model-value="resolution"
+              @update:model-value="(v) => { if (v) { resolution = String(v); handleResolutionChange() } }"
+            >
+              <ToggleGroupItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</ToggleGroupItem>
+            </ToggleGroup>
           </div>
-          <div class="param-row">
-            <label class="param-label">宽高比</label>
-            <el-select v-model="aspectRatio" style="width: 120px">
-              <el-option v-for="ar in availableAspectRatios" :key="ar" :label="ar" :value="ar" />
-            </el-select>
+          <div class="flex items-center gap-2">
+            <label class="text-muted-foreground text-sm whitespace-nowrap">宽高比</label>
+            <Select v-model="aspectRatio">
+              <SelectTrigger class="w-30">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <div class="param-row">
-            <label class="param-label">张数</label>
-            <el-select v-model="countN" style="width: 80px">
-              <el-option v-for="n in [1, 2, 3, 4, 5]" :key="n" :label="`${n} 张`" :value="n" />
-            </el-select>
+          <div class="flex items-center gap-2">
+            <label class="text-muted-foreground text-sm whitespace-nowrap">张数</label>
+            <Select :model-value="String(countN)" @update:model-value="(v) => (countN = Number(v))">
+              <SelectTrigger class="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 张</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <div class="bs-submit">
-          <span v-if="submittableCount > 0" class="bs-cost">预计 {{ formatCredits(estimateCost) }}</span>
-          <el-button
-            type="primary" :icon="MagicStick" :loading="isGenerating"
-            :disabled="submittableCount === 0" @click="handleGenerate"
+        <div class="border-border flex items-center gap-3 border-t pt-3">
+          <span v-if="submittableCount > 0" class="text-success text-sm">预计 {{ formatCredits(estimateCost) }}</span>
+          <Button
+            :disabled="isGenerating || submittableCount === 0"
+            @click="handleGenerate"
           >
-            一键生图 · {{ submittableCount }} 个
-          </el-button>
-          <el-button
-            :icon="Download" :loading="zipping"
-            :disabled="downloadableCount === 0" @click="downloadZip"
+            <LoaderCircle v-if="isGenerating" class="animate-spin" /><Wand2 v-else />一键生图 · {{ submittableCount }} 个
+          </Button>
+          <Button
+            variant="outline"
+            :disabled="zipping || downloadableCount === 0"
+            @click="downloadZip"
           >
-            一键下载 · {{ downloadableCount }} 张
-          </el-button>
+            <LoaderCircle v-if="zipping" class="animate-spin" /><Download v-else />一键下载 · {{ downloadableCount }} 张
+          </Button>
         </div>
       </div>
 
-      <div class="bs-table">
-        <el-table
-          :data="tableData" row-key="id" border size="small"
-          @selection-change="onSelectionChange"
-        >
-          <el-table-column type="selection" width="45" />
-          <el-table-column label="主图" width="84">
-            <template #default="{ row }">
-              <img
-                v-if="row.mainImageUrl" :src="row.mainImageUrl" class="thumb"
-                @error="($event.target as HTMLImageElement).style.opacity = '0.3'"
-                @click="openPreview(row)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column prop="productId" label="商品ID" width="160" show-overflow-tooltip />
-          <el-table-column label="提示词" min-width="260">
-            <template #default="{ row }">
-              <el-input
-                v-model="row.prompt" size="small" type="textarea"
-                :autosize="{ minRows: 1, maxRows: 4 }" @change="onPromptChange(row)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="120">
-            <template #default="{ row }">
-              <el-tag v-if="row.status === 'pending'" type="info" size="small">待生成</el-tag>
-              <el-tag v-else-if="row.status === 'submitting'" type="warning" size="small">提交中</el-tag>
-              <el-tag v-else-if="row.status === 'in_progress'" type="primary" size="small">生成中 {{ row.progress }}%</el-tag>
-              <el-tag v-else-if="row.status === 'completed'" type="success" size="small">成功</el-tag>
-              <el-tag v-else-if="row.status === 'failed'" type="danger" size="small" :title="row.errorMsg">失败</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="结果" width="96">
-            <template #default="{ row }">
-              <img
-                v-if="row.resultUrl" :src="row.resultUrl" class="thumb result-thumb"
-                @click="openCompare(row)"
-              />
-              <el-button
-                v-else-if="row.status === 'failed'" size="small" type="danger" text :icon="Refresh"
-                @click="retryRow(row)"
-              >重试</el-button>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="120">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.status === 'completed'" size="small" type="primary" text :icon="Refresh"
-                @click="regenerateRow(row)"
-              >重新生成</el-button>
-              <el-button size="small" type="danger" text :icon="Delete" @click="deleteRow(row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+      <div class="min-h-0">
+        <div class="overflow-auto rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead class="w-10">
+                  <Checkbox
+                    :model-value="allSelected ? true : someSelected ? 'indeterminate' : false"
+                    @update:model-value="toggleAll"
+                  />
+                </TableHead>
+                <TableHead class="w-[84px]">主图</TableHead>
+                <TableHead class="w-[160px]">商品ID</TableHead>
+                <TableHead class="min-w-[260px]">提示词</TableHead>
+                <TableHead class="w-[120px]">状态</TableHead>
+                <TableHead class="w-[96px]">结果</TableHead>
+                <TableHead class="w-[120px]">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow
+                v-for="row in tableData"
+                :key="row.id"
+                :data-state="row.selected && 'selected'"
+              >
+                <TableCell>
+                  <Checkbox
+                    :model-value="row.selected"
+                    @update:model-value="(v) => (row.selected = v === true)"
+                  />
+                </TableCell>
+                <TableCell>
+                  <img
+                    v-if="row.mainImageUrl" :src="row.mainImageUrl" class="media-tile size-14 cursor-zoom-in"
+                    @error="($event.target as HTMLImageElement).style.opacity = '0.3'"
+                    @click="openPreview(row)"
+                  />
+                </TableCell>
+                <TableCell class="max-w-40 truncate" :title="row.productId">{{ row.productId }}</TableCell>
+                <TableCell>
+                  <Textarea
+                    v-model="row.prompt"
+                    class="min-h-9 text-sm"
+                    @change="onPromptChange(row)"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Badge v-if="row.status === 'pending'" variant="secondary">待生成</Badge>
+                  <Badge v-else-if="row.status === 'submitting'" variant="warning">提交中</Badge>
+                  <Badge v-else-if="row.status === 'in_progress'" variant="warning">生成中 {{ row.progress }}%</Badge>
+                  <Badge v-else-if="row.status === 'completed'" variant="success">成功</Badge>
+                  <Badge v-else-if="row.status === 'failed'" variant="destructive" :title="row.errorMsg">失败</Badge>
+                </TableCell>
+                <TableCell>
+                  <img
+                    v-if="row.resultUrl" :src="row.resultUrl" class="media-tile size-14 cursor-zoom-in"
+                    @click="openCompare(row)"
+                  />
+                  <Button
+                    v-else-if="row.status === 'failed'"
+                    variant="ghost"
+                    size="sm"
+                    class="text-destructive hover:text-destructive"
+                    @click="retryRow(row)"
+                  >
+                    <RefreshCw />重试
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    v-if="row.status === 'completed'"
+                    variant="ghost"
+                    size="sm"
+                    class="text-primary hover:text-primary"
+                    @click="regenerateRow(row)"
+                  >
+                    <RefreshCw />重新生成
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    class="text-destructive hover:text-destructive"
+                    @click="deleteRow(row)"
+                  >
+                    <Trash2 />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </template>
 
@@ -812,91 +897,3 @@ onUnmounted(() => {
     />
   </div>
 </template>
-
-<style scoped>
-.bs-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.bs-alert {
-  margin: 0;
-}
-
-/* 空态 */
-.bs-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding-top: 48px;
-}
-.bs-empty-actions {
-  display: flex;
-  gap: 12px;
-}
-
-/* 工具栏 */
-.bs-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  background: var(--el-fill-color-lighter);
-  border-radius: var(--momo-radius-md);
-}
-.bs-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.bs-summary {
-  margin-left: auto;
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-}
-.bs-params {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: center;
-}
-.param-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.param-label {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-regular);
-  white-space: nowrap;
-}
-.bs-submit {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  padding-top: 12px;
-}
-.bs-cost {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-color-success);
-}
-
-/* 表格 */
-.bs-table {
-  min-height: 0;
-}
-.thumb {
-  width: 56px;
-  height: 56px;
-  object-fit: cover;
-  border-radius: var(--momo-radius-sm);
-  border: 1px solid var(--el-border-color-lighter);
-  cursor: zoom-in;
-}
-.result-thumb {
-  cursor: zoom-in;
-}
-</style>

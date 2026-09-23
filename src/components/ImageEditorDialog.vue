@@ -1,10 +1,25 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import {
-  EditPen, Back, RefreshLeft, Delete, Crop, Check, Close,
-  ArrowDown, Loading, Picture, ZoomIn, ZoomOut, Aim,
-} from '@element-plus/icons-vue'
+  Pencil, Undo2, Redo2, Trash2, Crop, Check, X,
+  ChevronDown, LoaderCircle, Image as ImageIcon, ZoomIn, ZoomOut, Crosshair,
+} from '@lucide/vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { isOssImageUrl } from '@/utils/download'
 import type { TaskItem } from '@/components/TaskList.vue'
 
@@ -753,101 +768,102 @@ function canvasCursor(): string {
 </script>
 
 <template>
-  <el-dialog
-    :model-value="modelValue"
-    title="图片编辑"
-    width="90%"
-    top="3vh"
-    :close-on-click-modal="false"
-    @update:model-value="close"
-  >
+  <Dialog :open="modelValue" @update:open="(v: boolean) => { if (!v) close() }">
+    <DialogContent
+      class="editor-dialog sm:max-w-[90vw]"
+      @pointer-down-outside.prevent
+    >
+      <DialogHeader>
+        <DialogTitle>图片编辑</DialogTitle>
+      </DialogHeader>
     <!-- Toolbar -->
     <div class="editor-toolbar">
       <div class="tool-group">
-        <el-button-group>
-          <el-button
-            size="small"
-            :icon="EditPen"
-            :type="currentTool === 'brush' && !cropMode ? 'primary' : 'default'"
+        <div class="flex items-center gap-1">
+          <Button
+            size="sm"
+            :variant="currentTool === 'brush' && !cropMode ? 'default' : 'outline'"
             @click="cropMode = false; currentTool = 'brush'"
-          >画笔</el-button>
-          <el-button
-            size="small"
-            :type="currentTool === 'eraser' && !cropMode ? 'primary' : 'default'"
+          ><Pencil />画笔</Button>
+          <Button
+            size="sm"
+            :variant="currentTool === 'eraser' && !cropMode ? 'default' : 'outline'"
             @click="cropMode = false; currentTool = 'eraser'"
-          >橡皮</el-button>
-          <el-button
-            size="small"
-            :type="currentTool === 'text' && !cropMode ? 'primary' : 'default'"
+          >橡皮</Button>
+          <Button
+            size="sm"
+            :variant="currentTool === 'text' && !cropMode ? 'default' : 'outline'"
             @click="cropMode = false; currentTool = 'text'"
-          >文字</el-button>
-          <el-dropdown trigger="click" @command="(cmd: ShapeType) => { cropMode = false; currentTool = 'shape'; currentShape = cmd }">
-            <el-button
-              size="small"
-              :type="currentTool === 'shape' && !cropMode ? 'primary' : 'default'"
-            >
-              形状<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="rect" :class="{ active: currentShape === 'rect' }">矩形</el-dropdown-item>
-                <el-dropdown-item command="circle" :class="{ active: currentShape === 'circle' }">圆形</el-dropdown-item>
-                <el-dropdown-item command="line" :class="{ active: currentShape === 'line' }">直线</el-dropdown-item>
-                <el-dropdown-item command="arrow" :class="{ active: currentShape === 'arrow' }">箭头</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <el-button
-            size="small"
-            :icon="Crop"
-            :type="cropMode ? 'primary' : 'default'"
+          >文字</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                size="sm"
+                :variant="currentTool === 'shape' && !cropMode ? 'default' : 'outline'"
+              >
+                形状<ChevronDown />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem :class="{ 'text-primary font-semibold': currentShape === 'rect' }" @click="cropMode = false; currentTool = 'shape'; currentShape = 'rect'">矩形</DropdownMenuItem>
+              <DropdownMenuItem :class="{ 'text-primary font-semibold': currentShape === 'circle' }" @click="cropMode = false; currentTool = 'shape'; currentShape = 'circle'">圆形</DropdownMenuItem>
+              <DropdownMenuItem :class="{ 'text-primary font-semibold': currentShape === 'line' }" @click="cropMode = false; currentTool = 'shape'; currentShape = 'line'">直线</DropdownMenuItem>
+              <DropdownMenuItem :class="{ 'text-primary font-semibold': currentShape === 'arrow' }" @click="cropMode = false; currentTool = 'shape'; currentShape = 'arrow'">箭头</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            size="sm"
+            :variant="cropMode ? 'default' : 'outline'"
             @click="toggleCrop"
-          >裁剪</el-button>
-        </el-button-group>
+          ><Crop />裁剪</Button>
+        </div>
       </div>
 
       <div class="tool-group" v-if="!cropMode && (currentTool === 'brush' || currentTool === 'eraser')">
         <label class="tool-label">颜色</label>
-        <el-color-picker v-model="brushColor" size="small" :predefine="['#ff4d4f', '#faad14', '#52c41a', '#1677ff', '#722ed1', '#000000']" />
+        <input type="color" v-model="brushColor" class="color-input" list="editor-colors" />
+        <datalist id="editor-colors">
+          <option>#ff4d4f</option><option>#faad14</option><option>#52c41a</option><option>#1677ff</option><option>#722ed1</option><option>#000000</option>
+        </datalist>
         <label class="tool-label">粗细</label>
-        <el-slider v-model="brushSize" :min="1" :max="40" :step="1" style="width: 100px;" size="small" />
+        <Slider :model-value="[brushSize]" :min="1" :max="40" :step="1" class="w-25" @update:model-value="(v) => (brushSize = v?.[0] ?? brushSize)" />
         <span class="tool-value">{{ brushSize }}px</span>
       </div>
 
       <div class="tool-group" v-if="!cropMode && currentTool === 'shape'">
         <label class="tool-label">颜色</label>
-        <el-color-picker v-model="brushColor" size="small" :predefine="['#ff4d4f', '#faad14', '#52c41a', '#1677ff', '#722ed1', '#000000']" />
+        <input type="color" v-model="brushColor" class="color-input" list="editor-colors" />
         <label class="tool-label">线宽</label>
-        <el-slider v-model="strokeWidth" :min="1" :max="20" :step="1" style="width: 100px;" size="small" />
+        <Slider :model-value="[strokeWidth]" :min="1" :max="20" :step="1" class="w-25" @update:model-value="(v) => (strokeWidth = v?.[0] ?? strokeWidth)" />
         <span class="tool-value">{{ strokeWidth }}px</span>
       </div>
 
       <div class="tool-group" v-if="!cropMode && currentTool === 'text'">
         <label class="tool-label">文字颜色</label>
-        <el-color-picker v-model="textColor" size="small" :predefine="['#ff4d4f', '#faad14', '#52c41a', '#1677ff', '#722ed1', '#000000']" />
+        <input type="color" v-model="textColor" class="color-input" list="editor-colors" />
         <label class="tool-label">字号</label>
-        <el-slider v-model="fontSize" :min="10" :max="72" :step="1" style="width: 100px;" size="small" />
+        <Slider :model-value="[fontSize]" :min="10" :max="72" :step="1" class="w-25" @update:model-value="(v) => (fontSize = v?.[0] ?? fontSize)" />
         <span class="tool-value">{{ fontSize }}px</span>
       </div>
 
       <div class="tool-group" v-if="cropMode">
-        <el-button size="small" type="primary" :icon="Check" @click="applyCrop">确认裁剪</el-button>
-        <el-button size="small" :icon="Close" @click="cancelCrop">取消裁剪</el-button>
+        <Button size="sm" @click="applyCrop"><Check />确认裁剪</Button>
+        <Button size="sm" variant="outline" @click="cancelCrop"><X />取消裁剪</Button>
       </div>
 
       <div class="tool-spacer"></div>
 
       <div class="tool-group" v-if="!cropMode">
-        <el-button size="small" :icon="ZoomOut" @click="zoomOut" :title="`缩小 (当前 ${Math.round(zoom * 100)}%)`"></el-button>
+        <Button size="icon-sm" variant="outline" @click="zoomOut" :title="`缩小 (当前 ${Math.round(zoom * 100)}%)`"><ZoomOut /></Button>
         <span class="zoom-display">{{ Math.round(zoom * 100) }}%</span>
-        <el-button size="small" :icon="ZoomIn" @click="zoomIn" title="放大"></el-button>
-        <el-button size="small" :icon="Aim" @click="resetZoom" title="重置缩放"></el-button>
+        <Button size="icon-sm" variant="outline" @click="zoomIn" title="放大"><ZoomIn /></Button>
+        <Button size="icon-sm" variant="outline" @click="resetZoom" title="重置缩放"><Crosshair /></Button>
       </div>
 
       <div class="tool-group" v-if="!cropMode">
-        <el-button size="small" :icon="RefreshLeft" :disabled="objects.length === 0" @click="undo" title="撤销">撤销</el-button>
-        <el-button size="small" :icon="Back" :disabled="redoStack.length === 0" @click="redo" title="重做">重做</el-button>
-        <el-button size="small" :icon="Delete" :disabled="objects.length === 0" @click="clearAll" title="清空">清空</el-button>
+        <Button size="sm" variant="outline" :disabled="objects.length === 0" @click="undo" title="撤销"><Undo2 />撤销</Button>
+        <Button size="sm" variant="outline" :disabled="redoStack.length === 0" @click="redo" title="重做"><Redo2 />重做</Button>
+        <Button size="sm" variant="outline" :disabled="objects.length === 0" @click="clearAll" title="清空"><Trash2 />清空</Button>
       </div>
     </div>
 
@@ -861,12 +877,12 @@ function canvasCursor(): string {
     >
       <!-- Loading overlay (canvas stays mounted underneath) -->
       <div v-if="imageLoading" class="editor-placeholder editor-overlay">
-        <el-icon class="is-loading" :size="40"><Loading /></el-icon>
+        <LoaderCircle class="size-10 animate-spin" />
         <span>正在加载图片...</span>
       </div>
       <!-- Error overlay -->
       <div v-else-if="imageError" class="editor-placeholder editor-overlay editor-error">
-        <el-icon :size="40"><Picture /></el-icon>
+        <ImageIcon class="size-10" />
         <span>{{ imageError }}</span>
       </div>
       <!-- Canvas container: always rendered so refs are available when image loads -->
@@ -909,22 +925,22 @@ function canvasCursor(): string {
     </div>
 
     <!-- Footer -->
-    <template #footer>
-      <div class="editor-footer">
+    <DialogFooter class="editor-footer sm:justify-between">
         <div class="footer-info" v-if="imageWidth > 0">
           <span>{{ imageWidth }} × {{ imageHeight }} px</span>
           <span v-if="objects.length > 0">· {{ objects.length }} 个标注</span>
           <span class="footer-hint">· 滚轮缩放 · 按住空格拖拽</span>
         </div>
         <div class="footer-actions">
-          <el-button @click="close">取消</el-button>
-          <el-button type="primary" :loading="exporting" :disabled="imageLoading || !!imageError" @click="handleDone">
+          <Button variant="outline" @click="close">取消</Button>
+          <Button :disabled="exporting || imageLoading || !!imageError" @click="handleDone">
+            <LoaderCircle v-if="exporting" class="animate-spin" />
             完成编辑
-          </el-button>
+          </Button>
         </div>
-      </div>
-    </template>
-  </el-dialog>
+    </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <style scoped>
@@ -934,7 +950,7 @@ function canvasCursor(): string {
   align-items: center;
   gap: 12px;
   padding: 8px 0 14px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--momo-color-border-soft);
   margin-bottom: 14px;
 }
 .tool-group {
@@ -944,12 +960,12 @@ function canvasCursor(): string {
 }
 .tool-label {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-secondary);
   white-space: nowrap;
 }
 .tool-value {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-regular);
+  color: var(--momo-color-text-secondary);
   min-width: 36px;
 }
 .tool-spacer {
@@ -957,7 +973,7 @@ function canvasCursor(): string {
 }
 .zoom-display {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-regular);
+  color: var(--momo-color-text-secondary);
   min-width: 40px;
   text-align: center;
 }
@@ -968,7 +984,7 @@ function canvasCursor(): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
   border-radius: var(--momo-radius-md);
   overflow: hidden;
 }
@@ -981,15 +997,15 @@ function canvasCursor(): string {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: var(--el-fill-color);
-  color: var(--el-text-color-secondary);
+  background: var(--momo-color-bg-muted);
+  color: var(--momo-color-text-secondary);
   font-size: var(--momo-font-size-sm);
 }
 .editor-overlay {
   pointer-events: none;
 }
 .editor-error {
-  color: var(--el-color-danger);
+  color: var(--momo-color-danger);
 }
 .editor-canvas-wrap {
   position: relative;
@@ -1014,7 +1030,7 @@ function canvasCursor(): string {
 
 .crop-rect {
   position: absolute;
-  border: 2px dashed var(--el-color-primary);
+  border: 2px dashed var(--momo-color-brand);
   background: rgba(22, 119, 255, 0.1);
   pointer-events: none;
   z-index: 10;
@@ -1024,7 +1040,7 @@ function canvasCursor(): string {
   position: absolute;
   z-index: 20;
   background: rgba(255, 255, 255, 0.9);
-  border: 1px dashed var(--el-color-primary);
+  border: 1px dashed var(--momo-color-brand);
   border-radius: var(--momo-radius-sm);
   padding: 2px 6px;
   outline: none;
@@ -1040,20 +1056,32 @@ function canvasCursor(): string {
 }
 .footer-info {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-secondary);
   display: flex;
   gap: 8px;
 }
 .footer-hint {
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
 }
 .footer-actions {
   display: flex;
   gap: 8px;
 }
 
-.el-dropdown-menu .active {
-  color: var(--el-color-primary);
-  font-weight: 600;
+.editor-dialog {
+  top: 3vh;
+  transform: translate(-50%, 0);
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+}
+.color-input {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--momo-color-border);
+  border-radius: var(--momo-radius-sm);
+  background: var(--momo-color-bg);
+  cursor: pointer;
 }
 </style>

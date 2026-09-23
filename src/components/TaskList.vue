@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
-import { Refresh, Delete, View, Loading, Picture, CopyDocument, Download, Check, EditPen } from '@element-plus/icons-vue'
+import { RefreshCw, Trash2, Eye, LoaderCircle, Image, Copy, Download, Check, Pencil } from '@lucide/vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { parseUTC, toBJMinute } from '@/utils/datetime'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { UiEmptyState } from '@/components/ui'
 const { success, info, warning, error } = useUiFeedback()
 const { retryOnError } = useImageRetry()
 import type { ModelId } from '@/types/adapter'
@@ -99,12 +103,12 @@ const statusText = computed(() => (status: string) => {
   return map[status] || status
 })
 
-const statusType = computed(() => (status: string) => {
-  const map: Record<string, string> = {
-    submitted: 'info', queued: 'info', in_progress: 'warning',
-    importing: 'warning', completed: 'success', failed: 'danger', unknown: 'info',
+const statusVariant = computed(() => (status: string): 'secondary' | 'warning' | 'success' | 'destructive' => {
+  const map: Record<string, 'secondary' | 'warning' | 'success' | 'destructive'> = {
+    submitted: 'secondary', queued: 'secondary', in_progress: 'warning',
+    importing: 'warning', completed: 'success', failed: 'destructive', unknown: 'secondary',
   }
-  return map[status] || 'info'
+  return map[status] || 'secondary'
 })
 
 // Reactive clock for live elapsed-time updates on active tasks
@@ -223,11 +227,23 @@ function handleImageDragStart(e: DragEvent, url: string) {
 </script>
 
 <template>
-  <div class="task-list" v-loading="loading">
-    <el-empty v-if="!loading && tasks.length === 0" description="暂无任务" />
+  <div class="task-list">
+    <!-- Loading skeleton -->
+    <div v-if="loading" class="flex flex-col gap-2.5">
+      <div v-for="i in 3" :key="i" class="flex gap-3 rounded-md p-3">
+        <Skeleton class="size-35 shrink-0 rounded-sm" />
+        <div class="flex flex-1 flex-col gap-2 py-1">
+          <Skeleton class="h-5 w-28" />
+          <Skeleton class="h-4 w-full" />
+          <Skeleton class="h-4 w-2/3" />
+        </div>
+      </div>
+    </div>
+
+    <UiEmptyState v-else-if="tasks.length === 0" title="暂无任务" />
 
     <!-- List View -->
-    <div v-if="viewMode !== 'grid'" class="task-cards">
+    <div v-if="!loading && viewMode !== 'grid'" class="task-cards">
       <div
           v-for="(task, idx) in tasks"
           :key="task.id"
@@ -237,7 +253,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
         >
         <!-- Selection circle -->
         <div v-if="bulkMode" class="task-select-circle" :class="{ checked: isSelected(task.id) }" @click.stop="emit('toggleSelect', task.id)">
-          <el-icon v-if="isSelected(task.id)" size="14"><Check /></el-icon>
+          <Check v-if="isSelected(task.id)" class="size-3.5 text-white" />
         </div>
         <div class="task-thumb" @click="!bulkMode && emit('compareImages', idx)">
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
@@ -245,30 +261,31 @@ function handleImageDragStart(e: DragEvent, url: string) {
             @error="retryOnError($event, task.result_image_urls[0])"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <div v-else-if="task.is_importing" class="thumb-status">
-            <el-icon class="is-loading spin" size="28"><Loading /></el-icon>
+            <LoaderCircle class="size-7 animate-spin" />
             <span class="thumb-status-text">正在下载图片...</span>
           </div>
           <div v-else-if="isActive(task.status)" class="thumb-status">
-            <el-icon class="is-loading spin" size="28"><Loading /></el-icon>
+            <LoaderCircle class="size-7 animate-spin" />
           </div>
           <div v-else class="thumb-status">
-            <el-icon size="28"><Picture /></el-icon>
-            <el-button
+            <Image class="size-7" />
+            <Button
               v-if="task.task_no || task.toapis_task_id"
-              class="thumb-retry-btn"
-              :icon="Refresh"
-              size="small"
-              circle
+              variant="outline"
+              size="icon-sm"
+              class="mt-0.5 rounded-full"
               @click.stop="emit('retryImport', task)"
               title="重新加载图片"
-            />
+            >
+              <RefreshCw />
+            </Button>
           </div>
         </div>
         <div class="task-body">
           <!-- Status + duration + time -->
           <div class="task-header">
             <span class="task-status-group">
-              <el-tag :type="statusType(task.status)" size="small">{{ statusText(task.status) }}</el-tag>
+              <Badge :variant="statusVariant(task.status)">{{ statusText(task.status) }}</Badge>
               <span v-if="task.status === 'failed'" class="task-duration task-error-msg">{{ task.error_message || '生成失败' }}</span>
               <span v-else class="task-duration">{{ statusLabel(task) }}</span>
             </span>
@@ -279,7 +296,9 @@ function handleImageDragStart(e: DragEvent, url: string) {
               <!-- Prompt -->
               <div class="task-prompt">
                 <span class="task-prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task)) }}</span>
-                <el-button :icon="CopyDocument" size="small" text type="primary" @click="copyToClipboard(task.prompt)" title="复制提示词" />
+                <Button variant="ghost" size="icon-xs" title="复制提示词" @click="copyToClipboard(task.prompt)">
+                  <Copy />
+                </Button>
               </div>
               <!-- Input image thumbs -->
               <div v-if="task.input_image_urls?.length" class="task-input-thumbs">
@@ -303,32 +322,32 @@ function handleImageDragStart(e: DragEvent, url: string) {
                 />
                 <template v-else>
                   <span v-if="task.remark" class="task-remark" :title="task.remark">{{ task.remark }}</span>
-                  <el-button
-                    class="task-remark-btn"
-                    :icon="EditPen"
-                    text
-                    size="small"
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     :title="task.remark ? '编辑备注' : '添加备注'"
                     :aria-label="task.remark ? '编辑备注' : '添加备注'"
                     @click="openRemarkEditor(task)"
-                  />
+                  >
+                    <Pencil />
+                  </Button>
                 </template>
               </div>
             </div>
           </div>
         </div>
         <div v-if="!bulkMode" class="task-actions">
-          <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
-          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">复用参数</el-button>
-          <el-button size="small" :icon="Download" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)">下载</el-button>
-          <el-button size="small" :icon="View" @click="emit('viewDetail', task)">详情</el-button>
-          <el-button size="small" :icon="Delete" @click="emit('delete', task)">删除</el-button>
+          <Button size="sm" @click="emit('regenerate', task)"><RefreshCw />重新生成</Button>
+          <Button size="sm" variant="outline" @click="emit('copyParams', task)"><Copy />复用参数</Button>
+          <Button size="sm" variant="outline" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)"><Download />下载</Button>
+          <Button size="sm" variant="outline" @click="emit('viewDetail', task)"><Eye />详情</Button>
+          <Button size="sm" variant="ghost" class="text-destructive hover:text-destructive" @click="emit('delete', task)"><Trash2 />删除</Button>
         </div>
       </div>
     </div>
 
     <!-- Grid View -->
-    <div v-else class="task-grid">
+    <div v-else-if="!loading" class="task-grid">
       <div
           v-for="(task, idx) in tasks"
           :key="task.id"
@@ -338,7 +357,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
         >
         <!-- Selection circle -->
         <div v-if="bulkMode" class="task-select-circle" :class="{ checked: isSelected(task.id) }" @click.stop="emit('toggleSelect', task.id)">
-          <el-icon v-if="isSelected(task.id)" size="14"><Check /></el-icon>
+          <Check v-if="isSelected(task.id)" class="size-3.5 text-white" />
         </div>
         <div class="grid-thumb" @click="!bulkMode && emit('compareImages', idx)">
           <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
@@ -346,23 +365,24 @@ function handleImageDragStart(e: DragEvent, url: string) {
             @error="retryOnError($event, task.result_image_urls[0])"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <div v-else-if="task.is_importing" class="thumb-status grid-thumb-status">
-            <el-icon class="is-loading spin" size="36"><Loading /></el-icon>
+            <LoaderCircle class="size-9 animate-spin" />
             <span class="thumb-status-text">正在下载图片...</span>
           </div>
           <div v-else-if="isActive(task.status)" class="thumb-status grid-thumb-status">
-            <el-icon class="is-loading spin" size="36"><Loading /></el-icon>
+            <LoaderCircle class="size-9 animate-spin" />
           </div>
           <div v-else class="thumb-status grid-thumb-status">
-            <el-icon size="36"><Picture /></el-icon>
-            <el-button
+            <Image class="size-9" />
+            <Button
               v-if="task.task_no || task.toapis_task_id"
-              class="thumb-retry-btn"
-              :icon="Refresh"
-              size="small"
-              circle
+              variant="outline"
+              size="icon-sm"
+              class="mt-0.5 rounded-full"
               @click.stop="emit('retryImport', task)"
               title="重新加载图片"
-            />
+            >
+              <RefreshCw />
+            </Button>
           </div>
           <div v-if="isActive(task.status)" class="grid-progress-bar" :style="{ width: task.progress + '%' }" />
         </div>
@@ -375,11 +395,13 @@ function handleImageDragStart(e: DragEvent, url: string) {
           </div>
           <div class="grid-info-row prompt-row">
             <span class="gi-value prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task), 40) }}</span>
-            <el-button size="small" text :icon="CopyDocument" @click="copyToClipboard(task.prompt)" />
+            <Button variant="ghost" size="icon-xs" title="复制提示词" @click="copyToClipboard(task.prompt)">
+              <Copy />
+            </Button>
           </div>
           <div class="grid-info-row">
             <span class="gi-value">
-              <el-tag :type="statusType(task.status)" size="small">{{ statusText(task.status) }}</el-tag>
+              <Badge :variant="statusVariant(task.status)">{{ statusText(task.status) }}</Badge>
               <span v-if="task.status === 'failed'" class="grid-error-msg">{{ task.error_message || '生成失败' }}</span>
               <span v-else class="grid-duration">{{ statusLabel(task) }}</span>
             </span>
@@ -394,12 +416,11 @@ function handleImageDragStart(e: DragEvent, url: string) {
 
         <!-- Actions -->
         <div v-if="!bulkMode" class="grid-card-actions">
-          <el-button size="small" :icon="Refresh" type="primary" @click="emit('regenerate', task)">重新生成</el-button>
-          <el-button size="small" :icon="CopyDocument" @click="emit('copyParams', task)">复用参数</el-button>
-          <el-button v-if="task.result_image_urls?.[0]" size="small" :icon="Download" @click="emit('download', task)">下载</el-button>
-          <el-button v-else size="small" disabled>下载</el-button>
-          <el-button size="small" :icon="View" @click="emit('viewDetail', task)">详情</el-button>
-          <el-button size="small" :icon="Delete" @click="emit('delete', task)">删除</el-button>
+          <Button size="sm" @click="emit('regenerate', task)"><RefreshCw />重新生成</Button>
+          <Button size="sm" variant="outline" @click="emit('copyParams', task)"><Copy />复用参数</Button>
+          <Button size="sm" variant="outline" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)"><Download />下载</Button>
+          <Button size="sm" variant="outline" @click="emit('viewDetail', task)"><Eye />详情</Button>
+          <Button size="sm" variant="ghost" class="text-destructive hover:text-destructive" @click="emit('delete', task)"><Trash2 />删除</Button>
         </div>
       </div>
     </div>
@@ -422,28 +443,28 @@ function handleImageDragStart(e: DragEvent, url: string) {
   flex-shrink: 0;
 }
 .task-select-circle.checked {
-  background: var(--el-color-primary);
-  border-color: var(--el-color-primary);
+  background: var(--momo-color-brand);
+  border-color: var(--momo-color-brand);
 }
-.task-select-circle .el-icon { color: var(--momo-color-text-inverse); }
-.task-card.bulk-selected { box-shadow: 0 0 0 2px var(--el-color-primary); }
-.task-grid-item.bulk-selected { box-shadow: 0 0 0 2px var(--el-color-primary); }
+.task-card.bulk-selected { box-shadow: 0 0 0 2px var(--momo-color-brand); }
+.task-grid-item.bulk-selected { box-shadow: 0 0 0 2px var(--momo-color-brand); }
 
 .task-cards { display: flex; flex-direction: column; gap: 10px; }
 
 .task-card {
   display: flex; gap: 12px; padding: 12px;
-  background: var(--el-fill-color-lighter);
+  background: var(--momo-color-bg-soft);
+  border: 1px solid var(--momo-color-border-soft);
   border-radius: var(--momo-radius-md);
   transition: box-shadow 0.2s;
   position: relative;
 }
-.task-card:hover { box-shadow: var(--el-box-shadow-light); }
+.task-card:hover { box-shadow: var(--momo-shadow-sm); }
 
 .task-thumb {
   width: 140px; height: 140px; flex-shrink: 0;
   border-radius: var(--momo-radius-sm); overflow: hidden;
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
 }
@@ -452,13 +473,10 @@ function handleImageDragStart(e: DragEvent, url: string) {
 /* Thumb status placeholder (loading / empty / retry) */
 .thumb-status {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; width: 100%; height: 100%; color: var(--el-text-color-secondary);
+  gap: 6px; width: 100%; height: 100%; color: var(--momo-color-text-tertiary);
 }
 .thumb-status-text {
-  font-size: var(--momo-font-size-xs); color: var(--el-text-color-secondary);
-}
-.thumb-retry-btn {
-  margin-top: 2px;
+  font-size: var(--momo-font-size-xs); color: var(--momo-color-text-secondary);
 }
 .grid-thumb-status {
   position: absolute; inset: 0;
@@ -469,56 +487,54 @@ function handleImageDragStart(e: DragEvent, url: string) {
 /* Header row */
 .task-header { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; height: 22px; overflow: hidden; flex-shrink: 0; }
 .task-status-group { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.task-duration { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
-.task-model { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
-.task-res { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
-.task-time { font-size: var(--momo-font-size-sm); color: var(--el-text-color-placeholder); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-duration { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
+.task-model { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
+.task-res { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
+.task-time { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-placeholder); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; overflow: hidden; flex-shrink: 0; }
 .task-remark-row { display: flex; align-items: center; justify-content: flex-end; gap: 2px; max-width: 180px; }
-.task-remark { font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); min-width: 0; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-remark { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); min-width: 0; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-remark-input {
   width: 160px;
   height: 24px;
   padding: 0 var(--momo-space-2);
-  border: 1px solid var(--el-border-color);
+  border: 1px solid var(--momo-color-border);
   border-radius: var(--momo-radius-sm);
-  background: var(--el-bg-color);
-  color: var(--el-text-color-primary);
+  background: var(--momo-color-bg);
+  color: var(--momo-color-text);
   font: inherit;
   font-size: var(--momo-font-size-sm);
   outline: none;
 }
 .task-remark-input:focus {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+  border-color: var(--momo-color-brand);
+  box-shadow: 0 0 0 2px var(--momo-color-ring);
 }
-.task-remark-btn { flex-shrink: 0; height: 20px; padding: 0; }
 .task-content-row { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-height: 0; }
 .task-content-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 
 /* Prompt */
 .task-prompt {
-  font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular);
+  font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary);
   display: flex; align-items: center; gap: 4px;
   height: 20px; overflow: hidden; flex-shrink: 0;
 }
 .task-prompt-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-error-msg {
-  font-size: var(--momo-font-size-sm); color: var(--el-color-danger); max-width: 200px;
+  font-size: var(--momo-font-size-sm); color: var(--momo-color-danger); max-width: 200px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .grid-error-msg {
-  font-size: var(--momo-font-size-sm); color: var(--el-color-danger); margin-left: 6px;
+  font-size: var(--momo-font-size-sm); color: var(--momo-color-danger); margin-left: 6px;
   max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* Actions */
 .task-actions {
   display: flex; flex-direction: column; gap: 4px;
-  flex-shrink: 0; min-width: 80px;
+  flex-shrink: 0; width: 96px;
 }
-.task-actions .el-button { margin-left: 0; width: 100%; }
-.task-actions .el-dropdown .el-button { width: 100%; margin-left: 0; }
+.task-actions :is(button, a) { width: 100%; justify-content: flex-start; }
 
 /* ─── Grid View ─── */
 .task-grid {
@@ -528,23 +544,24 @@ function handleImageDragStart(e: DragEvent, url: string) {
 }
 .task-grid-item {
   border-radius: var(--momo-radius-md); overflow: hidden;
-  background: var(--el-fill-color-lighter);
+  background: var(--momo-color-bg-soft);
+  border: 1px solid var(--momo-color-border-soft);
   transition: box-shadow 0.2s;
   display: flex; flex-direction: column;
   position: relative;
 }
-.task-grid-item:hover { box-shadow: var(--el-box-shadow-light); }
+.task-grid-item:hover { box-shadow: var(--momo-shadow-sm); }
 
 .grid-thumb {
   aspect-ratio: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
   position: relative; overflow: hidden;
 }
 .grid-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .grid-progress-bar {
   position: absolute; bottom: 0; left: 0; height: 3px;
-  background: var(--el-color-primary);
+  background: var(--momo-color-brand);
   transition: width 0.3s ease;
 }
 
@@ -554,19 +571,19 @@ function handleImageDragStart(e: DragEvent, url: string) {
 }
 .grid-info-row { display: flex; align-items: center; }
 .grid-info-row.prompt-row { align-items: flex-start; }
-.gi-value { font-size: var(--momo-font-size-sm); color: var(--el-text-color-regular); }
+.gi-value { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
 .gi-value.prompt-text {
   flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
 }
-.gi-value.time { color: var(--el-text-color-placeholder); }
-.grid-duration { margin-left: 6px; font-size: var(--momo-font-size-sm); color: var(--el-text-color-secondary); }
+.gi-value.time { color: var(--momo-color-text-placeholder); }
+.grid-duration { margin-left: 6px; font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
 
 .grid-card-actions {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 6px 10px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--momo-color-border-soft);
 }
-.grid-card-actions > .el-button { width: 100%; margin-left: 0; }
+.grid-card-actions > :is(button, a) { width: 100%; }
 
 /* Input image thumbnails */
 .task-input-thumbs {
@@ -584,12 +601,9 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .input-thumb-img {
   width: 56px; height: 56px; object-fit: cover; flex-shrink: 0;
   border-radius: var(--momo-radius-sm);
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--momo-color-border-soft);
 }
 
 /* 并排卡片：无 ID 行后放大参考图，使中间三行总高恰等于左侧结果图 140px（22 状态 + 20 提示词 + 4+86 参考图 + 8 间距） */
 .task-input-thumbs .input-thumb-img { width: 86px; height: 86px; }
-
-.spin { animation: spin-anim 1s linear infinite; }
-@keyframes spin-anim { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>

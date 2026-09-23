@@ -10,17 +10,29 @@
  * 仅按 batch_id 聚合呈现；不做重新生成。
  */
 import { ref, computed, onMounted } from 'vue'
-import { ElMessageBox } from 'element-plus'
-import { ArrowLeft, Download, EditPen, Delete, Picture } from '@element-plus/icons-vue'
+import { ArrowLeft, Download, Image, LoaderCircle, Pencil, Trash2 } from '@lucide/vue'
 import { toBJDate } from '@/utils/datetime'
 
-import { useUiFeedback } from '@/composables/useUiFeedback'
+import { useUiFeedback, promptDialog } from '@/composables/useUiFeedback'
 import { buyerShowBatchApi } from '@/services/buyerShowBatchApi'
 import type { BatchItemRow, BuyerShowBatch } from '@/services/buyerShowBatchApi'
 import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { downloadRowsAsZip, rowToTaskItem } from '@/utils/buyerShowZip'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 
 defineOptions({ name: 'BuyerShowHistoryPanel' })
 
@@ -166,12 +178,11 @@ function backToList() {
 
 async function renameBatch(b: BuyerShowBatch) {
   try {
-    const p = await ElMessageBox.prompt('请输入任务名称（留空则用「时间 · N个商品」默认名）', '任务改名', {
-      confirmButtonText: '保存',
-      cancelButtonText: '取消',
+    const p = await promptDialog('请输入任务名称（留空则用「时间 · N个商品」默认名）', '任务改名', {
+      confirmText: '保存',
+      cancelText: '取消',
       inputValue: b.name,
       inputPlaceholder: '例如：618女装第一批',
-      inputValidator: () => true,
     })
     const name = (p.value || '').trim()
     await buyerShowBatchApi.updateBatch(b.batchId, { name })
@@ -295,50 +306,69 @@ onMounted(() => {
       </div>
 
       <template v-else>
-        <el-table :data="pagedBatches" v-loading="loading" row-key="batchId" border size="small">
-          <el-table-column label="任务名称" min-width="240">
-            <template #default="{ row }">
-              <div class="bsh-name">{{ batchDisplayName(row) }}</div>
-            </template>
-          </el-table-column>
-          <el-table-column label="创建时间" width="170">
-            <template #default="{ row }">
-              <span class="bsh-time">{{ toBJDate(row.createdAt) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="完成度" width="180">
-            <template #default="{ row }">
-              <div class="bsh-progress">
-                <el-progress
-                  :percentage="completionPct(row)"
-                  :stroke-width="8"
-                  :status="row.completedCount === row.itemCount && row.itemCount > 0 ? 'success' : ''"
-                />
-                <span class="bsh-progress-text">{{ row.completedCount }}/{{ row.itemCount }}</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="100">
-            <template #default="{ row }">
-              <el-tag v-if="row.failedCount > 0" type="danger" size="small">{{ row.failedCount }} 失败</el-tag>
-              <el-tag v-else-if="row.completedCount === row.itemCount && row.itemCount > 0" type="success" size="small">全部完成</el-tag>
-              <el-tag v-else type="info" size="small">部分完成</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="240" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" type="primary" text :icon="Picture" @click="openDetail(row)">查看详情</el-button>
-              <el-button
-                size="small" text :icon="Download"
-                :loading="zippingBatchId === row.batchId"
-                :disabled="row.completedCount === 0"
-                @click="downloadBatchZip(row)"
-              >下载</el-button>
-              <el-button size="small" text :icon="EditPen" @click="renameBatch(row)">改名</el-button>
-              <el-button size="small" text type="danger" :icon="Delete" @click="deleteBatch(row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="overflow-auto rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead class="min-w-[240px]">任务名称</TableHead>
+                <TableHead class="w-[170px]">创建时间</TableHead>
+                <TableHead class="w-[180px]">完成度</TableHead>
+                <TableHead class="w-[100px]">状态</TableHead>
+                <TableHead class="w-[240px]">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="loading">
+                <TableRow v-for="i in 3" :key="i">
+                  <TableCell colspan="5"><Skeleton class="h-8 w-full" /></TableCell>
+                </TableRow>
+              </template>
+              <TableRow v-else v-for="row in pagedBatches" :key="row.batchId">
+                <TableCell>
+                  <div class="text-foreground font-medium">{{ batchDisplayName(row) }}</div>
+                </TableCell>
+                <TableCell>
+                  <span class="text-muted-foreground text-sm">{{ toBJDate(row.createdAt) }}</span>
+                </TableCell>
+                <TableCell>
+                  <div class="flex items-center gap-2">
+                    <Progress
+                      :model-value="completionPct(row)"
+                      class="h-2 min-w-20 flex-1"
+                      :class="row.completedCount === row.itemCount && row.itemCount > 0 ? '[&_[data-slot=progress-indicator]]:bg-success' : ''"
+                    />
+                    <span class="text-muted-foreground text-sm whitespace-nowrap">{{ row.completedCount }}/{{ row.itemCount }}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge v-if="row.failedCount > 0" variant="destructive">{{ row.failedCount }} 失败</Badge>
+                  <Badge v-else-if="row.completedCount === row.itemCount && row.itemCount > 0" variant="success">全部完成</Badge>
+                  <Badge v-else variant="secondary">部分完成</Badge>
+                </TableCell>
+                <TableCell>
+                  <Button variant="ghost" size="sm" @click="openDetail(row)"><Image />查看详情</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    :disabled="zippingBatchId === row.batchId || row.completedCount === 0"
+                    @click="downloadBatchZip(row)"
+                  >
+                    <LoaderCircle v-if="zippingBatchId === row.batchId" class="animate-spin" /><Download v-else />下载
+                  </Button>
+                  <Button variant="ghost" size="sm" @click="renameBatch(row)"><Pencil />改名</Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    class="text-destructive hover:text-destructive"
+                    @click="deleteBatch(row)"
+                  >
+                    <Trash2 />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
 
         <UiPagination
           :current-page="currentPage"
@@ -353,7 +383,7 @@ onMounted(() => {
     <!-- 详情视图 -->
     <template v-else>
       <div class="bsh-detail-header">
-        <el-button :icon="ArrowLeft" text @click="backToList">返回列表</el-button>
+        <Button variant="ghost" @click="backToList"><ArrowLeft />返回列表</Button>
         <div class="bsh-detail-title">
           <span class="bsh-detail-name">{{ selectedBatch ? batchDisplayName(selectedBatch) : '' }}</span>
           <span v-if="selectedBatch" class="bsh-detail-meta">
@@ -363,55 +393,65 @@ onMounted(() => {
           </span>
         </div>
         <div class="bsh-detail-actions">
-          <el-button
-            :icon="Download" :loading="zipping"
-            :disabled="items.filter(r => r.status === 'completed' && r.resultUrl).length === 0"
+          <Button
+            :disabled="zipping || items.filter(r => r.status === 'completed' && r.resultUrl).length === 0"
             @click="downloadDetailZip"
-          >下载全部结果</el-button>
-          <el-button v-if="selectedBatch" :icon="EditPen" @click="renameBatch(selectedBatch)">改名</el-button>
-          <el-button v-if="selectedBatch" :icon="Delete" type="danger" plain @click="deleteBatch(selectedBatch)">删除任务</el-button>
+          >
+            <LoaderCircle v-if="zipping" class="animate-spin" /><Download v-else />下载全部结果
+          </Button>
+          <Button v-if="selectedBatch" variant="outline" @click="renameBatch(selectedBatch)"><Pencil />改名</Button>
+          <Button v-if="selectedBatch" variant="destructive" @click="deleteBatch(selectedBatch)"><Trash2 />删除任务</Button>
         </div>
       </div>
 
       <div class="bsh-detail-table">
-        <el-table :data="items" v-loading="itemsLoading" row-key="id" border size="small">
-          <el-table-column label="主图" width="84">
-            <template #default="{ row }">
-              <img
-                v-if="row.mainImageUrl" :src="row.mainImageUrl" class="thumb"
-                @error="($event.target as HTMLImageElement).style.opacity = '0.3'"
-                @click="openPreview(row)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column prop="productId" label="商品ID" width="160" show-overflow-tooltip />
-          <el-table-column label="提示词" min-width="260">
-            <template #default="{ row }">
-              <el-input
-                v-model="row.prompt" size="small" type="textarea" readonly
-                :autosize="{ minRows: 1, maxRows: 4 }"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="120">
-            <template #default="{ row }">
-              <el-tag v-if="row.status === 'completed'" type="success" size="small">成功</el-tag>
-              <el-tag v-else-if="row.status === 'in_progress'" type="primary" size="small">生成中 {{ row.progress }}%</el-tag>
-              <el-tag v-else-if="row.status === 'failed'" type="danger" size="small" :title="row.errorMsg">失败</el-tag>
-              <el-tag v-else type="info" size="small">待生成</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="结果" width="96">
-            <template #default="{ row }">
-              <img
-                v-if="row.resultUrl" :src="row.resultUrl" class="thumb result-thumb"
-                @click="openCompare(row)"
-              />
-              <span v-else-if="row.status === 'failed'" class="bsh-err" :title="row.errorMsg">生成失败</span>
-              <span v-else class="bsh-muted">—</span>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="overflow-auto rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead class="w-[84px]">主图</TableHead>
+                <TableHead class="w-[160px]">商品ID</TableHead>
+                <TableHead class="min-w-[260px]">提示词</TableHead>
+                <TableHead class="w-[120px]">状态</TableHead>
+                <TableHead class="w-[96px]">结果</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="itemsLoading">
+                <TableRow v-for="i in 3" :key="i">
+                  <TableCell colspan="5"><Skeleton class="h-8 w-full" /></TableCell>
+                </TableRow>
+              </template>
+              <TableRow v-else v-for="row in items" :key="row.id">
+                <TableCell>
+                  <img
+                    v-if="row.mainImageUrl" :src="row.mainImageUrl" class="thumb"
+                    @error="($event.target as HTMLImageElement).style.opacity = '0.3'"
+                    @click="openPreview(row)"
+                  />
+                </TableCell>
+                <TableCell class="max-w-40 truncate" :title="row.productId">{{ row.productId }}</TableCell>
+                <TableCell>
+                  <Textarea v-model="row.prompt" readonly class="min-h-9 text-sm" />
+                </TableCell>
+                <TableCell>
+                  <Badge v-if="row.status === 'completed'" variant="success">成功</Badge>
+                  <Badge v-else-if="row.status === 'in_progress'" variant="warning">生成中 {{ row.progress }}%</Badge>
+                  <Badge v-else-if="row.status === 'failed'" variant="destructive" :title="row.errorMsg">失败</Badge>
+                  <Badge v-else variant="secondary">待生成</Badge>
+                </TableCell>
+                <TableCell>
+                  <img
+                    v-if="row.resultUrl" :src="row.resultUrl" class="thumb result-thumb"
+                    @click="openCompare(row)"
+                  />
+                  <span v-else-if="row.status === 'failed'" class="bsh-err" :title="row.errorMsg">生成失败</span>
+                  <span v-else class="bsh-muted">—</span>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </template>
 
@@ -438,36 +478,13 @@ onMounted(() => {
   padding-top: 48px;
 }
 
-.bsh-name {
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-}
-.bsh-time {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-}
-.bsh-progress {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.bsh-progress :deep(.el-progress) {
-  flex: 1;
-  min-width: 80px;
-}
-.bsh-progress-text {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-}
-
 /* 详情头 */
 .bsh-detail-header {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--el-fill-color-lighter);
+  background: var(--momo-color-bg-muted);
   border-radius: var(--momo-radius-md);
   flex-wrap: wrap;
 }
@@ -481,11 +498,11 @@ onMounted(() => {
 .bsh-detail-name {
   font-size: var(--momo-font-size-lg);
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
 }
 .bsh-detail-meta {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-secondary);
 }
 .bsh-detail-actions {
   display: flex;
@@ -502,7 +519,7 @@ onMounted(() => {
   height: 56px;
   object-fit: cover;
   border-radius: var(--momo-radius-sm);
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--momo-color-border);
   cursor: zoom-in;
 }
 .result-thumb {
@@ -510,10 +527,10 @@ onMounted(() => {
 }
 .bsh-err {
   font-size: var(--momo-font-size-xs);
-  color: var(--el-color-danger);
+  color: var(--momo-color-danger);
 }
 .bsh-muted {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
 }
 </style>

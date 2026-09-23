@@ -5,7 +5,18 @@
  * 图片浏览器直传 OSS（ossApi.upload），DB 批量写入走单事务。
  */
 import { ref, onUnmounted } from 'vue'
-import { Plus, Delete, Upload } from '@element-plus/icons-vue'
+import { Plus, Trash2, Upload, LoaderCircle } from '@lucide/vue'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error } = useUiFeedback()
 import { ossApi } from '@/services/ossApi'
@@ -165,78 +176,79 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <el-dialog
-    v-model="visible"
-    title="批量上传素材"
-    width="780px"
-    :close-on-click-modal="false"
-    destroy-on-close
-  >
-    <!-- 整批标签 -->
-    <el-form label-position="top">
-      <el-form-item label="标签（整批共用，可选）">
-        <MaterialTagInput v-model="sharedTagIds" />
-      </el-form-item>
-    </el-form>
+  <Dialog :open="visible" @update:open="(v) => (visible = v)">
+    <DialogContent class="sm:max-w-3xl" @pointer-down-outside.prevent>
+      <DialogHeader>
+        <DialogTitle>批量上传素材</DialogTitle>
+      </DialogHeader>
 
-    <!-- 操作条 -->
-    <div class="upload-toolbar">
-      <el-button type="primary" :icon="Plus" :disabled="submitting" @click="pickFiles">选择图片</el-button>
-      <el-button v-if="rows.length > 0" :icon="Delete" :disabled="submitting" @click="clearRows">清空</el-button>
-      <span class="upload-count" v-if="rows.length > 0">共 {{ rows.length }} 张</span>
-    </div>
-
-    <!-- 进度 -->
-    <el-progress
-      v-if="submitting"
-      :percentage="progress.total ? Math.round((progress.done / progress.total) * 100) : 0"
-      :status="progress.failed.length > 0 ? 'warning' : undefined"
-      style="margin-bottom: 12px"
-    />
-
-    <!-- 行列表 -->
-    <div v-if="rows.length === 0" class="upload-empty">
-      <el-icon size="40" color="var(--el-text-color-placeholder)"><Upload /></el-icon>
-      <p>点击「选择图片」添加素材，可多选</p>
-    </div>
-
-    <div v-else class="upload-rows">
-      <div
-        v-for="(row, idx) in rows"
-        :key="row.id"
-        class="upload-row"
-        :class="{ 'is-error': row.status === 'error', 'is-done': row.status === 'done' }"
-      >
-        <img class="upload-row-thumb" :src="row.previewUrl" :alt="row.file.name" />
-        <div class="upload-row-main">
-          <div class="upload-row-name">{{ row.file.name }}</div>
-          <el-input
-            v-model="row.prompt"
-            type="textarea"
-            :rows="2"
-            :disabled="submitting"
-            :placeholder="`第 ${idx + 1} 张的提示词`"
-            resize="none"
-          />
+      <div v-if="visible">
+        <!-- 整批标签 -->
+        <div class="grid gap-1.5">
+          <Label>标签（整批共用，可选）</Label>
+          <MaterialTagInput v-model="sharedTagIds" />
         </div>
-        <el-button
-          v-if="!submitting"
-          class="upload-row-remove"
-          :icon="Delete"
-          text
-          type="danger"
-          @click="removeRow(row.id)"
-        />
-      </div>
-    </div>
 
-    <template #footer>
-      <el-button :disabled="submitting" @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" :disabled="rows.length === 0" @click="submit">
-        上传 {{ rows.length > 0 ? `(${rows.length})` : '' }}
-      </el-button>
-    </template>
-  </el-dialog>
+        <!-- 操作条 -->
+        <div class="upload-toolbar">
+          <Button :disabled="submitting" @click="pickFiles"><Plus />选择图片</Button>
+          <Button v-if="rows.length > 0" variant="outline" :disabled="submitting" @click="clearRows"><Trash2 />清空</Button>
+          <span class="upload-count" v-if="rows.length > 0">共 {{ rows.length }} 张</span>
+        </div>
+
+        <!-- 进度 -->
+        <Progress
+          v-if="submitting"
+          :model-value="progress.total ? Math.round((progress.done / progress.total) * 100) : 0"
+          style="margin-bottom: 12px"
+          :class="progress.failed.length > 0 ? '[&_[data-slot=progress-indicator]]:bg-(--momo-color-warning)' : ''"
+        />
+
+        <!-- 行列表 -->
+        <div v-if="rows.length === 0" class="upload-empty">
+          <Upload class="size-10" />
+          <p>点击「选择图片」添加素材，可多选</p>
+        </div>
+
+        <div v-else class="upload-rows">
+          <div
+            v-for="(row, idx) in rows"
+            :key="row.id"
+            class="upload-row"
+            :class="{ 'is-error': row.status === 'error', 'is-done': row.status === 'done' }"
+          >
+            <img class="upload-row-thumb" :src="row.previewUrl" :alt="row.file.name" />
+            <div class="upload-row-main">
+              <div class="upload-row-name">{{ row.file.name }}</div>
+              <Textarea
+                v-model="row.prompt"
+                :rows="2"
+                :disabled="submitting"
+                :placeholder="`第 ${idx + 1} 张的提示词`"
+                class="resize-none"
+              />
+            </div>
+            <Button
+              v-if="!submitting"
+              variant="ghost"
+              size="icon-sm"
+              class="upload-row-remove text-destructive hover:text-destructive"
+              @click="removeRow(row.id)"
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" :disabled="submitting" @click="visible = false">取消</Button>
+        <Button :disabled="submitting || rows.length === 0" @click="submit">
+          <LoaderCircle v-if="submitting" class="animate-spin" />上传 {{ rows.length > 0 ? `(${rows.length})` : '' }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <style scoped>
@@ -244,11 +256,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 12px;
   margin-bottom: 12px;
 }
 .upload-count {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-tertiary);
 }
 
 .upload-empty {
@@ -257,7 +270,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 0;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
 }
 .upload-empty p {
   margin-top: 12px;
@@ -275,14 +288,14 @@ onUnmounted(() => {
   display: flex;
   gap: 12px;
   padding: 10px;
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--momo-color-border-soft);
   border-radius: var(--momo-radius-md);
-  background: var(--el-fill-color-blank);
+  background: var(--momo-color-bg);
   transition: border-color 0.2s, background 0.2s;
 }
 .upload-row.is-error {
-  border-color: var(--el-color-danger);
-  background: var(--el-color-danger-light-9);
+  border-color: var(--momo-color-danger);
+  background: var(--momo-color-danger-subtle);
 }
 .upload-row.is-done {
   opacity: 0.6;
@@ -293,7 +306,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   object-fit: cover;
   border-radius: var(--momo-radius-sm);
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
 }
 .upload-row-main {
   flex: 1;
@@ -304,7 +317,7 @@ onUnmounted(() => {
 }
 .upload-row-name {
   font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

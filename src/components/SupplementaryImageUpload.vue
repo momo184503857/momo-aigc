@@ -4,7 +4,9 @@
  * 支持最多5张补充图，每张可自定义命名（限制10个字）
  */
 import { ref, computed } from 'vue'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Trash2 } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 defineOptions({ name: 'SupplementaryImageUpload' })
 
@@ -46,9 +48,9 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 // 限制命名长度为10个字
-function handleNameChange(index: number, newName: string) {
+function handleNameChange(index: number, newName: string | number) {
   const updated = [...props.modelValue]
-  updated[index] = { ...updated[index], name: newName.slice(0, 10) }
+  updated[index] = { ...updated[index], name: String(newName).slice(0, 10) }
   emit('update:modelValue', updated)
 }
 
@@ -141,10 +143,10 @@ function showPreview(dataUrl: string) {
 </script>
 
 <template>
-  <div class="supplementary-upload">
+  <div class="mb-3.5">
     <div
-      class="images-grid"
-      :class="{ 'is-drag-over': isDragOver }"
+      class="flex min-h-30 flex-wrap gap-3 rounded-md border-2 border-dashed border-transparent p-2 transition-colors"
+      :class="{ 'bg-accent border-primary ring-primary/35 ring-4': isDragOver }"
       @dragover="handleDragOver"
       @dragenter="handleDragEnter"
       @dragleave="handleDragLeave"
@@ -153,140 +155,44 @@ function showPreview(dataUrl: string) {
       <div
         v-for="(img, index) in modelValue"
         :key="img.id"
-        class="image-card"
-        :class="{ 'is-dragging': draggedIndex === index }"
+        class="flex w-30 flex-col gap-1.5 transition-opacity"
+        :class="{ 'opacity-50': draggedIndex === index }"
       >
         <div
-          class="image-preview"
+          class="group border-border hover:border-primary relative size-30 cursor-grab overflow-hidden rounded-md border-2 transition-colors"
           draggable="true"
           @dragstart="handleDragStart(index)"
           @dragover.prevent="handleDragOverItem(index)"
           @dragend="handleDragEnd"
           @click="showPreview(img.dataUrl)"
         >
-          <img :src="img.dataUrl" :alt="img.name" draggable="false" />
-          <el-button
-            class="remove-btn"
-            type="danger"
-            :icon="Delete"
-            circle
-            size="small"
+          <img :src="img.dataUrl" :alt="img.name" draggable="false" class="size-full cursor-pointer object-cover" />
+          <Button
+            variant="destructive"
+            size="icon-xs"
+            class="absolute top-1 right-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
             @click.stop="handleRemove(index)"
-          />
+          >
+            <Trash2 />
+          </Button>
         </div>
-        <el-input
+        <Input
           :model-value="img.name"
-          size="small"
           placeholder="图片命名"
           :maxlength="10"
+          class="h-7 text-[0.8rem]"
           @update:model-value="handleNameChange(index, $event)"
         />
       </div>
-      <div v-if="canAdd" class="add-btn" @click="handleAddImage">
-        <el-icon size="28"><Plus /></el-icon>
-        <span>添加图片</span>
+      <div
+        v-if="canAdd"
+        class="border-border text-muted-foreground hover:border-primary hover:text-primary flex size-30 cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed transition-colors"
+        @click="handleAddImage"
+      >
+        <Plus class="size-7" :stroke-width="1.5" />
+        <span class="mt-1 text-xs">添加图片</span>
       </div>
     </div>
-    <p v-if="modelValue.length > 0" class="images-hint">可拖拽图片排序，命名限制10个字</p>
+    <p v-if="modelValue.length > 0" class="text-muted-foreground/70 mt-1.5 text-xs">可拖拽图片排序，命名限制10个字</p>
   </div>
 </template>
-
-<style scoped>
-.supplementary-upload {
-  margin-bottom: 14px;
-}
-
-.images-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  min-height: 120px;
-  border-radius: var(--momo-radius-md);
-  padding: 8px;
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
-  border: 2px dashed transparent;
-}
-
-.images-grid.is-drag-over {
-  background: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 4px var(--el-color-primary-light-5);
-}
-
-.image-card {
-  width: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: opacity 0.2s;
-}
-
-.image-card.is-dragging {
-  opacity: 0.5;
-}
-
-.image-preview {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  border: 2px solid var(--el-border-color);
-  transition: border-color 0.2s;
-  cursor: grab;
-}
-
-.image-preview:hover {
-  border-color: var(--el-color-primary);
-}
-
-.image-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  cursor: pointer;
-  pointer-events: none;
-}
-
-.remove-btn {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.image-preview:hover .remove-btn {
-  opacity: 1;
-}
-
-.add-btn {
-  width: 120px;
-  height: 120px;
-  border: 2px dashed var(--el-border-color);
-  border-radius: var(--momo-radius-md);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--el-text-color-secondary);
-  transition: border-color 0.2s, color 0.2s;
-}
-
-.add-btn:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-}
-
-.add-btn span {
-  font-size: var(--momo-font-size-sm);
-  margin-top: 4px;
-}
-
-.images-hint {
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-placeholder);
-  margin-top: 6px;
-}
-</style>

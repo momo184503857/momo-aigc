@@ -1,11 +1,11 @@
 <template>
-  <div class="sg-expert-slot-form">
-    <div v-for="slot in slots" :key="slot.key" class="slot-block">
-      <div class="slot-label">
+  <div class="flex flex-col gap-4">
+    <div v-for="slot in slots" :key="slot.key" class="flex flex-col gap-2">
+      <div class="flex items-center gap-2 text-sm text-(--momo-color-text-secondary)">
         {{ slot.label }}
-        <span v-if="slot.required" class="req">必填</span>
-        <span v-else class="opt">选填</span>
-        <span class="max">最多 {{ slot.maxCount }} 张</span>
+        <span v-if="slot.required" class="text-destructive text-xs">必填</span>
+        <span v-else class="text-muted-foreground text-xs">选填</span>
+        <span class="ml-auto text-xs text-(--momo-color-text-placeholder)">最多 {{ slot.maxCount }} 张</span>
       </div>
       <ImageSlotUpload
         :label="slot.label"
@@ -56,15 +56,3 @@ function validate(): string | null {
 
 defineExpose({ validate })
 </script>
-
-<style scoped>
-.sg-expert-slot-form { display: flex; flex-direction: column; gap: var(--momo-space-4); }
-.slot-block { display: flex; flex-direction: column; gap: var(--momo-space-2); }
-.slot-label {
-  font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary);
-  display: flex; align-items: center; gap: var(--momo-space-2);
-}
-.req { color: var(--momo-color-danger); font-size: var(--momo-font-size-xs); }
-.opt { color: var(--momo-color-text-tertiary); font-size: var(--momo-font-size-xs); }
-.max { color: var(--momo-color-text-placeholder); font-size: var(--momo-font-size-xs); margin-left: auto; }
-</style>

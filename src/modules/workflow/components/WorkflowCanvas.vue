@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import {
-  ArrowDown,
+  ChevronDown,
+  ChevronsRight,
   CircleCheck,
-  DArrowRight,
-  Delete,
-  FolderOpened,
+  FolderOpen,
+  MousePointer2,
+  Pause,
+  Play,
   Plus,
-  Pointer,
-  Setting,
-  VideoPause,
-  VideoPlay,
-} from '@element-plus/icons-vue'
+  Trash2,
+} from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import type {
   Connection,
@@ -417,61 +424,63 @@ onUnmounted(() => {
   <div class="workflow-shell">
     <section ref="flowWrapperRef" class="workflow-shell__canvas" @contextmenu.prevent>
       <div class="workflow-shell__toolbar">
-        <el-button :icon="Plus" type="primary" plain @click="openContextMenu($event)">
-          新增节点
-        </el-button>
+        <Button @click="openContextMenu($event)">
+          <Plus />新增节点
+        </Button>
 
-        <el-button :icon="Pointer" @click="fitView()">适配视图</el-button>
+        <Button variant="outline" @click="fitView()">
+          <MousePointer2 />适配视图
+        </Button>
 
-        <el-dropdown trigger="click" @command="handleFileCommand">
-          <el-button :icon="FolderOpened">
-            文件<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="save">保存</el-dropdown-item>
-              <el-dropdown-item command="export" divided>导出模板</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="outline">
+              <FolderOpen />文件<ChevronDown />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem @select="handleFileCommand('save')">保存</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem @select="handleFileCommand('export')">导出模板</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <template v-if="!workflowStore.isRunning">
-          <el-dropdown trigger="click" @command="handleRunCommand">
-            <el-button :icon="VideoPlay" type="success">
-              运行<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="all" :icon="VideoPlay">运行全部</el-dropdown-item>
-                <el-dropdown-item command="to" :icon="CircleCheck" :disabled="!hasSelectedNode">
-                  运行到当前
-                </el-dropdown-item>
-                <el-dropdown-item command="from" :icon="DArrowRight" :disabled="!hasSelectedNode">
-                  从当前继续
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button class="bg-(--momo-color-success) text-white hover:bg-(--momo-color-success)/90">
+                <Play />运行<ChevronDown />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem @select="handleRunCommand('all')">
+                <Play />运行全部
+              </DropdownMenuItem>
+              <DropdownMenuItem :disabled="!hasSelectedNode" @select="handleRunCommand('to')">
+                <CircleCheck />运行到当前
+              </DropdownMenuItem>
+              <DropdownMenuItem :disabled="!hasSelectedNode" @select="handleRunCommand('from')">
+                <ChevronsRight />从当前继续
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </template>
 
-        <el-button
+        <Button
           v-if="workflowStore.isRunning"
-          :icon="VideoPause"
-          type="danger"
+          variant="destructive"
           @click="stopExecution"
         >
-          停止
-        </el-button>
+          <Pause />停止
+        </Button>
 
-        <el-button
-          :icon="Delete"
-          type="danger"
-          plain
+        <Button
+          variant="destructive"
           :disabled="!hasAnySelection"
           @click="handleDeleteSelected"
         >
-          删除选中
-        </el-button>
+          <Trash2 />删除选中
+        </Button>
       </div>
 
       <VueFlow
@@ -606,7 +615,7 @@ onUnmounted(() => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--el-bg-color);
+  background: var(--momo-color-bg);
 }
 
 .workflow-shell__canvas {
@@ -615,7 +624,7 @@ onUnmounted(() => {
   min-width: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--el-bg-color-page);
+  background: var(--momo-color-bg-page);
 }
 
 .workflow-shell__toolbar {
@@ -626,10 +635,10 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   padding: 8px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--momo-color-bg);
+  border: 1px solid var(--momo-color-border-soft);
   border-radius: var(--momo-radius-md);
-  box-shadow: var(--el-box-shadow-light);
+  box-shadow: var(--momo-shadow-md);
 }
 
 .workflow-flow {
@@ -639,35 +648,35 @@ onUnmounted(() => {
 
 /* ── MiniMap / Controls / Background 主题化 ── */
 .workflow-flow :deep(.vue-flow__minimap) {
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--momo-color-bg);
+  border: 1px solid var(--momo-color-border-soft);
   border-radius: var(--momo-radius-md);
   overflow: hidden;
-  box-shadow: var(--el-box-shadow-light);
+  box-shadow: var(--momo-shadow-md);
 }
 
 .workflow-flow :deep(.vue-flow__minimap-mask) {
-  fill: var(--el-overlay-color-lighter);
-  stroke: var(--el-border-color);
+  fill: var(--momo-color-overlay);
+  stroke: var(--momo-color-border);
   stroke-width: 2;
 }
 
 .workflow-flow :deep(.vue-flow__controls) {
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--momo-color-border-soft);
   border-radius: var(--momo-radius-md);
   overflow: hidden;
-  box-shadow: var(--el-box-shadow-light);
+  box-shadow: var(--momo-shadow-md);
 }
 
 .workflow-flow :deep(.vue-flow__controls-button) {
-  background: var(--el-bg-color);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  color: var(--el-text-color-regular);
-  fill: var(--el-text-color-regular);
+  background: var(--momo-color-bg);
+  border-bottom: 1px solid var(--momo-color-border-soft);
+  color: var(--momo-color-text-secondary);
+  fill: var(--momo-color-text-secondary);
 }
 
 .workflow-flow :deep(.vue-flow__controls-button:hover) {
-  background: var(--el-fill-color-light);
+  background: var(--momo-color-bg-muted);
 }
 
 .workflow-flow :deep(.vue-flow__controls-button svg) {
@@ -676,7 +685,7 @@ onUnmounted(() => {
 
 /* 点阵背景网格：圆点用边框色 */
 .workflow-flow :deep(.vue-flow__background circle) {
-  fill: var(--el-border-color);
+  fill: var(--momo-color-border);
 }
 
 /* 连线流动动画：虚线偏移（运行中来源节点） */
@@ -696,10 +705,10 @@ onUnmounted(() => {
   z-index: 1000;
   width: 260px;
   padding: 8px;
-  background: var(--el-bg-color-overlay);
-  border: 1px solid var(--el-border-color);
+  background: var(--momo-color-bg);
+  border: 1px solid var(--momo-color-border);
   border-radius: var(--momo-radius-md);
-  box-shadow: var(--el-box-shadow);
+  box-shadow: var(--momo-shadow-lg);
 }
 
 .workflow-context-menu__item {
@@ -708,7 +717,7 @@ onUnmounted(() => {
   gap: 4px;
   width: 100%;
   padding: 8px;
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
   text-align: left;
   background: transparent;
   border: 0;
@@ -717,7 +726,7 @@ onUnmounted(() => {
 }
 
 .workflow-context-menu__item:hover {
-  background: var(--el-fill-color-light);
+  background: var(--momo-color-bg-muted);
 }
 
 .workflow-context-menu__item:disabled {
@@ -726,26 +735,26 @@ onUnmounted(() => {
 }
 
 .workflow-context-menu__item--danger strong {
-  color: var(--el-color-danger);
+  color: var(--momo-color-danger);
 }
 
 .workflow-context-menu__item strong {
-  font-size: var(--el-font-size-base);
+  font-size: var(--momo-font-size-base);
   font-weight: 600;
 }
 
 .workflow-context-menu__item span {
-  color: var(--el-text-color-secondary);
-  font-size: var(--el-font-size-small);
+  color: var(--momo-color-text-tertiary);
+  font-size: var(--momo-font-size-md);
   line-height: 1.5;
 }
 
 .workflow-context-menu__section {
   padding: 4px 8px;
-  color: var(--el-text-color-placeholder);
-  font-size: var(--el-font-size-extra-small);
+  color: var(--momo-color-text-placeholder);
+  font-size: var(--momo-font-size-xs);
   font-weight: 600;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--momo-color-border-soft);
   margin-top: 4px;
   padding-top: 8px;
 }

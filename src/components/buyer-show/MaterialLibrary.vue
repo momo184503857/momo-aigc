@@ -4,7 +4,11 @@
  * 管理员可增删改查（批量上传/删除、编辑）；普通用户只能查看 + 复制。
  */
 import { ref, onMounted, watch } from 'vue'
-import { Grid, List, Upload, CopyDocument, Delete } from '@element-plus/icons-vue'
+import { LayoutGrid, List, Upload, Copy, Trash2 } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error, confirmDanger } = useUiFeedback()
 import { useAuthStore } from '@/stores/auth'
@@ -12,7 +16,7 @@ import { buyerShowApi, adminBuyerShowApi, type BuyerShowMaterial, type BuyerShow
 import { useClipboard } from '@/composables/useClipboard'
 const { copy } = useClipboard()
 import { useImagePreview } from '@/composables/useImagePreview'
-import { UiImagePreview, UiPagination } from '@/components/ui'
+import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
 import MaterialCard from './MaterialCard.vue'
 import MaterialUploadDialog from './MaterialUploadDialog.vue'
 import MaterialEditDialog from './MaterialEditDialog.vue'
@@ -155,46 +159,54 @@ onMounted(() => {
   <div class="material-library">
     <!-- 工具栏 -->
     <div class="lib-header">
-      <el-button v-if="auth.isAdmin" type="primary" :icon="Upload" @click="showUpload = true">批量上传</el-button>
-      <el-button-group class="lib-view-toggle">
-        <el-button :type="viewMode === 'grid' ? 'primary' : 'default'" @click="viewMode = 'grid'">
-          <el-icon><Grid /></el-icon>
-        </el-button>
-        <el-button :type="viewMode === 'list' ? 'primary' : 'default'" @click="viewMode = 'list'">
-          <el-icon><List /></el-icon>
-        </el-button>
-      </el-button-group>
+      <Button v-if="auth.isAdmin" @click="showUpload = true"><Upload />批量上传</Button>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        class="lib-view-toggle"
+        :model-value="viewMode"
+        @update:model-value="(v) => { if (v) viewMode = v as 'grid' | 'list' }"
+      >
+        <ToggleGroupItem value="grid" aria-label="网格视图"><LayoutGrid /></ToggleGroupItem>
+        <ToggleGroupItem value="list" aria-label="列表视图"><List /></ToggleGroupItem>
+      </ToggleGroup>
     </div>
 
     <!-- 标签筛选 -->
     <div v-if="tags.length > 0" class="tag-filter">
-      <el-tag
-        :type="!selectedTagId ? 'primary' : 'info'"
-        size="small"
+      <Badge
+        :variant="!selectedTagId ? 'default' : 'secondary'"
         class="tag-chip"
         @click="selectedTagId = undefined"
-      >全部</el-tag>
-      <el-tag
+      >全部</Badge>
+      <Badge
         v-for="tag in tags"
         :key="tag.id"
-        :type="selectedTagId === tag.id ? 'primary' : 'info'"
-        size="small"
+        :variant="selectedTagId === tag.id ? 'default' : 'secondary'"
         class="tag-chip"
         @click="selectedTagId = tag.id"
-      >{{ tag.name }} ({{ tag.usage_count }})</el-tag>
+      >{{ tag.name }} ({{ tag.usage_count }})</Badge>
     </div>
 
     <!-- 批量条 -->
     <div v-if="selectedIds.size > 0" class="batch-bar">
       <span class="batch-info">已选择 {{ selectedIds.size }} 项</span>
-      <el-button size="small" @click="clearSelection">取消</el-button>
-      <el-button size="small" type="primary" :icon="CopyDocument" @click="copySelected">复制选中提示词</el-button>
-      <el-button v-if="auth.isAdmin" size="small" type="danger" :icon="Delete" @click="batchDeleteSelected">批量删除</el-button>
+      <Button variant="outline" size="sm" @click="clearSelection">取消</Button>
+      <Button size="sm" @click="copySelected"><Copy />复制选中提示词</Button>
+      <Button v-if="auth.isAdmin" variant="destructive" size="sm" @click="batchDeleteSelected"><Trash2 />批量删除</Button>
     </div>
 
     <!-- 内容 -->
-    <div v-loading="loading" class="lib-content">
-      <el-empty v-if="!loading && materials.length === 0" description="暂无素材" :image-size="60" />
+    <div class="lib-content">
+      <div v-if="loading" :class="viewMode === 'grid' ? 'material-grid' : 'material-list'">
+        <Skeleton
+          v-for="i in 8"
+          :key="i"
+          class="w-full"
+          :class="viewMode === 'grid' ? 'aspect-square' : 'h-20'"
+        />
+      </div>
+      <UiEmptyState v-else-if="materials.length === 0" title="暂无素材" />
       <div v-else :class="viewMode === 'grid' ? 'material-grid' : 'material-list'">
         <MaterialCard
           v-for="m in materials"
@@ -265,13 +277,13 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-color-primary-light-5);
-  border-radius: var(--el-border-radius-base);
+  background: var(--momo-color-brand-subtle);
+  border: 1px solid var(--momo-color-brand-border);
+  border-radius: var(--momo-radius-md);
 }
 .batch-info {
   font-size: var(--momo-font-size-base);
-  color: var(--el-color-primary);
+  color: var(--momo-color-brand);
   margin-right: auto;
 }
 

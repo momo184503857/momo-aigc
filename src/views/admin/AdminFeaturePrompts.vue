@@ -7,6 +7,10 @@ import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import PageLayout from '@/components/PageLayout.vue'
+import { LoaderCircle } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
 
 const categoryGroups = [
   {
@@ -48,6 +52,17 @@ const saving = ref(false)
 const dirtyCount = computed(() =>
   categories.value.reduce(
     (n, cat) => n + cat.features.reduce((m, f) => m + (f.prompt?._dirty ? 1 : 0), 0),
+    0,
+  ),
+)
+
+/** 展示用：已初始化 / 总数，让管理员一眼看到还有几个功能没配置 */
+const totalCount = computed(() =>
+  categories.value.reduce((n, cat) => n + cat.features.length, 0),
+)
+const configuredCount = computed(() =>
+  categories.value.reduce(
+    (n, cat) => n + cat.features.reduce((m, f) => m + (f.prompt ? 1 : 0), 0),
     0,
   ),
 )
@@ -115,104 +130,130 @@ onMounted(() => load())
 </script>
 
 <template>
-  <PageLayout>
-    <template #header>功能提示词管理</template>
-
-    <div v-loading="loading">
-      <div class="toolbar">
-        <el-alert
-          title="每个功能一条系统提示词，对所有生图模型生效；使用 {user_prompt} 作为用户补充输入的占位符。"
-          type="info" show-icon :closable="false" class="toolbar-alert"
-        />
-        <el-button
-          type="primary"
-          :loading="saving"
-          :disabled="dirtyCount === 0"
-          @click="saveAll"
-        >
+  <PageLayout
+    title="功能提示词管理"
+    subtitle="每个功能一条系统提示词，对所有生图模型生效；{user_prompt} 为用户补充输入的占位符。"
+    :show-footer="!loading"
+  >
+    <!-- 编辑长文本时保存入口必须常驻：整页唯一滚动区 + 吸底动作栏 -->
+    <template #footer>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-muted-foreground text-xs tabular-nums">
+          <template v-if="dirtyCount > 0">
+            <span class="text-warning font-medium">未保存 {{ dirtyCount }} 处</span>
+            <span class="text-muted-foreground/70"> · 修改后点右侧保存</span>
+          </template>
+          <template v-else>
+            <span>全部修改已保存</span>
+            <span class="text-muted-foreground/70"> · 已配置 {{ configuredCount }} / {{ totalCount }} 个功能</span>
+          </template>
+        </p>
+        <Button :disabled="saving || dirtyCount === 0" @click="saveAll">
+          <LoaderCircle v-if="saving" class="animate-spin" />
           {{ dirtyCount ? `保存修改（${dirtyCount}）` : '保存修改' }}
-        </el-button>
+        </Button>
       </div>
+    </template>
 
-      <div class="categories">
-        <section v-for="cat in categories" :key="cat.name" class="category">
-          <h3 class="category-title">{{ cat.name }}</h3>
-          <div class="feature-grid">
-            <div
-              v-for="feat in cat.features"
-              :key="feat.featureId"
-              class="feature-card"
-              :class="{ dirty: feat.prompt?._dirty }"
-            >
-              <div class="feature-head">
-                <span class="feature-label">{{ feat.label }}</span>
-                <span v-if="feat.prompt?._dirty" class="dirty-tag">未保存</span>
-              </div>
-              <el-input
-                v-if="feat.prompt"
-                v-model="feat.prompt.system_prompt"
-                type="textarea"
-                :rows="6"
-                resize="vertical"
-                placeholder="系统提示词"
-                @input="markDirty(feat)"
-              />
-              <el-text v-else type="info" size="small">未初始化</el-text>
+    <div v-if="loading" class="flex flex-col gap-8">
+      <Skeleton v-for="i in 3" :key="i" class="h-44 w-full" />
+    </div>
+
+    <div v-else class="flex flex-col gap-8">
+      <section v-for="cat in categories" :key="cat.name">
+        <h3 class="cat-head">
+          {{ cat.name }}
+          <span class="text-muted-foreground/70 font-normal tabular-nums">{{ cat.features.length }}</span>
+        </h3>
+        <div class="feature-grid">
+          <div v-for="feat in cat.features" :key="feat.featureId" class="feature-item">
+            <div class="feature-head">
+              <span class="feature-label">{{ feat.label }}</span>
+              <span v-if="feat.prompt?._dirty" class="dirty-flag">未保存</span>
             </div>
+            <Textarea
+              v-if="feat.prompt"
+              v-model="feat.prompt.system_prompt"
+              :rows="6"
+              class="resize-y"
+              placeholder="系统提示词"
+              @input="markDirty(feat)"
+            />
+            <p v-else class="uninit">该功能尚未初始化提示词</p>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   </PageLayout>
 </template>
 
 <style scoped>
-.toolbar {
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 20px;
-}
-.toolbar-alert { flex: 1; }
-
-.categories {
-  display: flex; flex-direction: column; gap: 24px;
-}
-
-.category-title {
+/* 分类标题吸顶：滚动长表单时始终知道自己在改哪一组 */
+.cat-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 12px;
-  font-size: var(--momo-font-size-base); font-weight: 600;
-  color: var(--el-text-color-secondary);
-  letter-spacing: 1px;
+  padding: 6px 0;
+  background: var(--momo-color-bg-page);
+  font-size: var(--momo-font-size-xs);
+  font-weight: var(--momo-font-weight-medium);
+  letter-spacing: 0.06em;
+  color: var(--momo-color-text-secondary);
+  border-bottom: 1px solid var(--momo-color-border-soft);
 }
 
+/* 提示词本身已经自带边框，外面再套一层卡片纯属装饰；只留一条发丝线分行 */
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  gap: 18px 24px;
 }
 
-.feature-card {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--momo-radius-md);
-  padding: 12px 14px;
-  background: var(--el-bg-color);
-  transition: border-color 0.15s;
-}
-.feature-card.dirty {
-  border-color: var(--el-color-primary);
+.feature-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .feature-head {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .feature-label {
-  font-size: var(--momo-font-size-base); font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-size: var(--momo-font-size-sm);
+  font-weight: var(--momo-font-weight-medium);
+  color: var(--momo-color-text);
 }
 
-.dirty-tag {
+/* 脏标记：文字 + 圆点，比原来「整张卡描边变品牌色」更明确，也不会和焦点态混淆 */
+.dirty-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--momo-font-size-xs);
-  color: var(--el-color-warning);
+  color: var(--momo-color-warning);
+}
+.dirty-flag::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--momo-color-warning);
+}
+
+.uninit {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--momo-color-border);
+  border-radius: var(--momo-radius-md);
+  font-size: var(--momo-font-size-sm);
+  color: var(--momo-color-text-placeholder);
 }
 </style>

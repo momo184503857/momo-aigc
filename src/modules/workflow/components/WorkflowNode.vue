@@ -1,9 +1,36 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, useTemplateRef } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import type { NodeProps } from '@vue-flow/core'
-import * as Icons from '@element-plus/icons-vue'
+import {
+  CircleCheck,
+  CircleX,
+  Crop,
+  Eye,
+  FolderPlus,
+  Image,
+  ListChecks,
+  LoaderCircle,
+  MessageCircle,
+  Monitor,
+  Notebook,
+  Pause,
+  Pencil,
+  RefreshCw,
+  Scissors,
+  Settings,
+  WandSparkles,
+} from '@lucide/vue'
 import type { Component } from 'vue'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
 import type { ImageNodeResultValue, LocalImageAsset, WorkflowCanvasNodeData } from '@/modules/workflow/types/workflow'
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
 import { getNodeTheme, getNodeSummary } from '@/modules/workflow/nodes/nodeRegistry'
@@ -50,13 +77,25 @@ function readFileAsDataUrl(file: File): Promise<string> {
 }
 
 const theme = computed(() => getNodeTheme(workflowNode.value.type))
-const nodeIcon = computed(() => {
-  const icons = Icons as Record<string, Component>
-  return icons[theme.value.icon] ?? icons.Setting
-})
+/** 节点主题图标：注册表存的是 EP 图标名，这里映射到 Lucide 等价图标 */
+const nodeIcons: Record<string, Component> = {
+  Picture: Image,
+  View: Eye,
+  Crop,
+  FolderAdd: FolderPlus,
+  Notebook,
+  Monitor,
+  ChatDotRound: MessageCircle,
+  Finished: ListChecks,
+  MagicStick: WandSparkles,
+  EditPen: Pencil,
+  Scissor: Scissors,
+  Setting: Settings,
+}
+const nodeIcon = computed(() => nodeIcons[theme.value.icon] ?? Settings)
 
 const statusIcon = computed(() => {
-  const map: Record<string, Component> = { running: Icons.Loading, success: Icons.CircleCheck, failed: Icons.CircleClose, dirty: Icons.Refresh, paused: Icons.VideoPause }
+  const map: Record<string, Component> = { running: LoaderCircle, success: CircleCheck, failed: CircleX, dirty: RefreshCw, paused: Pause }
   return map[workflowNode.value.status]
 })
 
@@ -213,10 +252,10 @@ onUnmounted(() => {
     <!-- 1. 节点名 -->
     <div class="workflow-node__header" :style="{ background: theme.color + '0D' }">
       <div class="workflow-node__icon" :style="{ background: theme.color + '20', color: theme.color }">
-        <el-icon :size="14"><component :is="nodeIcon" /></el-icon>
+        <component :is="nodeIcon" class="size-3.5" />
       </div>
       <span class="workflow-node__title">{{ workflowNode.title }}</span>
-      <el-icon v-if="statusIcon" class="workflow-node__status-icon" :class="`status-${workflowNode.status}`"><component :is="statusIcon" /></el-icon>
+      <component :is="statusIcon" v-if="statusIcon" class="workflow-node__status-icon" :class="`status-${workflowNode.status}`" />
     </div>
 
     <!-- 2. 端口（左右两侧） -->
@@ -244,7 +283,7 @@ onUnmounted(() => {
       <template v-if="workflowNode.type === 'image-input'">
         <input ref="fileInputRef" type="file" accept="image/*" style="display:none" @change="onNodeImageUpload" @click.stop />
         <div class="workflow-node__upload-row">
-          <el-button size="small" type="primary" plain @click.stop="triggerUpload">上传图片</el-button>
+          <Button size="sm" variant="outline" @click.stop="triggerUpload">上传图片</Button>
           <span class="workflow-node__section-value">{{ configSummary }}</span>
         </div>
         <div v-if="Array.isArray(workflowNode.config.images) && workflowNode.config.images.length" class="workflow-node__inline-images">
@@ -257,35 +296,63 @@ onUnmounted(() => {
 
       <!-- text-input -->
       <template v-else-if="workflowNode.type === 'text-input'">
-        <el-input :model-value="workflowNode.config.text" type="textarea" :rows="2" size="small" placeholder="输入文本..." @update:model-value="updateConfig({ text: $event })" />
+        <Textarea :model-value="(workflowNode.config.text as string | undefined)" :rows="2" placeholder="输入文本..." class="workflow-node__control" @update:model-value="updateConfig({ text: $event })" />
       </template>
 
       <!-- text-ai -->
       <template v-else-if="workflowNode.type === 'text-ai'">
-        <el-select :model-value="workflowNode.config.channelModelId ?? workflowNode.config.modelName" size="small" placeholder="选择模型" style="width:100%" @update:model-value="updateTextModel(Number($event))">
-          <el-option v-for="m in textModelOptions" :key="m.value" :label="m.label" :value="m.value" />
-        </el-select>
-        <el-input :model-value="workflowNode.config.taskPrompt" type="textarea" :rows="2" size="small" placeholder="任务指令..." @update:model-value="updateConfig({ taskPrompt: $event })" />
+        <Select :model-value="workflowNode.config.channelModelId != null ? String(workflowNode.config.channelModelId) : ''" @update:model-value="updateTextModel(Number($event))">
+          <SelectTrigger size="sm" class="workflow-node__control w-full">
+            <span class="flex-1 truncate text-left">{{ currentModel?.displayName ?? (workflowNode.config.modelName || '选择模型') }}</span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="m in textModelOptions" :key="m.value" :value="String(m.value)">
+              {{ m.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <Textarea :model-value="(workflowNode.config.taskPrompt as string | undefined)" :rows="2" placeholder="任务指令..." class="workflow-node__control" @update:model-value="updateConfig({ taskPrompt: $event })" />
       </template>
 
       <!-- image-ai -->
       <template v-else-if="workflowNode.type === 'image-ai'">
-        <el-select :model-value="workflowNode.config.logicalModelId ?? workflowNode.config.modelName" size="small" style="width:100%" @update:model-value="updateImageModel(Number($event))">
-          <el-option v-for="m in modelOptions" :key="m.value" :label="m.label" :value="m.value" />
-        </el-select>
+        <Select :model-value="workflowNode.config.logicalModelId != null ? String(workflowNode.config.logicalModelId) : ''" @update:model-value="updateImageModel(Number($event))">
+          <SelectTrigger size="sm" class="workflow-node__control w-full">
+            <span class="flex-1 truncate text-left">{{ currentModel?.displayName ?? (workflowNode.config.modelName || '选择模型') }}</span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="m in modelOptions" :key="m.value" :value="String(m.value)">
+              {{ m.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <div class="workflow-node__config-row">
-          <el-select :model-value="workflowNode.config.aspectRatio" size="small" @update:model-value="updateConfig({ aspectRatio: $event })">
-            <el-option v-for="r in aspectRatios" :key="r" :label="r" :value="r" />
-          </el-select>
-          <el-select :model-value="workflowNode.config.outputSize" size="small" @update:model-value="updateConfig({ outputSize: $event })">
-            <el-option v-for="r in resolutions" :key="r" :label="r" :value="r" />
-          </el-select>
+          <Select :model-value="String(workflowNode.config.aspectRatio ?? '')" @update:model-value="updateConfig({ aspectRatio: String($event) })">
+            <SelectTrigger size="sm" class="workflow-node__control w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="r in aspectRatios" :key="r" :value="String(r)">
+                {{ r }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Select :model-value="String(workflowNode.config.outputSize ?? '')" @update:model-value="updateConfig({ outputSize: String($event) })">
+            <SelectTrigger size="sm" class="workflow-node__control w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="r in resolutions" :key="r" :value="String(r)">
+                {{ r }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </template>
 
       <!-- prompt-splitter -->
       <template v-else-if="workflowNode.type === 'prompt-splitter'">
-        <el-input :model-value="workflowNode.config.delimiter" size="small" placeholder="分隔符" @update:model-value="updateConfig({ delimiter: $event })" />
+        <Input :model-value="(workflowNode.config.delimiter as string | undefined)" placeholder="分隔符" class="workflow-node__control" @update:model-value="updateConfig({ delimiter: $event })" />
       </template>
 
       <!-- 其他节点：只读摘要 -->
@@ -319,7 +386,7 @@ onUnmounted(() => {
 
     <!-- 缩放手柄 -->
     <div v-if="selected" class="workflow-node__resize" @mousedown.stop="onResizeStart">
-      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 10L10 10L10 0" fill="none" stroke="var(--el-text-color-placeholder)" stroke-width="1.5" /><path d="M2 10L10 10L10 2" fill="none" stroke="var(--el-text-color-placeholder)" stroke-width="1.5" /></svg>
+      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 10L10 10L10 0" fill="none" stroke="var(--momo-color-text-placeholder)" stroke-width="1.5" /><path d="M2 10L10 10L10 2" fill="none" stroke="var(--momo-color-text-placeholder)" stroke-width="1.5" /></svg>
     </div>
   </div>
 </template>
@@ -328,23 +395,23 @@ onUnmounted(() => {
 .workflow-node {
   min-width: 220px;
   min-height: 80px;
-  background: var(--el-bg-color);
-  border: 1.5px solid var(--el-border-color);
+  background: var(--momo-color-bg);
+  border: 1.5px solid var(--momo-color-border);
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
   overflow: visible;
   position: relative;
   transition: box-shadow 0.2s, border-color 0.2s;
   font-size: 12px;
 }
-.workflow-node.is-selected { border-color: var(--el-color-primary); box-shadow: 0 0 0 2px rgba(64,158,255,0.15); }
+.workflow-node.is-selected { border-color: var(--momo-color-brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--momo-color-brand) 15%, transparent); }
 .workflow-node.is-disabled, .workflow-node.is-affected { opacity: 0.5; }
-.workflow-node.is-running { border-color: var(--el-color-primary); animation: node-pulse 1.2s ease-in-out infinite; }
-.workflow-node.is-dirty, .workflow-node.is-paused { border-color: var(--el-color-warning); }
-.workflow-node.is-failed { border-color: var(--el-color-danger); }
-.workflow-node.is-success { border-color: var(--el-color-success); }
-@keyframes node-pulse { 0%,100% { box-shadow: 0 2px 8px rgba(0,0,0,0.06); } 50% { box-shadow: 0 0 12px rgba(64,158,255,0.3); } }
+.workflow-node.is-running { border-color: var(--momo-color-brand); animation: node-pulse 1.2s ease-in-out infinite; }
+.workflow-node.is-dirty, .workflow-node.is-paused { border-color: var(--momo-color-warning); }
+.workflow-node.is-failed { border-color: var(--momo-color-danger); }
+.workflow-node.is-success { border-color: var(--momo-color-success); }
+@keyframes node-pulse { 0%,100% { box-shadow: 0 2px 8px rgba(0,0,0,0.06); } 50% { box-shadow: 0 0 12px color-mix(in srgb, var(--momo-color-brand) 30%, transparent); } }
 
 /* 1. 节点名 */
 .workflow-node__header {
@@ -359,11 +426,11 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .workflow-node__title { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.workflow-node__status-icon { flex-shrink: 0; font-size: 14px; }
-.workflow-node__status-icon.status-running { color: var(--el-color-primary); animation: spin 1s linear infinite; }
-.workflow-node__status-icon.status-success { color: var(--el-color-success); }
-.workflow-node__status-icon.status-failed { color: var(--el-color-danger); }
-.workflow-node__status-icon.status-dirty, .workflow-node__status-icon.status-paused { color: var(--el-color-warning); }
+.workflow-node__status-icon { flex-shrink: 0; width: 14px; height: 14px; }
+.workflow-node__status-icon.status-running { color: var(--momo-color-brand); animation: spin 1s linear infinite; }
+.workflow-node__status-icon.status-success { color: var(--momo-color-success); }
+.workflow-node__status-icon.status-failed { color: var(--momo-color-danger); }
+.workflow-node__status-icon.status-dirty, .workflow-node__status-icon.status-paused { color: var(--momo-color-warning); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* 2. 端口行 */
@@ -382,7 +449,7 @@ onUnmounted(() => {
 .tag--text { background: var(--momo-color-brand-subtle); color: var(--momo-color-brand); }
 .tag--image { background: var(--momo-color-success-subtle); color: var(--momo-color-success); }
 .tag--any { background: var(--momo-color-info-subtle); color: var(--momo-color-info); }
-.workflow-node__handle { width: 8px; height: 8px; border: 2px solid var(--el-bg-color); cursor: crosshair; z-index: 5; }
+.workflow-node__handle { width: 8px; height: 8px; border: 2px solid var(--momo-color-bg); cursor: crosshair; z-index: 5; }
 .handle--text { background: var(--momo-color-brand); }
 .handle--image { background: var(--momo-color-success); }
 .handle--any { background: var(--momo-color-info); }
@@ -390,19 +457,19 @@ onUnmounted(() => {
 /* 3-5. 配置/输入/输出 */
 .workflow-node__section {
   padding: 3px 10px;
-  border-top: 1px solid var(--el-border-color-extra-light);
+  border-top: 1px solid var(--momo-color-border-light);
 }
 .workflow-node__section-label {
   font-size: 9px;
   font-weight: 600;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-right: 4px;
 }
 .workflow-node__section-value {
   font-size: 11px;
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -416,7 +483,7 @@ onUnmounted(() => {
 }
 .workflow-node__section-key {
   font-size: 10px;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   flex-shrink: 0;
 }
 
@@ -459,7 +526,7 @@ onUnmounted(() => {
   right: -2px;
   width: 14px;
   height: 14px;
-  background: var(--el-color-danger);
+  background: var(--momo-color-danger);
   color: #fff;
   font-size: 10px;
   line-height: 14px;
@@ -474,27 +541,19 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-.workflow-node__section :deep(.el-input__wrapper),
-.workflow-node__section :deep(.el-textarea__inner) {
-  box-shadow: none !important;
-  background: var(--el-fill-color-lighter);
+/* 节点内嵌控件：紧凑、浅底无边框 */
+.workflow-node__section .workflow-node__control {
+  min-height: 0;
+  border-color: transparent;
+  background: var(--momo-color-bg-soft);
   border-radius: 4px;
   font-size: 11px;
   padding: 4px 6px;
 }
 
-.workflow-node__section :deep(.el-select) {
-  width: 100%;
-}
-
-.workflow-node__section :deep(.el-select .el-input__wrapper) {
-  box-shadow: none !important;
-  background: var(--el-fill-color-lighter);
-}
-
 /* 图片 */
 .workflow-node__images { display: grid; gap: 3px; padding: 4px 10px 6px; }
-.workflow-node__thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; border: 1px solid var(--el-border-color-lighter); }
+.workflow-node__thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; border: 1px solid var(--momo-color-border-soft); }
 
 /* 缩放 */
 .workflow-node__resize { position: absolute; right: 1px; bottom: 1px; width: 14px; height: 14px; cursor: nwse-resize; display: flex; align-items: flex-end; justify-content: flex-end; z-index: 10; }

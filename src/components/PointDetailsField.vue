@@ -6,6 +6,9 @@
  * 批量粘贴走管理端主题库弹窗的「JSON 导入」按钮（AdminSuiteAssets），本组件只负责表单编辑。
  */
 import { ref, watch } from 'vue'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface PointDetail {
   name: string
@@ -51,74 +54,56 @@ const activeTab = ref('1')
 </script>
 
 <template>
-  <div class="pdf-editor">
-    <el-tabs v-model="activeTab" class="pdf-tabs">
-      <el-tab-pane v-for="(p, i) in modelValue" :key="i" :name="String(i + 1)">
-        <template #label>点位 {{ i + 1 }}</template>
-        <div class="pdf-fields">
-          <div class="pdf-field">
+  <div class="flex w-full flex-col gap-2">
+    <Tabs v-model="activeTab" class="w-full">
+      <TabsList>
+        <TabsTrigger v-for="(p, i) in modelValue" :key="i" :value="String(i + 1)">
+          点位 {{ i + 1 }}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent v-for="(p, i) in modelValue" :key="i" :value="String(i + 1)">
+        <div class="mt-2 flex flex-col gap-2">
+          <div class="flex items-start gap-2">
             <span class="pdf-label">点位名</span>
-            <el-input v-model="p.name" placeholder="如：中式园林庭院 · 院外" maxlength="100" />
+            <Input v-model="p.name" placeholder="如：中式园林庭院 · 院外" maxlength="100" />
           </div>
-          <div class="pdf-field">
+          <div class="flex items-start gap-2">
             <span class="pdf-label">场景锁定</span>
-            <el-input
+            <Textarea
               v-model="p.scene"
-              type="textarea"
               :rows="2"
               placeholder="如：木质露台入口，盆栽雏菊、老木构件，模特站立…"
               maxlength="600"
-              resize="none"
+              class="resize-none"
             />
           </div>
-          <div class="pdf-field">
+          <div class="flex items-start gap-2">
             <span class="pdf-label">人物姿势</span>
-            <el-input
+            <Textarea
               v-model="p.pose"
-              type="textarea"
               :rows="2"
               placeholder="如：自然直立，双手自然垂放，目光平视镜头…"
               maxlength="600"
-              resize="none"
+              class="resize-none"
             />
           </div>
-          <div class="pdf-field">
+          <div class="flex items-start gap-2">
             <span class="pdf-label">机位构图</span>
-            <el-input
+            <Textarea
               v-model="p.camera"
-              type="textarea"
               :rows="2"
               placeholder="如：全景，35mm 环境人像，人物占画面 1/3…"
               maxlength="600"
-              resize="none"
+              class="resize-none"
             />
           </div>
         </div>
-      </el-tab-pane>
-    </el-tabs>
+      </TabsContent>
+    </Tabs>
   </div>
 </template>
 
 <style scoped>
-.pdf-editor {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: var(--momo-space-2);
-}
-.pdf-tabs {
-  width: 100%;
-}
-.pdf-fields {
-  display: flex;
-  flex-direction: column;
-  gap: var(--momo-space-2);
-}
-.pdf-field {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--momo-space-2);
-}
 .pdf-label {
   flex-shrink: 0;
   width: 60px;

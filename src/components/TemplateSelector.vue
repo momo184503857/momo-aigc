@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { CircleCheckFilled } from '@element-plus/icons-vue'
+import { CircleCheck } from '@lucide/vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { UiEmptyState } from '@/components/ui'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const props = defineProps<{ visible: boolean; single?: boolean }>()
 const emit = defineEmits<{
@@ -78,135 +89,72 @@ function close() {
 </script>
 
 <template>
-  <el-dialog
-    :model-value="visible"
-    title="从模板库选择"
-    width="1200px"
-    :close-on-click-modal="false"
-    @close="close"
-  >
-    <!-- Tag filter -->
-    <div v-if="tags.length > 0" class="selector-tag-filter">
-      <el-tag
-        :type="!selectedTagId ? 'primary' : 'info'"
-        size="small"
-        class="selector-tag"
-        @click="filterByTag(undefined)"
-      >
-        全部
-      </el-tag>
-      <el-tag
-        v-for="tag in tags"
-        :key="tag.id"
-        :type="selectedTagId === tag.id ? 'primary' : 'info'"
-        size="small"
-        class="selector-tag"
-        @click="filterByTag(tag.id)"
-      >
-        {{ tag.name }} ({{ tag.usage_count }})
-      </el-tag>
-    </div>
+  <Dialog :open="visible" @update:open="(v: boolean) => { if (!v) close() }">
+    <DialogContent class="sm:max-w-6xl" @pointer-down-outside.prevent>
+      <DialogHeader>
+        <DialogTitle>从模板库选择</DialogTitle>
+      </DialogHeader>
 
-    <div v-loading="loading" class="selector-body">
-      <el-empty v-if="!loading && templates.length === 0" description="暂无模板图，请先在图库中上传" />
-      <div v-else class="template-grid">
-        <div
-          v-for="t in templates"
-          :key="t.id"
-          class="template-item"
-          :class="{ selected: selected.has(t.id) }"
-          @click="toggleSelect(t.id)"
+      <!-- Tag filter -->
+      <div v-if="tags.length > 0" class="mb-3.5 flex flex-wrap gap-1.5">
+        <Badge
+          :variant="!selectedTagId ? 'default' : 'secondary'"
+          class="cursor-pointer select-none"
+          @click="filterByTag(undefined)"
         >
-          <img :src="t.public_url" :alt="t.name || t.original_filename" />
-          <div class="template-info">
-            <span class="template-name">{{ t.name || t.original_filename }}</span>
-            <span v-if="t.tags && t.tags.length > 0" class="template-tags">
-              <el-tag v-for="tag in t.tags" :key="tag.id" size="small" class="mini-tag">{{ tag.name }}</el-tag>
-            </span>
+          全部
+        </Badge>
+        <Badge
+          v-for="tag in tags"
+          :key="tag.id"
+          :variant="selectedTagId === tag.id ? 'default' : 'secondary'"
+          class="cursor-pointer select-none"
+          @click="filterByTag(tag.id)"
+        >
+          {{ tag.name }} ({{ tag.usage_count }})
+        </Badge>
+      </div>
+
+      <div class="min-h-50">
+        <div v-if="loading" class="grid grid-cols-6 gap-2.5">
+          <Skeleton v-for="i in 12" :key="i" class="aspect-square w-full rounded-md" />
+        </div>
+        <UiEmptyState v-else-if="templates.length === 0" title="暂无模板图，请先在图库中上传" />
+        <div v-else class="grid max-h-130 grid-cols-6 gap-2.5 overflow-y-auto">
+          <div
+            v-for="t in templates"
+            :key="t.id"
+            class="relative aspect-square cursor-pointer overflow-hidden rounded-md border-3 transition-colors"
+            :class="selected.has(t.id) ? 'border-primary' : 'border-transparent hover:border-primary/50'"
+            @click="toggleSelect(t.id)"
+          >
+            <img :src="t.public_url" :alt="t.name || t.original_filename" class="size-full object-cover" />
+            <div class="template-info absolute right-0 bottom-0 left-0 flex flex-col gap-0.5 px-2 py-1.5">
+              <span class="truncate text-xs font-medium text-white">{{ t.name || t.original_filename }}</span>
+              <span v-if="t.tags && t.tags.length > 0" class="flex flex-wrap gap-0.5">
+                <span v-for="tag in t.tags" :key="tag.id" class="rounded-full bg-white/20 px-1 text-[10px] leading-4 text-white">{{ tag.name }}</span>
+              </span>
+            </div>
+            <CircleCheck
+              v-if="selected.has(t.id)"
+              class="text-primary absolute top-1.5 right-1.5 size-5 rounded-full bg-white drop-shadow"
+            />
           </div>
-          <el-icon v-if="selected.has(t.id)" class="check-icon" color="var(--el-color-primary)" size="20"><CircleCheckFilled /></el-icon>
         </div>
       </div>
-    </div>
-    <template #footer>
-      <el-button @click="close">取消</el-button>
-      <el-button type="primary" @click="confirm" :disabled="selected.size === 0">
-        确认选择（{{ selected.size }}张）
-      </el-button>
-    </template>
-  </el-dialog>
+
+      <DialogFooter>
+        <Button variant="outline" @click="close">取消</Button>
+        <Button :disabled="selected.size === 0" @click="confirm">
+          确认选择（{{ selected.size }}张）
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <style scoped>
-.selector-tag-filter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-
-.selector-tag {
-  cursor: pointer;
-  user-select: none;
-}
-
-.selector-body {
-  min-height: 200px;
-}
-
-.template-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
-  max-height: 520px;
-  overflow-y: auto;
-}
-
-.template-item {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  border: 3px solid transparent;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-.template-item:hover { border-color: var(--el-color-primary-light-5); }
-.template-item.selected { border-color: var(--el-color-primary); }
-.template-item img {
-  width: 100%; height: 100%; object-fit: cover;
-}
-
 .template-info {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  padding: 6px 8px;
   background: linear-gradient(transparent, var(--momo-color-overlay-heavy));
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.template-name {
-  color: var(--momo-color-text-inverse); font-size: var(--momo-font-size-sm); font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-.template-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-
-.mini-tag {
-  font-size: 10px;
-  padding: 0 4px;
-  height: 18px;
-  line-height: 18px;
-}
-
-.check-icon {
-  position: absolute; top: 6px; right: 6px;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
 }
 </style>

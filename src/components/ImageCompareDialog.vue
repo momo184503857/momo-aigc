@@ -3,6 +3,12 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import type { TaskItem } from './TaskList.vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useImageRetry } from '@/composables/useImageRetry'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const props = defineProps<{
   tasks: TaskItem[]
@@ -183,16 +189,15 @@ defineExpose({ open })
 </script>
 
 <template>
-  <el-dialog
-    :model-value="modelValue"
-    title="图片对比"
-    width="90%"
-    top="3vh"
-    :close-on-click-modal="true"
-    @update:model-value="close"
-    @mouseup="handleMouseUp"
-    @mousemove="handleMouseMove"
-  >
+  <Dialog :open="modelValue" @update:open="(v: boolean) => { if (!v) close() }">
+    <DialogContent
+      class="compare-dialog sm:max-w-[90vw]"
+      @mouseup="handleMouseUp"
+      @mousemove="handleMouseMove"
+    >
+      <DialogHeader class="sr-only">
+        <DialogTitle>图片对比</DialogTitle>
+      </DialogHeader>
     <div class="compare-nav-hint">
       <span>按 <kbd>&uarr;</kbd> <kbd>&darr;</kbd> 方向键切换任务</span>
       <span class="compare-nav-pos">{{ currentIndex + 1 }} / {{ tasks.length }}</span>
@@ -277,33 +282,41 @@ defineExpose({ open })
         </div>
       </div>
     </template>
-  </el-dialog>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <style scoped>
+.compare-dialog {
+  top: 3vh;
+  transform: translate(-50%, 0);
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+}
 .compare-nav-hint {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 0 12px 0;
-  font-size: var(--el-font-size-small);
-  color: var(--el-text-color-secondary);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  font-size: var(--momo-font-size-sm);
+  color: var(--momo-color-text-secondary);
+  border-bottom: 1px solid var(--momo-color-border-soft);
   margin-bottom: 12px;
 }
 .compare-nav-hint kbd {
   display: inline-block;
   padding: 2px 6px;
-  font-size: var(--el-font-size-extra-small);
+  font-size: var(--momo-font-size-xs);
   font-family: inherit;
-  background: var(--el-fill-color);
-  border: 1px solid var(--el-border-color);
+  background: var(--momo-color-bg-muted);
+  border: 1px solid var(--momo-color-border);
   border-radius: var(--momo-radius-sm);
   line-height: 1;
 }
 .compare-nav-pos {
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
 }
 .compare-layout {
   display: flex;
@@ -326,9 +339,9 @@ defineExpose({ open })
 }
 .compare-title {
   margin: 0;
-  font-size: var(--el-font-size-base);
+  font-size: var(--momo-font-size-base);
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
 }
 
 /* Zoom container */
@@ -336,7 +349,7 @@ defineExpose({ open })
   flex: 1;
   overflow: hidden;
   position: relative;
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
   border-radius: var(--momo-radius-md);
   display: flex;
   align-items: center;
@@ -386,7 +399,7 @@ defineExpose({ open })
   cursor: pointer;
 }
 .thumb-item.active {
-  border-color: var(--el-color-primary);
+  border-color: var(--momo-color-brand);
 }
 
 /* Detail info overlay */
@@ -399,7 +412,7 @@ defineExpose({ open })
   flex-wrap: wrap;
   gap: 12px;
   padding: 6px 10px;
-  font-size: var(--el-font-size-small);
+  font-size: var(--momo-font-size-sm);
   color: var(--momo-color-text-inverse);
   background: linear-gradient(transparent, var(--momo-color-overlay));
   pointer-events: none;
@@ -410,7 +423,7 @@ defineExpose({ open })
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--el-text-color-secondary);
-  font-size: var(--el-font-size-small);
+  color: var(--momo-color-text-secondary);
+  font-size: var(--momo-font-size-sm);
 }
 </style>

@@ -1,11 +1,24 @@
 <script setup lang="ts">
 import { ref, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Refresh, Edit } from '@element-plus/icons-vue'
+import { Plus, RefreshCw, Pencil, LoaderCircle } from '@lucide/vue'
 import PageLayout from '@/components/PageLayout.vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { canvasApi, type CanvasProject } from '@/services/canvasApi'
 import { toBJDate } from '@/utils/datetime'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import { UiEmptyState } from '@/components/ui'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 defineOptions({ name: 'CanvasProjects' })
 
@@ -162,15 +175,22 @@ onActivated(() => { loadProjects() })
   <PageLayout content-padding="0">
     <template #header>
       <div class="projects-toolbar">
-        <el-button :icon="Plus" type="primary" @click="openCreateDialog">新建项目</el-button>
-        <el-button :icon="Refresh" @click="loadProjects">刷新</el-button>
+        <Button @click="openCreateDialog"><Plus />新建项目</Button>
+        <Button variant="outline" @click="loadProjects"><RefreshCw />刷新</Button>
       </div>
     </template>
 
-    <div v-loading="loading" class="projects-content">
-      <el-empty
-        v-if="!loading && projects.length === 0"
-        description="还没有项目，点击「新建项目」开始创建你的第一个画布。"
+    <div class="projects-content">
+      <div v-if="loading" class="projects-grid">
+        <div v-for="i in 4" :key="i" class="flex flex-col gap-2">
+          <Skeleton class="h-35 w-full rounded-lg" />
+          <Skeleton class="h-4 w-2/3" />
+          <Skeleton class="h-3 w-1/2" />
+        </div>
+      </div>
+      <UiEmptyState
+        v-else-if="projects.length === 0"
+        title="还没有项目，点击「新建项目」开始创建你的第一个画布。"
       />
 
       <div v-else class="projects-grid">
@@ -195,152 +215,154 @@ onActivated(() => { loadProjects() })
           </div>
 
           <div class="project-card__actions" @click.stop>
-            <el-button size="small" @click="openProject(project.id)">打开</el-button>
-            <el-button size="small" :icon="Edit" @click="openEditDialog(project)">编辑</el-button>
-            <el-button size="small" @click="duplicateProject(project.id)">复制</el-button>
-            <el-button size="small" type="danger" @click="deleteProject(project)">删除</el-button>
+            <Button size="sm" @click="openProject(project.id)">打开</Button>
+            <Button size="sm" variant="outline" @click="openEditDialog(project)"><Pencil />编辑</Button>
+            <Button size="sm" variant="outline" @click="duplicateProject(project.id)">复制</Button>
+            <Button size="sm" variant="destructive" @click="deleteProject(project)">删除</Button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Create Dialog -->
-    <el-dialog
-      v-model="showCreateDialog"
-      title="新建项目"
-      width="480px"
-      :close-on-click-modal="false"
-    >
-      <el-form label-position="top" @submit.prevent="handleCreate">
-        <el-form-item label="项目名称" required>
-          <el-input
-            v-model="createForm.name"
-            placeholder="请输入项目名称"
-            maxlength="50"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="createForm.description"
-            type="textarea"
-            placeholder="请输入项目描述（选填）"
-            maxlength="200"
-            show-word-limit
-            :rows="2"
-          />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input
-            v-model="createForm.notes"
-            type="textarea"
-            placeholder="请输入备注（选填）"
-            maxlength="500"
-            show-word-limit
-            :rows="3"
-          />
-        </el-form-item>
-        <el-form-item label="缩略图颜色">
-          <div class="color-picker">
-            <div
-              v-for="c in PRESET_COLORS"
-              :key="c"
-              class="color-swatch"
-              :class="{ selected: createForm.thumbnailColor === c }"
-              :style="{ backgroundColor: c }"
-              @click="createForm.thumbnailColor = c"
+    <Dialog :open="showCreateDialog" @update:open="(v: boolean) => (showCreateDialog = v)">
+      <DialogContent class="sm:max-w-lg" @pointer-down-outside.prevent>
+        <DialogHeader>
+          <DialogTitle>新建项目</DialogTitle>
+        </DialogHeader>
+        <form class="flex flex-col gap-4" @submit.prevent="handleCreate">
+          <div class="grid gap-1.5">
+            <Label for="create-name">项目名称 <span class="text-destructive">*</span></Label>
+            <Input
+              id="create-name"
+              v-model="createForm.name"
+              placeholder="请输入项目名称"
+              maxlength="50"
             />
-            <div
-              class="color-swatch color-swatch--random"
-              :class="{ selected: !createForm.thumbnailColor }"
-              @click="createForm.thumbnailColor = ''"
-            >
-              <span>随机</span>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="create-desc">描述</Label>
+            <Textarea
+              id="create-desc"
+              v-model="createForm.description"
+              placeholder="请输入项目描述（选填）"
+              maxlength="200"
+              :rows="2"
+            />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="create-notes">备注</Label>
+            <Textarea
+              id="create-notes"
+              v-model="createForm.notes"
+              placeholder="请输入备注（选填）"
+              maxlength="500"
+              :rows="3"
+            />
+          </div>
+          <div class="grid gap-1.5">
+            <Label>缩略图颜色</Label>
+            <div class="color-picker">
+              <div
+                v-for="c in PRESET_COLORS"
+                :key="c"
+                class="color-swatch"
+                :class="{ selected: createForm.thumbnailColor === c }"
+                :style="{ backgroundColor: c }"
+                @click="createForm.thumbnailColor = c"
+              />
+              <div
+                class="color-swatch color-swatch--random"
+                :class="{ selected: !createForm.thumbnailColor }"
+                @click="createForm.thumbnailColor = ''"
+              >
+                <span>随机</span>
+              </div>
             </div>
           </div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button
-          type="primary"
-          :loading="creating"
-          :disabled="!createForm.name.trim()"
-          @click="handleCreate"
-        >
-          创建
-        </el-button>
-      </template>
-    </el-dialog>
+        </form>
+        <DialogFooter>
+          <Button variant="outline" @click="showCreateDialog = false">取消</Button>
+          <Button
+            :disabled="creating || !createForm.name.trim()"
+            @click="handleCreate"
+          >
+            <LoaderCircle v-if="creating" class="animate-spin" />
+            创建
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Edit Dialog -->
-    <el-dialog
-      v-model="showEditDialog"
-      title="编辑项目"
-      width="480px"
-      :close-on-click-modal="false"
-    >
-      <el-form label-position="top" @submit.prevent="handleEdit">
-        <el-form-item label="项目名称" required>
-          <el-input
-            v-model="editForm.name"
-            placeholder="请输入项目名称"
-            maxlength="50"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="editForm.description"
-            type="textarea"
-            placeholder="请输入项目描述（选填）"
-            maxlength="200"
-            show-word-limit
-            :rows="2"
-          />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input
-            v-model="editForm.notes"
-            type="textarea"
-            placeholder="请输入备注（选填）"
-            maxlength="500"
-            show-word-limit
-            :rows="3"
-          />
-        </el-form-item>
-        <el-form-item label="缩略图颜色">
-          <div class="color-picker">
-            <div
-              v-for="c in PRESET_COLORS"
-              :key="c"
-              class="color-swatch"
-              :class="{ selected: editForm.thumbnailColor === c }"
-              :style="{ backgroundColor: c }"
-              @click="editForm.thumbnailColor = c"
+    <Dialog :open="showEditDialog" @update:open="(v: boolean) => (showEditDialog = v)">
+      <DialogContent class="sm:max-w-lg" @pointer-down-outside.prevent>
+        <DialogHeader>
+          <DialogTitle>编辑项目</DialogTitle>
+        </DialogHeader>
+        <form class="flex flex-col gap-4" @submit.prevent="handleEdit">
+          <div class="grid gap-1.5">
+            <Label for="edit-name">项目名称 <span class="text-destructive">*</span></Label>
+            <Input
+              id="edit-name"
+              v-model="editForm.name"
+              placeholder="请输入项目名称"
+              maxlength="50"
             />
-            <div
-              class="color-swatch color-swatch--random"
-              :class="{ selected: !editForm.thumbnailColor }"
-              @click="editForm.thumbnailColor = ''"
-            >
-              <span>随机</span>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="edit-desc">描述</Label>
+            <Textarea
+              id="edit-desc"
+              v-model="editForm.description"
+              placeholder="请输入项目描述（选填）"
+              maxlength="200"
+              :rows="2"
+            />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="edit-notes">备注</Label>
+            <Textarea
+              id="edit-notes"
+              v-model="editForm.notes"
+              placeholder="请输入备注（选填）"
+              maxlength="500"
+              :rows="3"
+            />
+          </div>
+          <div class="grid gap-1.5">
+            <Label>缩略图颜色</Label>
+            <div class="color-picker">
+              <div
+                v-for="c in PRESET_COLORS"
+                :key="c"
+                class="color-swatch"
+                :class="{ selected: editForm.thumbnailColor === c }"
+                :style="{ backgroundColor: c }"
+                @click="editForm.thumbnailColor = c"
+              />
+              <div
+                class="color-swatch color-swatch--random"
+                :class="{ selected: !editForm.thumbnailColor }"
+                @click="editForm.thumbnailColor = ''"
+              >
+                <span>随机</span>
+              </div>
             </div>
           </div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showEditDialog = false">取消</el-button>
-        <el-button
-          type="primary"
-          :loading="saving"
-          :disabled="!editForm.name.trim()"
-          @click="handleEdit"
-        >
-          保存
-        </el-button>
-      </template>
-    </el-dialog>
+        </form>
+        <DialogFooter>
+          <Button variant="outline" @click="showEditDialog = false">取消</Button>
+          <Button
+            :disabled="saving || !editForm.name.trim()"
+            @click="handleEdit"
+          >
+            <LoaderCircle v-if="saving" class="animate-spin" />
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </PageLayout>
 </template>
 
@@ -363,15 +385,15 @@ onActivated(() => { loadProjects() })
 .project-card {
   position: relative;
   border-radius: var(--momo-radius-lg);
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--momo-color-border-light);
   overflow: hidden;
   cursor: pointer;
   transition: box-shadow 0.2s, transform 0.2s;
-  background: var(--el-bg-color);
+  background: var(--momo-color-bg);
 }
 
 .project-card:hover {
-  box-shadow: var(--el-box-shadow);
+  box-shadow: var(--momo-shadow-md);
   transform: translateY(-2px);
 }
 
@@ -404,7 +426,7 @@ onActivated(() => { loadProjects() })
 
 .project-card__name {
   margin: 0 0 4px;
-  font-size: var(--el-font-size-base);
+  font-size: var(--momo-font-size-base);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -414,8 +436,8 @@ onActivated(() => { loadProjects() })
 .project-card__desc,
 .project-card__notes {
   margin: 0 0 4px;
-  font-size: var(--el-font-size-small);
-  color: var(--el-text-color-secondary);
+  font-size: var(--momo-font-size-sm);
+  color: var(--momo-color-text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -423,14 +445,14 @@ onActivated(() => { loadProjects() })
 }
 
 .project-card__notes {
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   -webkit-line-clamp: 1;
 }
 
 .project-card__meta {
   margin-top: 8px;
-  font-size: var(--el-font-size-extra-small);
-  color: var(--el-text-color-placeholder);
+  font-size: var(--momo-font-size-xs);
+  color: var(--momo-color-text-placeholder);
   display: flex;
   justify-content: space-between;
 }
@@ -467,11 +489,11 @@ onActivated(() => { loadProjects() })
 }
 
 .color-swatch:hover {
-  border-color: var(--el-border-color-darker);
+  border-color: var(--momo-color-border-strong);
 }
 
 .color-swatch.selected {
-  border-color: var(--el-color-primary);
+  border-color: var(--momo-color-brand);
 }
 
 .color-swatch--random {
@@ -484,7 +506,7 @@ onActivated(() => { loadProjects() })
 }
 
 .color-swatch--random span {
-  font-size: var(--el-font-size-extra-small);
+  font-size: var(--momo-font-size-xs);
   color: var(--momo-overlay-text);
   text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
 }

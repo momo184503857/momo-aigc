@@ -18,9 +18,14 @@ import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { toBJMinute } from '@/utils/datetime'
 import UiImagePreview from '@/components/ui/UiImagePreview.vue'
 import {
-  ArrowLeft, Star, StarFilled, CopyDocument, Delete, MagicStick, Picture,
-  Collection, CollectionTag, Pointer, View, Refresh, Edit, Check,
-} from '@element-plus/icons-vue'
+  ArrowLeft, Star, Copy, Trash2, Wand2, Image as ImageIcon,
+  Bookmark, ThumbsUp, Eye, RefreshCw, Pencil, Check, LoaderCircle,
+} from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { Skeleton } from '@/components/ui/skeleton'
+import { UiEmptyState } from '@/components/ui'
 
 defineOptions({ name: 'WorkDetailPage' })
 
@@ -181,13 +186,21 @@ onMounted(loadWork)
   <PageLayout>
     <template #header>
       <div class="detail-header">
-        <el-button :icon="ArrowLeft" text @click="router.push('/works')">返回作品库</el-button>
-        <el-button v-if="isOwner" :icon="Delete" type="danger" plain size="small" class="header-delete" @click="handleDelete">删除</el-button>
+        <Button variant="ghost" @click="router.push('/works')"><ArrowLeft />返回作品库</Button>
+        <Button v-if="isOwner" variant="destructive" size="sm" class="header-delete" @click="handleDelete"><Trash2 />删除</Button>
       </div>
     </template>
 
-    <div v-loading="loading" class="detail-body">
-      <template v-if="work">
+    <div class="detail-body">
+      <div v-if="loading" class="detail-layout">
+        <Skeleton class="aspect-[3/4] w-full rounded-lg" />
+        <div class="flex flex-col gap-4">
+          <Skeleton class="h-24 w-full rounded-lg" />
+          <Skeleton class="h-40 w-full rounded-lg" />
+          <Skeleton class="h-32 w-full rounded-lg" />
+        </div>
+      </div>
+      <template v-else-if="work">
         <div class="detail-layout">
           <!-- 左：沉浸式大图 -->
           <div class="detail-left">
@@ -199,10 +212,10 @@ onMounted(loadWork)
                 @error="retryOnError($event, work.image_url)"
               />
               <div v-else class="detail-image-placeholder">
-                <el-icon size="48"><Picture /></el-icon>
+                <ImageIcon class="size-12" />
               </div>
-              <el-tag v-if="work.is_official" type="warning" class="official-badge">官方</el-tag>
-              <div v-if="work.image_url" class="image-zoom-hint"><el-icon><View /></el-icon> 点击查看大图</div>
+              <Badge v-if="work.is_official" variant="warning" class="official-badge">官方</Badge>
+              <div v-if="work.image_url" class="image-zoom-hint"><Eye class="size-4" /> 点击查看大图</div>
             </div>
           </div>
 
@@ -216,32 +229,30 @@ onMounted(loadWork)
                   <div class="author-name">{{ authorName() }}</div>
                 </div>
                 <div class="author-actions">
-                  <el-button
-                    size="small"
-                    type="primary"
-                    :plain="work.is_liked"
+                  <Button
+                    size="sm"
+                    :variant="work.is_liked ? 'default' : 'outline'"
                     @click="toggleLike"
                   >
-                    <el-icon><StarFilled v-if="work.is_liked" /><Pointer v-else /></el-icon>
+                    <Star :class="{ 'fill-current': work.is_liked }" />
                     <span>赞 {{ work.like_count }}</span>
-                  </el-button>
-                  <el-button
-                    size="small"
-                    type="primary"
-                    :plain="work.is_favorited"
+                  </Button>
+                  <Button
+                    size="sm"
+                    :variant="work.is_favorited ? 'default' : 'outline'"
                     @click="toggleFavorite"
                   >
-                    <el-icon><CollectionTag v-if="work.is_favorited" /><Collection v-else /></el-icon>
+                    <Bookmark :class="{ 'fill-current': work.is_favorited }" />
                     <span>收藏</span>
-                  </el-button>
-                  <el-button size="small" type="primary" :icon="MagicStick" @click="handleReuse" class="reuse-cta">一键同款</el-button>
+                  </Button>
+                  <Button size="sm" @click="handleReuse" class="reuse-cta"><Wand2 />一键同款</Button>
                 </div>
               </div>
               <div class="stats-row">
-                <span class="stat"><el-icon><Star /></el-icon>{{ work.like_count }}</span>
-                <span class="stat"><el-icon><Collection /></el-icon>{{ work.favorite_count }}</span>
-                <span class="stat"><el-icon><Refresh /></el-icon>{{ work.reuse_count }}</span>
-                <span class="stat"><el-icon><View /></el-icon>{{ work.view_count }}</span>
+                <span class="stat"><Star />{{ work.like_count }}</span>
+                <span class="stat"><Bookmark />{{ work.favorite_count }}</span>
+                <span class="stat"><RefreshCw />{{ work.reuse_count }}</span>
+                <span class="stat"><Eye />{{ work.view_count }}</span>
                 <span class="stat-time">{{ toBJMinute(work.created_at) }}</span>
               </div>
             </div>
@@ -252,7 +263,7 @@ onMounted(loadWork)
               <div class="param-grid">
                 <div class="param-cell">
                   <span class="param-label">模式</span>
-                  <el-tag size="small" effect="plain">{{ getFeatureLabel(work.feature_id || 'free-gen') }}</el-tag>
+                  <Badge variant="outline">{{ getFeatureLabel(work.feature_id || 'free-gen') }}</Badge>
                 </div>
                 <div class="param-cell">
                   <span class="param-label">模型</span>
@@ -300,7 +311,7 @@ onMounted(loadWork)
             <div class="info-card">
               <div class="card-title-row">
                 <span class="card-title">完整提示词</span>
-                <el-button text size="small" :icon="CopyDocument" @click="copyPrompt">复制</el-button>
+                <Button variant="ghost" size="sm" @click="copyPrompt"><Copy />复制</Button>
               </div>
               <div class="prompt-box">{{ work.prompt }}</div>
             </div>
@@ -309,13 +320,12 @@ onMounted(loadWork)
             <div class="info-card remark-card">
               <div class="card-title-row">
                 <span class="card-title">备注</span>
-                <el-button
+                <Button
                   v-if="canRemark && !remarkEditing"
-                  text
-                  size="small"
-                  :icon="Edit"
+                  variant="ghost"
+                  size="sm"
                   @click="startRemarkEdit"
-                >编辑</el-button>
+                ><Pencil />编辑</Button>
               </div>
               <!-- 查看态 -->
               <div v-if="!remarkEditing" class="card-text remark-text" :class="{ empty: !work.remark }">
@@ -323,18 +333,21 @@ onMounted(loadWork)
               </div>
               <!-- 编辑态 -->
               <div v-else class="remark-edit">
-                <el-input
+                <Textarea
                   v-model="remarkDraft"
-                  type="textarea"
                   :rows="3"
                   maxlength="500"
-                  show-word-limit
                   placeholder="添加备注"
-                  resize="none"
+                  class="resize-none"
                 />
+                <div class="text-muted-foreground mt-1 text-right text-xs">{{ remarkDraft.length }}/500</div>
                 <div class="remark-edit-actions">
-                  <el-button size="small" @click="cancelRemark">取消</el-button>
-                  <el-button size="small" type="primary" :icon="Check" :loading="remarkSaving" @click="saveRemark">保存</el-button>
+                  <Button size="sm" variant="outline" @click="cancelRemark">取消</Button>
+                  <Button size="sm" :disabled="remarkSaving" @click="saveRemark">
+                    <LoaderCircle v-if="remarkSaving" class="animate-spin" />
+                    <Check v-else />
+                    保存
+                  </Button>
                 </div>
               </div>
             </div>
@@ -349,13 +362,13 @@ onMounted(loadWork)
             <div v-if="work.tags?.length" class="info-card">
               <div class="card-title">标签</div>
               <div class="work-tags">
-                <el-tag v-for="t in work.tags" :key="t.id" size="small" effect="plain">{{ t.name }}</el-tag>
+                <Badge v-for="t in work.tags" :key="t.id" variant="outline">{{ t.name }}</Badge>
               </div>
             </div>
           </div>
         </div>
       </template>
-      <el-empty v-else-if="!loading" description="作品不存在或已下架" />
+      <UiEmptyState v-else-if="!loading" title="作品不存在或已下架" />
     </div>
 
     <UiImagePreview v-model="previewVisible" :url="previewUrl" />
@@ -447,7 +460,7 @@ onMounted(loadWork)
   gap: var(--momo-space-2);
   flex-wrap: wrap;
 }
-.action-row .el-button {
+.action-row :is(button, a) {
   margin-left: 0;
 }
 
@@ -503,7 +516,7 @@ onMounted(loadWork)
   justify-content: flex-end;
   gap: var(--momo-space-2);
 }
-.remark-edit-actions .el-button {
+.remark-edit-actions :is(button) {
   margin-left: 0;
 }
 
@@ -522,7 +535,7 @@ onMounted(loadWork)
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--el-color-primary);
+  background: var(--momo-color-brand);
   color: var(--momo-color-text-inverse);
   display: flex;
   align-items: center;
@@ -546,7 +559,7 @@ onMounted(loadWork)
   gap: var(--momo-space-2);
   flex-shrink: 0;
 }
-.author-actions .el-button {
+.author-actions :is(button) {
   margin-left: 0;
 }
 .reuse-cta {

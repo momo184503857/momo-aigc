@@ -3,6 +3,10 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { LoaderCircle } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -43,39 +47,42 @@ function backToUserApp() {
 
 <template>
   <div class="admin-login-page">
-    <el-form @submit.prevent="handleLogin" label-position="top">
-      <el-form-item label="邮箱 / 用户名">
-        <el-input
+    <form class="flex flex-col gap-4" @submit.prevent="handleLogin">
+      <div class="grid gap-1.5">
+        <Label for="admin-account">邮箱 / 用户名</Label>
+        <Input
+          id="admin-account"
           v-model="account"
           placeholder="请输入邮箱或用户名"
-          size="large"
+          class="h-9"
           :disabled="loading"
         />
-      </el-form-item>
-      <el-form-item label="密码">
-        <el-input
+      </div>
+      <div class="grid gap-1.5">
+        <Label for="admin-password">密码</Label>
+        <Input
+          id="admin-password"
           v-model="password"
           type="password"
           placeholder="请输入密码"
-          size="large"
-          show-password
+          class="h-9"
           :disabled="loading"
           @keyup.enter="handleLogin"
         />
-      </el-form-item>
-      <el-button
-        type="primary"
-        size="large"
-        :loading="loading"
+      </div>
+      <Button
+        type="submit"
+        size="lg"
+        :disabled="loading"
         class="submit-btn"
-        @click="handleLogin"
       >
+        <LoaderCircle v-if="loading" class="animate-spin" />
         登录管理后台
-      </el-button>
-    </el-form>
+      </Button>
+    </form>
 
     <div class="login-footer">
-      <a class="link" @click="backToUserApp">返回用户端</a>
+      <a class="link" title="返回用户端" @click="backToUserApp">返回用户端</a>
     </div>
   </div>
 </template>

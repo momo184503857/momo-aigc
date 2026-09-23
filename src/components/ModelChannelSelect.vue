@@ -2,10 +2,18 @@
 /**
  * 用户只选择逻辑模型；渠道由服务端按成本自动路由。
  */
-import { computed } from 'vue'
+import { computed, useAttrs } from 'vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
 import { ceilCreditValue } from '@/types/adapter'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
+
+defineOptions({ inheritAttrs: false })
 
 const props = defineProps<{
   /** 逻辑模型 id；0 = 未选中（由宿主负责默认值） */
@@ -18,16 +26,15 @@ const emit = defineEmits<{
 }>()
 
 const modelCatalog = useModelCatalogStore()
+const attrs = useAttrs()
 
-const modelSelectValue = computed({
-  get: () => props.modelValue,
-  set: (id: number) => {
-    const next = modelCatalog.flatImageModels.find((m) => m.id === id)
-    if (next) commit(next)
-  },
-})
+const selectedModel = computed(() =>
+  modelCatalog.flatImageModels.find((m) => m.id === props.modelValue),
+)
 
-function commit(next: CatalogModel) {
+function onSelect(value: string) {
+  const next = modelCatalog.flatImageModels.find((m) => m.id === Number(value))
+  if (!next) return
   emit('update:modelValue', next.id)
   emit('change', next)
 }
@@ -47,71 +54,36 @@ function modelPriceLabel(m: CatalogModel): string {
 }
 
 function priceClass(text: string): string {
-  if (text === '未定价') return 'is-unknown'
-  if (text.includes('免费')) return 'is-free'
-  return ''
+  if (text === '未定价') return 'text-muted-foreground'
+  if (text.includes('免费')) return 'text-success'
+  return 'text-(--momo-color-price)'
 }
 </script>
 
 <template>
-  <div class="model-channel-select">
-    <el-select
-      v-model="modelSelectValue"
-      class="mc-select mc-model"
-      :placeholder="modelCatalog.loaded ? '选择模型' : '加载中…'"
-      :disabled="!modelCatalog.loaded || modelCatalog.flatImageModels.length === 0"
-    >
-      <el-option v-for="model in modelCatalog.flatImageModels" :key="model.id" :label="model.displayName" :value="model.id">
-        <div class="mc-option">
-          <span class="mc-option-name">{{ model.displayName }}</span>
-          <span class="mc-option-price" :class="priceClass(modelPriceLabel(model))">
+  <Select
+    :model-value="modelValue ? String(modelValue) : ''"
+    :disabled="!modelCatalog.loaded || modelCatalog.flatImageModels.length === 0"
+    @update:model-value="onSelect(String($event))"
+  >
+    <SelectTrigger class="w-full" :class="attrs.class">
+      <span class="flex-1 truncate text-left">
+        {{ selectedModel?.displayName ?? (modelCatalog.loaded ? '选择模型' : '加载中…') }}
+      </span>
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem
+        v-for="model in modelCatalog.flatImageModels"
+        :key="model.id"
+        :value="String(model.id)"
+      >
+        <span class="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <span class="truncate">{{ model.displayName }}</span>
+          <span class="shrink-0 text-xs whitespace-nowrap" :class="priceClass(modelPriceLabel(model))">
             {{ modelPriceLabel(model) }}
           </span>
-        </div>
-      </el-option>
-    </el-select>
-  </div>
+        </span>
+      </SelectItem>
+    </SelectContent>
+  </Select>
 </template>
-
-<style scoped>
-.model-channel-select {
-  display: flex;
-  align-items: center;
-  gap: var(--momo-space-2);
-  width: 100%;
-}
-
-.mc-model {
-  flex: 1;
-  min-width: 0;
-}
-
-.mc-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--momo-space-2);
-  min-width: 0;
-}
-
-.mc-option-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mc-option-price {
-  flex-shrink: 0;
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-price);
-  white-space: nowrap;
-}
-
-.mc-option-price.is-free {
-  color: var(--momo-color-success);
-}
-
-.mc-option-price.is-unknown {
-  color: var(--momo-color-text-tertiary);
-}
-</style>

@@ -2,23 +2,48 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  UserFilled,
-  DataBoard,
-  PictureFilled,
-  EditPen,
+  ArrowLeft,
+  Award,
+  Blocks,
   Camera,
-  Trophy,
-  Picture,
-  Grid,
-  Coin,
-  Setting,
-  ArrowDown,
-  Back,
-} from '@element-plus/icons-vue'
+  ChevronsUpDown,
+  Coins,
+  Image as ImageIcon,
+  Layers,
+  LayoutTemplate,
+  LogOut,
+  PenLine,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  Users,
+} from '@lucide/vue'
+import type { Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatCredits } from '@/types/adapter'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from '@/components/ui/sidebar'
 
-defineProps<{ collapsed?: boolean }>()
 const emit = defineEmits<{ (e: 'logout'): void; (e: 'back-to-user'): void }>()
 
 const auth = useAuthStore()
@@ -28,23 +53,25 @@ const router = useRouter()
 interface MenuItem {
   path: string
   title: string
-  icon: any
+  icon: Component
 }
 
+// 图标与用户端 SidebarMenu / tabs store 共用同一套语义映射
 const menuItems: MenuItem[] = [
-  { path: '/admin/users', title: '用户管理', icon: UserFilled },
-  { path: '/admin/dashboard', title: '生图日志', icon: DataBoard },
-  { path: '/admin/templates', title: '模板管理', icon: PictureFilled },
-  { path: '/admin/feature-prompts', title: '功能提示词', icon: EditPen },
+  { path: '/admin/users', title: '用户管理', icon: Users },
+  { path: '/admin/dashboard', title: '生图日志', icon: ScrollText },
+  { path: '/admin/templates', title: '模板管理', icon: LayoutTemplate },
+  { path: '/admin/feature-prompts', title: '功能提示词', icon: PenLine },
   { path: '/admin/photography', title: 'AI摄影配置', icon: Camera },
-  { path: '/admin/works', title: '作品库管理', icon: Trophy },
-  { path: '/admin/prompt-cases', title: '提示词案例', icon: Picture },
-  { path: '/admin/prompt-modules', title: '提示词模块', icon: Grid },
-  { path: '/admin/sg-assets', title: '成套生图资产', icon: Grid },
-  { path: '/admin/ai-config', title: '配置', icon: Setting },
+  { path: '/admin/works', title: '作品库管理', icon: Award },
+  { path: '/admin/prompt-cases', title: '提示词案例', icon: ImageIcon },
+  { path: '/admin/prompt-modules', title: '提示词模块', icon: Blocks },
+  { path: '/admin/sg-assets', title: '成套生图资产', icon: Layers },
+  { path: '/admin/ai-config', title: '配置', icon: Settings },
 ]
 
 const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0))
+const avatarInitial = computed(() => auth.displayName.charAt(0).toUpperCase())
 
 function isActive(path: string): boolean {
   return route.path === path || route.path.startsWith(path + '/')
@@ -56,204 +83,101 @@ function navigate(path: string) {
 </script>
 
 <template>
-  <aside class="admin-sidebar" :class="{ collapsed }">
-    <div class="sidebar-brand">
-      <span v-if="!collapsed" class="brand-text">墨墨管理后台</span>
-      <span v-else class="brand-text-short">管理</span>
-    </div>
+  <Sidebar collapsible="icon">
+    <SidebarHeader class="border-b border-sidebar-border">
+      <SidebarMenuButton size="lg" class="hover:bg-transparent active:bg-transparent">
+        <span class="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+          <ShieldCheck class="size-4" />
+        </span>
+        <span class="grid flex-1 gap-0.5 text-left leading-none">
+          <span class="text-sidebar-foreground truncate text-sm font-semibold">墨墨管理后台</span>
+          <span class="text-muted-foreground truncate text-xs">运营与配置</span>
+        </span>
+      </SidebarMenuButton>
+    </SidebarHeader>
 
-    <nav class="sidebar-nav">
-      <div
-        v-for="item in menuItems"
-        :key="item.path"
-        class="nav-item"
-        :class="{ active: isActive(item.path) }"
-        @click="navigate(item.path)"
-      >
-        <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
-        <span v-if="!collapsed" class="nav-title">{{ item.title }}</span>
-      </div>
-    </nav>
+    <SidebarContent>
+      <SidebarGroup>
+        <SidebarGroupLabel>管理</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="item in menuItems" :key="item.path">
+              <SidebarMenuButton
+                :is-active="isActive(item.path)"
+                :tooltip="item.title"
+                class="data-active:bg-accent data-active:text-accent-foreground"
+                @click="navigate(item.path)"
+              >
+                <component :is="item.icon" />
+                <span>{{ item.title }}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </SidebarContent>
 
-    <!-- 底部：返回用户端 + 当前管理员 -->
-    <div class="sidebar-footer">
-      <div class="back-user" @click="emit('back-to-user')">
-        <el-icon class="nav-icon"><Back /></el-icon>
-        <span v-if="!collapsed" class="nav-title">返回用户端</span>
-      </div>
+    <SidebarFooter>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton :tooltip="'返回用户端'" @click="emit('back-to-user')">
+            <ArrowLeft />
+            <span>返回用户端</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
 
-      <div v-if="auth.user" class="sidebar-user">
-        <div class="user-points-row">
-          <el-icon :size="14"><Coin /></el-icon>
-          <span v-if="!collapsed" class="user-points-text">{{ creditsLabel }}</span>
+      <template v-if="auth.user">
+        <div class="text-muted-foreground flex items-center gap-1.5 px-2 pb-1 text-xs group-data-[collapsible=icon]:hidden">
+          <Coins class="size-3.5 shrink-0 text-warning" />
+          <span>可用积分</span>
+          <span class="text-foreground ml-auto font-medium tabular-nums">{{ creditsLabel }}</span>
         </div>
-        <div class="user-account-row">
-          <div class="user-avatar">{{ auth.displayName.charAt(0).toUpperCase() }}</div>
-          <span v-if="!collapsed" class="user-name">{{ auth.displayName }}</span>
-        </div>
-        <div class="logout-btn" @click="emit('logout')">
-          <span v-if="!collapsed">退出登录</span>
-        </div>
-      </div>
-    </div>
-  </aside>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <SidebarMenuButton size="lg" class="data-open:bg-sidebar-accent">
+              <Avatar class="size-8 rounded-lg">
+                <AvatarFallback class="bg-primary text-primary-foreground rounded-lg text-xs font-semibold">
+                  {{ avatarInitial }}
+                </AvatarFallback>
+              </Avatar>
+              <span class="grid flex-1 gap-0.5 text-left leading-tight">
+                <span class="text-sidebar-foreground truncate text-sm font-medium">{{ auth.displayName }}</span>
+                <span class="text-muted-foreground truncate text-xs">管理员</span>
+              </span>
+              <ChevronsUpDown class="text-muted-foreground ml-auto size-4" />
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent class="min-w-56 rounded-lg" side="top" align="start" :side-offset="8">
+            <DropdownMenuLabel class="p-0 font-normal">
+              <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                <Avatar class="size-8 rounded-lg">
+                  <AvatarFallback class="bg-primary text-primary-foreground rounded-lg text-xs font-semibold">
+                    {{ avatarInitial }}
+                  </AvatarFallback>
+                </Avatar>
+                <div class="grid flex-1 text-left text-sm leading-tight">
+                  <span class="truncate font-medium">{{ auth.displayName }}</span>
+                  <span class="text-muted-foreground truncate text-xs">管理员</span>
+                </div>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem @select="emit('back-to-user')">
+              <ArrowLeft />
+              返回用户端
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" @select="emit('logout')">
+              <LogOut />
+              退出登录
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </template>
+    </SidebarFooter>
+
+    <SidebarRail />
+  </Sidebar>
 </template>
-
-<style scoped>
-.admin-sidebar {
-  width: var(--momo-sidebar-width);
-  background: var(--momo-sidebar-bg);
-  border-right: 1px solid var(--el-border-color-lighter);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  transition: width var(--momo-sidebar-transition);
-}
-
-.admin-sidebar.collapsed {
-  width: var(--momo-sidebar-collapsed-width);
-}
-
-.sidebar-brand {
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  flex-shrink: 0;
-}
-
-.brand-text {
-  font-size: var(--momo-font-size-lg);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-}
-
-.brand-text-short {
-  font-size: var(--momo-font-size-base);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.sidebar-nav {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.nav-item {
-  height: var(--momo-sidebar-menu-height);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  border-radius: var(--momo-radius-md);
-  cursor: pointer;
-  color: var(--momo-sidebar-text);
-  transition: background var(--momo-transition-fast), color var(--momo-transition-fast);
-  white-space: nowrap;
-}
-
-.nav-item:hover {
-  background: var(--momo-sidebar-hover-bg);
-}
-
-.nav-item.active {
-  background: var(--momo-sidebar-active-bg);
-  color: var(--momo-sidebar-active-text);
-  font-weight: 500;
-}
-
-.nav-icon {
-  flex-shrink: 0;
-  font-size: 16px;
-}
-
-.nav-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sidebar-footer {
-  flex-shrink: 0;
-  border-top: 1px solid var(--el-border-color-lighter);
-  padding: 8px;
-}
-
-.back-user {
-  height: var(--momo-sidebar-menu-height);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  border-radius: var(--momo-radius-md);
-  cursor: pointer;
-  color: var(--momo-color-text-secondary);
-  transition: background var(--momo-transition-fast), color var(--momo-transition-fast);
-  white-space: nowrap;
-  margin-bottom: 4px;
-}
-
-.back-user:hover {
-  background: var(--momo-sidebar-hover-bg);
-  color: var(--momo-color-text);
-}
-
-.sidebar-user {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 12px;
-}
-
-.user-points-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--el-color-warning);
-  font-size: var(--momo-font-size-sm);
-}
-
-.user-account-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.user-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--el-color-primary);
-  color: var(--el-color-white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.user-name {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.logout-btn {
-  font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
-  cursor: pointer;
-  padding-top: 2px;
-}
-
-.logout-btn:hover {
-  color: var(--el-color-danger);
-}
-</style>

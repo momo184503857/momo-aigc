@@ -3,7 +3,9 @@
  * MaterialCard — 素材展示卡片（纯展示 + 事件）。
  * 网格/列表两种布局由 CSS 控制；选择/预览/复制/编辑/删除交由父组件处理。
  */
-import { Check, CopyDocument, Edit, Delete } from '@element-plus/icons-vue'
+import { Check, Copy, Pencil, Trash2 } from '@lucide/vue'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import type { BuyerShowMaterial } from '@/services/buyerShowApi'
 
 defineProps<{
@@ -26,7 +28,7 @@ defineEmits<{
   <div class="material-card" :class="[viewMode, { selected }]" @click="$emit('preview')">
     <!-- 选择圆圈 -->
     <div class="select-circle" :class="{ checked: selected }" @click.stop="$emit('toggleSelect')">
-      <el-icon v-if="selected" size="14"><Check /></el-icon>
+      <Check v-if="selected" class="size-3.5 text-(--momo-color-text-inverse)" />
     </div>
 
     <!-- 缩略图 -->
@@ -40,16 +42,16 @@ defineEmits<{
         {{ material.prompt }}
       </div>
       <div v-if="material.tags && material.tags.length > 0" class="material-tags">
-        <el-tag v-for="tag in material.tags" :key="tag.id" size="small" effect="plain">{{ tag.name }}</el-tag>
+        <Badge v-for="tag in material.tags" :key="tag.id" variant="secondary">{{ tag.name }}</Badge>
       </div>
     </div>
 
     <!-- 操作 -->
     <div class="material-actions" @click.stop>
-      <el-button size="small" :icon="CopyDocument" @click="$emit('copy')">复制</el-button>
+      <Button variant="outline" size="sm" @click="$emit('copy')"><Copy />复制</Button>
       <template v-if="isAdmin">
-        <el-button size="small" :icon="Edit" @click="$emit('edit')">编辑</el-button>
-        <el-button size="small" type="danger" :icon="Delete" @click="$emit('delete')">删除</el-button>
+        <Button variant="outline" size="sm" @click="$emit('edit')"><Pencil />编辑</Button>
+        <Button variant="destructive" size="sm" @click="$emit('delete')"><Trash2 />删除</Button>
       </template>
     </div>
   </div>
@@ -57,17 +59,17 @@ defineEmits<{
 
 <style scoped>
 .material-card {
-  background: var(--el-fill-color-lighter);
+  background: var(--momo-color-bg-soft);
   border-radius: var(--momo-radius-md);
   overflow: hidden;
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--momo-color-border-soft);
   transition: box-shadow 0.2s, border-color 0.2s;
   position: relative;
 }
-.material-card:hover { box-shadow: var(--el-box-shadow-light); }
+.material-card:hover { box-shadow: var(--momo-shadow-sm); }
 .material-card.selected {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 2px var(--el-color-primary-light-5);
+  border-color: var(--momo-color-brand);
+  box-shadow: 0 0 0 2px var(--momo-color-brand-border);
 }
 
 /* 选择圆圈 */
@@ -81,20 +83,19 @@ defineEmits<{
   cursor: pointer;
 }
 .select-circle.checked {
-  background: var(--el-color-primary);
-  border-color: var(--el-color-primary);
+  background: var(--momo-color-brand);
+  border-color: var(--momo-color-brand);
 }
-.select-circle .el-icon { color: var(--momo-color-text-inverse); }
 
 /* 提示词 */
 .material-prompt {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
   line-height: 1.5;
   cursor: pointer;
   transition: color 0.15s;
 }
-.material-prompt:hover { color: var(--el-color-primary); }
+.material-prompt:hover { color: var(--momo-color-brand); }
 
 .material-tags {
   display: flex; flex-wrap: wrap; gap: 4px;
@@ -112,7 +113,7 @@ defineEmits<{
 .material-card.grid .material-thumb {
   aspect-ratio: 1;
   overflow: hidden;
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
   cursor: zoom-in;
 }
 .material-card.grid .material-thumb img {
@@ -156,7 +157,7 @@ defineEmits<{
   flex-shrink: 0;
   overflow: hidden;
   border-radius: var(--momo-radius-sm);
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
   cursor: zoom-in;
 }
 .material-card.list .material-thumb img {

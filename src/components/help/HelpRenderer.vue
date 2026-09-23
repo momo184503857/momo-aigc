@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Document, WarningFilled } from '@element-plus/icons-vue'
+import { FileText, TriangleAlert } from '@lucide/vue'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import { renderHelpMarkdown } from '@/utils/helpMarkdown'
 
 const props = defineProps<{
@@ -40,19 +42,21 @@ watch(() => props.path, load, { immediate: true })
 <template>
   <div class="help-renderer">
     <div v-if="status === 'loading'" class="help-state">
-      <el-skeleton :rows="8" animated />
+      <div class="flex flex-col gap-3">
+        <Skeleton v-for="i in 8" :key="i" class="h-4" :class="i % 3 === 0 ? 'w-2/3' : 'w-full'" />
+      </div>
     </div>
 
     <div v-else-if="status === 'notfound'" class="help-state help-state--center">
-      <el-icon :size="32"><Document /></el-icon>
+      <FileText class="size-8" />
       <p>帮助文档不存在或尚未发布</p>
       <p class="help-state-path">{{ path }}</p>
     </div>
 
     <div v-else-if="status === 'error'" class="help-state help-state--center">
-      <el-icon :size="32" class="help-state-error"><WarningFilled /></el-icon>
+      <TriangleAlert class="help-state-error size-8" />
       <p>文档加载失败，请检查网络后重试</p>
-      <el-button size="small" @click="load">重试</el-button>
+      <Button variant="outline" size="sm" @click="load">重试</Button>
     </div>
 
     <!-- v-html 内容由 renderHelpMarkdown 生成（html: false，不执行文档内联 HTML） -->

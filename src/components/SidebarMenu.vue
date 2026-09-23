@@ -1,29 +1,54 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  Aperture,
+  Award,
+  BookOpen,
+  Camera,
+  ChevronsUpDown,
+  Coins,
+  FolderOpen,
+  GraduationCap,
+  Image as ImageIcon,
+  LayoutTemplate,
+  LogOut,
+  NotebookPen,
+  PenLine,
+  Settings,
+  ShoppingBag,
+  Sparkles,
+  TrendingUp,
+  Wallet,
+  Workflow,
+  Wrench,
+} from '@lucide/vue'
+import type { Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
 import { formatCredits } from '@/types/adapter'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
-  MagicStick,
-  PictureFilled,
-  Picture,
-  Collection,
-  EditPen,
-  Coin,
-  ArrowDown,
-  Share,
-  Box,
-  Camera,
-  Goods,
-  Setting,
-  Money,
-  TrendCharts,
-  Trophy,
-  Files,
-} from '@element-plus/icons-vue'
-
-defineProps<{ collapsed?: boolean }>()
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from '@/components/ui/sidebar'
 
 const auth = useAuthStore()
 const tabStore = useTabStore()
@@ -31,56 +56,59 @@ const router = useRouter()
 const route = useRoute()
 
 // 头像显示平台积分余额（fixed-channels：渠道由平台统一配置，计费单轨积分；2 位小数向上取整）
-const avatarCreditsLabel = computed(() => {
-  return formatCredits(auth.user?.points ?? 0)
-})
+const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0))
+const roleLabel = computed(() => (auth.user?.role === 'admin' ? '管理员' : '普通用户'))
+const avatarInitial = computed(() => auth.displayName.charAt(0).toUpperCase())
 
 interface MenuItem {
   path: string
   title: string
-  icon: any
+  icon: Component
 }
 
 interface MenuSection {
   title: string
-  adminOnly?: boolean
   items: MenuItem[]
 }
 
-const menuSections = computed<MenuSection[]>(() => {
-  const sections: MenuSection[] = [
-    {
-      title: 'AI生图',
-      items: [
-        { path: '/free-gen', title: '自由生图', icon: EditPen },
-        { path: '/workspace', title: '快速生图', icon: MagicStick },
-        { path: '/photography', title: 'AI摄影', icon: Camera },
-        { path: '/canvas-projects', title: 'AI画布', icon: Share },
-        { path: '/toolbox', title: 'AI工具箱', icon: Box },
-        { path: '/buyer-show', title: 'AI买家秀', icon: Goods },
-      ],
-    },
-    {
-      title: 'AI学习',
-      items: [
-        { path: '/works', title: '作品库', icon: Trophy },
-        { path: '/prompt-workshop', title: '提示词工坊', icon: EditPen },
-        { path: '/expert', title: '提示词专家', icon: EditPen },
-        { path: '/themes', title: '主题库', icon: Files },
-      ],
-    },
-    {
-      title: '资产管理',
-      items: [
-        { path: '/templates', title: '模板图库', icon: PictureFilled },
-        { path: '/prompts', title: '提示词库', icon: Collection },
-        { path: '/results', title: '生图结果', icon: Picture },
-      ],
-    },
-  ]
+// 图标语义全局唯一：同一业务含义在侧边栏、页签、页面内始终使用同一枚 Lucide 图标
+const menuSections: MenuSection[] = [
+  {
+    title: 'AI生图',
+    items: [
+      { path: '/free-gen', title: '自由生图', icon: PenLine },
+      { path: '/workspace', title: '快速生图', icon: Sparkles },
+      { path: '/photography', title: 'AI摄影', icon: Camera },
+      { path: '/canvas-projects', title: 'AI画布', icon: Workflow },
+      { path: '/toolbox', title: 'AI工具箱', icon: Wrench },
+      { path: '/buyer-show', title: 'AI买家秀', icon: ShoppingBag },
+    ],
+  },
+  {
+    title: 'AI学习',
+    items: [
+      { path: '/works', title: '作品库', icon: Award },
+      { path: '/prompt-workshop', title: '提示词工坊', icon: NotebookPen },
+      { path: '/expert', title: '提示词专家', icon: GraduationCap },
+      { path: '/themes', title: '主题库', icon: FolderOpen },
+    ],
+  },
+  {
+    title: '资产管理',
+    items: [
+      { path: '/templates', title: '模板图库', icon: LayoutTemplate },
+      { path: '/prompts', title: '提示词库', icon: BookOpen },
+      { path: '/results', title: '生图结果', icon: ImageIcon },
+    ],
+  },
+]
 
-  return sections
-})
+const accountMenuItems = [
+  { title: '我的额度', icon: Coins, path: '/my-quota' },
+  { title: '我的消耗', icon: TrendingUp, path: '/my-consumption' },
+  { title: '计费说明', icon: Wallet, path: '/pricing' },
+  { title: '个人设置', icon: Settings, path: '/settings' },
+]
 
 function isActive(path: string): boolean {
   return route.path === path || route.path.startsWith(path + '/')
@@ -95,250 +123,97 @@ function handleLogout() {
   auth.logout()
   router.push('/login')
 }
-
-function handleCommand(command: string) {
-  if (command === 'settings') {
-    router.push('/settings')
-  } else if (command === 'my-quota') {
-    router.push('/my-quota')
-  } else if (command === 'my-consumption') {
-    router.push('/my-consumption')
-  } else if (command === 'pricing') {
-    router.push('/pricing')
-  } else if (command === 'logout') {
-    handleLogout()
-  }
-}
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ collapsed }">
-    <div class="sidebar-brand" @click="router.push('/workspace')">
-      <span v-if="!collapsed" class="brand-text">墨墨 AI 生图</span>
-      <span v-else class="brand-text-short">墨墨</span>
-    </div>
+  <Sidebar collapsible="icon">
+    <SidebarHeader class="border-b border-sidebar-border">
+      <SidebarMenuButton
+        size="lg"
+        class="hover:bg-transparent active:bg-transparent"
+        @click="router.push('/workspace')"
+      >
+        <span class="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+          <Aperture class="size-4" />
+        </span>
+        <span class="grid flex-1 gap-0.5 text-left leading-none">
+          <span class="text-sidebar-foreground truncate text-sm font-semibold">墨墨 AI 生图</span>
+          <span class="text-muted-foreground truncate text-xs">图像生成工作台</span>
+        </span>
+      </SidebarMenuButton>
+    </SidebarHeader>
 
-    <nav class="sidebar-nav">
-      <template v-for="section in menuSections" :key="section.title">
-        <div v-if="section.title && !collapsed" class="section-title">{{ section.title }}</div>
-        <div
-          v-for="item in section.items"
-          :key="item.path"
-          class="nav-item"
-          :class="{ active: isActive(item.path) }"
-          @click="navigate(item.path)"
-        >
-          <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
-          <span v-if="!collapsed" class="nav-title">{{ item.title }}</span>
-        </div>
-      </template>
-    </nav>
+    <SidebarContent>
+      <SidebarGroup v-for="section in menuSections" :key="section.title">
+        <SidebarGroupLabel>{{ section.title }}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="item in section.items" :key="item.path">
+              <SidebarMenuButton
+                :is-active="isActive(item.path)"
+                :tooltip="item.title"
+                class="data-active:bg-accent data-active:text-accent-foreground"
+                @click="navigate(item.path)"
+              >
+                <component :is="item.icon" />
+                <span>{{ item.title }}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </SidebarContent>
 
-    <!-- User section at bottom -->
-    <div v-if="auth.user" class="sidebar-user">
-      <div class="user-points-row">
-        <el-icon :size="14"><Coin /></el-icon>
-        <span v-if="!collapsed" class="user-points-text">{{ avatarCreditsLabel }}</span>
+    <SidebarFooter v-if="auth.user">
+      <div class="text-muted-foreground flex items-center gap-1.5 px-2 pb-1 text-xs group-data-[collapsible=icon]:hidden">
+        <Coins class="size-3.5 shrink-0 text-warning" />
+        <span>可用积分</span>
+        <span class="text-foreground ml-auto font-medium tabular-nums">{{ creditsLabel }}</span>
       </div>
-      <el-dropdown trigger="click" @command="handleCommand" popper-class="sidebar-user-dropdown">
-        <div class="user-account-row">
-          <div class="user-avatar">{{ auth.displayName.charAt(0).toUpperCase() }}</div>
-          <span v-if="!collapsed" class="user-name">{{ auth.displayName }}</span>
-          <el-icon v-if="!collapsed" class="user-arrow"><ArrowDown /></el-icon>
-        </div>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item disabled>
-              {{ auth.user.role === 'admin' ? '管理员' : '用户' }}
-            </el-dropdown-item>
-            <el-dropdown-item command="my-quota" :icon="Coin">我的额度</el-dropdown-item>
-            <el-dropdown-item command="my-consumption" :icon="TrendCharts">我的消耗</el-dropdown-item>
-            <el-dropdown-item command="pricing" :icon="Money">计费说明</el-dropdown-item>
-            <el-dropdown-item command="settings" :icon="Setting">个人设置</el-dropdown-item>
-            <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-    </div>
-  </aside>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <SidebarMenuButton size="lg" class="data-open:bg-sidebar-accent">
+            <Avatar class="size-8 rounded-lg">
+              <AvatarFallback class="bg-primary text-primary-foreground rounded-lg text-xs font-semibold">
+                {{ avatarInitial }}
+              </AvatarFallback>
+            </Avatar>
+            <span class="grid flex-1 gap-0.5 text-left leading-tight">
+              <span class="text-sidebar-foreground truncate text-sm font-medium">{{ auth.displayName }}</span>
+              <span class="text-muted-foreground truncate text-xs">{{ roleLabel }}</span>
+            </span>
+            <ChevronsUpDown class="text-muted-foreground ml-auto size-4" />
+          </SidebarMenuButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent class="min-w-56 rounded-lg" side="top" align="start" :side-offset="8">
+          <DropdownMenuLabel class="p-0 font-normal">
+            <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+              <Avatar class="size-8 rounded-lg">
+                <AvatarFallback class="bg-primary text-primary-foreground rounded-lg text-xs font-semibold">
+                  {{ avatarInitial }}
+                </AvatarFallback>
+              </Avatar>
+              <div class="grid flex-1 text-left text-sm leading-tight">
+                <span class="truncate font-medium">{{ auth.displayName }}</span>
+                <span class="text-muted-foreground truncate text-xs">{{ roleLabel }}</span>
+              </div>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem v-for="item in accountMenuItems" :key="item.path" @select="router.push(item.path)">
+            <component :is="item.icon" />
+            {{ item.title }}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" @select="handleLogout">
+            <LogOut />
+            退出登录
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarFooter>
+
+    <SidebarRail />
+  </Sidebar>
 </template>
-
-<style scoped>
-.sidebar {
-  width: var(--momo-sidebar-width);
-  background: var(--momo-sidebar-bg);
-  border-right: 1px solid var(--el-border-color-lighter);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  transition: width var(--momo-sidebar-transition);
-}
-
-.sidebar.collapsed {
-  width: var(--momo-sidebar-collapsed-width);
-}
-
-.sidebar-brand {
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  cursor: pointer;
-}
-
-.collapsed .sidebar-brand {
-  padding: 0 8px;
-}
-
-.brand-text {
-  font-size: var(--momo-font-size-xl);
-  font-weight: 700;
-  color: var(--el-color-primary);
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.brand-text-short {
-  font-size: var(--momo-font-size-lg);
-  font-weight: 700;
-  color: var(--el-color-primary);
-}
-
-.sidebar-nav {
-  flex: 1;
-  padding: 12px 8px;
-  overflow-y: auto;
-}
-
-.section-title {
-  font-size: var(--momo-font-size-xs);
-  font-weight: 600;
-  color: var(--el-text-color-placeholder);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 16px 16px 6px 16px;
-}
-.section-title:first-child {
-  padding-top: 4px;
-}
-
-.nav-item {
-  height: var(--momo-sidebar-menu-height);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 16px;
-  border-radius: var(--momo-radius-md);
-  color: var(--momo-sidebar-text);
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 2px;
-}
-
-.nav-item:hover {
-  background: var(--el-fill-color-light);
-  color: var(--momo-sidebar-text-hover);
-}
-
-.nav-item.active {
-  background: var(--momo-sidebar-active-bg);
-  color: var(--el-color-primary);
-  font-weight: 500;
-}
-
-.nav-icon {
-  font-size: var(--momo-font-size-xl);
-  flex-shrink: 0;
-}
-
-.nav-title {
-  font-size: var(--momo-font-size-base);
-  white-space: nowrap;
-}
-
-.collapsed .nav-item {
-  justify-content: center;
-  padding: 0;
-}
-
-.collapsed .nav-icon {
-  font-size: 20px;
-}
-
-/* ─── User section ─── */
-.sidebar-user {
-  border-top: 1px solid var(--el-border-color-lighter);
-  padding: 12px 8px;
-  flex-shrink: 0;
-}
-
-.user-points-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  margin-bottom: 4px;
-  color: var(--el-color-warning-dark-2);
-  font-size: var(--momo-font-size-sm);
-}
-
-.collapsed .user-points-row {
-  justify-content: center;
-  padding: 6px 0;
-}
-
-.user-points-text {
-  white-space: nowrap;
-}
-
-.user-account-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: var(--momo-radius-md);
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.user-account-row:hover {
-  background: var(--el-fill-color-light);
-}
-
-.collapsed .user-account-row {
-  justify-content: center;
-  padding: 8px 0;
-}
-
-.user-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--el-color-primary);
-  color: var(--el-color-white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--momo-font-size-sm);
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.user-name {
-  font-size: var(--momo-font-size-base);
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
-}
-
-.user-arrow {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
-  flex-shrink: 0;
-}
-</style>

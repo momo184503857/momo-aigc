@@ -1,64 +1,81 @@
 <template>
-  <div class="sg-prompt-preview">
-    <div class="pp-main">
-      <div class="pp-col common">
-        <div class="pp-col-title common-title">
+  <div class="flex flex-col gap-3">
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <div class="mb-2 flex items-center justify-between gap-2 text-sm font-semibold">
           <span>公共锁定部分（5 张共用）</span>
-          <div class="common-switch">
-            <el-switch v-model="includeCommonModel" size="small" />
-            <span class="common-switch-text">{{ includeCommon ? '加入最终提示词' : '不加入最终提示词' }}</span>
+          <div class="flex items-center gap-1">
+            <Switch v-model="includeCommonModel" size="sm" />
+            <span class="text-muted-foreground text-xs font-normal">{{ includeCommon ? '加入最终提示词' : '不加入最终提示词' }}</span>
           </div>
         </div>
-        <el-collapse>
-          <el-collapse-item v-for="g in groupedCommon" :key="g.name" :name="g.name">
-            <template #title>
-              <span class="grp-title">{{ g.label }} <span class="grp-count">{{ g.items.length }}</span></span>
-            </template>
-            <div v-for="e in g.items" :key="e.key" class="entry">
-              <div class="entry-head">
-                <el-switch
-                  :model-value="isEnabled(e.key)"
-                  size="small"
-                  @update:model-value="(v: any) => toggle(e.key, !!v)"
+        <div class="border-border divide-y border-y">
+          <Collapsible v-for="g in groupedCommon" :key="g.name">
+            <CollapsibleTrigger class="flex w-full cursor-pointer items-center justify-between py-2 text-sm [&[data-state=open]>svg]:rotate-180">
+              <span>{{ g.label }} <span class="text-muted-foreground text-xs">{{ g.items.length }}</span></span>
+              <ChevronDown class="text-muted-foreground size-4 transition-transform" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div v-for="e in g.items" :key="e.key" class="flex flex-col gap-1 border-b border-dashed border-border py-2 last:border-b-0">
+                <div class="flex items-center gap-2">
+                  <Switch
+                    :model-value="isEnabled(e.key)"
+                    size="sm"
+                    @update:model-value="(v: boolean) => toggle(e.key, !!v)"
+                  />
+                  <span class="flex-1 text-sm text-foreground">{{ e.name }}</span>
+                  <Badge v-if="e.condKind && e.condKind !== 'none'" variant="warning">条件</Badge>
+                  <Badge v-if="e.origin === 'private'" variant="success">我的</Badge>
+                  <Button variant="link" size="sm" @click="startEdit(e)">{{ editingKey === e.key ? '收起' : '编辑' }}</Button>
+                </div>
+                <Textarea
+                  v-if="editingKey === e.key"
+                  :model-value="contentOf(e)"
+                  :rows="5"
+                  @update:model-value="(v: string | number | null | undefined) => editContent(e.key, String(v ?? ''))"
                 />
-                <span class="e-name">{{ e.name }}</span>
-                <el-tag v-if="e.condKind && e.condKind !== 'none'" size="small" type="warning" effect="plain">条件</el-tag>
-                <el-tag v-if="e.origin === 'private'" size="small" type="success" effect="plain">我的</el-tag>
-                <el-button link size="small" @click="startEdit(e)">{{ editingKey === e.key ? '收起' : '编辑' }}</el-button>
+                <div
+                  v-else
+                  class="max-h-[90px] overflow-y-auto rounded-sm bg-(--momo-color-bg-soft) p-2 text-xs whitespace-pre-wrap text-(--momo-color-text-secondary)"
+                  :class="{ 'text-(--momo-color-text-placeholder) line-through': !isEnabled(e.key) }"
+                >{{ contentOf(e) }}</div>
               </div>
-              <el-input
-                v-if="editingKey === e.key"
-                :model-value="contentOf(e)"
-                type="textarea" :rows="5"
-                @update:model-value="(v: string | number | null | undefined) => editContent(e.key, String(v ?? ''))"
-              />
-              <div v-else class="e-content" :class="{ disabled: !isEnabled(e.key) }">{{ contentOf(e) }}</div>
-            </div>
-          </el-collapse-item>
-        </el-collapse>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
-      <div class="pp-col points">
-        <div class="pp-col-title">每张差异部分（点位）</div>
-        <el-tabs v-model="activePoint" tab-position="left">
-          <el-tab-pane v-for="(t, i) in result.pointTexts" :key="i" :name="String(i)" :label="`P${i + 1}`">
-            <div class="point-text">{{ t }}</div>
-          </el-tab-pane>
-        </el-tabs>
+      <div>
+        <div class="mb-2 flex items-center gap-2 text-sm font-semibold">每张差异部分（点位）</div>
+        <Tabs v-model="activePoint" orientation="vertical">
+          <TabsList>
+            <TabsTrigger v-for="(t, i) in result.pointTexts" :key="i" :value="String(i)">P{{ i + 1 }}</TabsTrigger>
+          </TabsList>
+          <TabsContent v-for="(t, i) in result.pointTexts" :key="i" :value="String(i)" class="mt-0">
+            <div class="text-xs whitespace-pre-wrap text-(--momo-color-text-secondary)">{{ t }}</div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
-    <div class="pp-full">
-      <div class="pp-col-title">
+    <div class="border-border border-t pt-3">
+      <div class="mb-2 flex items-center gap-2 text-sm font-semibold">
         完整 Prompt（P{{ parseInt(activePoint) + 1 }}）
-        <el-button size="small" @click="copyAll">复制全部 {{ result.fullTexts.length }} 张</el-button>
-        <el-button size="small" type="primary" plain @click="copyFull">复制本张</el-button>
+        <Button size="sm" variant="outline" @click="copyAll">复制全部 {{ result.fullTexts.length }} 张</Button>
+        <Button size="sm" @click="copyFull">复制本张</Button>
       </div>
-      <div class="full-text">{{ result.fullTexts[parseInt(activePoint)] || '' }}</div>
+      <div class="max-h-60 overflow-y-auto rounded-md bg-(--momo-color-bg-soft) p-3 font-mono text-xs whitespace-pre-wrap text-(--momo-color-text-secondary)">{{ result.fullTexts[parseInt(activePoint)] || '' }}</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { ChevronDown } from '@lucide/vue'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import type { AssembleResult, LockSelection, PromptEntry } from '@/utils/promptEngine'
 import { useClipboard } from '@/composables/useClipboard'
 
@@ -153,33 +170,3 @@ function copyAll() {
   clipboard.copy(parts.join('\n\n'), { successMsg: `已复制全部 ${pointTexts.length} 张提示词` })
 }
 </script>
-
-<style scoped>
-.sg-prompt-preview { display: flex; flex-direction: column; gap: var(--momo-space-3); }
-.pp-main { display: grid; grid-template-columns: 1fr 1fr; gap: var(--momo-space-3); }
-.pp-col-title {
-  font-weight: var(--momo-font-weight-semibold); font-size: var(--momo-font-size-sm);
-  margin-bottom: var(--momo-space-2); display: flex; align-items: center; gap: var(--momo-space-2);
-}
-.common-title { justify-content: space-between; }
-.common-switch { display: flex; align-items: center; gap: var(--momo-space-1); }
-.common-switch-text { font-size: var(--momo-font-size-xs); font-weight: normal; color: var(--momo-color-text-tertiary); }
-.grp-title { font-size: var(--momo-font-size-sm); }
-.grp-count { color: var(--momo-color-text-tertiary); font-size: var(--momo-font-size-xs); }
-.entry { display: flex; flex-direction: column; gap: var(--momo-space-1); padding: var(--momo-space-2) 0; border-bottom: 1px dashed var(--momo-color-border-soft); }
-.entry-head { display: flex; align-items: center; gap: var(--momo-space-2); }
-.e-name { font-size: var(--momo-font-size-sm); color: var(--momo-color-text); flex: 1; }
-.e-content {
-  font-size: var(--momo-font-size-xs); color: var(--momo-color-text-secondary);
-  white-space: pre-wrap; max-height: 90px; overflow-y: auto;
-  background: var(--momo-color-bg-soft); border-radius: var(--momo-radius-sm); padding: var(--momo-space-2);
-}
-.e-content.disabled { color: var(--momo-color-text-placeholder); text-decoration: line-through; }
-.point-text { font-size: var(--momo-font-size-xs); color: var(--momo-color-text-secondary); white-space: pre-wrap; }
-.pp-full { border-top: 1px solid var(--momo-color-border-soft); padding-top: var(--momo-space-3); }
-.full-text {
-  font-family: var(--momo-font-mono); font-size: var(--momo-font-size-xs); color: var(--momo-color-text-secondary);
-  white-space: pre-wrap; max-height: 240px; overflow-y: auto;
-  background: var(--momo-color-bg-soft); border-radius: var(--momo-radius-md); padding: var(--momo-space-3);
-}
-</style>

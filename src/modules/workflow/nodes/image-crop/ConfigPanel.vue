@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Info } from '@lucide/vue'
 import { UiNumberInput } from '@/components/ui'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
@@ -32,33 +42,35 @@ const customH = computed(() => {
 </script>
 
 <template>
-  <div class="config-section">
-    <el-alert
-      title="确定性居中裁切：保持较长边不变，两侧等量裁掉多余部分。不缩放、不用 AI 重绘。"
-      type="info"
-      show-icon
-      :closable="false"
-    />
+  <div class="flex flex-col gap-3">
+    <Alert>
+      <Info />
+      <AlertTitle>确定性居中裁切：保持较长边不变，两侧等量裁掉多余部分。不缩放、不用 AI 重绘。</AlertTitle>
+    </Alert>
 
-    <label>目标比例</label>
-    <el-select :model-value="ratio" @update:model-value="emit('update', { ratio: $event })">
-      <el-option v-for="o in ratioOptions" :key="o.value" :label="o.label" :value="o.value" />
-    </el-select>
+    <div class="grid gap-1.5">
+      <Label>目标比例</Label>
+      <Select :model-value="ratio" @update:model-value="emit('update', { ratio: String($event) })">
+        <SelectTrigger class="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="o in ratioOptions" :key="o.value" :value="String(o.value)">
+            {{ o.label }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
 
     <template v-if="ratio === 'custom'">
-      <label>自定义宽高（W:H）</label>
-      <div class="custom-ratio-row">
-        <UiNumberInput :model-value="customW" :min="1" :max="9999" @update:model-value="emit('update', { customW: $event })" />
-        <span class="ratio-sep">:</span>
-        <UiNumberInput :model-value="customH" :min="1" :max="9999" @update:model-value="emit('update', { customH: $event })" />
+      <div class="grid gap-1.5">
+        <Label>自定义宽高（W:H）</Label>
+        <div class="flex items-center gap-2">
+          <UiNumberInput :model-value="customW" :min="1" :max="9999" @update:model-value="emit('update', { customW: $event })" />
+          <span class="text-muted-foreground">:</span>
+          <UiNumberInput :model-value="customH" :min="1" :max="9999" @update:model-value="emit('update', { customH: $event })" />
+        </div>
       </div>
     </template>
   </div>
 </template>
-
-<style scoped>
-.config-section { display: flex; flex-direction: column; gap: 12px; }
-.config-section label { color: var(--el-text-color-regular); font-size: var(--el-font-size-small); }
-.custom-ratio-row { display: flex; align-items: center; gap: 8px; }
-.ratio-sep { color: var(--el-text-color-secondary); }
-</style>

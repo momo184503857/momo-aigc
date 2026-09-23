@@ -1,20 +1,16 @@
-/* 全局样式重置 */
-*,
-*::before,
-*::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* ============================================
+   墨墨 AI 生图 — 全局基础样式
+   注意：盒模型重置 / margin / padding 归零由 Tailwind preflight 负责，
+   此处不要再写未分层的 `*` 重置，否则会盖掉所有 Tailwind 间距工具类。
+   ============================================ */
 
-html, body {
+html,
+body {
   width: 100%;
   height: 100%;
   font-family: var(--momo-font-sans);
   font-size: var(--momo-font-size-base);
   line-height: var(--momo-leading-normal);
-  color: var(--momo-color-text);
-  background: var(--momo-color-bg-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

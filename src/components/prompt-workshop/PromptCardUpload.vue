@@ -6,9 +6,15 @@
  */
 import { ref, computed } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { ossApi } from '@/services/ossApi'
 import { promptCardsApi, type PromptModule } from '@/services/promptCardsApi'
-import { Picture, UploadFilled, Close, Star, Loading } from '@element-plus/icons-vue'
+import { Upload, X, Star, LoaderCircle } from '@lucide/vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -40,6 +46,11 @@ const visible = computed({
 
 const sortedModules = computed(() =>
   [...props.modules].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
+)
+
+/** 触发器显示的选中模块名（Select 值为字符串化 id，在边界处转换） */
+const selectedModuleName = computed(() =>
+  sortedModules.value.find((m) => m.id === moduleId.value)?.name ?? '',
 )
 
 function reset() {
@@ -153,189 +164,127 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="上传提示词" width="560px" :close-on-click-modal="false" @closed="reset">
-    <el-form label-position="top">
-      <el-form-item required label="模块">
-        <el-select v-model="moduleId" placeholder="选择这条提示词所属的模块" style="width: 100%">
-          <el-option
-            v-for="m in sortedModules"
-            :key="m.id"
-            :label="m.name"
-            :value="m.id"
+  <Dialog :open="visible" @update:open="(v: boolean) => { visible = v; if (!v) reset() }">
+    <DialogContent class="sm:max-w-xl" @pointer-down-outside.prevent>
+      <DialogHeader>
+        <DialogTitle>上传提示词</DialogTitle>
+      </DialogHeader>
+
+      <div class="flex flex-col gap-4">
+        <div class="grid gap-1.5">
+          <Label><span class="text-destructive">*</span> 模块</Label>
+          <Select
+            :model-value="moduleId ? String(moduleId) : ''"
+            @update:model-value="(v) => (moduleId = v ? Number(v) : null)"
           >
-            <span>{{ m.name }}</span>
-            <el-tag v-if="m.is_system" size="small" type="info" effect="plain" style="margin-left: 8px">系统</el-tag>
-          </el-option>
-        </el-select>
-      </el-form-item>
-
-      <el-form-item required label="提示词内容">
-        <el-input
-          v-model="content"
-          type="textarea"
-          :rows="4"
-          placeholder="填写该模块下的提示词内容，例如「极简杂志风、低饱和」"
-          maxlength="1000"
-          show-word-limit
-          resize="none"
-        />
-      </el-form-item>
-
-      <el-form-item required label="图片（1~10 张，可选择一张置顶）">
-        <div class="upload-area" @drop="onDrop" @dragover.prevent>
-          <div class="img-grid">
-            <div
-              v-for="(img, idx) in images"
-              :key="idx"
-              class="img-cell"
-              :class="{ 'is-cover': idx === coverIndex }"
-            >
-              <div v-if="img.loading" class="img-loading">
-                <el-icon class="is-loading"><Loading /></el-icon>
-              </div>
-              <img v-else :src="img.url" alt="预览图" />
-              <div class="img-overlay">
-                <el-button
-                  text
-                  size="small"
-                  :icon="Star"
-                  :title="idx === coverIndex ? '当前置顶图' : '设为置顶'"
-                  :class="{ 'cover-active': idx === coverIndex }"
-                  @click.stop="setCover(idx)"
-                />
-                <el-button text size="small" :icon="Close" title="删除" @click.stop="removeImage(idx)" />
-              </div>
-              <span v-if="idx === coverIndex" class="cover-badge">置顶</span>
-            </div>
-
-            <div
-              v-if="images.length < MAX_IMAGES"
-              class="upload-trigger"
-              @click="triggerUpload"
-            >
-              <el-icon size="24"><UploadFilled /></el-icon>
-              <span>点击或拖拽上传</span>
-              <span class="upload-tip">{{ images.length }} / {{ MAX_IMAGES }}</span>
-            </div>
-          </div>
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept="image/*"
-            multiple
-            style="display: none"
-            @change="onFileChange"
-          />
+            <SelectTrigger class="w-full">
+              <span class="flex-1 truncate text-left" :class="selectedModuleName ? '' : 'text-muted-foreground'">
+                {{ selectedModuleName || '选择这条提示词所属的模块' }}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="m in sortedModules" :key="m.id" :value="String(m.id)">
+                <span class="flex items-center gap-2">
+                  <span>{{ m.name }}</span>
+                  <Badge v-if="m.is_system" variant="secondary">系统</Badge>
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      </el-form-item>
 
-      <el-form-item label="备注（可选）">
-        <el-input
-          v-model="remark"
-          type="textarea"
-          :rows="2"
-          placeholder="补充说明，如使用场景、适用模型等"
-          maxlength="500"
-          show-word-limit
-          resize="none"
-        />
-      </el-form-item>
-    </el-form>
+        <div class="grid gap-1.5">
+          <Label><span class="text-destructive">*</span> 提示词内容</Label>
+          <div class="relative">
+            <Textarea
+              v-model="content"
+              :rows="4"
+              placeholder="填写该模块下的提示词内容，例如「极简杂志风、低饱和」"
+              maxlength="1000"
+              class="resize-none"
+            />
+            <span class="text-muted-foreground absolute right-2 bottom-1.5 text-xs">{{ content.length }}/1000</span>
+          </div>
+        </div>
 
-    <template #footer>
-      <el-button @click="closeDialog">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">发布</el-button>
-    </template>
-  </el-dialog>
+        <div class="grid gap-1.5">
+          <Label><span class="text-destructive">*</span> 图片（1~10 张，可选择一张置顶）</Label>
+          <div class="w-full" @drop="onDrop" @dragover.prevent>
+            <div class="grid w-full grid-cols-5 gap-2">
+              <div
+                v-for="(img, idx) in images"
+                :key="idx"
+                class="group relative aspect-square overflow-hidden rounded-sm bg-muted border-2"
+                :class="idx === coverIndex ? 'border-primary' : 'border-transparent'"
+              >
+                <div v-if="img.loading" class="flex size-full items-center justify-center text-(--momo-color-text-placeholder)">
+                  <LoaderCircle class="size-4 animate-spin" />
+                </div>
+                <img v-else :src="img.url" alt="预览图" class="block size-full object-cover" />
+                <div class="absolute inset-0 flex items-start justify-between bg-gradient-to-b from-black/45 to-transparent to-60% opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    type="button"
+                    class="m-0.5 cursor-pointer rounded-sm p-1"
+                    :class="idx === coverIndex ? 'text-primary' : 'text-white'"
+                    :title="idx === coverIndex ? '当前置顶图' : '设为置顶'"
+                    @click.stop="setCover(idx)"
+                  >
+                    <Star class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="m-0.5 cursor-pointer rounded-sm p-1 text-white"
+                    title="删除"
+                    @click.stop="removeImage(idx)"
+                  >
+                    <X class="size-4" />
+                  </button>
+                </div>
+                <span v-if="idx === coverIndex" class="bg-primary absolute bottom-0.5 left-0.5 rounded-sm px-1.5 py-px text-xs text-white">置顶</span>
+              </div>
+
+              <div
+                v-if="images.length < MAX_IMAGES"
+                class="border-input flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed text-(--momo-color-text-placeholder) transition-colors hover:border-primary hover:text-primary"
+                @click="triggerUpload"
+              >
+                <Upload class="size-6" />
+                <span class="text-xs">点击或拖拽上传</span>
+                <span class="text-xs opacity-70">{{ images.length }} / {{ MAX_IMAGES }}</span>
+              </div>
+            </div>
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/*"
+              multiple
+              class="hidden"
+              @change="onFileChange"
+            />
+          </div>
+        </div>
+
+        <div class="grid gap-1.5">
+          <Label>备注（可选）</Label>
+          <div class="relative">
+            <Textarea
+              v-model="remark"
+              :rows="2"
+              placeholder="补充说明，如使用场景、适用模型等"
+              maxlength="500"
+              class="resize-none"
+            />
+            <span class="text-muted-foreground absolute right-2 bottom-1.5 text-xs">{{ remark.length }}/500</span>
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" @click="closeDialog">取消</Button>
+        <Button :disabled="submitting" @click="handleSubmit">
+          <LoaderCircle v-if="submitting" class="animate-spin" />发布
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
-
-<style scoped>
-.upload-area {
-  width: 100%;
-}
-.img-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  width: 100%;
-}
-.img-cell {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: var(--momo-radius-sm);
-  overflow: hidden;
-  background: var(--el-fill-color);
-  border: 2px solid transparent;
-}
-.img-cell.is-cover {
-  border-color: var(--el-color-primary);
-}
-.img-cell img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.img-loading {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--el-text-color-placeholder);
-}
-.img-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.45), transparent 60%);
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.img-cell:hover .img-overlay {
-  opacity: 1;
-}
-.img-overlay .el-button {
-  color: #fff;
-  margin: 2px;
-  padding: 4px;
-}
-.cover-active {
-  color: var(--el-color-primary) !important;
-}
-.cover-badge {
-  position: absolute;
-  left: 2px;
-  bottom: 2px;
-  font-size: var(--momo-font-size-xs);
-  color: #fff;
-  background: var(--el-color-primary);
-  padding: 1px 6px;
-  border-radius: var(--momo-radius-sm);
-}
-.upload-trigger {
-  aspect-ratio: 1;
-  border: 1px dashed var(--el-border-color);
-  border-radius: var(--momo-radius-sm);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  cursor: pointer;
-  color: var(--el-text-color-placeholder);
-  transition: border-color 0.15s, color 0.15s;
-}
-.upload-trigger:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-}
-.upload-trigger span {
-  font-size: var(--momo-font-size-xs);
-}
-.upload-tip {
-  opacity: 0.7;
-}
-</style>

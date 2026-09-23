@@ -2,16 +2,18 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  MagicStick,
-  PictureFilled,
-  Picture,
-  Collection,
-  UserFilled,
-  EditPen,
-  DataBoard,
-  Share,
-  Trophy,
-} from '@element-plus/icons-vue'
+  Award,
+  BookOpen,
+  Image as ImageIcon,
+  Layers,
+  LayoutTemplate,
+  NotebookPen,
+  PenLine,
+  ScrollText,
+  Sparkles,
+  Users,
+  Workflow,
+} from '@lucide/vue'
 import type { Component } from 'vue'
 
 export interface TabItem {
@@ -26,23 +28,24 @@ export interface TabItem {
 const STORAGE_KEY = 'momo_tabs'
 
 // Route path -> { title, icon, componentName } mapping
+// 图标与 SidebarMenu 保持同一套语义映射
 const ROUTE_META_MAP: Record<string, { title: string; icon: Component; componentName: string }> = {
-  '/free-gen': { title: '自由生图', icon: EditPen, componentName: 'FreeGen' },
-  '/workspace': { title: '快速生图', icon: MagicStick, componentName: 'Workspace' },
-  '/templates': { title: '模板图库', icon: PictureFilled, componentName: 'TemplatesPage' },
-  '/results': { title: '生图结果', icon: Picture, componentName: 'ResultsPage' },
-  '/prompts': { title: '提示词库', icon: Collection, componentName: 'PromptLibraryPage' },
-  '/prompt-workshop': { title: '提示词工坊', icon: EditPen, componentName: 'PromptWorkshopPage' },
-  '/suite-prompt': { title: '成套提示词', icon: MagicStick, componentName: 'SuitePromptPage' },
-  '/expert': { title: '提示词专家', icon: EditPen, componentName: 'ExpertPage' },
-  '/admin/users': { title: '用户管理', icon: UserFilled, componentName: 'AdminUsers' },
-  '/admin/dashboard': { title: '生图日志', icon: DataBoard, componentName: 'AdminDashboard' },
-  '/admin/templates': { title: '模板管理', icon: PictureFilled, componentName: 'AdminTemplates' },
-  '/admin/feature-prompts': { title: '功能提示词', icon: EditPen, componentName: 'AdminFeaturePrompts' },
-  '/admin/works': { title: '作品库管理', icon: Trophy, componentName: 'AdminWorks' },
-  '/admin/prompt-cases': { title: '提示词案例', icon: Picture, componentName: 'AdminPromptCases' },
-  '/canvas-projects': { title: 'AI画布', icon: Share, componentName: 'CanvasProjects' },
-  '/works': { title: '作品库', icon: Trophy, componentName: 'WorksGalleryPage' },
+  '/free-gen': { title: '自由生图', icon: PenLine, componentName: 'FreeGen' },
+  '/workspace': { title: '快速生图', icon: Sparkles, componentName: 'Workspace' },
+  '/templates': { title: '模板图库', icon: LayoutTemplate, componentName: 'TemplatesPage' },
+  '/results': { title: '生图结果', icon: ImageIcon, componentName: 'ResultsPage' },
+  '/prompts': { title: '提示词库', icon: BookOpen, componentName: 'PromptLibraryPage' },
+  '/prompt-workshop': { title: '提示词工坊', icon: NotebookPen, componentName: 'PromptWorkshopPage' },
+  '/suite-prompt': { title: '成套提示词', icon: Layers, componentName: 'SuitePromptPage' },
+  '/expert': { title: '提示词专家', icon: NotebookPen, componentName: 'ExpertPage' },
+  '/admin/users': { title: '用户管理', icon: Users, componentName: 'AdminUsers' },
+  '/admin/dashboard': { title: '生图日志', icon: ScrollText, componentName: 'AdminDashboard' },
+  '/admin/templates': { title: '模板管理', icon: LayoutTemplate, componentName: 'AdminTemplates' },
+  '/admin/feature-prompts': { title: '功能提示词', icon: PenLine, componentName: 'AdminFeaturePrompts' },
+  '/admin/works': { title: '作品库管理', icon: Award, componentName: 'AdminWorks' },
+  '/admin/prompt-cases': { title: '提示词案例', icon: ImageIcon, componentName: 'AdminPromptCases' },
+  '/canvas-projects': { title: 'AI画布', icon: Workflow, componentName: 'CanvasProjects' },
+  '/works': { title: '作品库', icon: Award, componentName: 'WorksGalleryPage' },
 }
 
 // Normalize path: strip trailing slash
@@ -118,7 +121,7 @@ export const useTabStore = defineStore('tabs', () => {
     if (!meta) {
       const aiCanvasMatch = np.match(/^\/ai-canvas\/\d+$/)
       if (aiCanvasMatch) {
-        meta = { title: 'AI画布', icon: Share, componentName: 'AICanvas' }
+        meta = { title: 'AI画布', icon: Workflow, componentName: 'AICanvas' }
       }
     }
     if (!meta) return

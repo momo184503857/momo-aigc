@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { Plus, RefreshCw, X } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { UiImagePreview } from '@/components/ui'
 defineOptions({ name: 'ImageSlotUpload' })
 
 export interface SlotImage {
@@ -130,176 +133,80 @@ function showPreview(dataUrl: string) {
 </script>
 
 <template>
-  <div class="slot-upload" :class="{ 'align-left': alignLeft }">
+  <div class="image-slot-upload mb-3.5 flex flex-col" :class="alignLeft ? 'items-start' : 'items-center'">
     <div
-      class="slot-images"
-      :class="{ 'align-left': alignLeft }"
+      class="flex flex-wrap items-start gap-2.5"
+      :class="alignLeft ? 'justify-start' : 'justify-center'"
       @dragover.prevent
       @drop.prevent="handleDrop"
     >
-      <div v-for="(img, i) in modelValue" :key="img.id" class="slot-thumb-wrap" :style="{ width: size + 'px', height: size + 'px' }">
-        <img :src="img.dataUrl" class="slot-thumb" @click="showPreview(img.dataUrl)" />
-        <span class="slot-remove" @click.stop="handleRemove(i)">&times;</span>
+      <div
+        v-for="(img, i) in modelValue"
+        :key="img.id"
+        class="border-border relative shrink-0 overflow-hidden rounded-md border"
+        :style="{ width: size + 'px', height: size + 'px' }"
+      >
+        <img :src="img.dataUrl" class="size-full cursor-zoom-in object-cover" @click="showPreview(img.dataUrl)" />
+        <button
+          type="button"
+          class="bg-destructive text-destructive-foreground hover:bg-destructive/90 absolute top-1.5 right-1.5 z-2 flex size-5.5 cursor-pointer items-center justify-center rounded-full"
+          @click.stop="handleRemove(i)"
+        >
+          <X class="size-3.5" />
+        </button>
         <!-- Replace button overlay on bottom-right of image -->
-        <span class="slot-replace-btn" @click="handleReplaceClick(i)">
-          <span class="replace-icon">⟳</span>
-        </span>
+        <button
+          type="button"
+          class="bg-primary text-primary-foreground hover:bg-primary/90 absolute right-1.5 bottom-1.5 z-2 flex size-5.5 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110"
+          @click="handleReplaceClick(i)"
+        >
+          <RefreshCw class="size-3.5" />
+        </button>
       </div>
       <!-- Hidden file input for replace -->
       <input ref="replaceInputRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
         @change="handleFileReplace" />
       <!-- Add button: visible when slot is not yet filled -->
-      <label v-if="modelValue.length < maxCount" class="slot-add-btn" :style="{ width: size + 'px', height: size + 'px' }">
+      <label
+        v-if="modelValue.length < maxCount"
+        class="border-border-strong hover:border-primary text-muted-foreground hover:text-primary flex shrink-0 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed transition-colors"
+        :style="{ width: size + 'px', height: size + 'px' }"
+      >
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden
           @change="handleFileInput" />
-        <span class="add-icon">+</span>
-        <span class="add-hint">点击上传</span>
+        <Plus class="size-8" :stroke-width="1.5" />
+        <span class="text-muted-foreground text-xs">点击上传</span>
       </label>
     </div>
-    <div v-if="label" class="slot-label">
-      <span v-if="required" class="required">*</span>
+    <div v-if="label" class="text-muted-foreground mt-2 text-sm" :class="alignLeft ? 'text-left' : 'text-center'">
+      <span v-if="required" class="text-destructive">*</span>
       {{ label }}
     </div>
-    <el-button
+    <Button
       v-if="showTemplateBtn"
-      size="small"
-      class="template-btn"
+      size="sm"
+      variant="outline"
+      class="mt-1"
       @click="emit('template-select')"
     >
       从模板库选择
-    </el-button>
+    </Button>
     <div
       v-if="showTemplateBtn && starredTemplates.length > 0"
-      class="starred-row"
+      class="mt-2 flex max-w-full gap-2 overflow-x-auto py-1"
     >
       <div
         v-for="t in starredTemplates"
         :key="t.id"
-        class="starred-thumb"
+        class="border-border-light hover:border-primary size-24 shrink-0 cursor-pointer overflow-hidden rounded-sm border-2 transition-all hover:scale-108"
         :title="t.name"
         @click="emit('starred-select', t)"
       >
-        <img :src="t.public_url" :alt="t.name" />
+        <img :src="t.public_url" :alt="t.name" class="size-full object-cover" />
       </div>
     </div>
   </div>
 
-  <!-- Preview dialog -->
-  <el-dialog v-model="showPreviewDialog" :show-close="true" width="80%" align-center>
-    <img :src="previewUrl" class="preview-img" />
-  </el-dialog>
+  <!-- Preview overlay -->
+  <UiImagePreview v-model="showPreviewDialog" :url="previewUrl" />
 </template>
-
-<style scoped>
-.slot-upload {
-  margin-bottom: 14px;
-  display: flex; flex-direction: column; align-items: center;
-}
-
-.slot-label {
-  font-size: var(--momo-font-size-base); color: var(--el-text-color-secondary);
-  margin-top: 8px; text-align: center;
-}
-
-.required { color: var(--el-color-danger); }
-
-.slot-images {
-  display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
-  align-items: flex-start;
-}
-
-.slot-thumb-wrap {
-  position: relative; border-radius: var(--momo-radius-md); overflow: hidden;
-  border: 1px solid var(--el-border-color);
-  flex-shrink: 0;
-}
-
-.slot-thumb {
-  width: 100%; height: 100%; object-fit: cover; cursor: pointer;
-}
-
-.slot-remove {
-  position: absolute; top: 6px; right: 6px;
-  width: 22px; height: 22px; line-height: 20px; text-align: center;
-  background: var(--el-color-danger); color: var(--momo-color-text-inverse); border-radius: 50%;
-  font-size: var(--momo-font-size-base); cursor: pointer;
-  z-index: 2;
-}
-.slot-remove:hover { background: var(--el-color-danger-dark); }
-
-.slot-replace-btn {
-  position: absolute; bottom: 6px; right: 6px;
-  width: 22px; height: 22px;
-  background: var(--el-color-primary); color: var(--momo-color-text-inverse);
-  border-radius: 50%; cursor: pointer; z-index: 2;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.2s, transform 0.15s;
-}
-.slot-replace-btn:hover { background: var(--el-color-primary-dark); transform: scale(1.1); }
-.replace-icon { font-size: 14px; line-height: 1; }
-
-.slot-add-btn {
-  border: 2px dashed var(--el-border-color-dark);
-  border-radius: var(--momo-radius-md); cursor: pointer;
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 8px;
-  transition: border-color 0.2s, border-style 0.2s;
-  flex-shrink: 0;
-}
-.slot-add-btn:hover { border-color: var(--el-color-primary); }
-.add-icon { font-size: 36px; color: var(--el-text-color-placeholder); }
-.add-hint { font-size: var(--momo-font-size-sm); color: var(--el-text-color-placeholder); }
-
-.template-btn {
-  margin-top: 4px;
-}
-
-.starred-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  max-width: 100%;
-  overflow-x: auto;
-  padding: 4px 0;
-}
-.starred-row::-webkit-scrollbar {
-  height: 4px;
-}
-.starred-row::-webkit-scrollbar-thumb {
-  background: var(--el-border-color);
-  border-radius: 2px;
-}
-.starred-thumb {
-  width: 96px;
-  height: 96px;
-  flex-shrink: 0;
-  border-radius: var(--momo-radius-sm);
-  overflow: hidden;
-  border: 2px solid var(--el-border-color-light);
-  cursor: pointer;
-  transition: border-color 0.2s, transform 0.15s;
-}
-.starred-thumb:hover {
-  border-color: var(--el-color-primary);
-  transform: scale(1.08);
-}
-.starred-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.align-left {
-  align-items: flex-start;
-}
-.slot-images.align-left {
-  justify-content: flex-start;
-}
-
-.preview-img {
-  width: 100%;
-  max-height: 80vh;
-  object-fit: contain;
-  display: block;
-}
-</style>

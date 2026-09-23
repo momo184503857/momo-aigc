@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Info } from '@lucide/vue'
+import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
@@ -8,15 +12,15 @@ const saveDir = typeof props.node.config.saveDir === 'string' ? props.node.confi
 </script>
 
 <template>
-  <div class="config-section">
-    <el-alert title="保存目录为项目级配置，修改后所有保存节点共用。" type="info" show-icon :closable="false" />
+  <div class="flex flex-col gap-3">
+    <Alert>
+      <Info />
+      <AlertTitle>保存目录为项目级配置，修改后所有保存节点共用。</AlertTitle>
+    </Alert>
 
-    <label>保存目录</label>
-    <el-input :model-value="saveDir" placeholder="未设置，运行时将弹出选择框" readonly />
+    <div class="grid gap-1.5">
+      <Label>保存目录</Label>
+      <Input :model-value="saveDir" placeholder="未设置，运行时将弹出选择框" readonly />
+    </div>
   </div>
 </template>
-
-<style scoped>
-.config-section { display: flex; flex-direction: column; gap: 12px; }
-.config-section label { color: var(--el-text-color-regular); font-size: var(--el-font-size-small); }
-</style>

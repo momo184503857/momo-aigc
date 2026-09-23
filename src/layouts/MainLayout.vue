@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { List, LoaderCircle } from '@lucide/vue'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useTaskPanelStore } from '@/stores/taskPanel'
 import { useTabStore } from '@/stores/tabs'
 import { useTaskManager } from '@/composables/useTaskManager'
-import { Fold, Expand, Loading, List } from '@element-plus/icons-vue'
+import AppHeader, { type Crumb } from '@/components/AppHeader.vue'
 import SidebarMenu from '@/components/SidebarMenu.vue'
 import TaskPanel from '@/components/TaskPanel.vue'
 import TabBar from '@/components/TabBar.vue'
 import HelpButton from '@/components/help/HelpButton.vue'
 import HelpDrawer from '@/components/help/HelpDrawer.vue'
+import { Button } from '@/components/ui/button'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 
 const serverStatus = useServerStatusStore()
 const taskPanel = useTaskPanelStore()
@@ -23,10 +26,6 @@ watch(() => route.path, (path) => {
   tabStore.syncFromRoute(path)
 }, { immediate: true })
 
-const sidebarCollapsed = ref(false)
-
-const pageTitle = computed(() => route.meta.title as string || '')
-
 const contentStyle = computed(() => {
   if (taskPanel.isSideBySide) {
     return { marginRight: taskPanel.panelWidth + 'px' }
@@ -34,285 +33,73 @@ const contentStyle = computed(() => {
   return {}
 })
 
-// ─── FAB drag ───
-const fabTop = ref<number | null>(null)
-const fabLeft = ref<number | null>(null)
-const fabBottom = ref(32)
-const isDraggingFab = ref(false)
-const isSnappingBack = ref(false)
-let dragStartX = 0
-let dragStartY = 0
-let dragStartLeft = 0
-let dragStartTop = 0
-let hasMoved = false
-
-const FAB_RIGHT = 32
-const FAB_WIDTH = 120
-
-function getRestingStyle(): Record<string, string> {
-  if (fabTop.value !== null) {
-    return { top: fabTop.value + 'px', right: FAB_RIGHT + 'px' }
-  }
-  return { bottom: fabBottom.value + 'px', right: FAB_RIGHT + 'px' }
+// 详情页/子页回退到所属一级页；一级页面自身标题由 PageLayout 的 H2 承担，
+// 顶栏不再重复一次同名面包屑。
+function resolveParentCrumb(path: string): Crumb | null {
+  if (path.startsWith('/works/')) return { title: '作品库', to: '/works' }
+  if (path.startsWith('/ai-canvas/')) return { title: 'AI画布', to: '/canvas-projects' }
+  if (path.startsWith('/toolbox/')) return { title: 'AI工具箱', to: '/toolbox' }
+  return null
 }
 
-function getDraggingStyle(): Record<string, string> {
-  if (fabLeft.value !== null && fabTop.value !== null) {
-    return { top: fabTop.value + 'px', left: fabLeft.value + 'px' }
-  }
-  return getRestingStyle()
-}
-
-const fabStyle = computed(() => {
-  if (isDraggingFab.value) return getDraggingStyle()
-  if (isSnappingBack.value && fabTop.value !== null) {
-    return { top: fabTop.value + 'px', right: FAB_RIGHT + 'px' }
-  }
-  return getRestingStyle()
+const crumbs = computed<Crumb[]>(() => {
+  const parent = resolveParentCrumb(route.path)
+  return parent ? [parent] : []
 })
 
-function onFabMouseDown(e: MouseEvent) {
-  startDrag(e.clientX, e.clientY)
-  document.body.style.userSelect = 'none'
-  e.preventDefault()
-}
-
-function onFabTouchStart(e: TouchEvent) {
-  startDrag(e.touches[0].clientX, e.touches[0].clientY)
-}
-
-function startDrag(clientX: number, clientY: number) {
-  isDraggingFab.value = true
-  isSnappingBack.value = false
-  hasMoved = false
-
-  // Calculate current position
-  const rect = (document.querySelector('.task-fab') as HTMLElement)?.getBoundingClientRect()
-  if (rect) {
-    dragStartLeft = rect.left
-    dragStartTop = rect.top
-  }
-  fabLeft.value = dragStartLeft
-  fabTop.value = dragStartTop
-
-  dragStartX = clientX
-  dragStartY = clientY
-}
-
-function onFabPointerMove(e: MouseEvent | TouchEvent) {
-  if (!isDraggingFab.value) return
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-  const dx = clientX - dragStartX
-  const dy = clientY - dragStartY
-  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true
-
-  const newLeft = dragStartLeft + dx
-  const newTop = dragStartTop + dy
-  fabLeft.value = Math.max(0, Math.min(window.innerWidth - FAB_WIDTH, newLeft))
-  fabTop.value = Math.max(0, Math.min(window.innerHeight - 44, newTop))
-}
-
-function onFabPointerUp() {
-  if (!isDraggingFab.value) return
-  isDraggingFab.value = false
-  document.body.style.userSelect = ''
-
-  // Snap back to right side
-  isSnappingBack.value = true
-  // Save vertical position
-  if (fabTop.value !== null) {
-    localStorage.setItem('fab_top', String(fabTop.value))
-  }
-  // After transition ends, switch back to right positioning
-  setTimeout(() => {
-    isSnappingBack.value = false
-    fabLeft.value = null
-  }, 300)
-}
-
-function onFabClick() {
-  if (hasMoved) return
-  taskPanel.togglePanel()
+// 任务面板开关收进全局顶栏：浮标会压住每个页面右下角的吸底动作栏，
+// 而任务面板本身是全局状态，控制器放在全局栏更符合归属。
+function toggleTaskPanel() {
+  if (taskPanel.isCollapsed) taskPanel.togglePanel()
+  else taskPanel.collapse()
 }
 
 onMounted(() => {
   serverStatus.fetchStatus()
-  const saved = localStorage.getItem('fab_top')
-  if (saved) {
-    fabTop.value = Math.max(0, Math.min(window.innerHeight - 44, Number(saved)))
-  }
-
-  document.addEventListener('mousemove', onFabPointerMove)
-  document.addEventListener('mouseup', onFabPointerUp)
-  document.addEventListener('touchmove', onFabPointerMove)
-  document.addEventListener('touchend', onFabPointerUp)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onFabPointerMove)
-  document.removeEventListener('mouseup', onFabPointerUp)
-  document.removeEventListener('touchmove', onFabPointerMove)
-  document.removeEventListener('touchend', onFabPointerUp)
 })
 </script>
 
 <template>
-  <div class="main-layout">
-    <SidebarMenu :collapsed="sidebarCollapsed" />
-    <div class="main-content" :style="contentStyle">
-      <div class="main-header">
-        <div class="header-left">
-          <el-button
-            size="small"
-            :icon="sidebarCollapsed ? Expand : Fold"
-            @click="sidebarCollapsed = !sidebarCollapsed"
-          />
-          <span class="page-title">{{ pageTitle }}</span>
-        </div>
-        <div class="header-right">
+  <SidebarProvider class="h-svh overflow-hidden">
+    <SidebarMenu />
+
+    <SidebarInset :style="contentStyle" class="h-svh overflow-hidden">
+      <AppHeader :crumbs="crumbs">
+        <template #actions>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="gap-1.5"
+            :aria-label="taskPanel.isCollapsed ? '打开任务面板' : '收起任务面板'"
+            @click="toggleTaskPanel"
+          >
+            <LoaderCircle v-if="tm.hasActiveJobs.value" class="size-4 animate-spin" />
+            <List v-else class="size-4" />
+            <span v-if="tm.activeTaskCount.value > 0" class="text-xs tabular-nums">
+              {{ tm.activeTaskCount.value > 99 ? '99+' : tm.activeTaskCount.value }}
+            </span>
+          </Button>
           <HelpButton />
-        </div>
-      </div>
+        </template>
+      </AppHeader>
+
       <TabBar />
-      <div class="main-body">
+
+      <!-- 滚动与内边距全部交给页面外壳 PageLayout（.page-content 是唯一滚动容器），
+           页面才能做全出血布局与吸底动作栏 -->
+      <div class="min-h-0 flex-1 overflow-hidden">
         <router-view v-slot="{ Component }">
           <KeepAlive :include="tabStore.keepAliveInclude">
             <component :is="Component" />
           </KeepAlive>
         </router-view>
       </div>
-    </div>
+    </SidebarInset>
 
     <!-- Task Panel (global) -->
     <TaskPanel />
 
     <!-- Help Drawer (global, user-facing pages only) -->
     <HelpDrawer />
-
-    <!-- FAB button (collapsed state) -->
-    <div
-      v-if="taskPanel.isCollapsed"
-      class="task-fab"
-      :class="{ 'has-active': tm.hasActiveJobs.value, dragging: isDraggingFab, snapping: isSnappingBack }"
-      :style="fabStyle"
-      @click="onFabClick"
-      @mousedown="onFabMouseDown"
-      @touchstart.prevent="onFabTouchStart"
-    >
-      <template v-if="tm.hasActiveJobs.value">
-        <el-badge :value="tm.activeTaskCount.value" :max="99">
-          <el-icon :size="20" class="fab-spin"><Loading /></el-icon>
-        </el-badge>
-        <span class="fab-label">生成中</span>
-      </template>
-      <template v-else>
-        <el-icon :size="20"><List /></el-icon>
-        <span class="fab-label">任务列表</span>
-      </template>
-    </div>
-  </div>
+  </SidebarProvider>
 </template>
-
-<style scoped>
-.main-layout {
-  height: 100vh;
-  display: flex;
-}
-
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--el-bg-color-page);
-}
-
-.main-header {
-  height: 56px;
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-  background: var(--el-bg-color);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  flex-shrink: 0;
-}
-
-.header-left {
-  display: flex; align-items: center; gap: 10px;
-}
-
-.header-right {
-  display: flex; align-items: center; gap: var(--momo-space-2);
-  margin-left: auto;
-}
-
-.page-title {
-  font-size: var(--momo-font-size-2xl);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.main-body {
-  flex: 1;
-  padding: var(--momo-page-padding);
-  overflow: auto;
-}
-
-/* FAB button */
-.task-fab {
-  position: fixed;
-  z-index: 2001;
-  height: 44px;
-  padding: 0 16px;
-  border-radius: 22px;
-  background: var(--el-color-primary);
-  color: var(--el-color-white);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: grab;
-  box-shadow: var(--el-box-shadow);
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.task-fab.snapping {
-  transition: top 0.3s cubic-bezier(0.25, 0.1, 0.25, 1),
-              left 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-
-.task-fab:hover {
-  box-shadow: var(--el-box-shadow-dark);
-}
-
-.task-fab.dragging {
-  cursor: grabbing;
-  box-shadow: var(--el-box-shadow-dark);
-}
-
-.task-fab.has-active {
-  background: var(--el-color-warning);
-  animation: fab-pulse 2s ease-in-out infinite;
-}
-
-@keyframes fab-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb, 230, 162, 60), 0.4); }
-  50% { box-shadow: 0 0 0 10px rgba(var(--el-color-warning-rgb, 230, 162, 60), 0); }
-}
-
-.fab-label {
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.fab-spin {
-  animation: fab-rotate 1.2s linear infinite;
-}
-
-@keyframes fab-rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-</style>

@@ -1,46 +1,54 @@
 <template>
-  <div class="sg-decompose-form">
-    <div class="df-grid">
-      <div class="df-field df-theme">
-        <div class="f-label">{{ themeLabel }} <span class="req">*</span></div>
-        <div class="theme-row">
-          <el-select
+  <div class="flex flex-col gap-3">
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
+      <div class="col-span-full">
+        <Label class="mb-1 gap-1 text-(--momo-color-text-secondary)">{{ themeLabel }} <span class="text-destructive">*</span></Label>
+        <div class="flex gap-2">
+          <!-- TODO(allow-create-select)：原 EP 下拉 filterable+allow-create（选择或自由输入），shadcn Select 无对应物，用 Input + datalist 按原语义实现 -->
+          <Input
             v-model="form.theme"
-            filterable
-            allow-create
-            default-first-option
+            list="df-options-theme"
+            class="flex-1"
             placeholder="选择或输入，如：新中式 / 法式田园"
-            style="flex:1"
-          >
-            <el-option v-for="o in optionsOf('theme')" :key="String(o)" :value="String(o)" :label="String(o)" />
-          </el-select>
-          <el-button type="primary" plain @click="emit('reason')">🧠 智能推理补全</el-button>
+          />
+          <datalist id="df-options-theme">
+            <option v-for="o in optionsOf('theme')" :key="String(o)" :value="String(o)" />
+          </datalist>
+          <Button @click="emit('reason')">🧠 智能推理补全</Button>
         </div>
       </div>
-      <div v-for="f in selectFields" :key="f.key" class="df-field">
-        <div class="f-label">{{ f.label }} <el-tag v-if="autoFilled[f.key]" size="small" type="warning" effect="plain">推理</el-tag></div>
-        <el-select
+      <div v-for="f in selectFields" :key="f.key">
+        <Label class="mb-1 gap-1 text-(--momo-color-text-secondary)">
+          {{ f.label }} <Badge v-if="autoFilled[f.key]" variant="warning">推理</Badge>
+        </Label>
+        <Input
           v-model="form[f.key]"
-          filterable allow-create default-first-option clearable
+          :list="`df-options-${f.key}`"
           placeholder="选择或输入"
-        >
-          <el-option v-for="o in optionsOf(f.key)" :key="String(o)" :value="String(o)" :label="String(o)" />
-        </el-select>
+        />
+        <datalist :id="`df-options-${f.key}`">
+          <option v-for="o in optionsOf(f.key)" :key="String(o)" :value="String(o)" />
+        </datalist>
       </div>
-      <div v-for="f in textFields" :key="f.key" class="df-field">
-        <div class="f-label">{{ f.label }}</div>
-        <el-input v-model="form[f.key]" type="textarea" :rows="2" placeholder="自由描述" />
+      <div v-for="f in textFields" :key="f.key">
+        <Label class="mb-1 text-(--momo-color-text-secondary)">{{ f.label }}</Label>
+        <Textarea v-model="form[f.key]" :rows="2" placeholder="自由描述" />
       </div>
     </div>
-    <div class="df-actions">
-      <el-button size="small" @click="emit('feedback', true)">👍 本次推理精准</el-button>
-      <el-button size="small" @click="emit('feedback', false)">👎 需修正</el-button>
+    <div class="flex gap-2">
+      <Button size="sm" variant="outline" @click="emit('feedback', true)">👍 本次推理精准</Button>
+      <Button size="sm" variant="outline" @click="emit('feedback', false)">👎 需修正</Button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { DECOMPOSE_FIELDS } from '@/utils/decomposeSpec'
 
 defineOptions({ name: 'SgDecomposeForm18' })
@@ -83,13 +91,3 @@ function optionsOf(key: string): unknown[] {
   return props.fieldOptions[key] || []
 }
 </script>
-
-<style scoped>
-.sg-decompose-form { display: flex; flex-direction: column; gap: var(--momo-space-3); }
-.df-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--momo-space-3); }
-.df-theme { grid-column: 1 / -1; }
-.theme-row { display: flex; gap: var(--momo-space-2); }
-.f-label { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); margin-bottom: var(--momo-space-1); display: flex; align-items: center; gap: var(--momo-space-1); }
-.req { color: var(--momo-color-danger); }
-.df-actions { display: flex; gap: var(--momo-space-2); }
-</style>

@@ -1,39 +1,23 @@
 <script setup lang="ts">
+import { Inbox } from '@lucide/vue'
+
 withDefaults(defineProps<{
   title: string
   description?: string
-  imageSize?: number
 }>(), {
   description: '',
-  imageSize: 64,
 })
 </script>
 
 <template>
-  <el-empty :image-size="imageSize" class="ui-empty-state">
-    <template #description>
-      <div class="ui-empty-title">{{ title }}</div>
-      <div v-if="description" class="ui-empty-description">{{ description }}</div>
-    </template>
-    <slot />
-  </el-empty>
+  <div class="flex flex-col items-center justify-center px-4 py-12 text-center">
+    <Inbox class="text-muted-foreground/50 size-10" :stroke-width="1.5" />
+    <div class="text-foreground mt-3 text-sm">{{ title }}</div>
+    <div v-if="description" class="text-muted-foreground mt-1 max-w-sm text-xs leading-5">
+      {{ description }}
+    </div>
+    <div v-if="$slots.default" class="mt-4">
+      <slot />
+    </div>
+  </div>
 </template>
-
-<style scoped>
-.ui-empty-state {
-  padding: 32px 16px;
-}
-
-.ui-empty-title {
-  color: var(--el-text-color-regular);
-  font-size: var(--momo-font-size-base);
-  line-height: 22px;
-}
-
-.ui-empty-description {
-  margin-top: 4px;
-  color: var(--el-text-color-secondary);
-  font-size: var(--momo-font-size-sm);
-  line-height: 18px;
-}
-</style>

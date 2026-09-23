@@ -1,29 +1,38 @@
 <template>
-  <div class="sg-asset-picker">
-    <div class="picker-toolbar">
-      <el-radio-group :model-value="scope" size="small" @update:model-value="onScope">
-        <el-radio-button value="all">全部</el-radio-button>
-        <el-radio-button value="global">通用</el-radio-button>
-        <el-radio-button value="mine">我的</el-radio-button>
-      </el-radio-group>
-      <el-input
-        :model-value="keyword"
-        size="small"
-        clearable
-        placeholder="搜索…"
-        style="width: 160px"
-        @update:model-value="onKeyword"
-      />
+  <div class="flex flex-col gap-3">
+    <div class="flex items-center gap-2">
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        size="sm"
+        :model-value="scope"
+        @update:model-value="(v) => { if (v) onScope(v) }"
+      >
+        <ToggleGroupItem value="all">全部</ToggleGroupItem>
+        <ToggleGroupItem value="global">通用</ToggleGroupItem>
+        <ToggleGroupItem value="mine">我的</ToggleGroupItem>
+      </ToggleGroup>
+      <div class="relative w-40">
+        <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+        <Input
+          :model-value="keyword"
+          placeholder="搜索…"
+          class="h-7 pl-8 text-[0.8rem]"
+          @update:model-value="onKeyword"
+        />
+      </div>
       <slot name="actions" />
     </div>
-    <div v-if="loading" class="picker-loading">加载中…</div>
-    <div v-else-if="list.length === 0" class="picker-empty">暂无资产，可在管理后台或「我的」中创建</div>
-    <div v-else class="picker-list">
+    <div v-if="loading" class="text-muted-foreground p-4 text-center text-sm">加载中…</div>
+    <div v-else-if="list.length === 0" class="text-muted-foreground p-4 text-center text-sm">暂无资产，可在管理后台或「我的」中创建</div>
+    <div v-else class="grid max-h-80 grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2 overflow-y-auto">
       <div
         v-for="item in list"
         :key="item.id"
-        class="picker-item"
-        :class="{ selected: item.id === modelValue }"
+        class="cursor-pointer rounded-md border bg-background p-3 transition-[border-color,box-shadow]"
+        :class="item.id === modelValue
+          ? 'border-primary shadow-(--momo-shadow-brand)'
+          : 'border-(--momo-color-border-light) hover:border-(--momo-color-brand-border)'"
         @click="emit('select', item)"
       >
         <slot name="item" :item="item">
@@ -36,6 +45,9 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { Search } from '@lucide/vue'
+import { Input } from '@/components/ui/input'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import type { SgAssetType } from '@/services/sgApi'
 
@@ -81,20 +93,3 @@ async function load() {
 onMounted(load)
 watch(() => props.extraQuery, () => load(), { deep: true })
 </script>
-
-<style scoped>
-.sg-asset-picker { display: flex; flex-direction: column; gap: var(--momo-space-3); }
-.picker-toolbar { display: flex; align-items: center; gap: var(--momo-space-2); }
-.picker-loading, .picker-empty {
-  color: var(--momo-color-text-tertiary); font-size: var(--momo-font-size-sm);
-  padding: var(--momo-space-4); text-align: center;
-}
-.picker-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--momo-space-2); max-height: 320px; overflow-y: auto; }
-.picker-item {
-  border: 1px solid var(--momo-color-border-light); border-radius: var(--momo-radius-md);
-  padding: var(--momo-space-3); cursor: pointer; background: var(--momo-color-bg);
-  transition: border-color var(--momo-transition-fast), box-shadow var(--momo-transition-fast);
-}
-.picker-item:hover { border-color: var(--momo-color-brand-border); }
-.picker-item.selected { border-color: var(--momo-color-brand); box-shadow: var(--momo-shadow-brand); }
-</style>

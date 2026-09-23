@@ -23,12 +23,35 @@ import { promptCardsApi, type PromptCardItem, type PromptModule, type PromptCard
 import { appendSegmentToText, type PreviewSegment } from '@/utils/promptAssembler'
 import { useAuthStore } from '@/stores/auth'
 import {
-  Search, Refresh, Picture, Loading, StarFilled, Pointer,
-  Collection, CollectionTag, CopyDocument, Plus, Collection as SaveIcon, DocumentCopy,
-} from '@element-plus/icons-vue'
+  Search, RefreshCw, Image as ImageIcon, LoaderCircle, Star, ThumbsUp,
+  Bookmark, Copy, Plus, Library,
+} from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { UiEmptyState } from '@/components/ui'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const route = useRoute()
 const authStore = useAuthStore()
+
+// Select 不接受空串/undefined 值，用哨兵值映射「全部模块」
+const ALL_MODULES = '__all_modules__'
 const { error, info, success, warning } = useUiFeedback()
 const { retryOnError } = useImageRetry()
 
@@ -299,6 +322,18 @@ function copyPrompt() {
 const showSaveDialog = ref(false)
 const saveName = ref('')
 const saveTags = ref<string[]>([])
+const saveTagInput = ref('')
+
+function addSaveTag() {
+  const t = saveTagInput.value.trim()
+  if (!t) return
+  if (!saveTags.value.includes(t)) saveTags.value = [...saveTags.value, t]
+  saveTagInput.value = ''
+}
+
+function removeSaveTag(tag: string) {
+  saveTags.value = saveTags.value.filter((t) => t !== tag)
+}
 const saving = ref(false)
 const { allTags } = usePromptLibrary({ pageSize: 1 })
 
@@ -358,42 +393,59 @@ onBeforeUnmount(() => {
 
     <!-- 顶部筛选区 -->
     <div class="filter-bar">
-      <el-input
-        v-model="keyword"
-        :prefix-icon="Search"
-        placeholder="搜索提示词内容或备注"
-        clearable
-        class="filter-search"
-        @keyup.enter="applyFilters"
-        @clear="applyFilters"
-      />
-      <el-select v-model="scope" @change="applyFilters" class="filter-select">
-        <el-option v-for="s in scopeOptions" :key="s.value" :label="s.label" :value="s.value" />
-      </el-select>
-      <el-select v-model="moduleId" placeholder="全部模块" clearable @change="applyFilters" class="filter-select">
-        <el-option v-for="m in modules" :key="m.id" :label="m.name" :value="m.id" />
-      </el-select>
-      <el-button :icon="Refresh" @click="loadCards" circle size="small" />
+      <div class="relative w-64 max-w-full">
+        <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+        <Input
+          v-model="keyword"
+          placeholder="搜索提示词内容或备注"
+          class="pl-8"
+          @keyup.enter="applyFilters"
+        />
+      </div>
+      <Select :model-value="scope" @update:model-value="(v) => { scope = String(v) as typeof scope; applyFilters() }">
+        <SelectTrigger class="w-32">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="s in scopeOptions" :key="s.value" :value="s.value">{{ s.label }}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select :model-value="moduleId === undefined ? ALL_MODULES : String(moduleId)" @update:model-value="(v) => { moduleId = String(v) === ALL_MODULES ? undefined : Number(v); applyFilters() }">
+        <SelectTrigger class="w-36">
+          <SelectValue placeholder="全部模块" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem :value="ALL_MODULES">全部模块</SelectItem>
+          <SelectItem v-for="m in modules" :key="m.id" :value="String(m.id)">{{ m.name }}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button variant="outline" size="icon" title="刷新" @click="loadCards"><RefreshCw /></Button>
       <div class="header-actions">
-        <el-button v-if="isAdmin" text @click="$router.push('/admin/prompt-modules')">模块管理</el-button>
-        <el-button type="primary" :icon="Plus" @click="showUpload = true">上传提示词</el-button>
+        <Button v-if="isAdmin" variant="ghost" @click="$router.push('/admin/prompt-modules')">模块管理</Button>
+        <Button @click="showUpload = true"><Plus />上传提示词</Button>
       </div>
     </div>
 
     <!-- 排序栏 -->
     <div class="sort-bar">
       <span class="sort-label">排序：</span>
-      <el-radio-group v-model="sort" @change="applyFilters" size="small">
-        <el-radio-button v-for="s in sortOptions" :key="s.value" :value="s.value">{{ s.label }}</el-radio-button>
-      </el-radio-group>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        size="sm"
+        :model-value="sort"
+        @update:model-value="(v) => { if (v) { sort = String(v) as typeof sort; applyFilters() } }"
+      >
+        <ToggleGroupItem v-for="s in sortOptions" :key="s.value" :value="s.value">{{ s.label }}</ToggleGroupItem>
+      </ToggleGroup>
     </div>
 
     <!-- 主体：瀑布流 + 拼接预览 -->
     <div class="workshop-body">
       <!-- 左：卡片瀑布流 -->
-      <div v-loading="loading" class="cards-wrap">
+      <div class="cards-wrap">
         <div v-if="!loading && cards.length === 0" class="cards-empty">
-          <el-empty :description="scope === 'gallery' ? '暂无提示词，上传你的第一条吧' : '暂无内容'" />
+          <UiEmptyState :title="scope === 'gallery' ? '暂无提示词，上传你的第一条吧' : '暂无内容'" />
         </div>
         <div v-else class="cards-masonry">
           <div
@@ -411,30 +463,29 @@ onBeforeUnmount(() => {
                 @error="retryOnError($event, card.cover_url)"
               />
               <div v-else class="card-image-placeholder">
-                <el-icon size="32"><Picture /></el-icon>
+                <ImageIcon class="size-8" />
               </div>
-              <el-tag v-if="card.is_official" type="warning" size="small" class="official-badge">官方</el-tag>
-              <el-tag
+              <Badge v-if="card.is_official" variant="warning" class="official-badge">官方</Badge>
+              <Badge
                 v-if="card.module"
-                size="small"
-                :type="card.module.type === 'forbidden' ? 'danger' : card.module.type === 'requirement' ? 'warning' : 'primary'"
-                effect="plain"
+                :variant="card.module.type === 'forbidden' ? 'destructive' : card.module.type === 'requirement' ? 'warning' : 'secondary'"
                 class="module-badge"
               >
                 {{ card.module.name }}
-              </el-tag>
+              </Badge>
             </div>
             <div class="card-info">
               <div class="card-content-row">
                 <p class="card-content">{{ card.content }}</p>
-                <el-button
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   class="copy-btn"
-                  text
-                  size="small"
-                  :icon="DocumentCopy"
                   title="复制内容"
                   @click.stop="copyContent(card, $event)"
-                />
+                >
+                  <Copy />
+                </Button>
               </div>
               <div class="card-actions" @click.stop>
                 <div class="action-cell">
@@ -444,7 +495,7 @@ onBeforeUnmount(() => {
                     :title="card.is_liked ? '取消今日点赞' : '点赞（每天可赞一次）'"
                     @click="toggleLike(card, $event)"
                   >
-                    <span class="action-top"><el-icon size="12"><StarFilled v-if="card.is_liked" /><Pointer v-else /></el-icon><span>赞</span></span>
+                    <span class="action-top"><Star v-if="card.is_liked" class="size-3 fill-current" /><ThumbsUp v-else class="size-3" /><span>赞</span></span>
                   </button>
                   <span class="action-num">{{ card.like_count }}</span>
                 </div>
@@ -455,7 +506,7 @@ onBeforeUnmount(() => {
                     :title="card.is_favorited ? '取消收藏' : '收藏'"
                     @click="toggleFavorite(card, $event)"
                   >
-                    <span class="action-top"><el-icon size="12"><CollectionTag v-if="card.is_favorited" /><Collection v-else /></el-icon><span>收藏</span></span>
+                    <span class="action-top"><Bookmark class="size-3" :class="{ 'fill-current': card.is_favorited }" /><span>收藏</span></span>
                   </button>
                 </div>
                 <div class="action-cell">
@@ -464,7 +515,7 @@ onBeforeUnmount(() => {
                     title="复用到拼接预览"
                     @click="reuseCard(card, $event)"
                   >
-                    <span class="action-top"><el-icon size="12"><CopyDocument /></el-icon><span>复用</span></span>
+                    <span class="action-top"><Copy class="size-3" /><span>复用</span></span>
                   </button>
                   <span class="action-num">{{ card.reuse_count }}</span>
                 </div>
@@ -477,7 +528,7 @@ onBeforeUnmount(() => {
         <div v-if="cards.length > 0" class="load-more-zone">
           <div ref="sentinelRef" class="sentinel"></div>
           <div v-if="loadingMore" class="loading-more">
-            <el-icon class="is-loading" size="16"><Loading /></el-icon>
+            <LoaderCircle class="size-4 animate-spin" />
             <span>加载中…</span>
           </div>
           <div v-else-if="noMore" class="no-more">没有更多了</div>
@@ -500,9 +551,9 @@ onBeforeUnmount(() => {
           @input="onPreviewInput"
         ></div>
         <div class="preview-actions">
-          <el-button :icon="Refresh" @click="resetPreview">重置</el-button>
-          <el-button :icon="DocumentCopy" :disabled="!previewText" @click="copyPrompt">复制</el-button>
-          <el-button type="primary" :icon="SaveIcon" @click="openSaveDialog">保存到提示词库</el-button>
+          <Button variant="outline" size="sm" @click="resetPreview"><RefreshCw />重置</Button>
+          <Button variant="outline" size="sm" :disabled="!previewText" @click="copyPrompt"><Copy />复制</Button>
+          <Button size="sm" @click="openSaveDialog"><Library />保存到提示词库</Button>
         </div>
       </div>
     </div>
@@ -514,22 +565,45 @@ onBeforeUnmount(() => {
     <PromptCardPreview v-model="previewVisible" :card="previewCard" @reuse="handlePreviewReuse" />
 
     <!-- 保存到提示词库弹窗 -->
-    <el-dialog v-model="showSaveDialog" title="保存到提示词库" width="480px" :close-on-click-modal="false">
-      <el-form label-position="top">
-        <el-form-item label="名称">
-          <el-input v-model="saveName" placeholder="给这条提示词起个名字" maxlength="40" show-word-limit />
-        </el-form-item>
-        <el-form-item label="标签（可选）">
-          <el-select v-model="saveTags" multiple filterable allow-create placeholder="选择或输入标签" style="width: 100%">
-            <el-option v-for="tag in allTags" :key="tag" :label="tag" :value="tag" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showSaveDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
-      </template>
-    </el-dialog>
+    <Dialog :open="showSaveDialog" @update:open="(v: boolean) => (showSaveDialog = v)">
+      <DialogContent class="sm:max-w-md" @pointer-down-outside.prevent>
+        <DialogHeader>
+          <DialogTitle>保存到提示词库</DialogTitle>
+        </DialogHeader>
+        <div class="flex flex-col gap-4">
+          <div class="grid gap-1.5">
+            <Label for="save-name">名称</Label>
+            <Input id="save-name" v-model="saveName" placeholder="给这条提示词起个名字" maxlength="40" />
+          </div>
+          <div class="grid gap-1.5">
+            <Label>标签（可选）</Label>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <Badge v-for="tag in saveTags" :key="tag" variant="secondary" class="gap-1">
+                {{ tag }}
+                <button type="button" class="hover:text-destructive cursor-pointer" @click="removeSaveTag(tag)">×</button>
+              </Badge>
+              <Input
+                v-model="saveTagInput"
+                placeholder="输入标签后回车"
+                class="h-7 w-36 text-[0.8rem]"
+                list="workshop-tag-options"
+                @keyup.enter.prevent="addSaveTag"
+              />
+              <datalist id="workshop-tag-options">
+                <option v-for="tag in allTags" :key="tag" :value="tag" />
+              </datalist>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showSaveDialog = false">取消</Button>
+          <Button :disabled="saving" @click="handleSave">
+            <LoaderCircle v-if="saving" class="animate-spin" />
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </PageLayout>
 </template>
 
@@ -552,7 +626,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   padding-bottom: 12px;
   margin-bottom: 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--momo-color-border-soft);
   flex-shrink: 0;
 }
 .filter-search {
@@ -576,7 +650,7 @@ onBeforeUnmount(() => {
 }
 .sort-label {
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-secondary);
   margin-right: 8px;
 }
 
@@ -621,13 +695,13 @@ onBeforeUnmount(() => {
   margin-bottom: 14px;
   border-radius: var(--momo-radius-md);
   overflow: hidden;
-  background: var(--el-fill-color-lighter);
+  background: var(--momo-color-bg-soft);
   cursor: pointer;
   transition: box-shadow 0.2s, transform 0.2s;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--momo-color-border-soft);
 }
 .prompt-card:hover {
-  box-shadow: var(--el-box-shadow);
+  box-shadow: var(--momo-shadow-md);
   transform: translateY(-2px);
 }
 
@@ -636,7 +710,7 @@ onBeforeUnmount(() => {
   width: 100%;
   aspect-ratio: 1;          /* 固定正方形，所有卡片图片区一致 */
   overflow: hidden;
-  background: var(--el-fill-color);
+  background: var(--momo-color-bg-muted);
 }
 .card-image-wrap img {
   width: 100%;
@@ -650,7 +724,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
 }
 .official-badge {
   position: absolute;
@@ -677,7 +751,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -690,7 +764,7 @@ onBeforeUnmount(() => {
 .card-remark {
   margin: 0 0 8px;
   font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 1;
   line-clamp: 1;
@@ -718,22 +792,22 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 2px;
   padding: 3px 4px;
-  border: 1px solid var(--el-border-color);
+  border: 1px solid var(--momo-color-border);
   border-radius: var(--momo-radius-sm);
-  background: var(--el-bg-color);
-  color: var(--el-text-color-regular);
+  background: var(--momo-color-bg);
+  color: var(--momo-color-text-secondary);
   cursor: pointer;
   max-width: 100%;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .action-btn:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
+  border-color: var(--momo-color-brand);
+  color: var(--momo-color-brand);
 }
 .action-btn.is-active {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  border-color: var(--momo-color-brand);
+  color: var(--momo-color-brand);
+  background: var(--momo-color-brand-subtle);
 }
 .action-top {
   display: inline-flex;
@@ -750,7 +824,7 @@ onBeforeUnmount(() => {
 }
 .action-num {
   font-size: 10px;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   line-height: 1;
 }
 .copy-btn {
@@ -758,10 +832,10 @@ onBeforeUnmount(() => {
   padding: 2px;
   height: auto;
   margin-left: 0;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
 }
 .copy-btn:hover {
-  color: var(--el-color-primary);
+  color: var(--momo-color-brand);
 }
 
 /* 懒加载 */
@@ -777,12 +851,12 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--el-text-color-secondary);
+  color: var(--momo-color-text-secondary);
   font-size: var(--momo-font-size-sm);
 }
 .no-more {
   text-align: center;
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   font-size: var(--momo-font-size-xs);
   padding: 8px 0;
 }
@@ -790,10 +864,10 @@ onBeforeUnmount(() => {
 /* 提示词结构化面板（右侧，随父容器拉伸撑满；三按钮贴底） */
 .preview-panel {
   flex: 0 0 360px;
-  background: var(--el-fill-color-lighter);
+  background: var(--momo-color-bg-soft);
   border-radius: var(--momo-radius-md);
   padding: 16px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--momo-color-border-soft);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -802,19 +876,19 @@ onBeforeUnmount(() => {
 .preview-title {
   font-size: var(--momo-font-size-base);
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--momo-color-text);
 }
 .preview-hint {
   font-size: var(--momo-font-size-xs);
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   line-height: 1.5;
 }
 .preview-editor {
   flex: 1;
   min-height: 200px;
   padding: 9px 11px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
+  background: var(--momo-color-bg);
+  border: 1px solid var(--momo-color-border);
   border-radius: var(--momo-radius-sm);
   font-family: var(--momo-font-family-base);
   font-size: var(--momo-font-size-sm);
@@ -826,11 +900,11 @@ onBeforeUnmount(() => {
   transition: border-color var(--momo-transition-fast);
 }
 .preview-editor:focus {
-  border-color: var(--el-color-primary);
+  border-color: var(--momo-color-brand);
 }
 .preview-editor.is-empty::before {
   content: attr(data-placeholder);
-  color: var(--el-text-color-placeholder);
+  color: var(--momo-color-text-placeholder);
   pointer-events: none;
 }
 .preview-editor :deep(.module-name) {
@@ -841,10 +915,10 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 8px;
 }
-.preview-actions .el-button {
+.preview-actions :is(button) {
   flex: 1;
 }
-.preview-actions .el-button:last-child {
+.preview-actions :is(button):last-child {
   flex: 1.4;
 }
 

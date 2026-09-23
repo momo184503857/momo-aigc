@@ -2,15 +2,19 @@
 /**
  * PhotographyPage — AI摄影页面
  * 图片池 → 元素分配 → 生成，任务与全局 TaskPanel 共用。
+ *
+ * Layout 口径：compose→generate 工作台。页面只提供常驻页头（名称 + 流程说明 + 渠道/任务状态）
+ * 与一列有界工作台，滚动和吸底生成栏由 PhotographyForm 自己承担；
+ * 原先套在外层的 user-select:none 已删除（它会连带禁掉提示词的文本选择）。
  */
 import { ref, watch, onMounted, onActivated, nextTick } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success } = useUiFeedback()
 import PageLayout from '@/components/PageLayout.vue'
 import PhotographyForm from '@/components/PhotographyForm.vue'
+import { Badge } from '@/components/ui/badge'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useTaskManager } from '@/composables/useTaskManager'
-import type { ModelId } from '@/types/adapter'
 
 defineOptions({ name: 'Photography' })
 
@@ -99,24 +103,22 @@ onActivated(async () => {
 </script>
 
 <template>
-  <PageLayout content-padding="0">
-    <div class="photography-layout">
-      <div class="content-panel">
-        <PhotographyForm ref="photographyForm" @generate="handleGenerate" />
-      </div>
+  <PageLayout
+    title="AI 摄影"
+    subtitle="参考图先进图片池，再拖拽分配到各元素位，一份参数批量出片"
+  >
+    <template #extra>
+      <Badge v-if="serverStatus.loaded && !serverStatus.canGenerate" variant="warning">
+        无可用渠道
+      </Badge>
+      <Badge v-else-if="tm.activeTaskCount.value > 0" variant="secondary" class="tabular-nums">
+        {{ tm.activeTaskCount.value }} 个任务生成中
+      </Badge>
+    </template>
+
+    <!-- 有界工作台列：PhotographyForm 自带内部滚动与吸底生成栏，页面不再套第二层滚动 -->
+    <div class="mx-auto flex h-full min-h-0 w-full max-w-[1240px] flex-col">
+      <PhotographyForm ref="photographyForm" @generate="handleGenerate" />
     </div>
   </PageLayout>
 </template>
-
-<style scoped>
-.photography-layout {
-  display: flex; height: 100%;
-  user-select: none;
-}
-
-.content-panel {
-  flex: 1;
-  padding: 24px;
-  overflow: hidden;
-}
-</style>

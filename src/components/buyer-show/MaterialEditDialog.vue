@@ -4,7 +4,17 @@
  * 替换的图片在「保存」时才上传 OSS，取消不会产生孤儿对象。
  */
 import { ref, watch, onUnmounted } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { RefreshCw, LoaderCircle } from '@lucide/vue'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error } = useUiFeedback()
 import { ossApi } from '@/services/ossApi'
@@ -114,36 +124,48 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <el-dialog
-    v-model="visible"
-    title="编辑素材"
-    width="640px"
-    :close-on-click-modal="false"
-    destroy-on-close
-  >
-    <el-form v-if="material" label-position="top">
-      <el-form-item label="图片">
-        <div class="edit-image">
-          <img class="edit-image-preview" :src="previewUrl()" :alt="material.prompt" />
-          <div class="edit-image-actions">
-            <el-button :icon="Refresh" size="small" @click="pickReplace">替换图片</el-button>
-            <el-button v-if="pendingFile" size="small" text type="danger" @click="clearPending">恢复原图</el-button>
-            <span v-if="pendingFile" class="edit-image-hint">已选择新图，保存后生效</span>
+  <Dialog :open="visible" @update:open="(v) => (visible = v)">
+    <DialogContent class="sm:max-w-2xl" @pointer-down-outside.prevent>
+      <DialogHeader>
+        <DialogTitle>编辑素材</DialogTitle>
+      </DialogHeader>
+
+      <div v-if="visible && material" class="flex flex-col gap-4">
+        <div class="grid gap-1.5">
+          <Label>图片</Label>
+          <div class="edit-image">
+            <img class="edit-image-preview" :src="previewUrl()" :alt="material.prompt" />
+            <div class="edit-image-actions">
+              <Button variant="outline" size="sm" @click="pickReplace"><RefreshCw />替换图片</Button>
+              <Button
+                v-if="pendingFile"
+                variant="ghost"
+                size="sm"
+                class="text-destructive hover:text-destructive"
+                @click="clearPending"
+              >恢复原图</Button>
+              <span v-if="pendingFile" class="edit-image-hint">已选择新图，保存后生效</span>
+            </div>
           </div>
         </div>
-      </el-form-item>
-      <el-form-item label="提示词">
-        <el-input v-model="prompt" type="textarea" :rows="4" placeholder="输入提示词" />
-      </el-form-item>
-      <el-form-item label="标签">
-        <MaterialTagInput v-model="tagIds" />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button :disabled="saving" @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
-    </template>
-  </el-dialog>
+        <div class="grid gap-1.5">
+          <Label for="material-prompt">提示词</Label>
+          <Textarea id="material-prompt" v-model="prompt" :rows="4" placeholder="输入提示词" />
+        </div>
+        <div class="grid gap-1.5">
+          <Label>标签</Label>
+          <MaterialTagInput v-model="tagIds" />
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" :disabled="saving" @click="visible = false">取消</Button>
+        <Button :disabled="saving" @click="save">
+          <LoaderCircle v-if="saving" class="animate-spin" />保存
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <style scoped>
@@ -157,8 +179,8 @@ onUnmounted(() => {
   height: 140px;
   object-fit: cover;
   border-radius: var(--momo-radius-md);
-  border: 1px solid var(--el-border-color-light);
-  background: var(--el-fill-color);
+  border: 1px solid var(--momo-color-border-soft);
+  background: var(--momo-color-bg-muted);
   flex-shrink: 0;
 }
 .edit-image-actions {
@@ -169,6 +191,6 @@ onUnmounted(() => {
 }
 .edit-image-hint {
   font-size: var(--momo-font-size-xs);
-  color: var(--el-color-warning);
+  color: var(--momo-color-warning);
 }
 </style>

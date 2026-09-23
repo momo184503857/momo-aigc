@@ -1,13 +1,71 @@
 <script setup lang="ts">
 defineOptions({ name: 'AdminUsers' })
-import { ref, computed, onMounted } from 'vue'
-import { Search } from '@element-plus/icons-vue'
+import { computed, onMounted, ref } from 'vue'
+import {
+  Ban,
+  CircleCheck,
+  Coins,
+  Ellipsis,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  Pencil,
+  RefreshCw,
+  Search,
+  UserRoundPlus,
+} from '@lucide/vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import { formatCredits } from '@/types/adapter'
 import { toBJMinute } from '@/utils/datetime'
-import PageLayout from '@/components/PageLayout.vue'
+import { BasicPage } from '@/components/global-layout'
+import { DataTableColumnHeader, DataTableLoading, DataTablePagination, DataTableToolbar } from '@/components/data-table'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
 interface UserItem {
   id: number
@@ -36,14 +94,32 @@ const statusFilter = ref('active')
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
-// 后端排序状态（积分/累计消耗/累计充值）
+// 后端排序状态（积分/累计消耗/累计充值/最近登录）；初始不排序，沿用后端默认顺序
 const sortField = ref<string>('')
-const sortOrder = ref<'asc' | 'desc'>('desc')
+const sortOrder = ref<'asc' | 'desc'>('asc')
+
+// reka SelectItem 不接受空字符串 value，用哨兵值表示「全部」（替代原 clearable）
+const ALL_STATUS = '__all__'
+/** 页面默认状态筛选：进入页面只看正常用户，重置也回到这里 */
+const DEFAULT_STATUS = 'active'
+
+/** 可排序表头交给 DataTableColumnHeader 的显式方向，替代原来「点表头循环」的隐式状态机 */
+function applySort(key: string, order: 'asc' | 'desc' | null) {
+  if (!order) {
+    sortField.value = ''
+    sortOrder.value = 'asc'
+  } else {
+    sortField.value = key
+    sortOrder.value = order
+  }
+  reloadFromFirstPage()
+}
 
 // Create dialog
 const createVisible = ref(false)
 const createUsername = ref('')
 const createPassword = ref('')
+const showCreatePassword = ref(false)
 const createLoading = ref(false)
 
 // Edit dialog
@@ -104,16 +180,25 @@ function reloadFromFirstPage() {
   loadUsers()
 }
 
-// 表头排序：委托后端排序
-function handleSortChange({ prop, order }: { prop: string; order: string | null }) {
-  if (order) {
-    sortField.value = prop
-    sortOrder.value = order === 'ascending' ? 'asc' : 'desc'
-  } else {
-    // 取消排序，恢复默认
-    sortField.value = ''
-    sortOrder.value = 'desc'
-  }
+// 还原 el-input 的 @change 语义：记住上次已提交的搜索词，失焦时仅在值有变化才重查
+const committedSearch = ref('')
+
+function commitSearch() {
+  if (searchQuery.value === committedSearch.value) return
+  committedSearch.value = searchQuery.value
+  reloadFromFirstPage()
+}
+
+const isFiltered = computed(
+  () => searchQuery.value.trim() !== '' || statusFilter.value !== DEFAULT_STATUS || !!sortField.value,
+)
+
+function resetFilters() {
+  searchQuery.value = ''
+  committedSearch.value = ''
+  statusFilter.value = DEFAULT_STATUS
+  sortField.value = ''
+  sortOrder.value = 'asc'
   reloadFromFirstPage()
 }
 
@@ -236,224 +321,372 @@ async function handleAdjustPoints() {
   }
 }
 
+/** 状态Chip：沿用 reference 的浅色调 outline Badge，而非整块红/绿实底 */
+const statusChip: Record<string, string> = {
+  active: 'border-teal-200 bg-teal-100/30 text-teal-900',
+  disabled: 'border-neutral-300 bg-neutral-300/40',
+}
+
 onMounted(() => {
   loadUsers()
 })
 </script>
 
 <template>
-  <PageLayout>
-    <template #header><h2>用户管理</h2></template>
-    <template #extra>
-      <el-button type="primary" @click="createVisible = true">创建用户</el-button>
+  <BasicPage title="用户管理" description="账户、积分与产出汇总，全部走后端分页与排序。" sticky>
+    <template #actions>
+      <Button class="h-9 px-4" variant="outline" :disabled="loading" @click="loadUsers">
+        <RefreshCw :class="loading ? 'animate-spin' : ''" />
+        刷新
+      </Button>
+      <Button class="h-9 px-4" @click="createVisible = true">
+        <UserRoundPlus />
+        创建用户
+      </Button>
     </template>
 
-    <!-- Search -->
-    <div style="margin-bottom:16px; display:flex; gap:12px; align-items:center">
-      <el-input
-        v-model="searchQuery"
-        placeholder="搜索用户名 / 邮箱 / 备注..."
-        clearable
-        style="width:240px"
-        @change="reloadFromFirstPage"
-        @clear="reloadFromFirstPage"
-      >
-        <template #prefix><el-icon><Search /></el-icon></template>
-      </el-input>
-      <el-select v-model="statusFilter" style="width:120px" @change="reloadFromFirstPage">
-        <el-option label="全部" value="" />
-        <el-option label="正常" value="active" />
-        <el-option label="已禁用" value="disabled" />
-      </el-select>
-    </div>
+    <div class="space-y-4">
+      <DataTableToolbar :filtered="isFiltered" @reset="resetFilters">
+        <Input
+          v-model="searchQuery"
+          placeholder="搜索用户名 / 邮箱 / 备注..."
+          class="h-8 w-[150px] lg:w-[250px]"
+          @keyup.enter="commitSearch"
+          @blur="commitSearch"
+        />
+        <Select
+          :model-value="statusFilter || ALL_STATUS"
+          @update:model-value="(v) => { statusFilter = String(v) === ALL_STATUS ? '' : String(v); reloadFromFirstPage() }"
+        >
+          <SelectTrigger class="h-8 w-[7.5rem]">
+            <SelectValue placeholder="全部" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem :value="ALL_STATUS">全部</SelectItem>
+            <SelectItem value="active">正常</SelectItem>
+            <SelectItem value="disabled">已禁用</SelectItem>
+          </SelectContent>
+        </Select>
+      </DataTableToolbar>
 
-    <el-table :data="users" v-loading="loading" stripe @sort-change="handleSortChange">
-      <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column label="用户名">
-        <template #default="{ row }">
-          {{ row.nickname || row.username }}
-          <span v-if="row.nickname" class="username-hint">({{ row.username }})</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="email" label="邮箱" width="200">
-        <template #default="{ row }">
-          <span v-if="row.email">{{ row.email }}</span>
-          <span v-else class="username-hint">未绑定</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="角色" width="80">
-        <template #default="{ row }">
-          <el-tag :type="row.role === 'admin' ? 'danger' : 'info'" size="small">
-            {{ row.role === 'admin' ? '管理员' : '用户' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="80">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
-            {{ row.status === 'active' ? '正常' : '已禁用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="备注" min-width="140" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span v-if="row.admin_note">{{ row.admin_note }}</span>
-          <span v-else class="username-hint">—</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="积分" width="170" prop="points" sortable="custom">
-        <template #default="{ row }">
-          <span :style="{ color: row.points <= 0 ? 'var(--el-color-danger)' : 'var(--el-color-primary)', fontWeight: 600 }">
-            {{ formatCredits(row.points, { creditDigits: 2 }) }}
-          </span>
-        </template>
-      </el-table-column>
-      <el-table-column label="累计消耗" width="170" prop="total_spent" sortable="custom">
-        <template #default="{ row }">
-          <span style="color:var(--el-color-danger)">-{{ formatCredits(Math.abs(row.total_spent || 0), { creditDigits: 2 }) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="累计充值" width="170" prop="total_recharged" sortable="custom">
-        <template #default="{ row }">
-          <span style="color:var(--el-color-success)">+{{ formatCredits(row.total_recharged || 0, { creditDigits: 2 }) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="提交" width="70" prop="submitted_count" />
-      <el-table-column label="成功" width="70" prop="completed_count" />
-      <el-table-column label="失败" width="70" prop="failed_count" />
-      <el-table-column label="最近登录" width="168" prop="last_login_at" sortable="custom">
-        <template #default="{ row }">{{ toBJMinute(row.last_login_at) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
-        <template #default="{ row }">
-          <div style="display:flex;gap:4px;flex-wrap:nowrap;align-items:center">
-            <el-button size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button size="small" @click="openPoints(row)">积分</el-button>
-            <el-button
-              size="small"
-              :type="row.status === 'active' ? 'danger' : 'success'"
-              plain
-              @click="handleToggleStatus(row)"
-            >
-              {{ row.status === 'active' ? '禁用' : '启用' }}
-            </el-button>
-          </div>
-        </template>
-      </el-table-column>
-    </el-table>
+      <div class="rounded-md border">
+        <Table :aria-busy="loading || undefined" sticky-last-column>
+          <TableHeader>
+            <TableRow>
+              <TableHead class="min-w-[170px]">用户</TableHead>
+              <TableHead class="min-w-[180px]">邮箱</TableHead>
+              <TableHead class="w-[92px]">状态</TableHead>
+              <TableHead class="min-w-[150px]">备注</TableHead>
+              <TableHead class="w-[120px]">
+                <DataTableColumnHeader
+                  label="积分"
+                  sort-key="points"
+                  :active-key="sortField"
+                  :active-order="sortOrder"
+                  align="end"
+                  class="w-full justify-end"
+                  @sort="applySort('points', $event)"
+                />
+              </TableHead>
+              <TableHead class="w-[120px]">
+                <DataTableColumnHeader
+                  label="累计消耗"
+                  sort-key="total_spent"
+                  :active-key="sortField"
+                  :active-order="sortOrder"
+                  align="end"
+                  class="w-full justify-end"
+                  @sort="applySort('total_spent', $event)"
+                />
+              </TableHead>
+              <TableHead class="w-[120px]">
+                <DataTableColumnHeader
+                  label="累计充值"
+                  sort-key="total_recharged"
+                  :active-key="sortField"
+                  :active-order="sortOrder"
+                  align="end"
+                  class="w-full justify-end"
+                  @sort="applySort('total_recharged', $event)"
+                />
+              </TableHead>
+              <TableHead class="w-[120px]" title="提交 / 成功 / 失败">产出</TableHead>
+              <TableHead class="w-[150px]">
+                <DataTableColumnHeader
+                  label="最近登录"
+                  sort-key="last_login_at"
+                  :active-key="sortField"
+                  :active-order="sortOrder"
+                  class="w-full"
+                  @sort="applySort('last_login_at', $event)"
+                />
+              </TableHead>
+              <TableHead class="w-12" />
+            </TableRow>
+          </TableHeader>
 
-    <!-- Pagination -->
-    <div class="table-pagination">
-      <el-pagination
+          <TableBody v-if="!loading">
+            <template v-if="users.length">
+              <TableRow v-for="row in users" :key="row.id">
+                <TableCell class="max-w-[220px]">
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span class="truncate font-medium">{{ row.nickname || row.username }}</span>
+                    <Badge v-if="row.role === 'admin'" variant="outline" class="shrink-0">管理员</Badge>
+                    <span class="text-muted-foreground shrink-0 text-xs tabular-nums">#{{ row.id }}</span>
+                  </div>
+                  <div v-if="row.nickname" class="text-muted-foreground truncate text-xs">
+                    {{ row.username }}
+                  </div>
+                </TableCell>
+                <TableCell class="max-w-[220px]">
+                  <span v-if="row.email" class="text-muted-foreground truncate">{{ row.email }}</span>
+                  <span v-else class="text-muted-foreground/60 text-xs">未绑定</span>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" :class="statusChip[row.status] || ''">
+                    {{ row.status === 'active' ? '正常' : '已禁用' }}
+                  </Badge>
+                </TableCell>
+                <TableCell class="max-w-[200px]">
+                  <span v-if="row.admin_note" class="block truncate text-sm" :title="row.admin_note">{{ row.admin_note }}</span>
+                  <span v-else class="text-muted-foreground/60">—</span>
+                </TableCell>
+                <TableCell class="text-right font-medium tabular-nums" :class="row.points <= 0 ? 'text-destructive' : ''">
+                  {{ formatCredits(row.points, { creditDigits: 2 }) }}
+                </TableCell>
+                <TableCell class="text-right tabular-nums">
+                  <span class="text-destructive">-{{ formatCredits(Math.abs(row.total_spent || 0), { creditDigits: 2 }) }}</span>
+                </TableCell>
+                <TableCell class="text-right tabular-nums">
+                  <span class="text-success">+{{ formatCredits(row.total_recharged || 0, { creditDigits: 2 }) }}</span>
+                </TableCell>
+                <TableCell class="text-sm tabular-nums">
+                  <span>{{ row.submitted_count }}</span>
+                  <span class="text-muted-foreground/60"> / </span>
+                  <span class="text-success">{{ row.completed_count }}</span>
+                  <span class="text-muted-foreground/60"> / </span>
+                  <span :class="row.failed_count > 0 ? 'text-destructive' : 'text-muted-foreground/60'">{{ row.failed_count }}</span>
+                </TableCell>
+                <TableCell class="text-muted-foreground text-sm tabular-nums">{{ toBJMinute(row.last_login_at) }}</TableCell>
+                <TableCell class="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button variant="ghost" class="flex h-8 w-8 p-0 data-[state=open]:bg-muted">
+                        <Ellipsis class="size-4" />
+                        <span class="sr-only">打开操作菜单</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-[160px]">
+                      <DropdownMenuLabel class="font-normal">
+                        {{ row.nickname || row.username }}
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem @click="openPoints(row)">
+                        <Coins class="text-muted-foreground/70 mr-2 size-4" />
+                        调整积分
+                      </DropdownMenuItem>
+                      <DropdownMenuItem @click="openEdit(row)">
+                        <Pencil class="text-muted-foreground/70 mr-2 size-4" />
+                        编辑资料
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        v-if="row.status === 'active'"
+                        class="text-destructive focus:text-destructive"
+                        @click="handleToggleStatus(row)"
+                      >
+                        <Ban class="mr-2 size-4" />
+                        禁用账号
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-else @click="handleToggleStatus(row)">
+                        <CircleCheck class="text-muted-foreground/70 mr-2 size-4" />
+                        启用账号
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            </template>
+
+            <TableRow v-else>
+              <TableCell colspan="10" class="h-24 text-center">
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <Search />
+                    </EmptyMedia>
+                    <EmptyTitle>未找到用户</EmptyTitle>
+                    <EmptyDescription>
+                      换个关键词，或把状态筛选切到「全部」再试一次。
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+
+        <DataTableLoading v-if="loading" />
+      </div>
+
+      <DataTablePagination
+        v-if="!loading && total > 0"
         v-model:current-page="page"
         v-model:page-size="pageSize"
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        background
         @size-change="reloadFromFirstPage"
         @current-change="loadUsers"
       />
     </div>
 
     <!-- Create User Dialog -->
-    <el-dialog v-model="createVisible" title="创建用户" width="400px">
-      <el-form>
-        <el-form-item label="用户名">
-          <el-input v-model="createUsername" placeholder="输入用户名" />
-        </el-form-item>
-        <el-form-item label="初始密码">
-          <el-input v-model="createPassword" type="password" placeholder="输入初始密码" show-password />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" :loading="createLoading" @click="handleCreate">创建</el-button>
-      </template>
-    </el-dialog>
+    <Dialog :open="createVisible" @update:open="(v: boolean) => (createVisible = v)">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>创建用户</DialogTitle>
+          <DialogDescription>新建一个可登录的账号，初始密码由管理员设定。</DialogDescription>
+        </DialogHeader>
+        <form class="space-y-8" @submit.prevent="handleCreate">
+          <div class="grid gap-2">
+            <Label for="create-username">用户名</Label>
+            <Input id="create-username" v-model="createUsername" placeholder="输入用户名" />
+          </div>
+          <div class="grid gap-2">
+            <Label for="create-password">初始密码</Label>
+            <div class="relative">
+              <Input
+                id="create-password"
+                v-model="createPassword"
+                :type="showCreatePassword ? 'text' : 'password'"
+                placeholder="输入初始密码"
+                class="pr-9"
+              />
+              <button
+                type="button"
+                class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+                :title="showCreatePassword ? '隐藏密码' : '显示密码'"
+                @click="showCreatePassword = !showCreatePassword"
+              >
+                <EyeOff v-if="showCreatePassword" class="size-4" />
+                <Eye v-else class="size-4" />
+              </button>
+            </div>
+          </div>
+        </form>
+        <DialogFooter>
+          <Button variant="outline" @click="createVisible = false">取消</Button>
+          <Button :disabled="createLoading" @click="handleCreate">
+            <LoaderCircle v-if="createLoading" class="animate-spin" />
+            创建
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Edit User Dialog -->
-    <el-dialog v-model="editVisible" :title="`编辑用户 - ${editUser?.username}`" width="500px">
-      <el-form>
-        <el-form-item label="状态">
-          <el-radio-group v-model="editStatus">
-            <el-radio value="active">正常</el-radio>
-            <el-radio value="disabled">禁用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="角色">
-          <el-radio-group v-model="editRole">
-            <el-radio value="user">用户</el-radio>
-            <el-radio value="admin">管理员</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input
-            v-model="editNote"
-            type="textarea"
-            :rows="3"
-            maxlength="500"
-            show-word-limit
-            placeholder="仅管理员可见，可记录用户情况（如充值意向、特殊说明等）"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editLoading" @click="handleEdit">保存</el-button>
-      </template>
-    </el-dialog>
+    <Dialog :open="editVisible" @update:open="(v: boolean) => (editVisible = v)">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{{ `编辑用户 - ${editUser?.username}` }}</DialogTitle>
+          <DialogDescription>状态与角色即时生效，备注仅管理员可见。</DialogDescription>
+        </DialogHeader>
+        <div class="max-h-[500px] space-y-8 overflow-y-auto">
+          <div class="grid gap-2">
+            <Label>状态</Label>
+            <RadioGroup v-model="editStatus" class="flex gap-4">
+              <div class="flex items-center gap-1.5">
+                <RadioGroupItem id="edit-status-active" value="active" />
+                <Label for="edit-status-active" class="font-normal">正常</Label>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <RadioGroupItem id="edit-status-disabled" value="disabled" />
+                <Label for="edit-status-disabled" class="font-normal">禁用</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <div class="grid gap-2">
+            <Label>角色</Label>
+            <RadioGroup v-model="editRole" class="flex gap-4">
+              <div class="flex items-center gap-1.5">
+                <RadioGroupItem id="edit-role-user" value="user" />
+                <Label for="edit-role-user" class="font-normal">用户</Label>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <RadioGroupItem id="edit-role-admin" value="admin" />
+                <Label for="edit-role-admin" class="font-normal">管理员</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <div class="grid gap-2">
+            <Label for="edit-note">备注</Label>
+            <Textarea
+              id="edit-note"
+              v-model="editNote"
+              :rows="3"
+              maxlength="500"
+              placeholder="仅管理员可见，可记录用户情况（如充值意向、特殊说明等）"
+            />
+            <p class="text-muted-foreground text-right text-xs">{{ editNote.length }}/500</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="editVisible = false">取消</Button>
+          <Button :disabled="editLoading" @click="handleEdit">
+            <LoaderCircle v-if="editLoading" class="animate-spin" />
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Points Adjustment Dialog -->
-    <el-dialog v-model="pointsVisible" :title="`调整积分 - ${pointsUsername}`" width="420px">
-      <el-form label-width="72px">
-        <el-form-item label="操作类型">
-          <el-radio-group v-model="pointsMode">
-            <el-radio-button value="recharge">充值</el-radio-button>
-            <el-radio-button value="deduct">扣减</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="积分数量">
-          <div style="display:flex;align-items:center;gap:12px;width:100%">
-            <el-input
+    <Dialog :open="pointsVisible" @update:open="(v: boolean) => (pointsVisible = v)">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{{ `调整积分 - ${pointsUsername}` }}</DialogTitle>
+          <DialogDescription>扣减需要二次确认，备注会写入积分流水。</DialogDescription>
+        </DialogHeader>
+        <div class="space-y-8">
+          <div class="grid gap-2">
+            <Label>操作类型</Label>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              :model-value="pointsMode"
+              @update:model-value="(v) => { if (v) pointsMode = String(v) as 'recharge' | 'deduct' }"
+            >
+              <ToggleGroupItem value="recharge">充值</ToggleGroupItem>
+              <ToggleGroupItem value="deduct">扣减</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+          <div class="grid gap-2">
+            <Label for="points-amount">积分数量</Label>
+            <Input
+              id="points-amount"
               v-model="pointsAmount"
               placeholder="输入积分数量"
               type="number"
               :step="1"
               min="0"
-              style="flex:1"
             />
           </div>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="pointsNote" placeholder="可选：调整理由" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="pointsVisible = false">取消</el-button>
-        <el-button
-          :type="pointsMode === 'deduct' ? 'danger' : 'success'"
-          :loading="pointsLoading"
-          :disabled="pointsValue <= 0"
-          @click="handleAdjustPoints"
-        >
-          {{ pointsMode === 'deduct' ? '确认扣减' : '确认充值' }}
-        </el-button>
-      </template>
-    </el-dialog>
-  </PageLayout>
+          <div class="grid gap-2">
+            <Label for="points-note">备注</Label>
+            <Input id="points-note" v-model="pointsNote" placeholder="可选：调整理由" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="pointsVisible = false">取消</Button>
+          <Button
+            :variant="pointsMode === 'deduct' ? 'destructive' : 'default'"
+            :disabled="pointsLoading || pointsValue <= 0"
+            @click="handleAdjustPoints"
+          >
+            <LoaderCircle v-if="pointsLoading" class="animate-spin" />
+            {{ pointsMode === 'deduct' ? '确认扣减' : '确认充值' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </BasicPage>
 </template>
-
-<style scoped>
-.username-hint {
-  font-size: var(--momo-font-size-sm);
-  color: var(--el-text-color-placeholder);
-  margin-left: 4px;
-}
-
-.table-pagination {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-</style>
