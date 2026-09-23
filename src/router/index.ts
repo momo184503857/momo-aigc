@@ -4,6 +4,12 @@ import { useAuthStore } from '@/stores/auth'
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    ...(import.meta.env.DEV ? [{
+      path: '/prototype/create',
+      name: 'CreationPrototype',
+      component: () => import('@/prototype/CreationPrototype.vue'),
+      meta: { prototype: true, title: '墨墨 · 创作原型' },
+    }] : []),
     {
       path: '/login',
       name: 'Login',
@@ -269,10 +275,19 @@ const APP_TITLE = '墨墨 AI 生图'
 const ADMIN_TITLE = '墨墨AI生图管理员后台'
 
 router.afterEach((to) => {
+  if (import.meta.env.DEV && to.meta.prototype) {
+    document.title = '墨墨 · 创作原型'
+    return
+  }
   document.title = to.path.startsWith('/admin/') || to.path === '/admin' ? ADMIN_TITLE : APP_TITLE
 })
 
 router.beforeEach(async (to, _from, next) => {
+  // Local-only design prototype: never fetch a user or touch an existing session.
+  if (import.meta.env.DEV && to.meta.prototype) {
+    next()
+    return
+  }
   const auth = useAuthStore()
 
   // Fetch user on first load if token exists
