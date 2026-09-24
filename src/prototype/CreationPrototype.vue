@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ArrowDownToLine, ArrowUpRight, Check, ChevronDown, Clock3, Layers, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, UserRound, X } from '@lucide/vue'
+import { ArrowDownToLine, ArrowUpRight, Check, ChevronDown, Clock3, Layers, MoreHorizontal, Plus, RotateCcw, Trash2, UserRound, X } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -19,13 +19,13 @@ function restoreFocus(event: Event) { event.preventDefault(); returnFocus?.focus
 const renameText = ref('')
 const preview = ref<ImageTask | null>(null)
 const parameters = ref<Round | null>(null)
+const detailTask = ref<ImageTask | null>(null)
 const dialogOpen = computed({ get: () => dialog.value !== null, set: (value: boolean) => { if (!value) dialog.value = null } })
 const running = computed(() => active.value.rounds.some(r => r.tasks.some(t => t.status === 'running')))
 const scenarios: { id: Scenario; label: string }[] = [{ id: 'empty', label: '空白' }, { id: 'running', label: '生成中' }, { id: 'results', label: '多轮结果' }, { id: 'partial', label: '部分失败' }]
-function openRename() { renameText.value = active.value.title; dialog.value = 'rename' }
 function rename() { if (p.rename(renameText.value)) dialog.value = null }
 function showPreview(task: ImageTask) { preview.value = task; dialog.value = 'preview' }
-function showParameters(round: Round) { parameters.value = round; dialog.value = 'parameters' }
+function showParameters(round: Round, task: ImageTask) { parameters.value = round; detailTask.value = task; dialog.value = 'parameters' }
 async function clear() { await p.clearData(); dialog.value = null }
 function selectRecord(id: string) { p.selectRecord(id); dialog.value = null }
 </script>
@@ -49,7 +49,7 @@ function selectRecord(id: string) { p.selectRecord(id); dialog.value = null }
     <main class="studio-workspace" :data-mobile-tab="mobileTab">
       <CreationComposer :mode="active.mode" :draft="draft" :image-urls="imageUrls" :uploading="uploading" :ready="ready" @mode="p.setMode" @upload="p.upload" @generate="p.generate" />
       <div class="results-workspace">
-        <div class="creation-heading"><div><h2 class="results-title">创作结果</h2><div class="creation-name"><span>{{ active.title }}</span><button type="button" aria-label="重命名创作" @click="openRename"><Pencil :size="13" /></button><span class="round-total">{{ active.rounds.length }} 轮</span></div></div><Button variant="outline" class="new-creation" :disabled="!ready || uploading" @click="p.addRecord()"><Plus :size="15" /><span>新建创作</span></Button></div>
+        <div class="creation-heading"><h2 class="results-title">创作结果</h2></div>
         <div v-if="running && scenario === 'running'" class="simulation-hint"><span>生成中场景已暂停，方便查看界面。</span><button @click="p.finishDemo">完成演示 <ArrowUpRight :size="13" /></button></div>
         <CreationResults :key="active.id" :creation="active" :uploading="uploading" @preview="showPreview" @parameters="showParameters" @reuse="p.reuse" @retry="p.retry" @reference="p.useAsReference" @download="p.download" @example="p.selectScenario('results')" />
       </div>
@@ -66,7 +66,7 @@ function selectRecord(id: string) { p.selectRecord(id); dialog.value = null }
         <template v-else-if="dialog === 'rename'"><DialogHeader><DialogTitle>给灵感起个名字</DialogTitle><DialogDescription>一个容易找到、属于这次创作的名字。</DialogDescription></DialogHeader><form @submit.prevent="rename"><label for="creation-name" class="sr-only">创作名称</label><Input id="creation-name" v-model="renameText" maxlength="60" autofocus /><div class="dialog-footer"><Button type="button" variant="ghost" @click="dialog = null">取消</Button><Button type="submit" :disabled="!renameText.trim()">保存名称</Button></div></form></template>
         <template v-else-if="dialog === 'clear'"><DialogHeader><DialogTitle>清空演示数据？</DialogTitle><DialogDescription>此操作会移除本原型的创作记录和上传图片。现有业务的任务、素材和登录信息不受影响。</DialogDescription></DialogHeader><div class="dialog-footer"><Button variant="ghost" @click="dialog = 'history'">保留记录</Button><Button :disabled="uploading" @click="clear">清空演示数据</Button></div></template>
         <template v-else-if="dialog === 'preview' && preview"><DialogHeader><DialogTitle>摄影示例</DialogTitle><DialogDescription>Unsplash 摄影素材，仅作界面演示，不是实际生成结果。</DialogDescription></DialogHeader><img class="preview-image" :src="preview.source" alt="摄影示例大图" /><div class="dialog-footer"><Button variant="outline" @click="p.download(preview!)"><ArrowDownToLine :size="15" />下载图片</Button><Button :disabled="uploading" @click="p.useAsReference(preview!); dialog = null">用作参考 <ArrowUpRight :size="15" /></Button></div></template>
-        <template v-else-if="dialog === 'parameters' && parameters"><DialogHeader><DialogTitle>这一轮的创作参数</DialogTitle><DialogDescription>{{ modeLabel(parameters.mode) }} · {{ new Date(parameters.createdAt).toLocaleString('zh-CN') }}</DialogDescription></DialogHeader><dl class="parameter-details"><dt>画面描述</dt><dd>{{ parameters.params.prompt || '未填写' }}</dd><dt>模型 / 比例 / 数量</dt><dd>{{ parameters.params.model }} / {{ parameters.params.ratio }} / {{ parameters.params.count }} 张</dd><dt>分辨率</dt><dd>{{ parameters.params.resolution }}</dd><dt>不希望出现的内容</dt><dd>{{ parameters.params.negative || '未填写' }}</dd><dt>参考图片</dt><dd>{{ parameters.params.references.map(r => r.name).join('、') || '未添加' }}</dd></dl><Button @click="p.reuse(parameters!); dialog = null"><RotateCcw :size="15" />复用这组参数</Button></template>
+        <template v-else-if="dialog === 'parameters' && parameters"><DialogHeader><DialogTitle>图片详情</DialogTitle><DialogDescription>{{ modeLabel(parameters.mode) }} · {{ new Date(parameters.createdAt).toLocaleString('zh-CN') }}</DialogDescription></DialogHeader><p class="scope-copy">图片为 Unsplash 摄影示例，仅用于界面体验，与输入内容无生成关系。</p><dl class="parameter-details"><dt>状态</dt><dd>{{ detailTask?.status === 'success' ? '图片已就绪' : detailTask?.status === 'running' ? '正在模拟生成' : detailTask?.error || '生成失败' }}</dd><dt>画面描述</dt><dd>{{ parameters.params.prompt || '未填写' }}</dd><dt>模型 / 比例 / 数量</dt><dd>{{ parameters.params.model }} / {{ parameters.params.ratio }} / {{ parameters.params.count }} 张</dd><dt>分辨率</dt><dd>{{ parameters.params.resolution }}</dd><dt>不希望出现的内容</dt><dd>{{ parameters.params.negative || '未填写' }}</dd><dt>参考图片</dt><dd>{{ parameters.params.references.map(r => r.name).join('、') || '未添加' }}</dd></dl><div class="dialog-footer"><template v-if="detailTask?.status === 'success'"><Button variant="outline" @click="showPreview(detailTask!)">查看大图</Button><Button variant="outline" @click="p.download(detailTask!)">下载</Button><Button variant="outline" :disabled="uploading" @click="p.useAsReference(detailTask!); dialog = null">用作参考</Button></template><Button v-if="detailTask?.status === 'failed'" variant="outline" @click="p.retry(parameters!, detailTask!); dialog = null">重试这张</Button><Button @click="p.reuse(parameters!); dialog = null"><RotateCcw :size="15" />重新编辑</Button></div></template>
         <template v-else-if="dialog === 'account' || dialog === 'more'"><DialogHeader><DialogTitle>{{ dialog === 'account' ? '一个轻盈的创作空间' : '更多可能，留给下一步' }}</DialogTitle><DialogDescription>{{ dialog === 'account' ? '当前是本地设计原型，无需登录，不读取账号或积分数据。' : '这一轮专注于自由生图、快捷模式与结果查看。其他功能仍保留在现有产品中。' }}</DialogDescription></DialogHeader><p class="scope-copy">{{ dialog === 'account' ? '你上传的图片与创作记录保存在当前浏览器。清理浏览器数据或换设备后，这些记录不会同步。' : 'AI 摄影、AI 画布、AI 买家秀、批量工具、素材库与学习内容，将在核心体验确认后逐步适配。' }}</p><Button variant="outline" @click="dialog = null">回到创作</Button></template>
       </DialogContent>
     </Dialog>

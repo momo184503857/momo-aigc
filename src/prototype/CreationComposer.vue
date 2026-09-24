@@ -55,25 +55,24 @@ const descriptions: Record<Mode, string> = {
       </details>
 
       <div class="prompt-section">
-        <div class="field-heading"><label for="creation-prompt">画面描述</label><span>让想法具体一点</span></div>
+        <div class="field-heading"><label for="creation-prompt">画面描述</label></div>
         <Textarea id="creation-prompt" v-model="draft.prompt" class="studio-prompt" placeholder="描述你的灵感。主体、场景、光线，或是一种你喜欢的感觉…" :maxlength="4000" />
         <div class="prompt-count">{{ draft.prompt.length }} / 4000</div>
       </div>
 
-      <div class="parameter-grid">
-        <label class="model-field">模型<select v-model="draft.model"><option>标准画质 · 演示</option><option>精细画质 · 演示</option></select></label>
-        <label>画面比例<select v-model="draft.ratio"><option>1:1</option><option>3:4</option><option>4:3</option><option>9:16</option><option>16:9</option></select></label>
-        <label>生成数量<select v-model.number="draft.count"><option v-for="count in 4" :key="count" :value="count">{{ count }} 张</option></select></label>
-      </div>
       <details class="advanced-settings">
         <summary><SlidersHorizontal :size="14" /> 更多设置 <ChevronDown :size="13" /></summary>
-        <label>分辨率<select v-model="draft.resolution"><option>1K</option><option>2K</option><option>4K</option></select></label>
         <label>不希望出现的内容<Textarea v-model="draft.negative" placeholder="如：模糊、多余的装饰" :maxlength="1000" /></label>
       </details>
     </div>
     <div class="composer-footer">
+      <div class="parameter-grid">
+        <label class="model-field">模型<select v-model="draft.model"><option>标准画质 · 演示</option><option>精细画质 · 演示</option></select></label>
+        <label>画面比例<select v-model="draft.ratio"><option>1:1</option><option>3:4</option><option>4:3</option><option>9:16</option><option>16:9</option></select></label>
+        <label>生成数量<select v-model.number="draft.count"><option v-for="count in 4" :key="count" :value="count">{{ count }} 张</option></select></label>
+        <label>分辨率<select v-model="draft.resolution"><option>1K</option><option>2K</option><option>4K</option></select></label>
+      </div>
       <Button class="generate-button" :disabled="!ready || uploading" @click="emit('generate')"><Sparkles :size="20" /><span>{{ uploading ? '正在添加图片' : mode === 'change-clothes' ? '开始换装' : '生成图片' }}</span></Button>
-      <span class="generation-note"><span class="tiny-dot" /> 演示模式 · 不消耗积分</span>
     </div>
   </aside>
 </template>
