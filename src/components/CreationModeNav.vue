@@ -1,8 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Button } from '@/components/design-system'
-import { creationModes, isCreationPath } from '@/configs/navigation'
+import { DsNavigationDock } from '@/components/design-system'
+import { creationModes, isCreationPath, assetTabs, isAssetPath } from '@/configs/navigation'
 const route = useRoute()
 const router = useRouter()
+const inCreation = computed(() => isCreationPath(route.path))
+const inAssets = computed(() => isAssetPath(route.path))
+const items = computed(() => inCreation.value
+  ? creationModes.map(item => ({ ...item, active: route.path === item.path || route.path.startsWith(item.path + '/') }))
+  : assetTabs.map(item => ({ ...item, active: route.path === item.path || route.path === item.legacyPath })))
 </script>
-<template><nav v-if="isCreationPath(route.path)" class="ds-mode-nav" aria-label="创作模式"><Button v-for="mode in creationModes" :key="mode.path" :variant="route.path === mode.path || route.path.startsWith(mode.path + '/') ? 'secondary' : 'ghost'" :aria-current="route.path === mode.path || route.path.startsWith(mode.path + '/') ? 'page' : undefined" @click="router.push(mode.path)"><component :is="mode.icon" />{{ mode.title }}</Button></nav></template>
+<template>
+  <div v-if="inCreation || inAssets" class="ds-section-nav">
+    <DsNavigationDock :items="items" orientation="horizontal" :label="inCreation ? '创作模式' : '资产分类'" @navigate="router.push($event)" />
+  </div>
+</template>

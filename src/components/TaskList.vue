@@ -65,7 +65,6 @@ const emit = defineEmits<{
   'toggleSelect': [id: number]
   'retryImport': [task: TaskItem]
   'edit': [task: TaskItem]
-  'publish': [task: TaskItem]
   'saveRemark': [task: TaskItem, remark: string]
 }>()
 

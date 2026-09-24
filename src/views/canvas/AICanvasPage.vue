@@ -4,13 +4,11 @@ import { useRoute } from 'vue-router'
 import PageLayout from '@/components/PageLayout.vue'
 import WorkflowCanvas from '@/modules/workflow/components/WorkflowCanvas.vue'
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
-import { useTabStore } from '@/stores/tabs'
 
 defineOptions({ name: 'AICanvas' })
 
 const route = useRoute()
 const workflowStore = useWorkflowStore()
-const tabStore = useTabStore()
 
 let currentProjectId = ''
 
@@ -18,8 +16,6 @@ async function loadProject(projectId: string) {
   if (!projectId) return
   currentProjectId = projectId
   await workflowStore.loadFromDb(projectId)
-  const tabPath = `/ai-canvas/${projectId}`
-  tabStore.updateTabTitle(tabPath, workflowStore.workflow.name)
 }
 
 // 未落盘变更用 fetch keepalive 直发（beforeunload 期间 axios 不可靠）

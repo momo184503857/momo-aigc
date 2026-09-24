@@ -39,7 +39,7 @@ export interface SubmitTaskParams {
   n?: number
   /** 补充图片列表（带名称） */
   supplementaryImages?: { name: string; url: string }[]
-  /** 结构化提示词字段快照（来自提示词工坊） */
+  /** 结构化提示词字段快照（兼容历史任务） */
   promptSegments?: Record<string, string>
   /** 负向规避词（自然语言追加） */
   negativePrompt?: string

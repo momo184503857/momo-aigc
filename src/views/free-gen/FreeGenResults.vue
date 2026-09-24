@@ -8,7 +8,6 @@ import { downloadUrl } from '@/utils/download'
 import { toBJMinute, parseUTC } from '@/utils/datetime'
 import type { TaskItem } from '@/components/TaskList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
-import PublishWorkDialog from '@/components/works/PublishWorkDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import { Button, DsImageCard, DsResultGroup } from '@/components/design-system'
 
@@ -26,8 +25,6 @@ const previewResultIndex = ref(0)
 const previewOpen = ref(false)
 const detail = ref<InstanceType<typeof TaskDetailDialog>>()
 const selected = ref<TaskItem | null>(null)
-const publishOpen = ref(false)
-const publishTask = ref<TaskItem | null>(null)
 const unavailable = ref(new Set<string>())
 const liveTasks = computed(() => tm.tasks.value.filter(t => t.feature_id === 'free-gen' || !t.feature_id))
 const tasks = computed(() => {
@@ -102,7 +99,7 @@ function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
       <Button v-if="history.length < total" variant="ghost" class="w-full" :disabled="loading" @click="load(true)">{{ loading ? '加载中…' : '加载更多' }}</Button>
     </div>
     <ImageCompareDialog v-model="previewOpen" :tasks="tasks" :task-id="previewTaskId" :initial-index="previewIndex" :initial-result-index="previewResultIndex" studio />
-    <TaskDetailDialog ref="detail" :task="selectedTask" @publish="(task) => { publishTask = task; publishOpen = true }">
+    <TaskDetailDialog ref="detail" :task="selectedTask">
       <template #actions>
         <template v-if="selectedTask">
           <Button variant="outline" @click="reuse(selectedTask)">重新编辑</Button>
@@ -112,6 +109,5 @@ function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
         </template>
       </template>
     </TaskDetailDialog>
-    <PublishWorkDialog v-model:visible="publishOpen" :task="publishTask" />
   </section>
 </template>

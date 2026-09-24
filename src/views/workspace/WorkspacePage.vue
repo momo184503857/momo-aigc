@@ -240,9 +240,6 @@ onActivated(async () => {
               <DropdownMenuItem @click="router.push('/results')">
                 生成结果
               </DropdownMenuItem>
-              <DropdownMenuItem @click="router.push('/works')">
-                作品库
-              </DropdownMenuItem>
               <DropdownMenuItem @click="router.push('/templates')">
                 模板图库
               </DropdownMenuItem>

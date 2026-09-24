@@ -4,7 +4,7 @@ import { cva } from 'class-variance-authority'
 
 export interface SidebarProps {
   side?: 'left' | 'right'
-  variant?: 'sidebar' | 'floating' | 'inset'
+  variant?: 'sidebar' | 'floating' | 'inset' | 'dock'
   collapsible?: 'offcanvas' | 'icon' | 'none'
   class?: HTMLAttributes['class']
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Copy, Download, Share2 } from '@lucide/vue'
+import { Copy, Download } from '@lucide/vue'
 import type { TaskItem } from './TaskList.vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { getFeatureLabel } from '@/configs/featureConfig'
@@ -22,7 +22,7 @@ const { retryOnError } = useImageRetry()
 const modelCatalog = useModelCatalogStore()
 
 const props = defineProps<{ task: TaskItem | null }>()
-const emit = defineEmits<{ close: []; publish: [task: TaskItem] }>()
+const emit = defineEmits<{ close: [] }>()
 
 const visible = ref(false)
 
@@ -158,12 +158,8 @@ function statusVariant(status: string): 'success' | 'destructive' | 'secondary' 
         </div>
       </div>
 
-      <DialogFooter v-if="task && ($slots.actions || (task.status === 'completed' && task.result_image_urls?.[0]))" class="flex-wrap">
+      <DialogFooter v-if="task && $slots.actions" class="flex-wrap">
         <slot name="actions" />
-        <Button v-if="task?.status === 'completed' && task?.result_image_urls?.[0]" @click="emit('publish', task!)">
-          <Share2 />
-          发布到作品库
-        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

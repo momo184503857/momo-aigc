@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PenLine, Image, BookOpen } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import * as U from '..'
 import { sampleImage } from './sample'
@@ -12,6 +13,8 @@ const message = ref('')
 const status = computed(() => props.state === 'error' ? 'failed' : props.state === 'loading' ? 'running' : props.state === 'empty' ? 'pending' : 'done')
 </script>
 <template>
+  <U.DsNavigationDock v-if="family === 'navigation-dock'" :items="[{path:'/create',title:'创作工作台',icon:PenLine,active:true},{path:'/results',title:'生图记录',icon:Image},{path:'/prompts',title:'提示词库',icon:BookOpen}]" @navigate="message = '导航事件：' + $event" />
+  <U.DsNavigationDock v-if="family === 'navigation-dock'" orientation="horizontal" label="资产分类示例" :items="[{path:'/results',title:'生图记录',icon:Image,active:true},{path:'/templates',title:'模板图库',icon:Image},{path:'/prompts',title:'提示词库',icon:BookOpen}]" @navigate="message = '分类切换：' + $event" />
   <U.DsPage v-if="family === 'page'" title="页面外壳" description="标题、筛选、主体与动作栏"><template #filters><U.DsToolbar v-model="keyword" /></template><U.DsNotice title="内容区"  /><template #footer><U.DsActionBar label="保存配置" /></template></U.DsPage>
   <U.DsSection v-else-if="family === 'section'" title="参数分区" ><p>标准模型 · 1K</p></U.DsSection>
   <U.DsField v-else-if="family === 'field'" v-slot="field" label="生成描述" help="说明主体、场景与构图" :error="state === 'error' ? '请补充主体描述' : undefined"><U.Textarea :id="field.id" v-model="prompt" :aria-invalid="field.invalid" :aria-describedby="field.describedby" /></U.DsField>

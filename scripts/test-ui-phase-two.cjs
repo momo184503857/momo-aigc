@@ -36,10 +36,21 @@ let debugPage
  await page.goto(base+'/#/free-gen')
  await page.getByRole('textbox',{name:'画面描述',exact:true}).waitFor()
  await page.getByRole('combobox',{name:'模型',exact:true}).waitFor()
- await page.getByRole('button',{name:'切换导航',exact:true}).click()
- await page.reload();await page.getByRole('textbox',{name:'画面描述',exact:true}).waitFor()
- assert.equal(await page.locator('[data-slot=sidebar][data-state]').getAttribute('data-state'),'collapsed')
- await page.getByRole('button',{name:'切换导航',exact:true}).click()
+ assert.equal(await page.getByRole('navigation',{name:'已打开页面'}).count(),0)
+ assert.equal(await page.locator('main > header').count(),0)
+ assert.equal(await page.getByRole('navigation',{name:'主导航'}).getByRole('button').count(),3)
+ await page.getByRole('button',{name:'设置',exact:true}).click()
+ await page.getByRole('menuitem',{name:'个人设置',exact:true}).waitFor()
+ assert.equal(await page.getByRole('menuitem',{name:'管理后台',exact:true}).count(),0)
+ await page.keyboard.press('Escape')
+ assert.equal(await page.getByRole('button',{name:'切换导航',exact:true}).count(),0)
+ assert.equal(await page.getByRole('button',{name:'外观设置',exact:true}).count(),0)
+ await page.getByRole('button',{name:'资产',exact:true}).click()
+ for(const title of ['生图记录','模板图库','提示词库']) {
+  await page.getByRole('navigation',{name:'资产分类'}).getByRole('button',{name:title,exact:true}).click()
+  assert.equal(await page.getByRole('button',{name:'资产',exact:true}).getAttribute('aria-current'),'page')
+ }
+ await page.getByRole('button',{name:'创作工作台',exact:true}).click()
  await page.getByRole('textbox',{name:'画面描述',exact:true}).fill('样板验收，切换页面后保留')
  await page.getByRole('navigation',{name:'创作模式'}).getByRole('button',{name:'快速生图',exact:true}).click()
  await page.getByRole('heading',{name:'换衣服',exact:true}).waitFor()
@@ -55,13 +66,15 @@ let debugPage
  await page.getByRole('button',{name:'预览sample.png',exact:true}).waitFor()
  await page.getByRole('button',{name:'删除sample.png',exact:true}).click()
  assert.equal(await page.getByRole('button',{name:'预览sample.png',exact:true}).count(),0)
- // Public library popover does not modify gallery's own local preferences.
- await page.getByRole('button',{name:'外观设置',exact:true}).last().click()
- await page.getByRole('combobox',{name:'颜色模式',exact:true}).click()
- await page.getByRole('option',{name:'深色',exact:true}).click()
- await page.getByRole('combobox',{name:'界面密度',exact:true}).click()
- await page.getByRole('option',{name:'紧凑',exact:true}).click()
- await page.keyboard.press('Escape')
+ // 用户端已移除外观入口；用测试夹具验证历史外观偏好仍兼容。
+ async function setAppearance(mode,density) {
+  await page.evaluate(value=>{
+   localStorage.setItem('momo_ui_appearance_v1',JSON.stringify(value))
+   window.dispatchEvent(new StorageEvent('storage',{key:'momo_ui_appearance_v1'}))
+  },{mode,density})
+  await page.waitForFunction(({mode,density})=>{const el=document.querySelector('.application-theme');return el?.dataset.theme===mode && el?.dataset.density===density},{mode,density})
+ }
+ await setAppearance('dark','compact')
  await page.reload();await page.getByRole('textbox',{name:'画面描述',exact:true}).waitFor()
  assert.equal(await page.locator('.application-theme').getAttribute('data-theme'),'dark')
  assert.equal(await page.locator('.application-theme').getAttribute('data-density'),'compact')
@@ -78,18 +91,8 @@ let debugPage
  for(const width of [320,768,1024,1440]){
   await page.setViewportSize({width,height:1000})
   for(const mode of ['light','dark']){
-   await page.getByRole('button',{name:'外观设置',exact:true}).last().click()
-   await page.getByRole('combobox',{name:'颜色模式',exact:true}).click()
-   await page.getByRole('option',{name:mode==='dark'?'深色':'浅色',exact:true}).click()
-   await page.getByRole('listbox').waitFor({state:'detached'})
-   await page.keyboard.press('Escape')
    for(const density of ['comfortable','compact']){
-    await page.getByRole('button',{name:'外观设置',exact:true}).last().click()
-    await page.getByRole('combobox',{name:'界面密度',exact:true}).click()
-    await page.getByRole('option',{name:density==='compact'?'紧凑':'舒适',exact:true}).click()
-    await page.getByRole('listbox').waitFor({state:'detached'})
-    await page.keyboard.press('Escape')
-    await page.getByRole('combobox',{name:'颜色模式',exact:true}).waitFor({state:'hidden'})
+    await setAppearance(mode,density)
     if(width <= 800) assert(await page.evaluate(()=>document.querySelector('.ds-composer').getBoundingClientRect().bottom <= document.querySelector('.ds-results-panel').getBoundingClientRect().top),'窄屏表单和结果区不能重叠')
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`${width}/${mode}/${density} 页面溢出`)
     await page.screenshot({path:path.join(output,`sample-${width}-${mode}-${density}.png`)})
@@ -168,5 +171,5 @@ let debugPage
 
  assert.deepEqual(errors,[])
  await browser.close()
- console.log('样板浏览器验收通过：双入口/权限、主题持久化/非法值、16 种布局、真实文件选择器、下拉/焦点恢复、页签缓存、批次图片、任务面板；只读路径无业务写入，模拟提交/重试 402 单次通知、重新导入成功、图片下载均通过。')
+ console.log('样板浏览器验收通过：双入口/权限、主题持久化/非法值、16 种布局、真实文件选择器、下拉/焦点恢复、无页签的页面草稿缓存、批次图片、任务面板；只读路径无业务写入，模拟提交/重试 402 单次通知、重新导入成功、图片下载均通过。')
 })().catch(async e=>{console.error(e); if(debugPage){await debugPage.screenshot({path:path.join(output,'failure.png')}).catch(()=>{}); fs.writeFileSync(path.join(output,'failure.html'),await debugPage.content());} process.exit(1)})

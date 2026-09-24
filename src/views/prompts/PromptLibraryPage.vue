@@ -1,14 +1,12 @@
 <script setup lang="ts">
 defineOptions({ name: 'PromptLibraryPage' })
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Plus, Pencil, Trash2, Search, Star, Wand2, LoaderCircle } from '@lucide/vue'
+import { Plus, Pencil, Trash2, Search, Star, LoaderCircle } from '@lucide/vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import { usePromptLibrary } from '@/composables/usePromptLibrary'
-import { hasSegments } from '@/utils/promptAssembler'
 import PageLayout from '@/components/PageLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,7 +23,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-const router = useRouter()
 
 // 列表/筛选/分页/收藏 共享逻辑
 const {
@@ -118,16 +115,6 @@ async function handleDelete(item: PromptLibraryItem) {
   }
 }
 
-// 在提示词工坊中编辑结构化提示词
-function editInWorkshop(item: PromptLibraryItem) {
-  router.push({ path: '/prompt-workshop', query: { edit: item.id } })
-}
-
-// 新建结构化提示词（跳转工坊）
-function createStructured() {
-  router.push('/prompt-workshop')
-}
-
 onMounted(loadList)
 </script>
 
@@ -135,7 +122,6 @@ onMounted(loadList)
   <PageLayout>
     <template #header><h2>提示词库</h2></template>
     <template #extra>
-      <Button variant="outline" size="sm" @click="createStructured"><Wand2 />提示词工坊</Button>
       <Button size="sm" @click="openCreate"><Plus />新建提示词</Button>
     </template>
 
@@ -183,7 +169,7 @@ onMounted(loadList)
         <div class="item-main">
           <div class="item-name">
             {{ item.name }}
-            <Badge v-if="hasSegments(item.segments)" variant="success" class="struct-badge">结构化</Badge>
+            <Badge v-if="Object.values(item.segments || {}).some(Boolean)" variant="success" class="struct-badge">结构化</Badge>
           </div>
           <div class="item-content">{{ item.content }}</div>
           <div v-if="item.tags.length" class="item-tags">
@@ -191,7 +177,6 @@ onMounted(loadList)
           </div>
         </div>
         <div class="item-actions">
-          <Button v-if="hasSegments(item.segments)" size="sm" variant="outline" @click="editInWorkshop(item)"><Wand2 />工坊编辑</Button>
           <Button size="sm" variant="outline" @click="openEdit(item)"><Pencil />编辑</Button>
           <Button size="sm" variant="ghost" class="text-destructive hover:text-destructive" @click="handleDelete(item)"><Trash2 />删除</Button>
         </div>

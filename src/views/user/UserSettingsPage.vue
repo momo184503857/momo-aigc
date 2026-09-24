@@ -216,7 +216,7 @@ function togglePasswordReveal(field: PasswordFieldType) {
             <User class="text-muted-foreground size-3.5 shrink-0" />
             <h3 class="text-[13px] font-semibold">昵称</h3>
             <p class="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
-              展示在工作台与作品库中
+              展示在工作台中
             </p>
           </div>
 

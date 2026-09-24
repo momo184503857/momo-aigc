@@ -7,20 +7,7 @@ export interface HelpEntry {
   path: string
 }
 
-export const helpRegistry: Record<string, HelpEntry> = {
-  'works.gallery': {
-    title: '作品库',
-    path: 'works/gallery.md',
-  },
-  'prompt-workshop': {
-    title: '提示词工坊',
-    path: 'prompt-workshop/home.md',
-  },
-  'expert': {
-    title: '提示词专家',
-    path: 'expert/home.md',
-  },
-}
+export const helpRegistry: Record<string, HelpEntry> = {}
 
 export function getHelpEntry(key: string | null | undefined): HelpEntry | null {
   if (!key) return null

@@ -1030,5 +1030,17 @@
     "contract": "类型化属性与插槽；纯展示，不调用业务接口",
     "events": "通过组件 emits 交给业务层",
     "usage": "用于创作工作台及可复用场景"
+  },
+  {
+    "id": "navigation-dock",
+    "title": "悬浮图标导航",
+    "category": "公共组合",
+    "group": "导航",
+    "source": "composites/DsNavigationDock.vue",
+    "example": "composite",
+    "family": "navigation-dock",
+    "contract": "items 图标与标签；active 当前页面；label 导航名称；orientation 横向分段导航或纵向悬浮导航",
+    "events": "navigate(path)",
+    "usage": "悬浮式大图标导航；键盘可访问；不访问业务接口"
   }
 ]

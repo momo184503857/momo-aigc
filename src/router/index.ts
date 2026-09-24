@@ -5,6 +5,8 @@ import { useAuthStore } from '@/stores/auth'
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    // 已移除功能的历史链接统一回到自由生图，不再加载旧页面。
+    { path: '/:pathMatch(.*)*', redirect: '/free-gen' },
     ...(import.meta.env.DEV ? [{
       path: '/prototype/create',
       name: 'CreationPrototype',
@@ -45,14 +47,17 @@ const router = createRouter({
       component: () => import('@/views/workspace/WorkspacePage.vue'),
       meta: { title: '快速生图', requiresAuth: true },
     },
+    { path: '/assets', redirect: '/assets/results' },
     {
       path: '/templates',
+      alias: '/assets/templates',
       name: 'Templates',
       component: () => import('@/views/templates/TemplatesPage.vue'),
       meta: { title: '模板图库', requiresAuth: true },
     },
     {
       path: '/results',
+      alias: '/assets/results',
       name: 'Results',
       component: () => import('@/views/results/ResultsPage.vue'),
       meta: { title: '生图结果', requiresAuth: true },
@@ -60,15 +65,10 @@ const router = createRouter({
 
     {
       path: '/prompts',
+      alias: '/assets/prompts',
       name: 'PromptLibrary',
       component: () => import('@/views/prompts/PromptLibraryPage.vue'),
       meta: { title: '提示词库', requiresAuth: true },
-    },
-    {
-      path: '/prompt-workshop',
-      name: 'PromptWorkshop',
-      component: () => import('@/views/prompt-workshop/PromptWorkshopPage.vue'),
-      meta: { title: '提示词工坊', requiresAuth: true, helpKey: 'prompt-workshop' },
     },
     {
       path: '/canvas-projects',
@@ -82,29 +82,6 @@ const router = createRouter({
       component: () => import('@/views/photography/PhotographyPage.vue'),
       meta: { title: 'AI摄影', requiresAuth: true },
     },
-    {
-      // 旧六步成套生图已下线，历史页签/书签重定向到成套提示词
-      path: '/suite-gen',
-      redirect: '/suite-prompt',
-    },
-    {
-      path: '/suite-prompt',
-      name: 'SuitePrompt',
-      component: () => import('@/views/suite-gen/SuitePromptPage.vue'),
-      meta: { title: '成套提示词', requiresAuth: true },
-    },
-    {
-      path: '/expert',
-      name: 'Expert',
-      component: () => import('@/views/expert/ExpertPage.vue'),
-      meta: { title: '提示词专家', requiresAuth: true, helpKey: 'expert' },
-    },
-    {
-      path: '/themes',
-      name: 'ThemeLibrary',
-      component: () => import('@/views/themes/ThemeLibraryPage.vue'),
-      meta: { title: '主题库', requiresAuth: true },
-    },
 
     {
       path: '/toolbox',
@@ -117,18 +94,6 @@ const router = createRouter({
       name: 'BuyerShow',
       component: () => import('@/views/buyer-show/BuyerShowPage.vue'),
       meta: { title: 'AI买家秀', requiresAuth: true },
-    },
-    {
-      path: '/works',
-      name: 'WorksGallery',
-      component: () => import('@/views/works/WorksGalleryPage.vue'),
-      meta: { title: '作品库', requiresAuth: true, helpKey: 'works.gallery' },
-    },
-    {
-      path: '/works/:id',
-      name: 'WorkDetail',
-      component: () => import('@/views/works/WorkDetailPage.vue'),
-      meta: { title: '作品详情', requiresAuth: true, hideInMenu: true },
     },
     {
       path: '/settings',
@@ -239,30 +204,6 @@ const router = createRouter({
       name: 'AdminPhotography',
       component: () => import('@/views/admin/AdminPhotography.vue'),
       meta: { title: 'AI摄影配置', requiresAuth: true, requiresAdmin: true },
-    },
-    {
-      path: '/admin/works',
-      name: 'AdminWorks',
-      component: () => import('@/views/admin/AdminWorks.vue'),
-      meta: { title: '作品库管理', requiresAuth: true, requiresAdmin: true },
-    },
-    {
-      path: '/admin/prompt-cases',
-      name: 'AdminPromptCases',
-      component: () => import('@/views/admin/AdminPromptCases.vue'),
-      meta: { title: '提示词案例管理', requiresAuth: true, requiresAdmin: true },
-    },
-    {
-      path: '/admin/prompt-modules',
-      name: 'AdminPromptModules',
-      component: () => import('@/views/admin/AdminPromptModules.vue'),
-      meta: { title: '提示词模块管理', requiresAuth: true, requiresAdmin: true },
-    },
-    {
-      path: '/admin/sg-assets',
-      name: 'AdminSgAssets',
-      component: () => import('@/views/admin/AdminSuiteAssets.vue'),
-      meta: { title: '成套生图资产', requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/admin/ai-config',
