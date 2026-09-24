@@ -1979,7 +1979,7 @@ Authorization: Bearer 用户自己的 ToAPIs Key
 
 - **自由生图独立成页**：原「生图工作台」内的「自由生图」tab（`free-gen`）拆为独立页面 `/free-gen`（`FreeGenPage.vue`），直接渲染通用生图表单（`GenerationForm`），无功能导航。根路径 `/` 重定向由 `/workspace` 改为 `/free-gen`，应用默认进入自由生图。任务面板复制参数时，free-gen 任务跳转 `/free-gen`，功能任务仍在 `/workspace` 内切换 tab。详见 §9.5、§11.2、§11.2a。
 - **「生图工作台」改名「快速生图」**：侧边栏、路由标题、标签页标题统一改名；`/workspace` 路径不变。原工作台的「高级/自由生图」分组移除，默认 tab 改为「换衣服」。
-- **UI 设计系统对齐 DDB 规范**：品牌主色统一为操作蓝 `#0088ff`，中性灰换 Ant 系（`#1d2129`/`#4e5969`/`#d9d9d9`/`#f0f2f5`），语义色用 DDB（成功 `#31c19e`/警告 `#fa742b`/危险 `#ff4d4f`），圆角采用混合制（查询按钮 4px、操作区按钮/状态标签 999px 胶囊）。所有颜色经 `--momo-*` token 统一，清除 `--tf-*` 别名引用与硬编码色值；ECharts 颜色集中到 `src/plugins/echartsPalette.ts`。规范文档落地为 `docs/ui/ui-design-guidelines.md`（正本）+ `docs/ui/ui-design-system-preview.html`（可视化速查）。此项为实现层重构，不改业务逻辑。
+- **UI 设计系统**：统一遵循 `docs/ui/ui-design-guidelines.md`；旧 DDB 蓝色主题与旧 Token 迁移记录不作为现行标准，不改变业务逻辑。
 - **模板收藏序号隐藏**：模板图库卡片角标不再显示 `sort_order` 数字，仅保留星标图标；序号数据仍用于排序，仅不在界面展示。详见 §9.4.6 第 5 条。
 
 ### 2026-06-17 — 修复模板图库「拖缩略图入收藏」失效

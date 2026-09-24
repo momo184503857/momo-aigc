@@ -45,7 +45,7 @@
 | `generation_tasks.client_business_id` / buyer_show_batches 先例 | 套系分组键设计参照 |
 | `TaskList` / `TaskDetailDialog` | 套系分组视图基于现有组件扩展 |
 | `works`（一键同款 reference_image_urls + prompt_segments） | 套系发布作品、整套复现 |
-| `useUiFeedback` / `--momo-*` tokens / ep-overrides | 所有新页面 UI 约束（见 §7） |
+| 公共设计系统 / `useUiFeedback` | UI 约束仅以 `docs/ui/ui-design-guidelines.md` 为准 |
 
 ---
 
@@ -435,10 +435,7 @@ SuiteGenPage                imageGeneration            后端 tasks            T
 
 ## 7. UI 约束（遵守项目设计系统）
 
-- 颜色/圆角/阴影一律 `--momo-*` tokens，禁止硬编码（AGENTS.md 约定）。
-- 消息/确认统一 `useUiFeedback`（toast/confirm），禁止直接 ElMessage。
-- 向导步骤条用 Element Plus el-steps + ep-overrides 主题映射；卡片 hover 动效沿用现有 `.card` 模式。
-- 资产徽标：全局 🔒（--momo-accent）、私有 👤（--momo-sub），文案统一"通用/我的"。
+UI 仅遵循 `docs/ui/ui-design-guidelines.md`，本方案不另设视觉规则。业务文案仍使用“通用/我的”；已删除功能的启用范围由 `docs/requirements/feature-removal-2026-09-24.md` 替代。
 
 ---
 

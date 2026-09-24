@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const base = process.env.UI_TEST_URL || 'http://localhost:5273'
-const output = process.env.UI_TEST_OUTPUT || path.resolve('docs/ui/evidence/phase-two')
+const output = process.env.UI_TEST_OUTPUT || path.resolve('.ui-test-output/phase-two')
 const svg = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="linen"/><circle cx="150" cy="150" r="70" fill="coral"/></svg>').toString('base64')
 const models = [{ id:1, modelId:'fixture', displayName:'验收模型', logicalCode:'fixture', kind:'image', pricing:{'1K':0.1,'2K':0.2}, capabilities:{resolutions:['1K','2K'],aspectRatios:['1:1','3:4'],maxReferenceImages:9,maxPromptChars:32000} }]
 const statuses = ['completed','failed','in_progress','importing']

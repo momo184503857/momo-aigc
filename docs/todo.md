@@ -198,7 +198,7 @@ OSS Bucket 当前返回 `Content-Disposition: attachment` 和 `x-oss-force-downl
 
 ### CSS 设计 Token 规范
 
-CLAUDE.md 要求所有样式使用 `--momo-*` CSS 变量。新增组件（如 `ImageCompareDialog`、`download.ts` 不涉及样式）已遵守此规范。后续新增 UI 时务必遵守。
+UI 新开发和迁移统一遵循 `docs/ui/ui-design-guidelines.md`，不再以旧 CLAUDE.md 或旧主题规则作为依据。
 
 ---
 

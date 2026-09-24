@@ -1,6 +1,6 @@
 # 项目文档
 
-本目录按四类组织。所有文档以「业务域 → 历史记录 → 参考资料」的层级维护。
+本目录按业务需求、功能设计、历史记录、技术参考和 UI 规范组织。所有文档以「业务域 → 历史记录 → 参考资料」的层级维护。
 
 ## 目录结构
 
@@ -15,7 +15,8 @@ docs/
 │   ├── changelog.md
 │   ├── decision-log.md
 │   └── bug-fixes.md
-└── reference/           技术参考（架构/API/数据库/UI/运维等事实性资料）
+├── ui/                  唯一现行 UI 规范（ui-design-guidelines.md）
+└── reference/           技术参考（架构/API/数据库/运维等事实性资料）
 ```
 
 ## 文档清单
@@ -45,13 +46,11 @@ docs/
 | 系统架构 | `reference/architecture.md` |
 | API 接口 | `reference/api-spec.md` |
 | 数据库 schema | `reference/database-schema.md` |
-| UI 设计规范 | `reference/ui-design-guidelines.md` |
-| UI 模块库 | `reference/ui-module-library.md` |
+| UI 设计规范（唯一现行） | `ui/ui-design-guidelines.md` |
 | 部署运维 | `reference/deployment.md` |
 | 运维手册 | `reference/runbook.md` |
 | 测试计划 | `reference/test-plan.md` |
 | 项目交接 | `reference/handoff.md` |
-| UI 交接（历史） | `reference/ui-handoff.md` |
 | OSS 结果导入 Worker | `reference/oss-result-import-worker.md` |
 | OSS ↔ ToAPIs 交接 | `reference/oss-toapis-handoff.md` |
 

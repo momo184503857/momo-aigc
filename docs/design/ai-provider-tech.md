@@ -56,7 +56,7 @@
 | `importResultToOss`（utils/oss.ts，Cloudflare Worker 转存） | 结果转存复用；taskId 参数改传 task_no（worker 仅回显，弱依赖，已验证兼容） |
 | `useTaskManager` 全局轮询骨架 / TaskPanel | 轮询端点替换、转存逻辑移除，交互不变 |
 | `imageGeneration.submitTask` 收口（architecture.md 规定唯一入口） | 签名保持，内部重写为调 `/api/generations`，页面层零改动或小改 |
-| `useUiFeedback` / `--momo-*` tokens | 新页面 UI 约束 |
+| 公共设计系统 / `useUiFeedback` | UI 约束仅以 `docs/ui/ui-design-guidelines.md` 为准 |
 
 ---
 
@@ -383,7 +383,7 @@ openai_image / volcengine_image：像素 'WxH'
 
 - 渠道卡片列表（名称/协议标签/base_url/主 Key hint/模型数/状态/余额区[toapis]）+ 新建/编辑弹窗（协议下拉、base_url、Key password 输入、测试连通按钮）。
 - 渠道详情：模型表格（渠道模型名、能力摘要、启停）+ 添加模型弹窗（能力来源二选一：引用逻辑模型模板（下拉 + 裁剪勾选）/ 完全自定义（分辨率与宽高比编辑器））。
-- UI 约束：`--momo-*` tokens、`useUiFeedback`、PageLayout 骨架。
+- UI 约束：遵循 `docs/ui/ui-design-guidelines.md`，复用公共设计系统与 `useUiFeedback`。
 
 ---
 

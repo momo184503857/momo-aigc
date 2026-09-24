@@ -234,7 +234,7 @@ momoaigc
 | 性能 | 提交接口 P95 < 3s（不含同步渠道上游生图耗时，该耗时由后台吸收）；轮询端点单次查询轻量；转存防并发重复 |
 | 兼容 | 历史任务/作品/积分流水/统计报表升级后语义不变；works 发布、买家秀、批量工具等下游不感知渠道差异 |
 | 可靠 | 服务重启不丢任务：异步渠道凭渠道任务号继续轮询；同步渠道在途任务清扫标失败并退款 |
-| UI 约束 | 新页面遵循 `--momo-*` token 体系与 `useUiFeedback`，Element Plus 主题映射（见 docs/ui/ui-design-guidelines.md） |
+| UI 约束 | 遵循 `docs/ui/ui-design-guidelines.md`；公共组件从 `@/components/design-system` 导入，消息使用 `useUiFeedback` |
 
 ---
 

@@ -182,7 +182,7 @@
 | M5-05 | 积分 | 套系 5 任务扣费=5×单价且流水可查；失败点退费流水正确 | S |
 | M5-06 | 管理后台 | 现有后台各页正常；新增"成套生图资产"仅 admin 可见 | S |
 | M5-07 | 帮助系统 | /suite-gen、/expert helpKey 抽屉文档正常打开 | B |
-| M5-08 | UI 规范扫描 | 新增代码无硬编码色值（走 --momo-*）、无直接 ElMessage（走 useUiFeedback） | A |
+| M5-08 | UI 规范扫描 | 新增代码遵循 docs/ui/ui-design-guidelines.md，复用公共主题与 useUiFeedback | A |
 
 ---
 

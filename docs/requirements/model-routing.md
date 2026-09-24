@@ -111,7 +111,7 @@
 - `src/services/imageGeneration.ts`：统一提交参数。
 - `src/views/admin/AdminAiConfig.vue`：成本价、售卖价配置界面。
 
-实现遵循现有 TypeScript 风格、`--momo-*` 样式变量和 `useUiFeedback`；不新增依赖，不在用户 API 中暴露渠道与成本。
+实现遵循现有 TypeScript 风格、`docs/ui/ui-design-guidelines.md` 规定的公共设计系统和 `useUiFeedback`；不新增依赖，不在用户 API 中暴露渠道与成本。
 
 ## 8. 验证策略与命令
 

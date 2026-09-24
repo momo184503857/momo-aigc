@@ -17,3 +17,6 @@ vite.config.d.ts
 
 # AI 助手本地指令（仅本机使用，不入库）
 AGENTS.md
+
+# 本地 UI 回归产物，不作为规范或文档归档
+.ui-test-output/

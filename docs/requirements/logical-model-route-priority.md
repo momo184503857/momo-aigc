@@ -34,7 +34,7 @@
 
 ## Boundaries
 
-- Always: 使用 `--momo-*` 设计 token；使用 `useUiFeedback`；服务端原子校验并保存完整顺序；保留失败退款与尝试记录。
+- Always: 遵循 `docs/ui/ui-design-guidelines.md` 的公共组件与主题约束；使用 `useUiFeedback`；服务端原子校验并保存完整顺序；保留失败退款与尝试记录。
 - Ask first: 修改统一售卖价、成本价或 Key 优先级；部署生产；提交或推送 Git。
 - Never: 把 API Key 写入跟踪文件；按成本覆盖管理员拖拽顺序；提交工作区已有的无关修改。
 

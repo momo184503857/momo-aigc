@@ -14,7 +14,7 @@
 | 文档目录 | 仓库根 `docs/` | `docs/` 已存放内部项目文档（requirements / reference / ui / previews / records） | 用户帮助收敛到 `docs/help/`，与内部文档隔离 |
 | Markdown 服务方式 | Nginx 静态目录 | 生产 Nginx 静态托管 `dist/`、`/api` 反代 Express（PM2） | Nginx 新增 `location /docs/` alias；开发环境 Vite 代理 → Express 静态挂载 |
 | 依赖 | — | `markdown-it` 未安装 | 需新增 `markdown-it` + `@types/markdown-it` |
-| 样式规范 | — | 强制 `--momo-*` tokens（`src/styles/tokens/`）、Element Plus 经 `ep-overrides.css` 主题化、消息用 `useUiFeedback` | 全部纳入硬性要求 |
+| 样式规范 | — | 统一遵循 `docs/ui/ui-design-guidelines.md`，消息用 `useUiFeedback` | 不另设 UI 规范 |
 
 ---
 
@@ -43,7 +43,7 @@
 技术栈：
 
 - 前端：Vue3（仓库根 `src/`，主入口 `index.html`）
-- UI：Element Plus（已通过 `src/styles/ep-overrides.css` 主题化）
+- UI：使用公共设计系统；现存旧组件仅作兼容。
 - 文档格式：Markdown
 - Markdown 渲染：`markdown-it`（**待安装**，连同 `@types/markdown-it`）
 - 文档版本管理：Git（与代码同仓库）
@@ -468,8 +468,8 @@ MainLayout（src/layouts/MainLayout.vue）
 
 要求 Drawer：
 
-- 使用 `el-drawer`（已被 `ep-overrides.css` 主题化，视觉自动统一）
-- 宽度约 420px ～ 520px（取值落到 `--momo-*` token，见第十二节）
+- 使用公共设计系统的抽屉组件。
+- 抽屉尺寸通过公共组件能力和主题管理，不在业务页面定义控件皮肤。
 - PC 端从右侧打开
 - 不改变原页面状态（挂载在 router-view / KeepAlive 之外）
 - 支持内部滚动
@@ -522,9 +522,7 @@ npm install -D @types/markdown-it
 - Blockquote
 - Tip / Warning
 
-所有取值（宽度、圆角、字号、行高、阴影、间距）**必须使用 `--momo-*`
-token**（定义于 `src/styles/tokens/`）；token 缺失时在 tokens 中新增，禁止
-组件内硬编码。所有文档必须使用同一个 Renderer。
+视觉值统一遵循 `docs/ui/ui-design-guidelines.md`；缺少能力先补公共组件与主题。所有文档必须使用同一个 Renderer。
 
 用户反馈消息（如「文档加载失败」的 toast）必须使用
 `src/composables/useUiFeedback.ts`，禁止直接 `ElMessage` / `ElMessageBox`。
@@ -1076,8 +1074,7 @@ LLM
       ```video 围栏语法，见 `src/utils/helpMarkdown.ts`）
 - [x] 支持 Markdown 基本格式（标题/列表/表格/链接/代码块/引用，含标题锚点）
 - [x] 支持加载状态、404 / 文档不存在状态、请求失败状态（失败可重试）
-- [x] Drawer 与文档内容样式全部使用 `--momo-*` token
-      （新增 `--momo-help-drawer-width`，定义于 `src/styles/tokens/_layout.css`）
+- [x] 历史实现曾接入旧主题；该记录不构成当前 UI 约束，后续修改遵循唯一现行规范。
 - [x] 交互反馈使用 `useUiFeedback`，不直接引入 `ElMessage` / `ElMessageBox`
 - [x] 编写 2 篇示例文档验证链路（`docs/help/works/gallery.md` +
       `docs/help/prompt-workshop/home.md`）
@@ -1279,8 +1276,7 @@ Markdown
 
 ### 8. 遵守本项目设计规范（本项目强制）
 
-- 所有样式取值使用 `--momo-*` token（`src/styles/tokens/`），禁止硬编码；
-  Element Plus 组件视觉经 `ep-overrides.css` 自动统一
+- 所有视觉与公共组件约束以 `docs/ui/ui-design-guidelines.md` 为准，不扩展旧主题。
 - 用户反馈消息统一走 `src/composables/useUiFeedback.ts`
 - 新增交互需符合 `docs/ui/ui-design-guidelines.md`
 
