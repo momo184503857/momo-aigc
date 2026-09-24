@@ -11,7 +11,6 @@ import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ImageEditorDialog from '@/components/ImageEditorDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { X, List, LayoutGrid, Columns2, PictureInPicture2, Search } from '@lucide/vue'
-import { formatCredits } from '@/types/adapter'
 import { Button } from '@/components/design-system/primitives/button'
 import { Badge } from '@/components/design-system/primitives/badge'
 import { Input } from '@/components/design-system/primitives/input'
@@ -169,25 +168,9 @@ function clearRemarkSearch() {
       <div class="task-panel-header">
         <div class="task-panel-header-left">
           <span class="task-panel-title">任务列表</span>
-          <Badge variant="secondary">积分: {{ formatCredits(tm.userPoints.value) }}</Badge>
           <Badge v-if="tm.taskSummary.value.active > 0 || tm.hasActiveJobs.value" variant="warning">生成中...</Badge>
         </div>
         <div class="task-panel-header-right">
-          <!-- Mode toggle -->
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            :model-value="taskPanel.isSideBySide ? 'side-by-side' : 'overlay'"
-            @update:model-value="onModeChange"
-          >
-            <ToggleGroupItem value="side-by-side" title="并排">
-              <Columns2 />并排
-            </ToggleGroupItem>
-            <ToggleGroupItem value="overlay" title="浮动">
-              <PictureInPicture2 />浮动
-            </ToggleGroupItem>
-          </ToggleGroup>
           <!-- Collapse -->
           <Button size="sm" variant="outline" @click="taskPanel.collapse()" title="收起">
             <X />
@@ -206,6 +189,21 @@ function clearRemarkSearch() {
         >
           <ToggleGroupItem value="new">新版任务列表</ToggleGroupItem>
           <ToggleGroupItem value="legacy">旧版任务列表</ToggleGroupItem>
+        </ToggleGroup>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          aria-label="任务面板布局"
+          :model-value="taskPanel.isSideBySide ? 'side-by-side' : 'overlay'"
+          @update:model-value="onModeChange"
+        >
+          <ToggleGroupItem value="side-by-side" title="并排">
+            <Columns2 />并排
+          </ToggleGroupItem>
+          <ToggleGroupItem value="overlay" title="浮动">
+            <PictureInPicture2 />浮动
+          </ToggleGroupItem>
         </ToggleGroup>
       </div>
 
@@ -472,6 +470,11 @@ function clearRemarkSearch() {
 }
 
 .task-panel-view-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
