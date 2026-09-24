@@ -12,19 +12,19 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { Download, Trash2, Image as ImageIcon, Check, X, Ellipsis, RefreshCw, TriangleAlert, Eye } from '@lucide/vue'
-import PageLayout from '@/components/PageLayout.vue'
-import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Separator } from '@/components/ui/separator'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
+import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/design-system'
+import { Button } from '@/components/design-system/primitives/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { Separator } from '@/components/design-system/primitives/separator'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/design-system/primitives/dropdown-menu'
 import { taskApi } from '@/services/taskApi'
 import { downloadUrl } from '@/utils/download'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
@@ -186,7 +186,7 @@ onMounted(() => { loadResults() })
   <PageLayout>
     <template #header>
       <h2>生图结果</h2>
-      <p class="text-muted-foreground mt-1 max-w-3xl text-[13px] leading-normal">
+      <p class="text-muted-foreground mt-1 max-w-3xl text-sm leading-normal">
         已完成任务的成图清单。点击缩略图看大图，支持逐张下载或批量清理。
       </p>
     </template>
@@ -210,23 +210,23 @@ onMounted(() => { loadResults() })
     <div
       class="bg-background sticky top-0 z-20 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b pb-2"
     >
-      <span class="text-[13px] font-medium tabular-nums">共 {{ total }} 张</span>
-      <span aria-hidden="true" class="text-muted-foreground/50 text-[12px]">·</span>
-      <span class="text-muted-foreground text-[12px] tabular-nums">
+      <span class="text-sm font-medium tabular-nums">共 {{ total }} 张</span>
+      <span aria-hidden="true" class="text-muted-foreground/50 text-sm">·</span>
+      <span class="text-muted-foreground text-sm tabular-nums">
         第 {{ page }} / {{ pageCount }} 页，每页 {{ pageSize }} 张
       </span>
 
       <template v-if="bulkMode">
         <Separator orientation="vertical" class="h-4" />
-        <span class="text-[13px] font-medium tabular-nums">已选 {{ selectedIds.size }} 项</span>
-        <button
+        <span class="text-sm font-medium tabular-nums">已选 {{ selectedIds.size }} 项</span>
+        <Button variant="ghost"
           type="button"
-          class="text-muted-foreground hover:text-foreground cursor-pointer text-[12px] underline decoration-border underline-offset-4 transition-colors"
+          class="cursor-pointer underline decoration-border underline-offset-4 transition-colors"
           @click="selectAll"
         >
           {{ allSelected ? '取消全选本页' : '全选本页' }}
-        </button>
-        <span v-if="selectedIds.size" class="text-muted-foreground text-[12px] tabular-nums">
+        </Button>
+        <span v-if="selectedIds.size" class="text-muted-foreground text-sm tabular-nums">
           {{ hasImageCount }} 张可下载
         </span>
 
@@ -268,7 +268,7 @@ onMounted(() => { loadResults() })
       class="border-destructive/30 bg-destructive/5 flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-12 text-center"
     >
       <TriangleAlert class="text-destructive size-6" :stroke-width="1.5" />
-      <p class="text-[13px] font-medium">生图结果加载失败</p>
+      <p class="text-sm font-medium">生图结果加载失败</p>
       <p class="text-muted-foreground max-w-sm text-xs leading-5">
         网络或服务暂时不可用，已有数据未受影响，重试即可。
       </p>
@@ -325,18 +325,18 @@ onMounted(() => { loadResults() })
             <Badge
               v-if="featureLabel(task.feature_id)"
               variant="secondary"
-              class="absolute top-1.5 left-1.5 h-5 border border-border/60 bg-background/90 text-[11px] font-normal"
+              class="absolute top-1.5 left-1.5 h-5 border border-border/60"
             >
               {{ featureLabel(task.feature_id) }}
             </Badge>
 
             <!-- 批量勾选 -->
-            <button
+            <Button variant="ghost"
               v-if="bulkMode"
               type="button"
               :aria-label="selectedIds.has(task.id) ? '取消选择' : '选择此项'"
               :aria-pressed="selectedIds.has(task.id)"
-              class="absolute right-1.5 bottom-1.5 z-20 flex size-6 cursor-pointer items-center justify-center rounded-md border transition-colors"
+              class="absolute right-1.5 bottom-1.5 z-20 flex cursor-pointer items-center justify-center border transition-colors"
               :class="cn(
                 selectedIds.has(task.id)
                   ? 'border-primary bg-primary text-primary-foreground'
@@ -345,7 +345,7 @@ onMounted(() => { loadResults() })
               @click.stop="toggleSelect(task.id)"
             >
               <Check class="size-3.5" />
-            </button>
+            </Button>
 
             <!-- 悬停/键盘聚焦时才出现的操作层 -->
             <div
@@ -358,7 +358,7 @@ onMounted(() => { loadResults() })
                 size="icon-sm"
                 title="看大图"
                 aria-label="看大图"
-                class="shadow-sm"
+
                 @click.stop="openPreview(task.result_image_urls[0])"
               >
                 <Eye class="size-3.5" />
@@ -369,7 +369,7 @@ onMounted(() => { loadResults() })
                 size="icon-sm"
                 title="下载"
                 aria-label="下载"
-                class="shadow-sm"
+
                 @click.stop="handleDownload(task)"
               >
                 <Download class="size-3.5" />
@@ -381,7 +381,7 @@ onMounted(() => { loadResults() })
                     size="icon-sm"
                     title="更多操作"
                     aria-label="更多操作"
-                    class="shadow-sm"
+
                     @click.stop
                   >
                     <Ellipsis class="size-3.5" />
@@ -405,12 +405,12 @@ onMounted(() => { loadResults() })
           <!-- 文字层：提示词优先，参数与日期压成一行 -->
           <div class="min-w-0 flex-1 px-2.5 py-2">
             <p
-              class="line-clamp-2 text-[13px] leading-5 break-words"
+              class="line-clamp-2 text-sm leading-5 break-words"
               :title="task.prompt"
             >
               {{ task.prompt || '（无提示词）' }}
             </p>
-            <p class="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 text-[11px] tabular-nums">
+            <p class="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 text-sm tabular-nums">
               <span class="truncate">{{ task.model }}</span>
               <span aria-hidden="true">·</span>
               <span class="shrink-0">{{ task.resolution || '—' }} {{ task.aspectRatio || '' }}</span>

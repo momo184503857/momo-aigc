@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/design-system/primitives/label'
+import { RadioGroup, RadioGroupItem } from '@/components/design-system/primitives/radio-group'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()

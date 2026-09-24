@@ -16,14 +16,14 @@ import { toBJDate } from '@/utils/datetime'
 import { useUiFeedback, promptDialog } from '@/composables/useUiFeedback'
 import { buyerShowBatchApi } from '@/services/buyerShowBatchApi'
 import type { BatchItemRow, BuyerShowBatch } from '@/services/buyerShowBatchApi'
-import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
+import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/design-system'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { downloadRowsAsZip, rowToTaskItem } from '@/utils/buyerShowZip'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Progress } from '@/components/design-system/primitives/progress'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
 import {
   Table,
   TableBody,
@@ -31,8 +31,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
+} from '@/components/design-system/primitives/table'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 
 defineOptions({ name: 'BuyerShowHistoryPanel' })
 
@@ -335,7 +335,7 @@ onMounted(() => {
                     <Progress
                       :model-value="completionPct(row)"
                       class="h-2 min-w-20 flex-1"
-                      :class="row.completedCount === row.itemCount && row.itemCount > 0 ? '[&_[data-slot=progress-indicator]]:bg-success' : ''"
+                      :class="row.completedCount === row.itemCount && row.itemCount > 0 ? '' : ''"
                     />
                     <span class="text-muted-foreground text-sm whitespace-nowrap">{{ row.completedCount }}/{{ row.itemCount }}</span>
                   </div>
@@ -357,9 +357,9 @@ onMounted(() => {
                   </Button>
                   <Button variant="ghost" size="sm" @click="renameBatch(row)"><Pencil />改名</Button>
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon-sm"
-                    class="text-destructive hover:text-destructive"
+
                     @click="deleteBatch(row)"
                   >
                     <Trash2 />
@@ -432,7 +432,7 @@ onMounted(() => {
                 </TableCell>
                 <TableCell class="max-w-40 truncate" :title="row.productId">{{ row.productId }}</TableCell>
                 <TableCell>
-                  <Textarea v-model="row.prompt" readonly class="min-h-9 text-sm" />
+                  <Textarea v-model="row.prompt" readonly class="min-h-9" />
                 </TableCell>
                 <TableCell>
                   <Badge v-if="row.status === 'completed'" variant="success">成功</Badge>
@@ -484,8 +484,8 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--momo-color-bg-muted);
-  border-radius: var(--momo-radius-md);
+  background: var(--muted);
+  border-radius: var(--ds-radius);
   flex-wrap: wrap;
 }
 .bsh-detail-title {
@@ -496,13 +496,13 @@ onMounted(() => {
   min-width: 200px;
 }
 .bsh-detail-name {
-  font-size: var(--momo-font-size-lg);
+  font-size: var(--ds-font-heading);
   font-weight: 600;
-  color: var(--momo-color-text);
+  color: var(--foreground);
 }
 .bsh-detail-meta {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 .bsh-detail-actions {
   display: flex;
@@ -518,19 +518,19 @@ onMounted(() => {
   width: 56px;
   height: 56px;
   object-fit: cover;
-  border-radius: var(--momo-radius-sm);
-  border: 1px solid var(--momo-color-border);
+  border-radius: var(--ds-radius);
+  border: 1px solid var(--border);
   cursor: zoom-in;
 }
 .result-thumb {
   cursor: zoom-in;
 }
 .bsh-err {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-danger);
+  font-size: var(--ds-font-small);
+  color: var(--destructive);
 }
 .bsh-muted {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-placeholder);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 </style>

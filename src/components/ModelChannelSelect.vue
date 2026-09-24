@@ -57,7 +57,7 @@ function modelPriceLabel(m: CatalogModel): string {
 function priceClass(text: string): string {
   if (text === '未定价') return 'text-muted-foreground'
   if (text.includes('免费')) return 'text-success'
-  return 'text-(--momo-color-price)'
+  return 'text-(--destructive)'
 }
 </script>
 

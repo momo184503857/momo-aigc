@@ -4,7 +4,16 @@ import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [vue(), tailwindcss()],
+  plugins: [vue(), tailwindcss(), {
+    name: 'verify-production-ui-graph',
+    apply: 'build',
+    generateBundle() {
+      const modules = [...this.getModuleIds()].filter(id => id.includes('/src/'))
+      const forbidden = modules.filter(id => /\/src\/(components\/ui\/|prototype\/|styles\/(tokens|legacy-surface|admin-theme))/.test(id))
+      if (forbidden.length) this.error(`生产构建包含旧 UI 或原型依赖：\n${forbidden.join('\n')}`)
+      this.emitFile({ type: 'asset', fileName: 'ui-dependency-audit.json', source: JSON.stringify({ result: 'passed', modules: modules.map(id => id.replace(__dirname + '/', '')) }, null, 2) })
+    },
+  }],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

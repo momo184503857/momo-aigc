@@ -54,7 +54,7 @@ let debugPage
  await page.getByRole('textbox',{name:'画面描述',exact:true}).fill('样板验收，切换页面后保留')
  await page.getByRole('navigation',{name:'创作模式'}).getByRole('button',{name:'快速生图',exact:true}).click()
  await page.getByRole('heading',{name:'换衣服',exact:true}).waitFor()
- const legacyLight=await page.locator('.legacy-surface').evaluate(el=>{const s=getComputedStyle(el.querySelector('[role=combobox]'));return [getComputedStyle(el).getPropertyValue('--primary'),s.backgroundColor,s.borderColor]})
+ assert.equal(await page.locator('.legacy-surface').count(),0)
  await page.getByRole('navigation',{name:'创作模式'}).getByRole('button',{name:'自由生图',exact:true}).click()
  assert.equal(await page.getByRole('textbox',{name:'画面描述',exact:true}).inputValue(),'样板验收，切换页面后保留')
  for(const [name,option] of [['画面比例','3:4'],['生成数量','2张'],['分辨率','2K']]){
@@ -86,7 +86,8 @@ let debugPage
  assert(await page.getByRole('button',{name:'从提示词库选择',exact:true}).evaluate(el=>el===document.activeElement))
  await page.getByRole('navigation',{name:'创作模式'}).getByRole('button',{name:'快速生图',exact:true}).click()
  await page.getByRole('heading',{name:'换衣服',exact:true}).waitFor()
- assert.deepEqual(await page.locator('.legacy-surface').evaluate(el=>{const s=getComputedStyle(el.querySelector('[role=combobox]'));return [getComputedStyle(el).getPropertyValue('--primary'),s.backgroundColor,s.borderColor]}),legacyLight)
+ assert.equal(await page.locator('.legacy-surface').count(),0)
+ assert.equal(await page.locator('.application-theme').getAttribute('data-theme'),'dark')
  await page.getByRole('navigation',{name:'创作模式'}).getByRole('button',{name:'自由生图',exact:true}).click()
  for(const width of [320,768,1024,1440]){
   await page.setViewportSize({width,height:1000})

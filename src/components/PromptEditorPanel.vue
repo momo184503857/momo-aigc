@@ -7,8 +7,8 @@
  */
 import { ref, computed } from 'vue'
 import { ChevronDown, RotateCw } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/design-system/primitives/button'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 
 export interface PromptSectionDef {
   key: string
@@ -81,7 +81,7 @@ function sectionValue(key: string): string {
           :model-value="finalPrompt"
           :rows="rows"
           readonly
-          class="bg-muted/60 text-foreground/80"
+
         />
       </div>
 

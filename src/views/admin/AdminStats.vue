@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { CHART_NEUTRALS } from '@/plugins/echartsPalette'
+import { Button } from '@/components/design-system'
 import { ref, onMounted, computed } from 'vue'
 import { ArrowDown, ArrowUp, ArrowUpDown } from '@lucide/vue'
 import { toBJMinute, toBJDate } from '@/utils/datetime'
@@ -7,10 +9,10 @@ import { useClientSort } from '@/composables/useClientSort'
 const { error } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
 import { formatCredits } from '@/types/adapter'
-import PageLayout from '@/components/PageLayout.vue'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 import {
   Table,
   TableBody,
@@ -19,8 +21,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { UiEmptyState } from '@/components/ui'
+} from '@/components/design-system/primitives/table'
+import { UiEmptyState } from '@/components/design-system'
 
 interface StatRow {
   user_id: number
@@ -114,7 +116,7 @@ const pieOption = computed(() => ({
       { value: summary.value.total_failed, name: '失败' },
       { value: summary.value.total_tasks - summary.value.total_completed - summary.value.total_failed, name: '进行中' },
     ],
-    emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.5)' } },
+    emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: CHART_NEUTRALS.shadow } },
   }],
 }))
 
@@ -167,27 +169,27 @@ onMounted(() => loadAll())
       <!-- Summary Cards -->
       <div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <div class="bg-card rounded-lg border px-5 py-4">
-          <div class="text-muted-foreground mb-1.5 text-[13px]">总提交</div>
+          <div class="text-muted-foreground mb-1.5 text-sm">总提交</div>
           <div class="text-2xl leading-tight font-bold">{{ summary.total_tasks }}</div>
         </div>
         <div class="bg-card rounded-lg border px-5 py-4">
-          <div class="text-muted-foreground mb-1.5 text-[13px]">总成功</div>
+          <div class="text-muted-foreground mb-1.5 text-sm">总成功</div>
           <div class="text-success text-2xl leading-tight font-bold">{{ summary.total_completed }}</div>
         </div>
         <div class="bg-card rounded-lg border px-5 py-4">
-          <div class="text-muted-foreground mb-1.5 text-[13px]">总失败</div>
+          <div class="text-muted-foreground mb-1.5 text-sm">总失败</div>
           <div class="text-destructive text-2xl leading-tight font-bold">{{ summary.total_failed }}</div>
         </div>
         <div class="bg-card rounded-lg border px-5 py-4">
-          <div class="text-muted-foreground mb-1.5 text-[13px]">积分消耗</div>
+          <div class="text-muted-foreground mb-1.5 text-sm">积分消耗</div>
           <div class="text-2xl leading-tight font-bold">{{ summary.total_points_consumed }}</div>
         </div>
         <div class="bg-card rounded-lg border px-5 py-4">
-          <div class="text-muted-foreground mb-1.5 text-[13px]">活跃用户</div>
+          <div class="text-muted-foreground mb-1.5 text-sm">活跃用户</div>
           <div class="text-2xl leading-tight font-bold">{{ summary.active_users }}</div>
         </div>
         <div class="bg-card rounded-lg border px-5 py-4">
-          <div class="text-muted-foreground mb-1.5 text-[13px]">总积分余额</div>
+          <div class="text-muted-foreground mb-1.5 text-sm">总积分余额</div>
           <div class="text-2xl leading-tight font-bold">{{ summary.total_balance }}</div>
         </div>
       </div>
@@ -196,7 +198,7 @@ onMounted(() => loadAll())
       <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div class="surface p-5 lg:col-span-2">
           <div class="mb-3 flex items-center justify-between">
-            <span class="text-[15px] font-semibold">每日生成趋势</span>
+            <span class="text-sm font-semibold">每日生成趋势</span>
             <ToggleGroup
               type="single"
               variant="outline"
@@ -213,7 +215,7 @@ onMounted(() => loadAll())
           <VChart v-else :option="trendOption" style="height:300px" autoresize />
         </div>
         <div class="surface p-5">
-          <div class="mb-3 text-[15px] font-semibold">任务占比</div>
+          <div class="mb-3 text-sm font-semibold">任务占比</div>
           <Skeleton v-if="loading" class="h-[300px] w-full" />
           <VChart v-else :option="pieOption" style="height:300px" autoresize />
         </div>
@@ -221,7 +223,7 @@ onMounted(() => loadAll())
 
       <!-- Bar chart per user -->
       <div class="surface mb-6 p-5">
-        <div class="mb-3 text-[15px] font-semibold">用户生成统计</div>
+        <div class="mb-3 text-sm font-semibold">用户生成统计</div>
         <Skeleton v-if="loading" class="h-[300px] w-full" />
         <template v-else>
           <VChart v-if="stats.length > 0" :option="barOption" style="height:300px" autoresize />
@@ -235,16 +237,16 @@ onMounted(() => loadAll())
           <TableHeader>
             <TableRow>
               <TableHead v-for="c in columns" :key="c.label" :class="c.cls">
-                <button
+                <Button variant="ghost"
                   v-if="c.sortable"
-                  class="hover:text-foreground inline-flex items-center gap-1"
+                  class="inline-flex items-center gap-1"
                   @click="handleSort(c.key)"
                 >
                   {{ c.label }}
                   <ArrowUp v-if="sortField === c.key && sortOrder === 'asc'" class="size-3.5" />
                   <ArrowDown v-else-if="sortField === c.key && sortOrder === 'desc'" class="size-3.5" />
                   <ArrowUpDown v-else class="text-muted-foreground size-3.5" />
-                </button>
+                </Button>
                 <template v-else>{{ c.label }}</template>
               </TableHead>
             </TableRow>

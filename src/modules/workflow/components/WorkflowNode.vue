@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DsFileInput } from '@/components/design-system'
 import { computed, onUnmounted, ref } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import type { NodeProps } from '@vue-flow/core'
@@ -22,21 +23,21 @@ import {
   WandSparkles,
 } from '@lucide/vue'
 import type { Component } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 import type { ImageNodeResultValue, LocalImageAsset, WorkflowCanvasNodeData } from '@/modules/workflow/types/workflow'
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
 import { getNodeTheme, getNodeSummary } from '@/modules/workflow/nodes/nodeRegistry'
 import { resolveNodeInputs } from '@/modules/workflow/engine/basicRunner'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
-import { UiImagePreview } from '@/components/ui'
+import { UiImagePreview } from '@/components/design-system'
 import { useImagePreview } from '@/composables/useImagePreview'
 
 const props = defineProps<NodeProps<WorkflowCanvasNodeData>>()
@@ -50,7 +51,7 @@ const dataTypeLabel: Record<string, string> = { Text: '文字', Image: '图片',
 const { visible: previewVisible, url: previewUrl, open: openPreview } = useImagePreview()
 
 // 图片输入节点：直接在节点上传
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<InstanceType<typeof DsFileInput> | null>(null)
 function triggerUpload() {
   fileInputRef.value?.click()
 }
@@ -250,8 +251,8 @@ onUnmounted(() => {
     :class="[`is-${workflowNode.status}`, { 'is-selected': selected, 'is-disabled': workflowNode.disabled }]"
   >
     <!-- 1. 节点名 -->
-    <div class="workflow-node__header" :style="{ background: theme.color + '0D' }">
-      <div class="workflow-node__icon" :style="{ background: theme.color + '20', color: theme.color }">
+    <div class="workflow-node__header" :style="{ background: `color-mix(in srgb, ${theme.color} 5%, transparent)` }">
+      <div class="workflow-node__icon" :style="{ background: `color-mix(in srgb, ${theme.color} 12%, transparent)`, color: theme.color }">
         <component :is="nodeIcon" class="size-3.5" />
       </div>
       <span class="workflow-node__title">{{ workflowNode.title }}</span>
@@ -281,7 +282,7 @@ onUnmounted(() => {
 
       <!-- image-input -->
       <template v-if="workflowNode.type === 'image-input'">
-        <input ref="fileInputRef" type="file" accept="image/*" style="display:none" @change="onNodeImageUpload" @click.stop />
+        <DsFileInput ref="fileInputRef" type="file" accept="image/*" style="display:none" @change="onNodeImageUpload" @click.stop />
         <div class="workflow-node__upload-row">
           <Button size="sm" variant="outline" @click.stop="triggerUpload">上传图片</Button>
           <span class="workflow-node__section-value">{{ configSummary }}</span>
@@ -386,7 +387,7 @@ onUnmounted(() => {
 
     <!-- 缩放手柄 -->
     <div v-if="selected" class="workflow-node__resize" @mousedown.stop="onResizeStart">
-      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 10L10 10L10 0" fill="none" stroke="var(--momo-color-text-placeholder)" stroke-width="1.5" /><path d="M2 10L10 10L10 2" fill="none" stroke="var(--momo-color-text-placeholder)" stroke-width="1.5" /></svg>
+      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 10L10 10L10 0" fill="none" stroke="var(--muted-foreground)" stroke-width="1.5" /><path d="M2 10L10 10L10 2" fill="none" stroke="var(--muted-foreground)" stroke-width="1.5" /></svg>
     </div>
   </div>
 </template>
@@ -395,23 +396,23 @@ onUnmounted(() => {
 .workflow-node {
   min-width: 220px;
   min-height: 80px;
-  background: var(--momo-color-bg);
-  border: 1.5px solid var(--momo-color-border);
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  color: var(--momo-color-text);
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--ds-card-radius);
+  box-shadow: 0 2px 8px var(--ds-overlay-soft);
+  color: var(--foreground);
   overflow: visible;
   position: relative;
   transition: box-shadow 0.2s, border-color 0.2s;
-  font-size: 12px;
+  font-size: var(--ds-font-small);
 }
-.workflow-node.is-selected { border-color: var(--momo-color-brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--momo-color-brand) 15%, transparent); }
+.workflow-node.is-selected { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent); }
 .workflow-node.is-disabled, .workflow-node.is-affected { opacity: 0.5; }
-.workflow-node.is-running { border-color: var(--momo-color-brand); animation: node-pulse 1.2s ease-in-out infinite; }
-.workflow-node.is-dirty, .workflow-node.is-paused { border-color: var(--momo-color-warning); }
-.workflow-node.is-failed { border-color: var(--momo-color-danger); }
-.workflow-node.is-success { border-color: var(--momo-color-success); }
-@keyframes node-pulse { 0%,100% { box-shadow: 0 2px 8px rgba(0,0,0,0.06); } 50% { box-shadow: 0 0 12px color-mix(in srgb, var(--momo-color-brand) 30%, transparent); } }
+.workflow-node.is-running { border-color: var(--primary); animation: node-pulse 1.2s ease-in-out infinite; }
+.workflow-node.is-dirty, .workflow-node.is-paused { border-color: var(--warning); }
+.workflow-node.is-failed { border-color: var(--destructive); }
+.workflow-node.is-success { border-color: var(--success); }
+@keyframes node-pulse { 0%,100% { box-shadow: 0 2px 8px var(--ds-overlay-soft); } 50% { box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 30%, transparent); } }
 
 /* 1. 节点名 */
 .workflow-node__header {
@@ -419,18 +420,18 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 8px 10px 6px;
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--ds-card-radius) 10px 0 0;
 }
 .workflow-node__icon {
   width: 24px; height: 24px; border-radius: 5px;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.workflow-node__title { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-node__title { flex: 1; min-width: 0; font-size: var(--ds-font-small); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workflow-node__status-icon { flex-shrink: 0; width: 14px; height: 14px; }
-.workflow-node__status-icon.status-running { color: var(--momo-color-brand); animation: spin 1s linear infinite; }
-.workflow-node__status-icon.status-success { color: var(--momo-color-success); }
-.workflow-node__status-icon.status-failed { color: var(--momo-color-danger); }
-.workflow-node__status-icon.status-dirty, .workflow-node__status-icon.status-paused { color: var(--momo-color-warning); }
+.workflow-node__status-icon.status-running { color: var(--primary); animation: spin 1s linear infinite; }
+.workflow-node__status-icon.status-success { color: var(--success); }
+.workflow-node__status-icon.status-failed { color: var(--destructive); }
+.workflow-node__status-icon.status-dirty, .workflow-node__status-icon.status-paused { color: var(--warning); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* 2. 端口行 */
@@ -446,30 +447,30 @@ onUnmounted(() => {
 .workflow-node__port { position: relative; display: flex; align-items: center; gap: 4px; min-height: 16px; }
 .workflow-node__port--right { flex-direction: row-reverse; }
 .workflow-node__port-tag { font-size: 9px; padding: 0 4px; border-radius: 2px; font-weight: 600; line-height: 13px; white-space: nowrap; }
-.tag--text { background: var(--momo-color-brand-subtle); color: var(--momo-color-brand); }
-.tag--image { background: var(--momo-color-success-subtle); color: var(--momo-color-success); }
-.tag--any { background: var(--momo-color-info-subtle); color: var(--momo-color-info); }
-.workflow-node__handle { width: 8px; height: 8px; border: 2px solid var(--momo-color-bg); cursor: crosshair; z-index: 5; }
-.handle--text { background: var(--momo-color-brand); }
-.handle--image { background: var(--momo-color-success); }
-.handle--any { background: var(--momo-color-info); }
+.tag--text { background: var(--accent); color: var(--primary); }
+.tag--image { background: var(--ds-success-surface); color: var(--success); }
+.tag--any { background: var(--accent); color: var(--ds-info); }
+.workflow-node__handle { width: 8px; height: 8px; border: 2px solid var(--card); cursor: crosshair; z-index: 5; }
+.handle--text { background: var(--primary); }
+.handle--image { background: var(--success); }
+.handle--any { background: var(--ds-info); }
 
 /* 3-5. 配置/输入/输出 */
 .workflow-node__section {
   padding: 3px 10px;
-  border-top: 1px solid var(--momo-color-border-light);
+  border-top: 1px solid var(--border);
 }
 .workflow-node__section-label {
   font-size: 9px;
   font-weight: 600;
-  color: var(--momo-color-text-placeholder);
+  color: var(--muted-foreground);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-right: 4px;
 }
 .workflow-node__section-value {
-  font-size: 11px;
-  color: var(--momo-color-text-tertiary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -482,8 +483,8 @@ onUnmounted(() => {
   padding: 1px 0;
 }
 .workflow-node__section-key {
-  font-size: 10px;
-  color: var(--momo-color-text-placeholder);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   flex-shrink: 0;
 }
 
@@ -509,7 +510,7 @@ onUnmounted(() => {
   position: relative;
   width: 36px;
   height: 36px;
-  border-radius: 4px;
+  border-radius: var(--ds-radius);
   overflow: hidden;
   cursor: pointer;
 }
@@ -526,9 +527,9 @@ onUnmounted(() => {
   right: -2px;
   width: 14px;
   height: 14px;
-  background: var(--momo-color-danger);
-  color: #fff;
-  font-size: 10px;
+  background: var(--destructive);
+  color: var(--ds-white);
+  font-size: var(--ds-font-small);
   line-height: 14px;
   text-align: center;
   border-radius: 50%;
@@ -544,16 +545,13 @@ onUnmounted(() => {
 /* 节点内嵌控件：紧凑、浅底无边框 */
 .workflow-node__section .workflow-node__control {
   min-height: 0;
-  border-color: transparent;
-  background: var(--momo-color-bg-soft);
-  border-radius: 4px;
-  font-size: 11px;
+
   padding: 4px 6px;
 }
 
 /* 图片 */
 .workflow-node__images { display: grid; gap: 3px; padding: 4px 10px 6px; }
-.workflow-node__thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; border: 1px solid var(--momo-color-border-soft); }
+.workflow-node__thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--ds-radius); border: 1px solid var(--border); }
 
 /* 缩放 */
 .workflow-node__resize { position: absolute; right: 1px; bottom: 1px; width: 14px; height: 14px; cursor: nwse-resize; display: flex; align-items: flex-end; justify-content: flex-end; z-index: 10; }

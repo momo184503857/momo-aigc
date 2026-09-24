@@ -4,8 +4,8 @@
  * 网格/列表两种布局由 CSS 控制；选择/预览/复制/编辑/删除交由父组件处理。
  */
 import { Check, Copy, Pencil, Trash2 } from '@lucide/vue'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
 import type { BuyerShowMaterial } from '@/services/buyerShowApi'
 
 defineProps<{
@@ -28,7 +28,7 @@ defineEmits<{
   <div class="material-card" :class="[viewMode, { selected }]" @click="$emit('preview')">
     <!-- 选择圆圈 -->
     <div class="select-circle" :class="{ checked: selected }" @click.stop="$emit('toggleSelect')">
-      <Check v-if="selected" class="size-3.5 text-(--momo-color-text-inverse)" />
+      <Check v-if="selected" class="size-3.5 text-(--primary-foreground)" />
     </div>
 
     <!-- 缩略图 -->
@@ -59,43 +59,43 @@ defineEmits<{
 
 <style scoped>
 .material-card {
-  background: var(--momo-color-bg-soft);
-  border-radius: var(--momo-radius-md);
+  background: var(--muted);
+  border-radius: var(--ds-radius);
   overflow: hidden;
-  border: 1px solid var(--momo-color-border-soft);
+  border: 1px solid var(--border);
   transition: box-shadow 0.2s, border-color 0.2s;
   position: relative;
 }
-.material-card:hover { box-shadow: var(--momo-shadow-sm); }
+.material-card:hover { box-shadow: var(--ds-shadow); }
 .material-card.selected {
-  border-color: var(--momo-color-brand);
-  box-shadow: 0 0 0 2px var(--momo-color-brand-border);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--border);
 }
 
 /* 选择圆圈 */
 .select-circle {
   position: absolute; top: 10px; left: 10px; z-index: 2;
   width: 24px; height: 24px; border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  background: var(--momo-color-overlay);
+  border: 2px solid var(--card);
+  background: var(--ds-overlay);
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s ease;
   cursor: pointer;
 }
 .select-circle.checked {
-  background: var(--momo-color-brand);
-  border-color: var(--momo-color-brand);
+  background: var(--primary);
+  border-color: var(--primary);
 }
 
 /* 提示词 */
 .material-prompt {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text);
+  font-size: var(--ds-font-small);
+  color: var(--foreground);
   line-height: 1.5;
   cursor: pointer;
   transition: color 0.15s;
 }
-.material-prompt:hover { color: var(--momo-color-brand); }
+.material-prompt:hover { color: var(--primary); }
 
 .material-tags {
   display: flex; flex-wrap: wrap; gap: 4px;
@@ -113,7 +113,7 @@ defineEmits<{
 .material-card.grid .material-thumb {
   aspect-ratio: 1;
   overflow: hidden;
-  background: var(--momo-color-bg-muted);
+  background: var(--muted);
   cursor: zoom-in;
 }
 .material-card.grid .material-thumb img {
@@ -156,8 +156,8 @@ defineEmits<{
   height: 64px;
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: var(--momo-radius-sm);
-  background: var(--momo-color-bg-muted);
+  border-radius: var(--ds-radius);
+  background: var(--muted);
   cursor: zoom-in;
 }
 .material-card.list .material-thumb img {

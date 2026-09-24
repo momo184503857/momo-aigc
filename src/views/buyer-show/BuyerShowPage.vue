@@ -13,11 +13,11 @@
  * 未激活时不挂载、不请求。
  */
 import { ref, computed } from 'vue'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import MaterialLibrary from '@/components/buyer-show/MaterialLibrary.vue'
 import MakeBuyerShowPanel from './MakeBuyerShowPanel.vue'
 import BuyerShowHistoryPanel from './BuyerShowHistoryPanel.vue'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/design-system/primitives/tabs'
 import { Wand2, Archive, Library } from '@lucide/vue'
 
 defineOptions({ name: 'BuyerShow' })
@@ -38,7 +38,7 @@ const tabHint = computed(() =>
   <PageLayout>
     <template #header>
       <h2>AI 买家秀</h2>
-      <p class="text-muted-foreground mt-1 max-w-3xl text-[13px] leading-normal">{{ tabHint }}</p>
+      <p class="text-muted-foreground mt-1 max-w-3xl text-sm leading-normal">{{ tabHint }}</p>
     </template>
 
     <Tabs v-model="activeTab">

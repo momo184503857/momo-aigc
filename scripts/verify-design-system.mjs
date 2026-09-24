@@ -5,7 +5,7 @@ const root = 'src/components/design-system'
 const registry = JSON.parse(fs.readFileSync(`${root}/registry.json`, 'utf8'))
 const walk = dir => fs.readdirSync(dir, {withFileTypes:true}).flatMap(e => e.isDirectory() ? walk(path.join(dir,e.name)) : [path.join(dir,e.name)])
 const findings = []
-for (const file of walk('src').filter(f => /\.(vue|ts|css)$/.test(f) && !f.includes('/prototype/'))) {
+for (const file of walk('src').filter(f => /\.(vue|ts|css)$/.test(f) && !f.includes('/prototype/') && !f.startsWith('src/components/ui/') && !f.startsWith('src/styles/tokens'))) {
   const source = fs.readFileSync(file,'utf8')
   const publicLibrary = file.startsWith(root)
   const theme = file.includes('/styles/') || file.endsWith('/theme.css')
@@ -18,44 +18,29 @@ for (const file of walk('src').filter(f => /\.(vue|ts|css)$/.test(f) && !f.inclu
     ['literal-color', /#[\da-fA-F]{3,8}\b|\brgba?\(\s*\d/g, !theme && !asset && !textOnlyColor],
     ['deep-override', /:deep\([^)]*\)|::v-deep/g, !lowLevel && !theme],
     ['native-control', /<(?:button|input|select|textarea)\b/g, !lowLevel && !file.endsWith('/DsUpload.vue')],
+    ['legacy-token', /--(?:momo|tf)-[\w-]+/g, true],
+    ['legacy-surface', /legacy-surface/g, true],
     ['legacy-import', /from\s+['"]@\/components\/ui(?:\/[^'"]*)?['"]/g, !file.startsWith('src/components/ui/')],
   ]
   for (const [rule, regex, applies] of rules) if(applies) {
-    for(const match of source.matchAll(regex)) findings.push({file,rule,text:match[0]})
+    for(const match of source.matchAll(regex)) {
+      const line = source.slice(0, match.index).split('\n').length
+      const textLine = source.split('\n')[line - 1]
+      // Exported canvas pixel colors and user-selected thumbnail palettes are content, not UI skin.
+      const contentColor = rule === 'literal-color' && (
+        (file === 'src/components/ImageEditorDialog.vue' && /const (brushColor|textColor)|ctx\.(strokeStyle|fillStyle)|<option>/.test(textLine)) ||
+        (file === 'src/views/canvas/ProjectsPage.vue' && /^\s*'#[a-fA-F0-9]+',/.test(textLine)) ||
+        (file === 'src/utils/imageAnalysis.ts' && textLine.trim().startsWith('/**'))
+      )
+      if (!contentColor) findings.push({file,rule,text:match[0],line})
+    }
   }
   if(publicLibrary) {
     assert(!source.includes('@/services/'), `${file}: 公共组件不能请求业务接口`)
     assert(!source.includes('<Teleport to="body">'), `${file}: 浮层不能逃离主题`)
   }
 }
-// 已迁移范围不允许使用存量豁免；每批验收后再扩展此清单。
-const migratedFiles = new Set([
-  'src/layouts/AuthShell.vue',
-  'src/views/login/LoginPage.vue',
-  'src/views/login/RegisterPage.vue',
-  'src/views/login/ForgotPasswordPage.vue',
-  'src/admin/views/AdminLoginPage.vue',
-  'src/views/prompts/PromptLibraryPage.vue',
-])
-for (const file of migratedFiles) {
-  const source = fs.readFileSync(file, 'utf8')
-  assert(!source.includes('--momo-'), `${file}: 已迁移文件不得使用旧主题`)
-  assert(!source.includes('legacy-surface'), `${file}: 已迁移文件不得退回兼容主题`)
-  assert(!findings.some(f => f.file === file), `${file}: 已迁移文件不得使用存量 UI 豁免`)
-}
-const baselinePath = 'scripts/design-system-baseline.json'
-// 显式刷新只允许维护存量清单；CI/默认检查绝不自动接受新增问题。
-if(process.argv.includes('--write-baseline')) {
-  const legacy = findings.filter(f => !f.file.startsWith(root) && !f.file.endsWith('/AdminUiComponents.vue'))
-  fs.writeFileSync(baselinePath, JSON.stringify(legacy,null,2)+'\n')
-}
-const baseline = JSON.parse(fs.readFileSync(baselinePath,'utf8'))
-const remaining = [...baseline]
-const violations = findings.filter(f => {
- const i = remaining.findIndex(b => JSON.stringify(b) === JSON.stringify(f))
- if(i < 0) return true
- remaining.splice(i,1); return false
-})
+const violations = findings
 for(const dir of fs.readdirSync(`${root}/primitives`,{withFileTypes:true}).filter(d => d.isDirectory())) assert(registry.some(r => r.source === `primitives/${dir.name}`), `未登记组件族 ${dir.name}`)
 for(const file of fs.readdirSync(`${root}/composites`)) assert(registry.some(r => r.source === `composites/${file}`), `未登记组合 ${file}`)
 for(const file of fs.readdirSync(`${root}/extended`).filter(f=>f.endsWith('.vue'))) assert(registry.some(r=>r.source === `extended/${file}`), `未登记扩展 ${file}`)
@@ -65,11 +50,5 @@ for(const entry of registry) {
  assert(example.includes(`'${entry.family}'`), `未实现示例 ${entry.family}`)
 }
 assert.equal(new Set(registry.map(x => x.id)).size,registry.length,'登记 id 重复')
-if (process.argv.includes('--prune-baseline') && !violations.length) {
- const actual = [...findings]
- const kept = baseline.filter(entry => { const i = actual.findIndex(f => JSON.stringify(f) === JSON.stringify(entry)); if(i < 0) return false; actual.splice(i,1); return true })
- fs.writeFileSync(baselinePath, JSON.stringify(kept,null,2)+'\n')
- console.log(`仅移除已解决记录：${baseline.length - kept.length} 项`)
-}
 if(violations.length) { console.error(violations); process.exitCode=1 }
-else console.log(`UI 检查通过：${registry.length} 项登记；存量基线 ${baseline.length} 项，待清理 ${findings.length} 项。`)
+else console.log(`UI 严格检查通过：${registry.length} 项登记；正式代码零旧入口、零旧 Token、零存量豁免。`)

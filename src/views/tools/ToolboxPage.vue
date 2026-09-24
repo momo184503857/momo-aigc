@@ -10,9 +10,9 @@ import { Archive, ArrowRight, ChevronRight, FileText, Paintbrush, Settings, Uplo
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-import PageLayout from '@/components/PageLayout.vue'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
 
 interface ToolItem {
   id: string
@@ -87,7 +87,7 @@ function handleToolClick(tool: ToolItem) {
   <PageLayout>
     <template #header>
       <h2>AI 工具箱</h2>
-      <p class="text-muted-foreground mt-0.5 text-[13px]">
+      <p class="text-muted-foreground mt-0.5 text-sm">
         批量流水线入口：一组素材 × 一次配置，提交为多个生图任务
       </p>
     </template>
@@ -103,22 +103,22 @@ function handleToolClick(tool: ToolItem) {
     <div class="content-max flex flex-col gap-4">
       <!-- 共用流程说明：一行带过，避免每页重复解释 -->
       <div class="border-border bg-muted/30 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2">
-        <span class="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium tracking-wider uppercase">
+        <span class="text-muted-foreground flex items-center gap-1.5 text-sm font-medium tracking-wider uppercase">
           <Workflow class="size-3.5" />
           批量流程
         </span>
         <span
           v-for="(s, i) in PIPELINE"
           :key="s.label"
-          class="flex items-center gap-2 text-[12.5px]"
+          class="flex items-center gap-2 text-sm"
         >
-          <span class="border-border bg-background text-muted-foreground flex size-5 items-center justify-center rounded-full border text-[10px] font-semibold tabular-nums">
+          <span class="border-border bg-background text-muted-foreground flex size-5 items-center justify-center rounded-full border text-sm font-semibold tabular-nums">
             {{ i + 1 }}
           </span>
           <span class="text-foreground/80">{{ s.label }}</span>
           <ChevronRight v-if="i < PIPELINE.length - 1" class="text-muted-foreground/50 size-3.5" />
         </span>
-        <span class="text-muted-foreground ml-auto hidden text-[11.5px] xl:inline">
+        <span class="text-muted-foreground ml-auto hidden text-sm xl:inline">
           提交后可在右侧任务面板查看进度
         </span>
       </div>
@@ -128,11 +128,11 @@ function handleToolClick(tool: ToolItem) {
         <h3 class="sr-only">批量工具</h3>
         <ul class="divide-border divide-y">
           <li v-for="tool in tools" :key="tool.id">
-            <button
+            <Button variant="ghost"
               type="button"
               :disabled="tool.disabled"
               :aria-label="tool.disabled ? undefined : `进入${tool.title}`"
-              class="group hover:bg-muted/60 flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+              class="group flex w-full cursor-pointer items-center gap-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               @click="handleToolClick(tool)"
             >
               <span
@@ -144,12 +144,12 @@ function handleToolClick(tool: ToolItem) {
 
               <span class="min-w-0 flex-1">
                 <span class="flex items-center gap-2">
-                  <span class="truncate text-[14px] font-medium">{{ tool.title }}</span>
-                  <Badge v-if="tool.disabled" variant="outline" class="h-4 shrink-0 px-1.5 text-[10px]">
+                  <span class="truncate text-sm font-medium">{{ tool.title }}</span>
+                  <Badge v-if="tool.disabled" variant="outline" class="h-4 shrink-0 px-1.5">
                     开发中
                   </Badge>
                 </span>
-                <span class="text-muted-foreground mt-0.5 block truncate text-[12.5px]">
+                <span class="text-muted-foreground mt-0.5 block truncate text-sm">
                   {{ tool.description }}
                 </span>
               </span>
@@ -158,7 +158,7 @@ function handleToolClick(tool: ToolItem) {
                 <span
                   v-for="m in tool.meta"
                   :key="m"
-                  class="text-muted-foreground bg-muted border-border rounded border px-1.5 py-0.5 text-[11px] whitespace-nowrap tabular-nums"
+                  class="text-muted-foreground bg-muted border-border rounded border px-1.5 py-0.5 text-sm whitespace-nowrap tabular-nums"
                 >
                   {{ m }}
                 </span>
@@ -168,12 +168,12 @@ function handleToolClick(tool: ToolItem) {
                 v-if="!tool.disabled"
                 class="text-muted-foreground/40 group-hover:text-foreground size-4 shrink-0 transition-colors"
               />
-            </button>
+            </Button>
           </li>
         </ul>
       </section>
 
-      <p class="text-muted-foreground text-[11.5px]">
+      <p class="text-muted-foreground text-sm">
         所有批量任务按「1 张素材 = 1 个任务」提交，消耗按模型分辨率单价 × 任务数计算，任务间提交间隔 3 秒。
       </p>
     </div>

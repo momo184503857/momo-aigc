@@ -1,40 +1,7 @@
-/* ============================================
-   墨墨 AI 生图 — 全局基础样式
-   注意：盒模型重置 / margin / padding 归零由 Tailwind preflight 负责，
-   此处不要再写未分层的 `*` 重置，否则会盖掉所有 Tailwind 间距工具类。
-   ============================================ */
-
-html,
-body {
-  width: 100%;
-  height: 100%;
-  font-family: var(--momo-font-sans);
-  font-size: var(--momo-font-size-base);
-  line-height: var(--momo-leading-normal);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#app,
-#admin-app {
-  height: 100%;
-}
-
-/* 滚动条 */
-::-webkit-scrollbar {
-  width: var(--momo-scrollbar-size);
-  height: var(--momo-scrollbar-size);
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--momo-color-border);
-  border-radius: var(--momo-radius-full);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--momo-color-border-strong);
-}
+/* 根节点只管理文档尺寸；视觉值由应用内 DsThemeProvider 提供。 */
+html, body, #app, #admin-app { width:100%; height:100%; }
+body { margin:0; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+.ds-theme ::-webkit-scrollbar { width:var(--ds-space-2); height:var(--ds-space-2); }
+.ds-theme ::-webkit-scrollbar-track { background:transparent; }
+.ds-theme ::-webkit-scrollbar-thumb { background:var(--border); border-radius:var(--ds-radius-full); }
+.ds-theme ::-webkit-scrollbar-thumb:hover { background:var(--input); }

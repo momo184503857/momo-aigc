@@ -5,10 +5,10 @@
  */
 import { ref, onMounted, watch } from 'vue'
 import { LayoutGrid, List, Upload, Copy, Trash2 } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Button } from '@/components/design-system/primitives/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error, confirmDanger } = useUiFeedback()
 import { useAuthStore } from '@/stores/auth'
@@ -16,7 +16,7 @@ import { buyerShowApi, adminBuyerShowApi, type BuyerShowMaterial, type BuyerShow
 import { useClipboard } from '@/composables/useClipboard'
 const { copy } = useClipboard()
 import { useImagePreview } from '@/composables/useImagePreview'
-import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
+import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/design-system'
 import MaterialCard from './MaterialCard.vue'
 import MaterialUploadDialog from './MaterialUploadDialog.vue'
 import MaterialEditDialog from './MaterialEditDialog.vue'
@@ -277,13 +277,13 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  background: var(--momo-color-brand-subtle);
-  border: 1px solid var(--momo-color-brand-border);
-  border-radius: var(--momo-radius-md);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
 }
 .batch-info {
-  font-size: var(--momo-font-size-base);
-  color: var(--momo-color-brand);
+  font-size: var(--ds-font-body);
+  color: var(--primary);
   margin-right: auto;
 }
 

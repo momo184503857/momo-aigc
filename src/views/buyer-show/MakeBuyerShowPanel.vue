@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DsFileInput } from '@/components/design-system'
 /**
  * MakeBuyerShowPanel — 制作买家秀（AI买家秀 · Tab 1）
  *
@@ -34,21 +35,21 @@ import { buyerShowBatchApi } from '@/services/buyerShowBatchApi'
 import type { BatchItemRow } from '@/services/buyerShowBatchApi'
 import { translateError } from '@/utils/errors'
 import { formatCredits } from '@/types/adapter'
-import { UiImagePreview, UiEmptyState } from '@/components/ui'
+import { UiImagePreview, UiEmptyState } from '@/components/design-system'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
-import { Alert, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Checkbox } from '@/components/design-system/primitives/checkbox'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 import {
   Table,
   TableBody,
@@ -56,9 +57,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+} from '@/components/design-system/primitives/table'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const serverStatus = useServerStatusStore()
@@ -91,7 +92,7 @@ interface TableRow {
 
 // ─── State ───
 
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<InstanceType<typeof DsFileInput> | null>(null)
 const tableData = ref<TableRow[]>([])
 const currentBatchId = ref<string | null>(null) // 当前任务（active 批次）的 batch_id
 const isGenerating = ref(false)
@@ -728,7 +729,7 @@ onUnmounted(() => {
           <Button variant="outline" @click="downloadTemplate"><Download />下载模板</Button>
           <Button @click="fileInputRef?.click()"><FileText />上传新表格</Button>
           <Button variant="outline" :disabled="!currentBatchId" @click="archiveCurrent"><Archive />归档当前任务</Button>
-          <Button variant="ghost" class="text-destructive hover:text-destructive" @click="clearAll"><Trash2 />清空当前任务</Button>
+          <Button variant="ghost"  @click="clearAll"><Trash2 />清空当前任务</Button>
           <span class="text-muted-foreground ml-auto text-sm">共 {{ tableData.length }} 条，已选 {{ selectedCount }} 条</span>
         </div>
 
@@ -836,7 +837,7 @@ onUnmounted(() => {
                 <TableCell>
                   <Textarea
                     v-model="row.prompt"
-                    class="min-h-9 text-sm"
+                    class="min-h-9"
                     @change="onPromptChange(row)"
                   />
                 </TableCell>
@@ -856,7 +857,7 @@ onUnmounted(() => {
                     v-else-if="row.status === 'failed'"
                     variant="ghost"
                     size="sm"
-                    class="text-destructive hover:text-destructive"
+
                     @click="retryRow(row)"
                   >
                     <RefreshCw />重试
@@ -867,15 +868,15 @@ onUnmounted(() => {
                     v-if="row.status === 'completed'"
                     variant="ghost"
                     size="sm"
-                    class="text-primary hover:text-primary"
+
                     @click="regenerateRow(row)"
                   >
                     <RefreshCw />重新生成
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon-sm"
-                    class="text-destructive hover:text-destructive"
+
                     @click="deleteRow(row)"
                   >
                     <Trash2 />
@@ -888,7 +889,7 @@ onUnmounted(() => {
       </div>
     </template>
 
-    <input ref="fileInputRef" type="file" accept=".xlsx,.xls" hidden @change="handleFileUpload" />
+    <DsFileInput ref="fileInputRef" type="file" accept=".xlsx,.xls" hidden @change="handleFileUpload" />
 
     <UiImagePreview v-model="previewVisible" :url="previewUrl" />
     <ImageCompareDialog

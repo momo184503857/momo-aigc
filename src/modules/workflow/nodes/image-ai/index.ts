@@ -11,7 +11,7 @@ const imageAi: NodeModule = {
   title: '图片 AI',
   description: '调用全局图片模型生成单张图片。',
   icon: 'MagicStick',
-  color: '#c32bac',
+  color: 'var(--ds-chart-purple)',
   inputs: [
     { id: 'prompt', name: 'Prompt', dataType: 'Text', direction: 'input', required: true },
     { id: 'image_1', name: '图1', dataType: 'Image', direction: 'input' },

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DsSearchInput } from '@/components/design-system'
 defineOptions({ name: 'AdminTemplates' })
 import { ref, computed, onMounted } from 'vue'
 import { Search, RefreshCw, Trash2, X } from '@lucide/vue'
@@ -7,11 +8,11 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { useImagePreview } from '@/composables/useImagePreview'
 import { adminApi } from '@/services/adminApi'
-import PageLayout from '@/components/PageLayout.vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { UiEmptyState, UiImagePreview } from '@/components/ui'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { UiEmptyState, UiImagePreview } from '@/components/design-system'
 
 interface TmplRow {
   id: number
@@ -72,22 +73,22 @@ onMounted(() => loadTemplates())
   >
     <template #filters>
       <div class="relative w-40">
-        <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-        <Input
+
+        <DsSearchInput :clearable="false"
           v-model="filterUserId"
           placeholder="按用户ID筛选"
-          class="pr-7 pl-8"
+
           @keyup.enter="loadTemplates"
         />
-        <button
+        <Button variant="ghost"
           v-if="filterUserId"
           type="button"
-          class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
+          class="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
           title="清除"
           @click="() => { filterUserId = ''; loadTemplates() }"
         >
           <X class="size-3.5" />
-        </button>
+        </Button>
       </div>
       <Button size="sm" variant="outline" @click="loadTemplates"><Search />搜索</Button>
       <Button variant="ghost" size="sm" class="gap-1.5" @click="loadTemplates">
@@ -109,20 +110,20 @@ onMounted(() => loadTemplates())
 
     <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
       <div v-for="row in templates" :key="row.id" class="tmpl-card group">
-        <button
+        <Button variant="ghost"
           type="button"
-          class="block aspect-square w-full cursor-zoom-in overflow-hidden bg-muted"
+          class="block aspect-square w-full cursor-zoom-in overflow-hidden"
           :title="`查看大图：${row.name}`"
           @click="openPreview(row.public_url)"
         >
           <img :src="row.public_url" class="size-full object-cover" loading="lazy" alt="模板预览" />
-        </button>
+        </Button>
 
         <Button
-          variant="ghost"
+          variant="destructive"
           size="icon-sm"
           title="删除该模板记录"
-          class="text-destructive hover:text-destructive absolute top-1.5 right-1.5 z-10 bg-background/90 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          class="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
           @click="handleDelete(row)"
         >
           <Trash2 />
@@ -135,12 +136,12 @@ onMounted(() => loadTemplates())
           </div>
           <div class="text-muted-foreground mt-0.5 truncate text-xs">{{ row.username }}</div>
           <div
-            class="text-muted-foreground/80 mt-2 truncate border-t pt-2 text-[11px] leading-tight"
+            class="text-muted-foreground/80 mt-2 truncate border-t pt-2 text-sm leading-tight"
             :title="`${row.original_filename} · ${row.mime_type}`"
           >
             {{ row.original_filename }}
           </div>
-          <div class="text-muted-foreground/80 mt-0.5 flex items-center justify-between text-[11px] tabular-nums">
+          <div class="text-muted-foreground/80 mt-0.5 flex items-center justify-between text-sm tabular-nums">
             <span>{{ formatSize(row.size_bytes) }}</span>
             <span>{{ toBJMinute(row.created_at) }}</span>
           </div>
@@ -156,14 +157,14 @@ onMounted(() => loadTemplates())
 /* 图块：图片本身即主体，外框只留一条发丝线，hover 时靠边框反馈而不是加阴影 */
 .tmpl-card {
   position: relative;
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-md);
-  background: var(--momo-color-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
+  background: var(--card);
   overflow: hidden;
   transition: border-color 0.15s;
 }
 .tmpl-card:hover {
-  border-color: var(--momo-color-border);
+  border-color: var(--border);
 }
 .tmpl-meta {
   padding: 8px 10px 10px;

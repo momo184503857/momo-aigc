@@ -15,16 +15,16 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import PromptEditorPanel from './PromptEditorPanel.vue'
 import ModelChannelSelect from './ModelChannelSelect.vue'
 import { Plus, Trash2, X, LoaderCircle } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { UiEmptyState, UiNumberInput } from '@/components/ui'
+import { Button } from '@/components/design-system/primitives/button'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { UiEmptyState, UiNumberInput } from '@/components/design-system'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 
 const { warning } = useUiFeedback()
 const serverStatus = useServerStatusStore()
@@ -625,7 +625,7 @@ onMounted(() => loadElements())
             <Button
               variant="destructive"
               size="icon-xs"
-              class="absolute top-0.5 right-0.5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+              class="absolute top-0.5 right-0.5 opacity-0 transition-opacity group-hover:opacity-100"
               @click.stop="handleRemoveFromPool(index)"
             >
               <Trash2 />
@@ -685,13 +685,13 @@ onMounted(() => loadElements())
                   class="group border-border relative size-18 overflow-hidden rounded-sm border"
                 >
                   <img :src="img.dataUrl" class="size-full object-cover" />
-                  <button
+                  <Button variant="destructive"
                     type="button"
-                    class="absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    class="absolute top-0.5 right-0.5 flex cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
                     @click="handleRemoveFromElement(el.id, img.id)"
                   >
                     <X class="size-3" />
-                  </button>
+                  </Button>
                 </div>
                 <!-- Empty slot indicator -->
                 <div
@@ -772,8 +772,8 @@ onMounted(() => loadElements())
 }
 .param-item { display: flex; flex-direction: column; gap: 6px; }
 .param-item label {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 .price { margin-left: auto; }
 
@@ -784,16 +784,16 @@ onMounted(() => loadElements())
 
 .section-label {
   display: block;
-  font-size: var(--momo-font-size-base);
+  font-size: var(--ds-font-body);
   font-weight: 600;
-  color: var(--momo-color-text);
+  color: var(--foreground);
   margin-bottom: 10px;
 }
-.optional { font-weight: 400; color: var(--momo-color-text-placeholder); font-size: var(--momo-font-size-sm); }
+.optional { font-weight: 400; color: var(--muted-foreground); font-size: var(--ds-font-small); }
 .count-hint {
   font-weight: 400;
-  color: var(--momo-color-text-secondary);
-  font-size: var(--momo-font-size-sm);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
 }
 
 /* ─── Image pool ─── */
@@ -803,27 +803,27 @@ onMounted(() => loadElements())
   gap: 10px;
   min-height: 80px;
   padding: 8px;
-  border: 2px dashed var(--momo-color-border);
-  border-radius: var(--momo-radius-md);
+  border: 2px dashed var(--border);
+  border-radius: var(--ds-radius);
   transition: border-color 0.2s, background 0.2s;
 }
 .pool-grid.drag-over {
-  border-color: var(--momo-color-brand);
-  background: var(--momo-color-brand-subtle);
+  border-color: var(--primary);
+  background: var(--accent);
 }
 
 .pool-card {
   position: relative;
   width: 100px;
   height: 100px;
-  border-radius: var(--momo-radius-sm);
+  border-radius: var(--ds-radius);
   overflow: hidden;
   border: 2px solid transparent;
   cursor: grab;
   transition: border-color 0.2s, opacity 0.2s;
   flex-shrink: 0;
 }
-.pool-card:hover { border-color: var(--momo-color-brand); }
+.pool-card:hover { border-color: var(--primary); }
 .pool-card.dragging { opacity: 0.4; }
 
 .pool-label {
@@ -832,10 +832,10 @@ onMounted(() => loadElements())
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--ds-font-small);
   font-weight: 600;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.45);
+  color: var(--ds-white);
+  background: var(--ds-overlay-soft);
   padding: 2px 0;
   pointer-events: none;
 }
@@ -843,16 +843,16 @@ onMounted(() => loadElements())
 /* ─── Element zones ─── */
 .element-zone {
   width: 180px;
-  border: 2px dashed var(--momo-color-border);
-  border-radius: var(--momo-radius-md);
+  border: 2px dashed var(--border);
+  border-radius: var(--ds-radius);
   overflow: hidden;
-  background: var(--momo-color-bg-soft);
+  background: var(--muted);
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 .element-zone.drag-over {
-  border-color: var(--momo-color-brand);
-  background: var(--momo-color-brand-subtle);
-  box-shadow: 0 0 0 4px var(--momo-color-ring);
+  border-color: var(--primary);
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--ring);
 }
 .element-zone.has-images {
   border-style: solid;
@@ -863,17 +863,17 @@ onMounted(() => loadElements())
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  background: var(--momo-color-bg-muted);
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
 }
 .zone-label {
-  font-size: var(--momo-font-size-sm);
+  font-size: var(--ds-font-small);
   font-weight: 600;
-  color: var(--momo-color-text);
+  color: var(--foreground);
 }
 .zone-count {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 
 .zone-slot {
@@ -887,6 +887,6 @@ onMounted(() => loadElements())
   align-items: center;
   gap: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--momo-color-border-soft);
+  border-top: 1px solid var(--border);
 }
 </style>

@@ -23,13 +23,13 @@ import {
   WandSparkles,
 } from '@lucide/vue'
 import type { Component } from 'vue'
-import { Alert, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Label } from '@/components/design-system/primitives/label'
+import { Switch } from '@/components/design-system/primitives/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/design-system/primitives/tabs'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { getNodeTheme } from '@/modules/workflow/nodes/nodeRegistry'
@@ -46,7 +46,7 @@ const selectedNode = computed(() => workflowStore.selectedNode)
 const activeTab = ref('config')
 const collapsed = ref(true)
 
-const theme = computed(() => selectedNode.value ? getNodeTheme(selectedNode.value.type) : { icon: 'Setting', color: '#86909c' })
+const theme = computed(() => selectedNode.value ? getNodeTheme(selectedNode.value.type) : { icon: 'Setting', color: 'var(--muted-foreground)' })
 /** 节点主题图标：注册表存的是 EP 图标名，这里映射到 Lucide 等价图标 */
 const nodeIcons: Record<string, Component> = {
   Picture: Image,
@@ -183,7 +183,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
       <template v-if="selectedNode">
         <!-- 节点头部 -->
         <div class="panel__head">
-          <div class="panel__node-badge" :style="{ background: theme.color + '15', color: theme.color }">
+          <div class="panel__node-badge" :style="{ background: `color-mix(in srgb, ${theme.color} 8%, transparent)`, color: theme.color }">
             <component :is="nodeIcon" class="size-4.5" />
           </div>
           <div class="panel__node-info">
@@ -195,7 +195,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
         <!-- 操作按钮 -->
         <div class="panel__actions">
           <Button size="sm" @click="runSelectedNode"><Play />运行</Button>
-          <Button v-if="selectedNode.status === 'paused'" size="sm" class="bg-(--momo-color-success) text-white hover:bg-(--momo-color-success)/90" @click="workflowStore.confirmPausedNode"><Play />继续</Button>
+          <Button v-if="selectedNode.status === 'paused'" size="sm"  @click="workflowStore.confirmPausedNode"><Play />继续</Button>
           <div class="panel__actions-spacer" />
           <div class="flex items-center gap-1.5">
             <Switch :model-value="selectedNode.disabled" @update:model-value="workflowStore.setNodeDisabled(selectedNode.id, Boolean($event))" />
@@ -278,7 +278,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
               <div v-if="imageAiTaskId" class="panel__task-id"><span>Task ID</span><code>{{ imageAiTaskId }}</code></div>
               <div v-if="selectedNode.logs.length" class="panel__log-actions">
                 <Button size="sm" variant="ghost" @click="copyLogs">复制</Button>
-                <Button size="sm" variant="ghost" class="text-destructive hover:text-destructive" @click="workflowStore.clearNodeLogs(selectedNode.id)">清空</Button>
+                <Button size="sm" variant="ghost"  @click="workflowStore.clearNodeLogs(selectedNode.id)">清空</Button>
               </div>
               <div v-if="selectedNode.logs.length" class="panel__log-console">
                 <div v-for="log in selectedNode.logs" :key="log.id" class="panel__log-line" :class="`is-${log.level}`">
@@ -294,7 +294,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
       </template>
 
       <div v-else class="panel__empty-panel">
-        <MousePointer2 class="text-(--momo-color-text-placeholder) size-12" />
+        <MousePointer2 class="text-(--muted-foreground) size-12" />
         <span>点击节点查看详情</span>
       </div>
     </template>
@@ -308,8 +308,8 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--momo-color-bg);
-  border-left: 1px solid var(--momo-color-border-soft);
+  background: var(--card);
+  border-left: 1px solid var(--border);
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
@@ -328,12 +328,12 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--momo-color-text-tertiary);
+  color: var(--muted-foreground);
   transition: color 0.2s, background 0.2s;
 }
 .panel__toggle:hover {
-  color: var(--momo-color-brand);
-  background: var(--momo-color-bg-soft);
+  color: var(--primary);
+  background: var(--muted);
 }
 
 .panel__collapse-btn {
@@ -342,18 +342,18 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   left: 4px;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
+  border-radius: var(--ds-radius);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--momo-color-text-tertiary);
+  color: var(--muted-foreground);
   transition: color 0.2s, background 0.2s;
   z-index: 10;
 }
 .panel__collapse-btn:hover {
-  color: var(--momo-color-brand);
-  background: var(--momo-color-bg-soft);
+  color: var(--primary);
+  background: var(--muted);
 }
 
 .panel__head {
@@ -361,13 +361,13 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   gap: 10px;
   padding: 16px 16px 12px;
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  border-bottom: 1px solid var(--border);
 }
 
 .panel__node-badge {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: var(--ds-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -384,14 +384,13 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
 
 .panel__title-input {
   height: auto;
-  border-color: transparent;
+
   padding: 0;
-  font-weight: 600;
-  font-size: 14px;
+
 }
 
 .panel__node-type {
-  font-size: 11px;
+  font-size: var(--ds-font-small);
   font-weight: 500;
 }
 
@@ -400,7 +399,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  border-bottom: 1px solid var(--border);
 }
 
 .panel__actions-spacer { flex: 1; }
@@ -421,9 +420,9 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
 }
 
 .panel__section-title {
-  font-size: 11px;
+  font-size: var(--ds-font-small);
   font-weight: 600;
-  color: var(--momo-color-text-placeholder);
+  color: var(--muted-foreground);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 8px 0 4px;
@@ -445,13 +444,13 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   gap: 6px;
   padding: 5px 8px;
-  border-radius: 6px;
-  background: var(--momo-color-bg-soft);
-  font-size: 12px;
+  border-radius: var(--ds-radius);
+  background: var(--muted);
+  font-size: var(--ds-font-small);
 }
 
 .panel__port-tag {
-  font-size: 10px;
+  font-size: var(--ds-font-small);
   padding: 1px 5px;
   border-radius: 3px;
   font-weight: 600;
@@ -459,16 +458,16 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   flex-shrink: 0;
 }
 
-.tag--text { background: var(--momo-color-brand-subtle); color: var(--momo-color-brand); }
-.tag--image { background: var(--momo-color-success-subtle); color: var(--momo-color-success); }
-.tag--any { background: var(--momo-color-info-subtle); color: var(--momo-color-info); }
+.tag--text { background: var(--accent); color: var(--primary); }
+.tag--image { background: var(--ds-success-surface); color: var(--success); }
+.tag--any { background: var(--accent); color: var(--ds-info); }
 
-.panel__port-name { flex: 1; color: var(--momo-color-text-secondary); }
-.panel__port-from { color: var(--momo-color-text-tertiary); font-size: 11px; }
+.panel__port-name { flex: 1; color: var(--muted-foreground); }
+.panel__port-from { color: var(--muted-foreground); font-size: var(--ds-font-small); }
 
 .panel__empty {
-  color: var(--momo-color-text-placeholder);
-  font-size: 12px;
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
   padding: 8px 0;
 }
 
@@ -478,13 +477,13 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   gap: 4px;
   padding: 8px;
   margin-bottom: 6px;
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
 }
 .panel__split-item label {
-  font-size: 11px;
+  font-size: var(--ds-font-small);
   font-weight: 600;
-  color: var(--momo-color-text-tertiary);
+  color: var(--muted-foreground);
 }
 
 .panel__image-grid {
@@ -497,8 +496,8 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: 6px;
-  border: 1px solid var(--momo-color-border-soft);
+  border-radius: var(--ds-radius);
+  border: 1px solid var(--border);
 }
 
 .panel__task-id {
@@ -507,28 +506,28 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   gap: 8px;
   padding: 6px 10px;
   margin-bottom: 8px;
-  background: var(--momo-color-info-subtle);
-  border-radius: 6px;
-  font-size: 11px;
+  background: var(--accent);
+  border-radius: var(--ds-radius);
+  font-size: var(--ds-font-small);
 }
-.panel__task-id span { color: var(--momo-color-text-tertiary); }
-.panel__task-id code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--momo-color-text-secondary); }
+.panel__task-id span { color: var(--muted-foreground); }
+.panel__task-id code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); }
 
 .panel__log-actions { display: flex; gap: 4px; margin-bottom: 6px; }
 .panel__log-console {
   padding: 8px;
-  background: var(--momo-terminal-bg);
-  border-radius: 6px;
+  background: var(--ds-terminal-bg);
+  border-radius: var(--ds-radius);
   font-family: 'Cascadia Code', 'Fira Code', monospace;
-  font-size: 11px;
+  font-size: var(--ds-font-small);
   line-height: 1.5;
   max-height: 400px;
   overflow: auto;
 }
-.panel__log-line { display: flex; flex-wrap: wrap; gap: 6px; padding: 1px 0; color: var(--momo-terminal-text); }
-.panel__log-line.is-error { color: var(--momo-terminal-error); }
-.panel__log-line.is-warn { color: var(--momo-terminal-warning); }
-.log-time { color: var(--momo-terminal-success); flex-shrink: 0; }
+.panel__log-line { display: flex; flex-wrap: wrap; gap: 6px; padding: 1px 0; color: var(--ds-terminal-text); }
+.panel__log-line.is-error { color: var(--destructive); }
+.panel__log-line.is-warn { color: var(--warning); }
+.log-time { color: var(--success); flex-shrink: 0; }
 .log-level { font-weight: 600; flex-shrink: 0; min-width: 40px; }
 .log-msg { word-break: break-all; white-space: normal; }
 
@@ -539,7 +538,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: var(--momo-color-text-placeholder);
-  font-size: 13px;
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
 }
 </style>

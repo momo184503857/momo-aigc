@@ -21,7 +21,7 @@ function onOpenChange(open: boolean) {
   <Sheet :open="visible" @update:open="onOpenChange">
     <SheetContent
       side="right"
-      class="w-(--momo-help-drawer-width) gap-0 p-0 sm:max-w-(--momo-help-drawer-width)"
+      class="w-(--ds-dialog-width) gap-0 p-0 sm:max-w-(--ds-dialog-width)"
     >
       <SheetHeader class="border-b px-5 py-4 text-left">
         <SheetTitle class="flex items-center gap-2 text-base">

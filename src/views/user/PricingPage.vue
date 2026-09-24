@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import { DsSearchInput } from '@/components/design-system'
 import { computed, onMounted, ref } from 'vue'
 import { Check, Search, TrendingUp, X } from '@lucide/vue'
 import { ceilCreditValue } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { UiEmptyState } from '@/components/ui'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { UiEmptyState } from '@/components/design-system'
 import {
   Table,
   TableBody,
@@ -18,7 +19,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/design-system/primitives/table'
 
 defineOptions({ name: 'Pricing' })
 const modelCatalog = useModelCatalogStore()
@@ -73,7 +74,7 @@ const unpricedCount = computed(() => rows.value.filter(isUnpriced).length)
   <PageLayout>
     <template #header>
       <h2>计费说明</h2>
-      <p class="text-muted-foreground mt-1 text-[13px]">
+      <p class="text-muted-foreground mt-1 text-sm">
         生图按「模型 × 分辨率」统一定价；系统自动选择可用渠道，实际执行渠道不改变用户售价。价格由管理后台配置并实时生效。
       </p>
     </template>
@@ -93,27 +94,27 @@ const unpricedCount = computed(() => rows.value.filter(isUnpriced).length)
     </template>
 
     <!-- 本页只有一个数据面：价格矩阵，因此允许一个 bg-card 容器承载 -->
-    <section class="content-max flex min-w-0 max-h-[calc(100vh-14rem)] flex-col overflow-hidden rounded-lg border bg-card [&_[data-slot=table-container]]:min-h-0 [&_[data-slot=table-container]]:flex-1">
+    <section class="content-max flex min-w-0 max-h-[calc(100vh-14rem)] flex-col overflow-hidden rounded-lg border bg-card  ">
       <!-- 工具条：查表页最高频的动作是「找到我要用的那个模型」 -->
       <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2.5">
         <div class="relative w-full max-w-56">
-          <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-          <Input
+
+          <DsSearchInput :clearable="false"
             v-model="keyword"
             type="search"
             placeholder="搜索模型"
             aria-label="搜索模型"
-            class="h-8 pr-7 pl-8 text-[13px]"
+
           />
-          <button
+          <Button variant="ghost"
             v-if="keyword"
             type="button"
             aria-label="清除搜索"
-            class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
+            class="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
             @click="keyword = ''"
           >
             <X class="size-3.5" />
-          </button>
+          </Button>
         </div>
 
         <Badge variant="secondary" class="tabular-nums">
@@ -121,14 +122,14 @@ const unpricedCount = computed(() => rows.value.filter(isUnpriced).length)
         </Badge>
         <span
           v-if="unpricedCount"
-          class="text-muted-foreground text-[12px] tabular-nums"
+          class="text-muted-foreground text-sm tabular-nums"
         >
           {{ unpricedCount }} 个未定价
         </span>
 
         <span
           v-if="resolutionColumns.length"
-          class="text-muted-foreground ml-auto text-[12px] tabular-nums"
+          class="text-muted-foreground ml-auto text-sm tabular-nums"
         >
           {{ resolutionColumns.length }} 档分辨率 · 单位：积分 / 张
         </span>
@@ -138,19 +139,19 @@ const unpricedCount = computed(() => rows.value.filter(isUnpriced).length)
         <Skeleton v-for="i in 5" :key="i" class="h-9 w-full" />
       </div>
 
-      <Table v-else class="[&_td]:py-1.5 [&_td]:text-[13px] [&_th]:px-2.5">
+      <Table v-else >
         <TableHeader>
           <TableRow>
-            <TableHead class="bg-card sticky top-0 z-30 h-9 min-w-[200px] text-[11px] font-medium tracking-wider uppercase">
+            <TableHead class="sticky top-0 z-30 h-9 min-w-[200px] uppercase">
               模型
             </TableHead>
-            <TableHead class="bg-card sticky top-0 z-30 h-9 w-[92px] text-right text-[11px] font-medium tracking-wider uppercase">
+            <TableHead class="sticky top-0 z-30 h-9 w-[92px] text-right uppercase">
               起价
             </TableHead>
             <TableHead
               v-for="res in resolutionColumns"
               :key="res"
-              class="bg-card sticky top-0 z-30 h-9 w-[104px] border-l text-right text-[11px] font-medium"
+              class="sticky top-0 z-30 h-9 w-[104px] border-l text-right"
             >
               {{ res }}
             </TableHead>
@@ -159,9 +160,9 @@ const unpricedCount = computed(() => rows.value.filter(isUnpriced).length)
 
         <TableBody>
           <TableRow v-for="row in filteredRows" :key="row.key">
-            <TableCell class="min-w-[200px] font-medium whitespace-normal">
+            <TableCell class="min-w-[200px] whitespace-normal">
               {{ row.model }}
-              <Badge v-if="isUnpriced(row)" variant="destructive" class="ml-1.5 font-normal">
+              <Badge v-if="isUnpriced(row)" variant="destructive" class="ml-1.5">
                 未定价
               </Badge>
             </TableCell>
@@ -174,7 +175,7 @@ const unpricedCount = computed(() => rows.value.filter(isUnpriced).length)
               :key="res"
               :class="cn('w-[104px] text-right tabular-nums', i === 0 && 'border-l')"
             >
-              <span v-if="row.prices[res] !== null" class="font-semibold text-(--momo-color-price)">
+              <span v-if="row.prices[res] !== null" class="font-semibold text-(--destructive)">
                 {{ fmt(row.prices[res] as number) }}
               </span>
               <span v-else class="text-muted-foreground/40">—</span>

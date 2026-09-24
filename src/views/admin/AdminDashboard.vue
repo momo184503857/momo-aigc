@@ -30,24 +30,24 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { useClientSort } from '@/composables/useClientSort'
 import { adminApi } from '@/services/adminApi'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import { formatCredits } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 const modelCatalog = useModelCatalogStore()
 import { CHART_COLORS, CHART_NEUTRALS, tooltipBase, withAlpha } from '@/plugins/echartsPalette'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 import {
   Sheet,
   SheetContent,
@@ -55,7 +55,7 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
+} from '@/components/design-system/primitives/sheet'
 import {
   Table,
   TableBody,
@@ -64,8 +64,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { UiDateRangePicker, UiEmptyState, UiPagination } from '@/components/ui'
+} from '@/components/design-system/primitives/table'
+import { UiDateRangePicker, UiEmptyState, UiPagination } from '@/components/design-system'
 
 defineOptions({ name: 'AdminDashboard' })
 
@@ -333,7 +333,7 @@ const trendOption = computed(() => {
   // 次数：总任务/成功/失败
   return {
     color: [CHART_COLORS.blue, CHART_COLORS.green, CHART_COLORS.red],
-    tooltip: { ...tooltipBase, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
+    tooltip: { ...tooltipBase, boxShadow: `0 4px 12px ${CHART_NEUTRALS.shadow}` },
     legend: { data: ['总任务', '成功', '失败'], bottom: 0, textStyle: { color: CHART_NEUTRALS.textSecondary } },
     grid,
     xAxis,
@@ -374,7 +374,7 @@ const pieOption = computed(() => ({
   color: [CHART_COLORS.green, CHART_COLORS.red, CHART_COLORS.orange],
   tooltip: {
     trigger: 'item' as const,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: CHART_NEUTRALS.surface,
     borderColor: CHART_NEUTRALS.tooltipBorder,
     textStyle: { color: CHART_NEUTRALS.textPrimary },
     formatter: '{b}: {c} ({d}%)' as any,
@@ -392,7 +392,7 @@ const pieOption = computed(() => ({
     radius: ['55%', '78%'],
     center: ['50%', '45%'],
     avoidLabelOverlap: false,
-    itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 3 },
+    itemStyle: { borderRadius: 4, borderColor: CHART_NEUTRALS.surface, borderWidth: 3 },
     label: { show: false },
     emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
     data: [
@@ -434,7 +434,7 @@ const barOption = computed(() => {
         data: sorted.map(s => s.total_cost),
         barWidth: '50%',
         itemStyle: { borderRadius: [4, 4, 0, 0] },
-        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.15)' } },
+        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: CHART_NEUTRALS.shadow } },
       }],
     }
   }
@@ -459,7 +459,7 @@ const barOption = computed(() => {
         name: '成功', type: 'bar', data: stats.value.map(s => s.completed_count),
         stack: 'x', barWidth: '50%',
         itemStyle: { borderRadius: [4, 4, 0, 0] },
-        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.15)' } },
+        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: CHART_NEUTRALS.shadow } },
       },
       {
         name: '失败', type: 'bar', data: stats.value.map(s => s.failed_count),
@@ -656,33 +656,33 @@ onMounted(async () => {
         @update:model-value="handleStatsDateRangeChange"
       />
 
-      <span class="mx-1 h-4 w-px shrink-0 bg-(--momo-color-border-soft)" />
+      <span class="mx-1 h-4 w-px shrink-0 bg-(--border)" />
 
       <!-- 流水视图条件 -->
       <template v-if="isLog">
         <div class="relative w-44">
-          <Input v-model="actFilterUser" placeholder="用户名/昵称/邮箱" class="pr-7" />
-          <button
+          <Input v-model="actFilterUser" placeholder="用户名/昵称/邮箱"  />
+          <Button variant="ghost"
             v-if="actFilterUser"
             type="button"
-            class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
+            class="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
             title="清除"
             @click="actFilterUser = ''"
           >
             <X class="size-3.5" />
-          </button>
+          </Button>
         </div>
         <div class="relative w-52">
-          <Input v-model="actFilterTaskId" placeholder="任务号（gen-xxx，兼容旧渠道号）" class="pr-7" />
-          <button
+          <Input v-model="actFilterTaskId" placeholder="任务号（gen-xxx，兼容旧渠道号）"  />
+          <Button variant="ghost"
             v-if="actFilterTaskId"
             type="button"
-            class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
+            class="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
             title="清除"
             @click="actFilterTaskId = ''"
           >
             <X class="size-3.5" />
-          </button>
+          </Button>
         </div>
         <Select
           :model-value="actFilterType || ALL"
@@ -805,14 +805,14 @@ onMounted(async () => {
         </component>
 
         <div class="kpi-scope">
-          <button
+          <Button variant="ghost"
             type="button"
-            class="text-muted-foreground hover:text-foreground cursor-pointer text-xs tabular-nums"
+            class="cursor-pointer tabular-nums"
             title="切到生成统计视图查看该区间"
             @click="switchView('stats')"
           >
             统计区间 {{ statsScope }}
-          </button>
+          </Button>
           <span v-if="statsLoading" class="text-muted-foreground text-xs">统计更新中…</span>
           <span v-else-if="statsUpdatedAt" class="text-muted-foreground text-xs tabular-nums">
             更新于 {{ statsUpdatedAt }}
@@ -898,7 +898,7 @@ onMounted(async () => {
                     余 {{ formatCredits(row.balance_after, { creditDigits: 2 }) }}
                   </div>
                 </TableCell>
-                <TableCell class="text-muted-foreground text-xs tabular-nums">
+                <TableCell class="tabular-nums">
                   {{ toBJMinute(row.created_at) }}
                 </TableCell>
                 <TableCell class="text-right">
@@ -906,10 +906,10 @@ onMounted(async () => {
                     <Button variant="ghost" size="xs" @click.stop="openDetail(row)">详情</Button>
                     <Button
                       v-if="row.type === 'task'"
-                      variant="ghost"
+                      variant="destructive"
                       size="icon-xs"
                       title="删除"
-                      class="text-destructive hover:text-destructive"
+
                       @click.stop="handleDeleteActivity(row)"
                     >
                       <Trash2 />
@@ -929,7 +929,7 @@ onMounted(async () => {
       </div>
 
       <!-- ═══ 视图 2：生成统计（按「量-排行-构成-明细」四问排布）═══ -->
-      <div v-else class="content-max px-(--momo-page-padding) py-4">
+      <div v-else class="content-max px-(--ds-space-6) py-4">
         <section class="stat-section">
           <div class="section-head">
             <TrendingUp class="text-muted-foreground size-3.5" />
@@ -979,16 +979,16 @@ onMounted(async () => {
               <TableHeader>
                 <TableRow>
                   <TableHead v-for="c in statColumns" :key="c.label" :class="c.cls">
-                    <button
+                    <Button variant="ghost"
                       v-if="c.sortable"
-                      class="hover:text-foreground inline-flex items-center gap-1"
+                      class="inline-flex items-center gap-1"
                       @click="handleSort(c.key)"
                     >
                       {{ c.label }}
                       <ArrowUp v-if="sortField === c.key && sortOrder === 'asc'" class="size-3.5" />
                       <ArrowDown v-else-if="sortField === c.key && sortOrder === 'desc'" class="size-3.5" />
                       <ArrowUpDown v-else class="text-muted-foreground size-3.5" />
-                    </button>
+                    </Button>
                     <template v-else>{{ c.label }}</template>
                   </TableHead>
                 </TableRow>
@@ -1014,8 +1014,8 @@ onMounted(async () => {
                     <TableCell class="tabular-nums">{{ row.completed_count }}</TableCell>
                     <TableCell class="tabular-nums" :class="row.failed_count > 0 ? 'text-destructive' : ''">{{ row.failed_count }}</TableCell>
                     <TableCell class="tabular-nums">{{ formatCredits(row.total_cost, { creditDigits: 2 }) }}</TableCell>
-                    <TableCell class="text-muted-foreground text-xs tabular-nums">{{ toBJMinute(row.last_submitted_at) }}</TableCell>
-                    <TableCell class="text-muted-foreground text-xs tabular-nums">{{ toBJMinute(row.last_completed_at) }}</TableCell>
+                    <TableCell class="tabular-nums">{{ toBJMinute(row.last_submitted_at) }}</TableCell>
+                    <TableCell class="tabular-nums">{{ toBJMinute(row.last_completed_at) }}</TableCell>
                   </TableRow>
                   <TableEmpty v-if="!stats.length" :colspan="9">
                     <UiEmptyState title="暂无数据" description="该区间内没有任何用户产生记录。" />
@@ -1129,9 +1129,9 @@ onMounted(async () => {
   align-items: center;
   flex-shrink: 0;
   gap: 4px 0;
-  padding: 8px var(--momo-page-padding);
-  background: var(--momo-color-bg);
-  border-bottom: 1px solid var(--momo-color-border-light);
+  padding: 8px var(--ds-space-6);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
 }
 .kpi-tile {
   display: flex;
@@ -1141,7 +1141,7 @@ onMounted(async () => {
   gap: 1px;
   padding: 2px 20px;
   text-align: left;
-  border-left: 1px solid var(--momo-color-border-light);
+  border-left: 1px solid var(--border);
 }
 .kpi-tile:first-child {
   padding-left: 0;
@@ -1152,29 +1152,29 @@ onMounted(async () => {
   transition: background-color 0.15s;
 }
 .kpi-tile[title]:hover {
-  background: var(--momo-color-bg-muted);
+  background: var(--muted);
 }
 .kpi-label {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-tertiary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 .kpi-value {
-  font-size: var(--momo-font-size-xl);
-  font-weight: var(--momo-font-weight-semibold);
-  line-height: var(--momo-leading-tight);
-  color: var(--momo-color-text);
+  font-size: var(--ds-font-title);
+  font-weight: var(--ds-weight-heading);
+  line-height: var(--ds-leading-tight);
+  color: var(--foreground);
   font-variant-numeric: tabular-nums;
 }
 .kpi-sub {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-tertiary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
 .kpi-tile.is-ok .kpi-value {
-  color: var(--momo-color-status-done-text);
+  color: var(--success);
 }
 .kpi-tile.is-fail .kpi-value {
-  color: var(--momo-color-danger);
+  color: var(--destructive);
 }
 .kpi-scope {
   display: flex;
@@ -1183,14 +1183,14 @@ onMounted(async () => {
   margin-left: auto;
   padding-left: 20px;
   text-align: right;
-  border-left: 1px solid var(--momo-color-border-light);
+  border-left: 1px solid var(--border);
 }
 
 /* ── 统计视图分区：一条发丝线代替原来的套娃卡片 ── */
 .stat-section + .stat-section {
-  margin-top: var(--momo-space-4);
-  padding-top: var(--momo-space-4);
-  border-top: 1px solid var(--momo-color-border-light);
+  margin-top: var(--ds-space-4);
+  padding-top: var(--ds-space-4);
+  border-top: 1px solid var(--border);
 }
 .section-head {
   display: flex;
@@ -1199,13 +1199,13 @@ onMounted(async () => {
   margin-bottom: 10px;
 }
 .section-title {
-  font-size: var(--momo-font-size-md);
-  font-weight: var(--momo-font-weight-medium);
-  color: var(--momo-color-text);
+  font-size: var(--ds-font-body);
+  font-weight: var(--ds-weight-medium);
+  color: var(--foreground);
 }
 .section-hint {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-tertiary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 
 /* ── 详情抽屉字段表 ── */
@@ -1213,15 +1213,15 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 7rem minmax(0, 1fr);
   gap: 0 12px;
-  font-size: var(--momo-font-size-base);
+  font-size: var(--ds-font-body);
 }
 .detail-grid dt {
-  color: var(--momo-color-text-tertiary);
+  color: var(--muted-foreground);
 }
 .detail-grid dt,
 .detail-grid dd {
   padding: 9px 0;
-  border-top: 1px solid var(--momo-color-border-light);
+  border-top: 1px solid var(--border);
 }
 .detail-grid dt:first-of-type,
 .detail-grid dd:first-of-type {

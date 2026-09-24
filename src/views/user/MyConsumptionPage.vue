@@ -6,14 +6,14 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { pointsApi } from '@/services/pointsApi'
 import { ceilCreditValue, formatCredits } from '@/types/adapter'
 import { cn } from '@/lib/utils'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import { CHART_COLORS, CHART_NEUTRALS, withAlpha } from '@/plugins/echartsPalette'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { UiDateRangePicker, UiEmptyState } from '@/components/ui'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/design-system/primitives/collapsible'
+import { UiDateRangePicker, UiEmptyState } from '@/components/design-system'
 import {
   Table,
   TableBody,
@@ -23,7 +23,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/design-system/primitives/table'
 
 defineOptions({ name: 'MyConsumption' })
 
@@ -85,7 +85,7 @@ function makeTrendOption(hex: string, field: 'spent' | 'recharged', name: string
     color: [hex],
     tooltip: {
       trigger: 'axis' as const,
-      backgroundColor: 'rgba(255,255,255,0.95)',
+      backgroundColor: CHART_NEUTRALS.surface,
       borderColor: CHART_NEUTRALS.tooltipBorder,
       textStyle: { color: CHART_NEUTRALS.textPrimary, fontSize: 13 },
       formatter: (p: any) => {
@@ -121,7 +121,7 @@ const consumptionOption = computed(() => ({
   color: [CHART_COLORS.orange, CHART_COLORS.blue],
   tooltip: {
     trigger: 'axis' as const,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: CHART_NEUTRALS.surface,
     borderColor: CHART_NEUTRALS.tooltipBorder,
     textStyle: { color: CHART_NEUTRALS.textPrimary, fontSize: 13 },
     formatter: (params: any) => {
@@ -203,7 +203,7 @@ const granularityLabel = computed(
   <PageLayout>
     <template #header>
       <h2>我的消耗</h2>
-      <p class="text-muted-foreground mt-1 text-[13px]">
+      <p class="text-muted-foreground mt-1 text-sm">
         按日 / 周 / 月查看积分消耗与充值明细。
       </p>
     </template>
@@ -228,36 +228,36 @@ const granularityLabel = computed(
       <section class="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <dl class="flex min-w-0 flex-wrap items-end gap-x-8 gap-y-3">
           <div class="min-w-0">
-            <dt class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">当前余额</dt>
-            <dd class="mt-1.5 text-[19px] leading-none font-semibold tabular-nums">
+            <dt class="text-muted-foreground text-sm font-medium tracking-wider uppercase">当前余额</dt>
+            <dd class="mt-1.5 text-sm leading-none font-semibold tabular-nums">
               {{ formatCredits(summary.balance, { creditDigits: 2 }) }}
             </dd>
           </div>
           <div class="min-w-0">
-            <dt class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">累计消费</dt>
-            <dd class="mt-1.5 text-[19px] leading-none font-semibold tabular-nums">
+            <dt class="text-muted-foreground text-sm font-medium tracking-wider uppercase">累计消费</dt>
+            <dd class="mt-1.5 text-sm leading-none font-semibold tabular-nums">
               {{ formatCredits(summary.total_consumed, { creditDigits: 2 }) }}
             </dd>
           </div>
           <div class="min-w-0">
-            <dt class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">累计充值</dt>
-            <dd class="text-muted-foreground mt-1.5 text-[19px] leading-none font-semibold tabular-nums">
+            <dt class="text-muted-foreground text-sm font-medium tracking-wider uppercase">累计充值</dt>
+            <dd class="text-muted-foreground mt-1.5 text-sm leading-none font-semibold tabular-nums">
               {{ formatCredits(summary.total_recharged, { creditDigits: 2 }) }}
             </dd>
           </div>
           <div class="min-w-0 border-l pl-8 max-md:border-l-0 max-md:pl-0">
-            <dt class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+            <dt class="text-muted-foreground text-sm font-medium tracking-wider uppercase">
               区间消耗
               <span class="normal-case">{{ granularityLabel }}</span>
             </dt>
-            <dd class="text-destructive mt-1.5 text-[19px] leading-none font-semibold tabular-nums">
+            <dd class="text-destructive mt-1.5 text-sm leading-none font-semibold tabular-nums">
               {{ formatCredits(rangeSpent, { creditDigits: 2 }) }}
             </dd>
           </div>
         </dl>
 
         <!-- 区间口径说明：原先是整条 Alert，降权为一行注释 -->
-        <p class="text-muted-foreground max-w-96 text-[12px] leading-5">
+        <p class="text-muted-foreground max-w-96 text-sm leading-5">
           区间合计随筛选变化。平台 Key 为实际扣费；个人 Key 按平台单价折算，实际 ToAPIs 花费以你的 ToAPIs 账户为准。
         </p>
       </section>
@@ -283,7 +283,7 @@ const granularityLabel = computed(
         <Badge variant="secondary" class="tabular-nums">
           {{ daily.length }} 个周期
         </Badge>
-        <span v-if="rangeCount" class="text-muted-foreground text-[12px] tabular-nums">
+        <span v-if="rangeCount" class="text-muted-foreground text-sm tabular-nums">
           共 {{ rangeCount }} 笔
         </span>
       </div>
@@ -291,8 +291,8 @@ const granularityLabel = computed(
       <!-- ════ 消耗趋势：本页的主视觉 ════ -->
       <section class="min-w-0">
         <div class="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <h3 class="text-[13px] font-semibold">消耗趋势</h3>
-          <span class="text-muted-foreground text-[12px]">平台 Key / 个人 Key 双序列</span>
+          <h3 class="text-sm font-semibold">消耗趋势</h3>
+          <span class="text-muted-foreground text-sm">平台 Key / 个人 Key 双序列</span>
         </div>
         <div class="rounded-lg border bg-card p-3">
           <Skeleton v-if="loading" class="h-[300px] w-full" />
@@ -311,11 +311,11 @@ const granularityLabel = computed(
           class="hover:bg-muted/40 flex w-full cursor-pointer items-center gap-2 rounded-md py-2 text-left transition-colors"
         >
           <ChevronRight :class="cn('text-muted-foreground size-3.5 shrink-0 transition-transform', rechargeOpen && 'rotate-90')" />
-          <h3 class="text-[13px] font-semibold">充值趋势</h3>
-          <span class="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
+          <h3 class="text-sm font-semibold">充值趋势</h3>
+          <span class="text-muted-foreground min-w-0 flex-1 truncate text-sm">
             管理员充值与退款计入余额，不影响消耗
           </span>
-          <span class="text-success text-[12px] font-medium tabular-nums">
+          <span class="text-success text-sm font-medium tabular-nums">
             {{ formatCredits(rangeRecharged, { creditDigits: 2 }) }}
           </span>
         </CollapsibleTrigger>
@@ -334,21 +334,21 @@ const granularityLabel = computed(
       <!-- ════ 明细表 ════ -->
       <section class="min-w-0">
         <div class="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <h3 class="text-[13px] font-semibold">消耗明细</h3>
-          <span class="text-muted-foreground text-[12px]">
+          <h3 class="text-sm font-semibold">消耗明细</h3>
+          <span class="text-muted-foreground text-sm">
             {{ granularityLabel }}倒序 · 共 {{ tableData.length }} 行 · 单位：积分
           </span>
         </div>
 
-        <div class="overflow-hidden rounded-lg border bg-card [&_[data-slot=table-container]]:max-h-[62vh]">
-          <Table class="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-card [&_th]:h-9 [&_th]:shadow-[inset_0_-1px_0_var(--border)] [&_td]:py-1.5 [&_td]:text-[13px]">
+        <div class="overflow-hidden rounded-lg border bg-card ">
+          <Table >
             <TableHeader>
               <TableRow>
-                <TableHead class="w-[130px] text-[11px] font-medium tracking-wider uppercase">周期</TableHead>
-                <TableHead class="w-[150px] text-right text-[11px] font-medium tracking-wider uppercase">平台消耗</TableHead>
-                <TableHead class="w-[150px] text-right text-[11px] font-medium tracking-wider uppercase">个人消耗</TableHead>
-                <TableHead class="w-[150px] text-right text-[11px] font-medium tracking-wider uppercase">充值</TableHead>
-                <TableHead class="w-[86px] text-right text-[11px] font-medium tracking-wider uppercase">笔数</TableHead>
+                <TableHead class="w-[130px] uppercase">周期</TableHead>
+                <TableHead class="w-[150px] text-right uppercase">平台消耗</TableHead>
+                <TableHead class="w-[150px] text-right uppercase">个人消耗</TableHead>
+                <TableHead class="w-[150px] text-right uppercase">充值</TableHead>
+                <TableHead class="w-[86px] text-right uppercase">笔数</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -359,7 +359,7 @@ const granularityLabel = computed(
               </template>
               <template v-else>
                 <TableRow v-for="row in tableData" :key="row.date">
-                  <TableCell class="text-muted-foreground font-medium tabular-nums">{{ row.date }}</TableCell>
+                  <TableCell class="tabular-nums">{{ row.date }}</TableCell>
                   <TableCell class="text-right tabular-nums">
                     <span :class="row.spent ? 'text-destructive font-semibold' : 'text-muted-foreground/50'">
                       {{ row.spent ? credits(row.spent) : '—' }}
@@ -389,13 +389,13 @@ const granularityLabel = computed(
             </TableBody>
             <TableFooter v-if="!loading && tableData.length">
               <TableRow>
-                <TableCell class="text-[12px] font-medium">
+                <TableCell >
                   合计 · {{ granularityLabel }} {{ tableData.length }} 个周期
                 </TableCell>
-                <TableCell class="text-destructive text-right font-semibold tabular-nums">{{ credits(rangeSpent) }}</TableCell>
-                <TableCell class="text-primary text-right font-semibold tabular-nums">{{ credits(rangePersonal) }}</TableCell>
-                <TableCell class="text-success text-right font-semibold tabular-nums">{{ credits(rangeRecharged) }}</TableCell>
-                <TableCell class="text-right font-medium tabular-nums">{{ rangeCount }}</TableCell>
+                <TableCell class="text-right tabular-nums">{{ credits(rangeSpent) }}</TableCell>
+                <TableCell class="text-right tabular-nums">{{ credits(rangePersonal) }}</TableCell>
+                <TableCell class="text-right tabular-nums">{{ credits(rangeRecharged) }}</TableCell>
+                <TableCell class="text-right tabular-nums">{{ rangeCount }}</TableCell>
               </TableRow>
             </TableFooter>
           </Table>

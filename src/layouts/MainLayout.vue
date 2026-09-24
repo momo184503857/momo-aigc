@@ -41,7 +41,7 @@ onMounted(() => {
         <router-view v-slot="{ Component }">
           <!-- 页面草稿缓存独立于已移除的页签系统，限制最多缓存 12 个页面。 -->
           <KeepAlive :max="12">
-            <component :is="Component" :class="!['FreeGen', 'PromptLibrary'].includes(String(route.name)) ? 'legacy-surface' : undefined" />
+            <component :is="Component" />
           </KeepAlive>
         </router-view>
       </div>

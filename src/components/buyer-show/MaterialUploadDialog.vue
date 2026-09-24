@@ -12,11 +12,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
+} from '@/components/design-system/primitives/dialog'
+import { Button } from '@/components/design-system/primitives/button'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { Label } from '@/components/design-system/primitives/label'
+import { Progress } from '@/components/design-system/primitives/progress'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error } = useUiFeedback()
 import { ossApi } from '@/services/ossApi'
@@ -201,7 +201,7 @@ onUnmounted(() => {
           v-if="submitting"
           :model-value="progress.total ? Math.round((progress.done / progress.total) * 100) : 0"
           style="margin-bottom: 12px"
-          :class="progress.failed.length > 0 ? '[&_[data-slot=progress-indicator]]:bg-(--momo-color-warning)' : ''"
+          :class="progress.failed.length > 0 ? '' : ''"
         />
 
         <!-- 行列表 -->
@@ -230,9 +230,9 @@ onUnmounted(() => {
             </div>
             <Button
               v-if="!submitting"
-              variant="ghost"
+              variant="destructive"
               size="icon-sm"
-              class="upload-row-remove text-destructive hover:text-destructive"
+              class="upload-row-remove"
               @click="removeRow(row.id)"
             >
               <Trash2 />
@@ -260,8 +260,8 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 .upload-count {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-tertiary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 
 .upload-empty {
@@ -270,11 +270,11 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 0;
-  color: var(--momo-color-text-placeholder);
+  color: var(--muted-foreground);
 }
 .upload-empty p {
   margin-top: 12px;
-  font-size: var(--momo-font-size-sm);
+  font-size: var(--ds-font-small);
 }
 
 .upload-rows {
@@ -288,14 +288,14 @@ onUnmounted(() => {
   display: flex;
   gap: 12px;
   padding: 10px;
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-md);
-  background: var(--momo-color-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
+  background: var(--card);
   transition: border-color 0.2s, background 0.2s;
 }
 .upload-row.is-error {
-  border-color: var(--momo-color-danger);
-  background: var(--momo-color-danger-subtle);
+  border-color: var(--destructive);
+  background: var(--ds-danger-surface);
 }
 .upload-row.is-done {
   opacity: 0.6;
@@ -305,8 +305,8 @@ onUnmounted(() => {
   height: 64px;
   flex-shrink: 0;
   object-fit: cover;
-  border-radius: var(--momo-radius-sm);
-  background: var(--momo-color-bg-muted);
+  border-radius: var(--ds-radius);
+  background: var(--muted);
 }
 .upload-row-main {
   flex: 1;
@@ -316,8 +316,8 @@ onUnmounted(() => {
   gap: 4px;
 }
 .upload-row-name {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-tertiary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

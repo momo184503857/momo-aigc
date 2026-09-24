@@ -11,7 +11,7 @@ export const alertVariants = cva('grid gap-0.5 rounded-lg border px-2.5 py-2 tex
     variant: {
       default: 'bg-card text-card-foreground',
       destructive: 'text-destructive bg-card *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current',
-      warning: 'bg-(--momo-color-warning-subtle) border-(--momo-color-warning)/40 text-(--momo-color-status-pending-text) *:data-[slot=alert-description]:text-(--momo-color-status-pending-text)/90',
+      warning: 'bg-(--ds-warning-surface) border-(--warning)/40 text-(--warning) *:data-[slot=alert-description]:text-(--warning)/90',
     },
   },
   defaultVariants: {

@@ -171,7 +171,7 @@ function statusVariant(status: string): 'success' | 'destructive' | 'secondary' 
   align-items: flex-start;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  border-bottom: 1px solid var(--border);
 }
 .detail-cell:nth-last-child(-n+2) {
   border-bottom: none;
@@ -182,7 +182,7 @@ function statusVariant(status: string): 'success' | 'destructive' | 'secondary' 
 .detail-cell > dt {
   flex-shrink: 0;
   width: 64px;
-  color: var(--momo-color-text-tertiary);
+  color: var(--muted-foreground);
   line-height: 22px;
 }
 .detail-cell > dd {

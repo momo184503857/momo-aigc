@@ -1,24 +1,25 @@
 <script setup lang="ts">
+import { DsColorPicker } from '@/components/design-system'
 import { ref, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, RefreshCw, Pencil, LoaderCircle } from '@lucide/vue'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { canvasApi, type CanvasProject } from '@/services/canvasApi'
 import { toBJDate } from '@/utils/datetime'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { UiEmptyState } from '@/components/ui'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { Label } from '@/components/design-system/primitives/label'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { UiEmptyState } from '@/components/design-system'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/design-system/primitives/dialog'
 
 defineOptions({ name: 'CanvasProjects' })
 
@@ -262,23 +263,7 @@ onActivated(() => { loadProjects() })
           </div>
           <div class="grid gap-1.5">
             <Label>缩略图颜色</Label>
-            <div class="color-picker">
-              <div
-                v-for="c in PRESET_COLORS"
-                :key="c"
-                class="color-swatch"
-                :class="{ selected: createForm.thumbnailColor === c }"
-                :style="{ backgroundColor: c }"
-                @click="createForm.thumbnailColor = c"
-              />
-              <div
-                class="color-swatch color-swatch--random"
-                :class="{ selected: !createForm.thumbnailColor }"
-                @click="createForm.thumbnailColor = ''"
-              >
-                <span>随机</span>
-              </div>
-            </div>
+            <DsColorPicker v-model="createForm.thumbnailColor" :presets="PRESET_COLORS" allow-automatic />
           </div>
         </form>
         <DialogFooter>
@@ -332,23 +317,7 @@ onActivated(() => { loadProjects() })
           </div>
           <div class="grid gap-1.5">
             <Label>缩略图颜色</Label>
-            <div class="color-picker">
-              <div
-                v-for="c in PRESET_COLORS"
-                :key="c"
-                class="color-swatch"
-                :class="{ selected: editForm.thumbnailColor === c }"
-                :style="{ backgroundColor: c }"
-                @click="editForm.thumbnailColor = c"
-              />
-              <div
-                class="color-swatch color-swatch--random"
-                :class="{ selected: !editForm.thumbnailColor }"
-                @click="editForm.thumbnailColor = ''"
-              >
-                <span>随机</span>
-              </div>
-            </div>
+            <DsColorPicker v-model="editForm.thumbnailColor" :presets="PRESET_COLORS" allow-automatic />
           </div>
         </form>
         <DialogFooter>
@@ -384,16 +353,16 @@ onActivated(() => { loadProjects() })
 
 .project-card {
   position: relative;
-  border-radius: var(--momo-radius-lg);
-  border: 1px solid var(--momo-color-border-light);
+  border-radius: var(--ds-card-radius);
+  border: 1px solid var(--border);
   overflow: hidden;
   cursor: pointer;
   transition: box-shadow 0.2s, transform 0.2s;
-  background: var(--momo-color-bg);
+  background: var(--card);
 }
 
 .project-card:hover {
-  box-shadow: var(--momo-shadow-md);
+  box-shadow: var(--ds-shadow);
   transform: translateY(-2px);
 }
 
@@ -408,7 +377,7 @@ onActivated(() => { loadProjects() })
   font-size: 24px;
   font-weight: 700;
   letter-spacing: 10px;
-  color: var(--momo-overlay-text);
+  color: var(--ds-white);
   opacity: 0.9;
   user-select: none;
   text-align: center;
@@ -426,7 +395,7 @@ onActivated(() => { loadProjects() })
 
 .project-card__name {
   margin: 0 0 4px;
-  font-size: var(--momo-font-size-base);
+  font-size: var(--ds-font-body);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -436,8 +405,8 @@ onActivated(() => { loadProjects() })
 .project-card__desc,
 .project-card__notes {
   margin: 0 0 4px;
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -445,14 +414,14 @@ onActivated(() => { loadProjects() })
 }
 
 .project-card__notes {
-  color: var(--momo-color-text-placeholder);
+  color: var(--muted-foreground);
   -webkit-line-clamp: 1;
 }
 
 .project-card__meta {
   margin-top: 8px;
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-placeholder);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   display: flex;
   justify-content: space-between;
 }
@@ -460,7 +429,7 @@ onActivated(() => { loadProjects() })
 .project-card__actions {
   position: absolute;
   inset: 0;
-  background: var(--momo-overlay-dim);
+  background: var(--ds-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -473,41 +442,4 @@ onActivated(() => { loadProjects() })
   opacity: 1;
 }
 
-.color-picker {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.color-swatch {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--momo-radius-md);
-  cursor: pointer;
-  border: 3px solid transparent;
-  transition: border-color 0.2s;
-}
-
-.color-swatch:hover {
-  border-color: var(--momo-color-border-strong);
-}
-
-.color-swatch.selected {
-  border-color: var(--momo-color-brand);
-}
-
-.color-swatch--random {
-  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red) !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  padding: 0 8px;
-}
-
-.color-swatch--random span {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-overlay-text);
-  text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
-}
 </style>

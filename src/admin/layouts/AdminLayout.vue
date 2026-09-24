@@ -36,7 +36,7 @@ function backToUserApp() {
       <AppHeader :crumbs="[]" />
 
       <main class="relative min-h-0 grow overflow-auto px-4 pb-4">
-        <div :class="route.path.includes('ui-components') ? undefined : 'legacy-surface'"><router-view /></div>
+        <div class="min-w-0"><router-view /></div>
       </main>
     </SidebarInset>
   </SidebarProvider>

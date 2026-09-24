@@ -132,7 +132,7 @@ function close() {
             <div class="template-info absolute right-0 bottom-0 left-0 flex flex-col gap-0.5 px-2 py-1.5">
               <span class="truncate text-xs font-medium text-white">{{ t.name || t.original_filename }}</span>
               <span v-if="t.tags && t.tags.length > 0" class="flex flex-wrap gap-0.5">
-                <span v-for="tag in t.tags" :key="tag.id" class="rounded-full bg-white/20 px-1 text-[10px] leading-4 text-white">{{ tag.name }}</span>
+                <span v-for="tag in t.tags" :key="tag.id" class="rounded-full bg-white/20 px-1 text-sm leading-4 text-white">{{ tag.name }}</span>
               </span>
             </div>
             <CircleCheck
@@ -155,6 +155,6 @@ function close() {
 
 <style scoped>
 .template-info {
-  background: linear-gradient(transparent, var(--momo-color-overlay-heavy));
+  background: linear-gradient(transparent, var(--ds-overlay));
 }
 </style>

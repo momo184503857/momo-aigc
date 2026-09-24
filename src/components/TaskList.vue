@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Input } from '@/components/design-system'
 import { ref, computed, nextTick, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { RefreshCw, Trash2, Eye, LoaderCircle, Image, Copy, Download, Check, Pencil } from '@lucide/vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
@@ -73,7 +74,7 @@ const remarkDraft = ref('')
 const remarkInput = ref<HTMLInputElement | null>(null)
 
 function setRemarkInput(el: unknown) {
-  remarkInput.value = el instanceof HTMLInputElement ? el : null
+  remarkInput.value = el instanceof HTMLInputElement ? el : (el as { element?: HTMLInputElement } | null)?.element ?? null
 }
 
 async function openRemarkEditor(task: TaskItem) {
@@ -274,7 +275,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
               v-if="task.task_no || task.toapis_task_id"
               variant="outline"
               size="icon-sm"
-              class="mt-0.5 rounded-full"
+              class="mt-0.5"
               @click.stop="emit('retryImport', task)"
               title="重新加载图片"
             >
@@ -310,7 +311,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
               <span class="task-res">{{ aspectLabel(task) }}</span>
               <span class="task-model">{{ modelDisplayName(task.model) }}</span>
               <div class="task-remark-row">
-                <input
+                <Input
                   v-if="editingRemarkId === task.id"
                   :ref="setRemarkInput"
                   v-model="remarkDraft"
@@ -342,7 +343,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <Button size="sm" variant="outline" @click="emit('copyParams', task)"><Copy />复用参数</Button>
           <Button size="sm" variant="outline" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)"><Download />下载</Button>
           <Button size="sm" variant="outline" @click="emit('viewDetail', task)"><Eye />详情</Button>
-          <Button size="sm" variant="ghost" class="text-destructive hover:text-destructive" @click="emit('delete', task)"><Trash2 />删除</Button>
+          <Button size="sm" variant="destructive"  @click="emit('delete', task)"><Trash2 />删除</Button>
         </div>
       </div>
     </div>
@@ -378,7 +379,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
               v-if="task.task_no || task.toapis_task_id"
               variant="outline"
               size="icon-sm"
-              class="mt-0.5 rounded-full"
+              class="mt-0.5"
               @click.stop="emit('retryImport', task)"
               title="重新加载图片"
             >
@@ -421,7 +422,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <Button size="sm" variant="outline" @click="emit('copyParams', task)"><Copy />复用参数</Button>
           <Button size="sm" variant="outline" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)"><Download />下载</Button>
           <Button size="sm" variant="outline" @click="emit('viewDetail', task)"><Eye />详情</Button>
-          <Button size="sm" variant="ghost" class="text-destructive hover:text-destructive" @click="emit('delete', task)"><Trash2 />删除</Button>
+          <Button size="sm" variant="destructive"  @click="emit('delete', task)"><Trash2 />删除</Button>
         </div>
       </div>
     </div>
@@ -436,36 +437,36 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .task-select-circle {
   position: absolute; top: 10px; left: 10px; z-index: 3;
   width: 24px; height: 24px; border-radius: 50%;
-  border: 2px solid var(--momo-overlay-text);
-  background: var(--momo-overlay-dim);
+  border: 2px solid var(--ds-white);
+  background: var(--ds-overlay);
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s ease;
   cursor: pointer;
   flex-shrink: 0;
 }
 .task-select-circle.checked {
-  background: var(--momo-color-brand);
-  border-color: var(--momo-color-brand);
+  background: var(--primary);
+  border-color: var(--primary);
 }
-.task-card.bulk-selected { box-shadow: 0 0 0 2px var(--momo-color-brand); }
-.task-grid-item.bulk-selected { box-shadow: 0 0 0 2px var(--momo-color-brand); }
+.task-card.bulk-selected { box-shadow: 0 0 0 2px var(--primary); }
+.task-grid-item.bulk-selected { box-shadow: 0 0 0 2px var(--primary); }
 
 .task-cards { display: flex; flex-direction: column; gap: 10px; }
 
 .task-card {
   display: flex; gap: 12px; padding: 12px;
-  background: var(--momo-color-bg-soft);
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-md);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
   transition: box-shadow 0.2s;
   position: relative;
 }
-.task-card:hover { box-shadow: var(--momo-shadow-sm); }
+.task-card:hover { box-shadow: var(--ds-shadow); }
 
 .task-thumb {
   width: 140px; height: 140px; flex-shrink: 0;
-  border-radius: var(--momo-radius-sm); overflow: hidden;
-  background: var(--momo-color-bg-muted);
+  border-radius: var(--ds-radius); overflow: hidden;
+  background: var(--muted);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
 }
@@ -474,10 +475,10 @@ function handleImageDragStart(e: DragEvent, url: string) {
 /* Thumb status placeholder (loading / empty / retry) */
 .thumb-status {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; width: 100%; height: 100%; color: var(--momo-color-text-tertiary);
+  gap: 6px; width: 100%; height: 100%; color: var(--muted-foreground);
 }
 .thumb-status-text {
-  font-size: var(--momo-font-size-xs); color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small); color: var(--muted-foreground);
 }
 .grid-thumb-status {
   position: absolute; inset: 0;
@@ -488,45 +489,31 @@ function handleImageDragStart(e: DragEvent, url: string) {
 /* Header row */
 .task-header { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; height: 22px; overflow: hidden; flex-shrink: 0; }
 .task-status-group { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.task-duration { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
-.task-model { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
-.task-res { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
-.task-time { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-placeholder); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-duration { font-size: var(--ds-font-small); color: var(--muted-foreground); }
+.task-model { font-size: var(--ds-font-small); color: var(--muted-foreground); }
+.task-res { font-size: var(--ds-font-small); color: var(--muted-foreground); }
+.task-time { font-size: var(--ds-font-small); color: var(--muted-foreground); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; overflow: hidden; flex-shrink: 0; }
 .task-remark-row { display: flex; align-items: center; justify-content: flex-end; gap: 2px; max-width: 180px; }
-.task-remark { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); min-width: 0; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.task-remark-input {
-  width: 160px;
-  height: 24px;
-  padding: 0 var(--momo-space-2);
-  border: 1px solid var(--momo-color-border);
-  border-radius: var(--momo-radius-sm);
-  background: var(--momo-color-bg);
-  color: var(--momo-color-text);
-  font: inherit;
-  font-size: var(--momo-font-size-sm);
-  outline: none;
-}
-.task-remark-input:focus {
-  border-color: var(--momo-color-brand);
-  box-shadow: 0 0 0 2px var(--momo-color-ring);
-}
+.task-remark { font-size: var(--ds-font-small); color: var(--muted-foreground); min-width: 0; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-remark-input { width:100%; min-width:0; }
+
 .task-content-row { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-height: 0; }
 .task-content-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 
 /* Prompt */
 .task-prompt {
-  font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small); color: var(--muted-foreground);
   display: flex; align-items: center; gap: 4px;
   height: 20px; overflow: hidden; flex-shrink: 0;
 }
 .task-prompt-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-error-msg {
-  font-size: var(--momo-font-size-sm); color: var(--momo-color-danger); max-width: 200px;
+  font-size: var(--ds-font-small); color: var(--destructive); max-width: 200px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .grid-error-msg {
-  font-size: var(--momo-font-size-sm); color: var(--momo-color-danger); margin-left: 6px;
+  font-size: var(--ds-font-small); color: var(--destructive); margin-left: 6px;
   max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -544,25 +531,25 @@ function handleImageDragStart(e: DragEvent, url: string) {
   gap: 12px;
 }
 .task-grid-item {
-  border-radius: var(--momo-radius-md); overflow: hidden;
-  background: var(--momo-color-bg-soft);
-  border: 1px solid var(--momo-color-border-soft);
+  border-radius: var(--ds-radius); overflow: hidden;
+  background: var(--muted);
+  border: 1px solid var(--border);
   transition: box-shadow 0.2s;
   display: flex; flex-direction: column;
   position: relative;
 }
-.task-grid-item:hover { box-shadow: var(--momo-shadow-sm); }
+.task-grid-item:hover { box-shadow: var(--ds-shadow); }
 
 .grid-thumb {
   aspect-ratio: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  background: var(--momo-color-bg-muted);
+  background: var(--muted);
   position: relative; overflow: hidden;
 }
 .grid-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .grid-progress-bar {
   position: absolute; bottom: 0; left: 0; height: 3px;
-  background: var(--momo-color-brand);
+  background: var(--primary);
   transition: width 0.3s ease;
 }
 
@@ -572,17 +559,17 @@ function handleImageDragStart(e: DragEvent, url: string) {
 }
 .grid-info-row { display: flex; align-items: center; }
 .grid-info-row.prompt-row { align-items: flex-start; }
-.gi-value { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
+.gi-value { font-size: var(--ds-font-small); color: var(--muted-foreground); }
 .gi-value.prompt-text {
   flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: var(--momo-color-text);
+  color: var(--foreground);
 }
-.gi-value.time { color: var(--momo-color-text-placeholder); }
-.grid-duration { margin-left: 6px; font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
+.gi-value.time { color: var(--muted-foreground); }
+.grid-duration { margin-left: 6px; font-size: var(--ds-font-small); color: var(--muted-foreground); }
 
 .grid-card-actions {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 6px 10px;
-  border-top: 1px solid var(--momo-color-border-soft);
+  border-top: 1px solid var(--border);
 }
 .grid-card-actions > :is(button, a) { width: 100%; }
 
@@ -601,8 +588,8 @@ function handleImageDragStart(e: DragEvent, url: string) {
 
 .input-thumb-img {
   width: 56px; height: 56px; object-fit: cover; flex-shrink: 0;
-  border-radius: var(--momo-radius-sm);
-  border: 1px solid var(--momo-color-border-soft);
+  border-radius: var(--ds-radius);
+  border: 1px solid var(--border);
 }
 
 /* 并排卡片：无 ID 行后放大参考图，使中间三行总高恰等于左侧结果图 140px（22 状态 + 20 提示词 + 4+86 参考图 + 8 间距） */

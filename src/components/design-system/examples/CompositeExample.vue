@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import * as U from '..'
 import { sampleImage } from './sample'
 const props = defineProps<{ family: string; state: string }>()
+const fileControl = ref<InstanceType<typeof U.DsFileInput>>()
 const pickerOpen = ref(false)
 const keyword = ref('')
 const prompt = ref('柔和自然光，保留商品细节')
@@ -14,6 +15,10 @@ const message = ref('')
 const status = computed(() => props.state === 'error' ? 'failed' : props.state === 'loading' ? 'running' : props.state === 'empty' ? 'pending' : 'done')
 </script>
 <template>
+  <div v-if="family === 'canvas-controls'" class="relative h-40"><U.DsCanvasControls @zoom-in="message = '放大（模拟）'" @zoom-out="message = '缩小（模拟）'" @fit="message = '适配（模拟）'" /></div>
+  <U.DsSearchInput v-if="family === 'search-input'" v-model="keyword" aria-label="搜索示例" :disabled="state === 'disabled'" />
+  <div v-if="family === 'file-input'"><U.DsFileInput ref="fileControl" accept="image/*" :disabled="state === 'disabled'" @change="message = '文件已选择（模拟）'" /><U.Button :disabled="state === 'disabled'" @click="fileControl?.click()">选择文件（模拟）</U.Button></div>
+  <U.DsScrollPage v-if="family === 'scroll-page'" title="列表页面"><template #filters><U.Input aria-label="页面筛选示例" /></template><p>滚动内容区域</p><template #footer><U.Button>保存（模拟）</U.Button></template></U.DsScrollPage>
   <U.DsField v-if="family === 'password-input'" v-slot="field" label="密码示例" :error="state === 'error' ? '请输入有效密码' : undefined">
     <U.DsPasswordInput :id="field.id" v-model="keyword" :aria-describedby="field.describedby" :aria-invalid="field.invalid" :disabled="state === 'disabled' || state === 'loading'" autocomplete="new-password" />
   </U.DsField>

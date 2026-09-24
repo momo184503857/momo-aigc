@@ -131,15 +131,15 @@ let _lastHistoryKey = ''
 let _lastHistoryAt = 0
 
 const statusColorMap: Record<NodeStatus, string> = {
-  idle: 'var(--momo-color-text-secondary)',
-  waiting: 'var(--momo-color-info)',
-  running: 'var(--momo-color-brand)',
-  success: 'var(--momo-color-success)',
-  failed: 'var(--momo-color-danger)',
-  disabled: 'var(--momo-color-text-placeholder)',
-  affected: 'var(--momo-color-info)',
-  dirty: 'var(--momo-color-warning)',
-  paused: 'var(--momo-color-warning)',
+  idle: 'var(--muted-foreground)',
+  waiting: 'var(--ds-info)',
+  running: 'var(--primary)',
+  success: 'var(--success)',
+  failed: 'var(--destructive)',
+  disabled: 'var(--muted-foreground)',
+  affected: 'var(--ds-info)',
+  dirty: 'var(--warning)',
+  paused: 'var(--warning)',
 }
 
 const emptyWorkflow = (): WorkflowModel => ({

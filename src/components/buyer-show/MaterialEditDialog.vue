@@ -11,10 +11,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
+} from '@/components/design-system/primitives/dialog'
+import { Button } from '@/components/design-system/primitives/button'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { Label } from '@/components/design-system/primitives/label'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, warning, error } = useUiFeedback()
 import { ossApi } from '@/services/ossApi'
@@ -141,7 +141,7 @@ onUnmounted(() => {
                 v-if="pendingFile"
                 variant="ghost"
                 size="sm"
-                class="text-destructive hover:text-destructive"
+
                 @click="clearPending"
               >恢复原图</Button>
               <span v-if="pendingFile" class="edit-image-hint">已选择新图，保存后生效</span>
@@ -178,9 +178,9 @@ onUnmounted(() => {
   width: 140px;
   height: 140px;
   object-fit: cover;
-  border-radius: var(--momo-radius-md);
-  border: 1px solid var(--momo-color-border-soft);
-  background: var(--momo-color-bg-muted);
+  border-radius: var(--ds-radius);
+  border: 1px solid var(--border);
+  background: var(--muted);
   flex-shrink: 0;
 }
 .edit-image-actions {
@@ -190,7 +190,7 @@ onUnmounted(() => {
   align-items: flex-start;
 }
 .edit-image-hint {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-warning);
+  font-size: var(--ds-font-small);
+  color: var(--warning);
 }
 </style>

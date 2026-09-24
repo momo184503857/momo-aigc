@@ -11,14 +11,14 @@ import {
   Plus,
   Trash2,
 } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/primitives/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/design-system/primitives/dropdown-menu'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import type {
   Connection,
@@ -29,9 +29,8 @@ import type {
   NodeMouseEvent,
 } from '@vue-flow/core'
 import { Background, BackgroundVariant } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
+import { DsCanvasControls } from '@/components/design-system'
 import { MiniMap } from '@vue-flow/minimap'
-import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
 import WorkflowNode from '@/modules/workflow/components/WorkflowNode.vue'
 import WorkflowRightPanel from '@/modules/workflow/components/WorkflowRightPanel.vue'
@@ -54,6 +53,8 @@ const workflowStore = useWorkflowStore()
 const {
   screenToFlowCoordinate,
   fitView,
+  zoomIn,
+  zoomOut,
   nodes: vfNodes,
   setViewport: vfSetViewport,
   onPaneReady,
@@ -448,7 +449,7 @@ onUnmounted(() => {
         <template v-if="!workflowStore.isRunning">
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
-              <Button class="bg-(--momo-color-success) text-white hover:bg-(--momo-color-success)/90">
+              <Button >
                 <Play />运行<ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -510,9 +511,9 @@ onUnmounted(() => {
         <template #node-workflow="nodeProps">
           <WorkflowNode v-bind="nodeProps" />
         </template>
-        <Background :variant="BackgroundVariant.Dots" :gap="16" :size="1.2" />
-        <Controls position="bottom-left" :show-interactive="false" />
-        <MiniMap position="bottom-right" pannable zoomable :node-color="miniMapNodeColor" :node-stroke-color="miniMapNodeColor" mask-color="rgba(125,125,125,0.18)" />
+        <Background color="var(--border)" :variant="BackgroundVariant.Dots" :gap="16" :size="1.2" />
+        <DsCanvasControls @zoom-in="zoomIn()" @zoom-out="zoomOut()" @fit="fitView()" />
+        <MiniMap class="ds-canvas-minimap" position="bottom-right" pannable zoomable :node-color="miniMapNodeColor" :node-stroke-color="miniMapNodeColor" mask-color="var(--ds-overlay-soft)" />
       </VueFlow>
 
       <!-- Pane context menu -->
@@ -521,7 +522,7 @@ onUnmounted(() => {
         class="workflow-context-menu"
         :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
       >
-        <button
+        <Button variant="ghost"
           class="workflow-context-menu__item"
           type="button"
           :disabled="!workflowStore.copiedNodes.length"
@@ -533,10 +534,10 @@ onUnmounted(() => {
               ? workflowStore.copiedNodes.map((n) => n.title).join('、')
               : '请先复制节点'
           }}</span>
-        </button>
+        </Button>
 
         <div class="workflow-context-menu__section">新增节点</div>
-        <button
+        <Button variant="ghost"
           v-for="definition in nodeDefinitions"
           :key="definition.type"
           class="workflow-context-menu__item"
@@ -545,7 +546,7 @@ onUnmounted(() => {
         >
           <strong>{{ definition.title }}</strong>
           <span>{{ definition.description }}</span>
-        </button>
+        </Button>
       </div>
 
       <!-- Node context menu -->
@@ -554,12 +555,12 @@ onUnmounted(() => {
         class="workflow-context-menu"
         :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
       >
-        <button class="workflow-context-menu__item" type="button" @click="handleCopyNode">
+        <Button variant="ghost" class="workflow-context-menu__item" type="button" @click="handleCopyNode">
           <strong>复制节点</strong>
           <span>Ctrl+C</span>
-        </button>
+        </Button>
 
-        <button
+        <Button variant="ghost"
           class="workflow-context-menu__item"
           type="button"
           :disabled="!workflowStore.copiedNodes.length"
@@ -567,9 +568,9 @@ onUnmounted(() => {
         >
           <strong>粘贴节点</strong>
           <span>{{ workflowStore.copiedNodes.length ? 'Ctrl+V' : '请先复制节点' }}</span>
-        </button>
+        </Button>
 
-        <button
+        <Button variant="ghost"
           class="workflow-context-menu__item"
           type="button"
           :disabled="!hasSelectedNode || workflowStore.isRunning"
@@ -577,9 +578,9 @@ onUnmounted(() => {
         >
           <strong>运行到当前</strong>
           <span>执行此节点及其上游</span>
-        </button>
+        </Button>
 
-        <button
+        <Button variant="ghost"
           class="workflow-context-menu__item"
           type="button"
           :disabled="!hasSelectedNode || workflowStore.isRunning"
@@ -587,21 +588,21 @@ onUnmounted(() => {
         >
           <strong>从当前继续</strong>
           <span>执行此节点及其下游</span>
-        </button>
+        </Button>
 
-        <button class="workflow-context-menu__item" type="button" @click="openConsole">
+        <Button variant="ghost" class="workflow-context-menu__item" type="button" @click="openConsole">
           <strong>打开控制台</strong>
           <span>查看运行日志</span>
-        </button>
+        </Button>
 
-        <button
+        <Button variant="destructive"
           class="workflow-context-menu__item workflow-context-menu__item--danger"
           type="button"
           @click="workflowStore.deleteSelected(); closeContextMenu()"
         >
           <strong>删除节点</strong>
           <span>Delete</span>
-        </button>
+        </Button>
       </div>
     </section>
 
@@ -615,7 +616,7 @@ onUnmounted(() => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--momo-color-bg);
+  background: var(--card);
 }
 
 .workflow-shell__canvas {
@@ -624,7 +625,7 @@ onUnmounted(() => {
   min-width: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--momo-color-bg-page);
+  background: var(--background);
 }
 
 .workflow-shell__toolbar {
@@ -635,10 +636,10 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   padding: 8px;
-  background: var(--momo-color-bg);
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-md);
-  box-shadow: var(--momo-shadow-md);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
+  box-shadow: var(--ds-shadow);
 }
 
 .workflow-flow {
@@ -646,58 +647,13 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* ── MiniMap / Controls / Background 主题化 ── */
-.workflow-flow :deep(.vue-flow__minimap) {
-  background: var(--momo-color-bg);
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  box-shadow: var(--momo-shadow-md);
-}
-
-.workflow-flow :deep(.vue-flow__minimap-mask) {
-  fill: var(--momo-color-overlay);
-  stroke: var(--momo-color-border);
-  stroke-width: 2;
-}
-
-.workflow-flow :deep(.vue-flow__controls) {
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  box-shadow: var(--momo-shadow-md);
-}
-
-.workflow-flow :deep(.vue-flow__controls-button) {
-  background: var(--momo-color-bg);
-  border-bottom: 1px solid var(--momo-color-border-soft);
-  color: var(--momo-color-text-secondary);
-  fill: var(--momo-color-text-secondary);
-}
-
-.workflow-flow :deep(.vue-flow__controls-button:hover) {
-  background: var(--momo-color-bg-muted);
-}
-
-.workflow-flow :deep(.vue-flow__controls-button svg) {
-  fill: currentColor;
-}
-
-/* 点阵背景网格：圆点用边框色 */
-.workflow-flow :deep(.vue-flow__background circle) {
-  fill: var(--momo-color-border);
-}
-
-/* 连线流动动画：虚线偏移（运行中来源节点） */
-.workflow-flow :deep(.vue-flow__edge.animated path) {
-  stroke-dasharray: 6 4;
-  animation: workflow-edge-dash 0.5s linear infinite;
-}
-
-@keyframes workflow-edge-dash {
-  to {
-    stroke-dashoffset: -10;
-  }
+/* Vue Flow public theme variables; engine interactions remain untouched. */
+.workflow-flow {
+  --vf-node-bg: var(--card);
+  --vf-node-text: var(--foreground);
+  --vf-connection-path: var(--border);
+  --vf-handle: var(--primary);
+  --vf-box-shadow: var(--ds-shadow);
 }
 
 .workflow-context-menu {
@@ -705,10 +661,10 @@ onUnmounted(() => {
   z-index: 1000;
   width: 260px;
   padding: 8px;
-  background: var(--momo-color-bg);
-  border: 1px solid var(--momo-color-border);
-  border-radius: var(--momo-radius-md);
-  box-shadow: var(--momo-shadow-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
+  box-shadow: var(--ds-shadow);
 }
 
 .workflow-context-menu__item {
@@ -717,16 +673,10 @@ onUnmounted(() => {
   gap: 4px;
   width: 100%;
   padding: 8px;
-  color: var(--momo-color-text);
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: var(--momo-radius-sm);
-  cursor: pointer;
-}
 
-.workflow-context-menu__item:hover {
-  background: var(--momo-color-bg-muted);
+  text-align: left;
+
+  cursor: pointer;
 }
 
 .workflow-context-menu__item:disabled {
@@ -734,27 +684,18 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-.workflow-context-menu__item--danger strong {
-  color: var(--momo-color-danger);
-}
-
-.workflow-context-menu__item strong {
-  font-size: var(--momo-font-size-base);
-  font-weight: 600;
-}
-
 .workflow-context-menu__item span {
-  color: var(--momo-color-text-tertiary);
-  font-size: var(--momo-font-size-md);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-body);
   line-height: 1.5;
 }
 
 .workflow-context-menu__section {
   padding: 4px 8px;
-  color: var(--momo-color-text-placeholder);
-  font-size: var(--momo-font-size-xs);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
   font-weight: 600;
-  border-top: 1px solid var(--momo-color-border-soft);
+  border-top: 1px solid var(--border);
   margin-top: 4px;
   padding-top: 8px;
 }

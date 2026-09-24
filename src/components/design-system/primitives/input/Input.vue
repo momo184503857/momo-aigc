@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue'
+import { ref, type HTMLAttributes } from 'vue'
 import { useVModel } from '@vueuse/core'
 import { cn } from '@/lib/utils'
+
+const inputElement = ref<HTMLInputElement>()
+defineExpose({ focus: () => inputElement.value?.focus(), select: () => inputElement.value?.select(), get element() { return inputElement.value } })
 
 const props = defineProps<{
   defaultValue?: string | number
@@ -21,6 +24,7 @@ const modelValue = useVModel(props, 'modelValue', emits, {
 
 <template>
   <input
+    ref="inputElement"
     v-model="modelValue"
     data-slot="input"
     :class="cn(

@@ -6,7 +6,7 @@
  * （左簇 h-8 控件 + gap-2，右侧动作），把筛选控件交给调用方以插槽传入。
  */
 import { X } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/primitives/button'
 
 const props = withDefaults(defineProps<{
   /** 是否有生效中的筛选条件，决定是否出现「重置」 */
@@ -28,7 +28,7 @@ const emit = defineEmits<{ reset: [] }>()
       <Button
         v-if="props.filtered"
         variant="ghost"
-        class="h-8 px-2 lg:px-3"
+
         @click="emit('reset')"
       >
         {{ props.resetText }}

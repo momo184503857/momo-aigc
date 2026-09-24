@@ -26,7 +26,7 @@ defineProps<{
 
 <template>
   <header
-    class="bg-card flex h-(--momo-header-height) shrink-0 items-center gap-2 border-b px-4"
+    class="bg-card flex h-(--ds-header-height) shrink-0 items-center gap-2 border-b px-4"
   >
     <SidebarTrigger class="-ml-1" />
     <Separator orientation="vertical" class="mr-1 h-4" />

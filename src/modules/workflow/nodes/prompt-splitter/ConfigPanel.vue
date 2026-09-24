@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/design-system/primitives/input'
+import { Label } from '@/components/design-system/primitives/label'
+import { Switch } from '@/components/design-system/primitives/switch'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Input } from '@/components/design-system'
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import {
   Pencil, Undo2, Redo2, Trash2, Crop, Check, X,
@@ -821,7 +822,7 @@ function canvasCursor(): string {
 
       <div class="tool-group" v-if="!cropMode && (currentTool === 'brush' || currentTool === 'eraser')">
         <label class="tool-label">颜色</label>
-        <input type="color" v-model="brushColor" class="color-input" list="editor-colors" />
+        <Input type="color" v-model="brushColor" class="color-input" list="editor-colors" />
         <datalist id="editor-colors">
           <option>#ff4d4f</option><option>#faad14</option><option>#52c41a</option><option>#1677ff</option><option>#722ed1</option><option>#000000</option>
         </datalist>
@@ -832,7 +833,7 @@ function canvasCursor(): string {
 
       <div class="tool-group" v-if="!cropMode && currentTool === 'shape'">
         <label class="tool-label">颜色</label>
-        <input type="color" v-model="brushColor" class="color-input" list="editor-colors" />
+        <Input type="color" v-model="brushColor" class="color-input" list="editor-colors" />
         <label class="tool-label">线宽</label>
         <Slider :model-value="[strokeWidth]" :min="1" :max="20" :step="1" class="w-25" @update:model-value="(v) => (strokeWidth = v?.[0] ?? strokeWidth)" />
         <span class="tool-value">{{ strokeWidth }}px</span>
@@ -840,7 +841,7 @@ function canvasCursor(): string {
 
       <div class="tool-group" v-if="!cropMode && currentTool === 'text'">
         <label class="tool-label">文字颜色</label>
-        <input type="color" v-model="textColor" class="color-input" list="editor-colors" />
+        <Input type="color" v-model="textColor" class="color-input" list="editor-colors" />
         <label class="tool-label">字号</label>
         <Slider :model-value="[fontSize]" :min="10" :max="72" :step="1" class="w-25" @update:model-value="(v) => (fontSize = v?.[0] ?? fontSize)" />
         <span class="tool-value">{{ fontSize }}px</span>
@@ -906,7 +907,7 @@ function canvasCursor(): string {
           }"
         ></div>
         <!-- Text input overlay -->
-        <input
+        <Input
           v-if="textInputVisible"
           v-model="textInputValue"
           class="editor-text-input"
@@ -950,7 +951,7 @@ function canvasCursor(): string {
   align-items: center;
   gap: 12px;
   padding: 8px 0 14px;
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  border-bottom: 1px solid var(--border);
   margin-bottom: 14px;
 }
 .tool-group {
@@ -959,21 +960,21 @@ function canvasCursor(): string {
   gap: 6px;
 }
 .tool-label {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   white-space: nowrap;
 }
 .tool-value {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   min-width: 36px;
 }
 .tool-spacer {
   flex: 1;
 }
 .zoom-display {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   min-width: 40px;
   text-align: center;
 }
@@ -984,8 +985,8 @@ function canvasCursor(): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--momo-color-bg-muted);
-  border-radius: var(--momo-radius-md);
+  background: var(--muted);
+  border-radius: var(--ds-radius);
   overflow: hidden;
 }
 .editor-placeholder {
@@ -997,15 +998,15 @@ function canvasCursor(): string {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: var(--momo-color-bg-muted);
-  color: var(--momo-color-text-secondary);
-  font-size: var(--momo-font-size-sm);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
 }
 .editor-overlay {
   pointer-events: none;
 }
 .editor-error {
-  color: var(--momo-color-danger);
+  color: var(--destructive);
 }
 .editor-canvas-wrap {
   position: relative;
@@ -1030,8 +1031,8 @@ function canvasCursor(): string {
 
 .crop-rect {
   position: absolute;
-  border: 2px dashed var(--momo-color-brand);
-  background: rgba(22, 119, 255, 0.1);
+  border: 2px dashed var(--primary);
+  background: var(--accent);
   pointer-events: none;
   z-index: 10;
 }
@@ -1039,9 +1040,9 @@ function canvasCursor(): string {
 .editor-text-input {
   position: absolute;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px dashed var(--momo-color-brand);
-  border-radius: var(--momo-radius-sm);
+  background: var(--card);
+  border: 1px dashed var(--primary);
+  border-radius: var(--ds-radius);
   padding: 2px 6px;
   outline: none;
   font-family: sans-serif;
@@ -1055,13 +1056,13 @@ function canvasCursor(): string {
   width: 100%;
 }
 .footer-info {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   display: flex;
   gap: 8px;
 }
 .footer-hint {
-  color: var(--momo-color-text-placeholder);
+  color: var(--muted-foreground);
 }
 .footer-actions {
   display: flex;
@@ -1079,9 +1080,7 @@ function canvasCursor(): string {
   width: 28px;
   height: 28px;
   padding: 2px;
-  border: 1px solid var(--momo-color-border);
-  border-radius: var(--momo-radius-sm);
-  background: var(--momo-color-bg);
+
   cursor: pointer;
 }
 </style>

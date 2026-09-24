@@ -2,17 +2,17 @@
 import { computed } from 'vue'
 import { Info } from '@lucide/vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
-import { Alert, AlertTitle } from '@/components/ui/alert'
-import { Label } from '@/components/ui/label'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
+import { Label } from '@/components/design-system/primitives/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+} from '@/components/design-system/primitives/select'
+import { Switch } from '@/components/design-system/primitives/switch'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()

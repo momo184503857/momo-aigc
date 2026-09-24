@@ -8,14 +8,14 @@
  */
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from '@lucide/vue'
 import { computed } from 'vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/primitives/button'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 
 const props = withDefaults(defineProps<{
   currentPage: number
@@ -69,7 +69,7 @@ function handleSizeChange(value: string) {
           :disabled="disabled"
           @update:model-value="handleSizeChange(String($event))"
         >
-          <SelectTrigger class="h-8 w-[70px]">
+          <SelectTrigger class="w-[70px]">
             <SelectValue :placeholder="String(pageSize)" />
           </SelectTrigger>
           <SelectContent side="top">
@@ -85,19 +85,19 @@ function handleSizeChange(value: string) {
       </div>
 
       <div class="flex items-center space-x-2">
-        <Button variant="outline" class="hidden size-8 p-0 lg:flex" :disabled="!canPrev" title="首页" @click="go(1)">
+        <Button variant="outline" class="hidden lg:flex" :disabled="!canPrev" title="首页" @click="go(1)">
           <span class="sr-only">首页</span>
           <ChevronsLeft class="size-4" />
         </Button>
-        <Button variant="outline" class="size-8 p-0" :disabled="!canPrev" title="上一页" @click="go(currentPage - 1)">
+        <Button variant="outline"  :disabled="!canPrev" title="上一页" @click="go(currentPage - 1)">
           <span class="sr-only">上一页</span>
           <ChevronLeft class="size-4" />
         </Button>
-        <Button variant="outline" class="size-8 p-0" :disabled="!canNext" title="下一页" @click="go(currentPage + 1)">
+        <Button variant="outline"  :disabled="!canNext" title="下一页" @click="go(currentPage + 1)">
           <span class="sr-only">下一页</span>
           <ChevronRight class="size-4" />
         </Button>
-        <Button variant="outline" class="hidden size-8 p-0 lg:flex" :disabled="!canNext" title="末页" @click="go(pageCount)">
+        <Button variant="outline" class="hidden lg:flex" :disabled="!canNext" title="末页" @click="go(pageCount)">
           <span class="sr-only">末页</span>
           <ChevronsRight class="size-4" />
         </Button>

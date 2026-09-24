@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { watch, onDeactivated, onActivated, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import WorkflowCanvas from '@/modules/workflow/components/WorkflowCanvas.vue'
 import { useWorkflowStore } from '@/modules/workflow/stores/workflowStore'
 

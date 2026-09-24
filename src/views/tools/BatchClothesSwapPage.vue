@@ -22,24 +22,24 @@ import { formatCredits } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
 import type { ModelId } from '@/types/adapter'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import PromptEditorPanel from '@/components/PromptEditorPanel.vue'
 import ImageSlotUpload from '@/components/ImageSlotUpload.vue'
 import type { SlotImage } from '@/components/ImageSlotUpload.vue'
 import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
-import { Alert, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Progress } from '@/components/design-system/primitives/progress'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+} from '@/components/design-system/primitives/select'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 import { cn } from '@/lib/utils'
 
 const router = useRouter()
@@ -358,7 +358,7 @@ onMounted(() => {
         </Button>
         <div class="min-w-0">
           <h2 class="truncate">批量换姿势</h2>
-          <p class="text-muted-foreground truncate text-[12.5px]">
+          <p class="text-muted-foreground truncate text-sm">
             {{ taskCount }} 张模特图 × 1 张共用衣服图 → {{ taskCount }} 个任务
           </p>
         </div>
@@ -370,10 +370,10 @@ onMounted(() => {
         <li
           v-for="(s, i) in steps"
           :key="s.label"
-          class="flex items-center gap-1.5 text-[12px]"
+          class="flex items-center gap-1.5 text-sm"
         >
           <span
-            class="flex size-4 items-center justify-center rounded-full border text-[10px] font-semibold tabular-nums"
+            class="flex size-4 items-center justify-center rounded-full border text-sm font-semibold tabular-nums"
             :class="s.done
               ? 'border-success bg-success text-white'
               : 'border-border text-muted-foreground'"
@@ -401,13 +401,13 @@ onMounted(() => {
         <!-- ① 模特图（批量源） -->
         <section class="border-border pb-6">
           <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-[13px] font-semibold">
+            <h3 class="text-sm font-semibold">
               模特图
               <span class="text-muted-foreground ml-1.5 font-normal">
                 必填 · 每张生成 1 个任务，最多 20 张，可直接拖图
               </span>
             </h3>
-            <Badge variant="outline" class="h-4 shrink-0 px-1.5 text-[10px] tabular-nums">
+            <Badge variant="outline" class="h-4 shrink-0 px-1.5 tabular-nums">
               {{ modelImages.length }} / 20
             </Badge>
           </div>
@@ -425,11 +425,11 @@ onMounted(() => {
         <!-- ② 提交明细（仅提交过程中/提交后出现） -->
         <section v-if="hasSubmitRun" class="border-border border-t pt-4">
           <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-[13px] font-semibold">
+            <h3 class="text-sm font-semibold">
               提交明细
               <span class="text-muted-foreground ml-1.5 font-normal">任务已进入全局任务面板</span>
             </h3>
-            <span class="text-muted-foreground text-[11px] tabular-nums">
+            <span class="text-muted-foreground text-sm tabular-nums">
               {{ submitDone }} / {{ taskCount }}
             </span>
           </div>
@@ -439,15 +439,15 @@ onMounted(() => {
               :key="img.id"
               class="flex items-center gap-2.5 px-2 py-1.5"
             >
-              <span class="text-muted-foreground w-5 shrink-0 text-right text-[11px] tabular-nums">
+              <span class="text-muted-foreground w-5 shrink-0 text-right text-sm tabular-nums">
                 {{ i + 1 }}
               </span>
               <img :src="img.dataUrl" class="media-tile size-8 shrink-0" :alt="imageName(img, i)" />
-              <span class="text-foreground/90 min-w-0 flex-1 truncate text-[12.5px]">
+              <span class="text-foreground/90 min-w-0 flex-1 truncate text-sm">
                 {{ imageName(img, i) }}
               </span>
               <span
-                class="flex shrink-0 items-center gap-1 text-[11.5px]"
+                class="flex shrink-0 items-center gap-1 text-sm"
                 :class="ITEM_STATE_META[itemState(i)].class"
               >
                 <component
@@ -463,14 +463,14 @@ onMounted(() => {
         <!-- ③ 提示词 -->
         <section class="border-border pt-6">
           <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-[13px] font-semibold">
+            <h3 class="text-sm font-semibold">
               {{ userPromptLabel }}
               <LoaderCircle v-if="promptLoading" class="text-muted-foreground ml-1.5 size-3.5 animate-spin" />
               <span v-if="userPrompt.trim()" class="text-muted-foreground ml-1.5 font-normal">
                 将拼接到全部 {{ taskCount }} 个任务
               </span>
             </h3>
-            <span class="text-muted-foreground text-[11px] tabular-nums">{{ userPrompt.length }} 字</span>
+            <span class="text-muted-foreground text-sm tabular-nums">{{ userPrompt.length }} 字</span>
           </div>
           <Textarea v-model="userPrompt" :rows="3" :placeholder="userPromptPlaceholder" />
           <div class="mt-3">
@@ -491,11 +491,11 @@ onMounted(() => {
       <aside class="flex min-w-0 flex-col gap-6">
         <section>
           <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-[13px] font-semibold">
+            <h3 class="text-sm font-semibold">
               衣服图
               <span class="text-muted-foreground ml-1.5 font-normal">必填 · 所有任务共用</span>
             </h3>
-            <Badge variant="outline" class="h-4 shrink-0 px-1.5 text-[10px] tabular-nums">× 1</Badge>
+            <Badge variant="outline" class="h-4 shrink-0 px-1.5 tabular-nums">× 1</Badge>
           </div>
           <ImageSlotUpload
             label=""
@@ -509,16 +509,16 @@ onMounted(() => {
         </section>
 
         <section class="border-border border-t pt-5">
-          <h3 class="text-muted-foreground mb-2.5 text-[11px] font-medium tracking-wider uppercase">
+          <h3 class="text-muted-foreground mb-2.5 text-sm font-medium tracking-wider uppercase">
             输出参数
           </h3>
           <div class="flex flex-col gap-3">
             <div>
-              <label class="text-muted-foreground mb-1 block text-[11.5px]">模型</label>
+              <label class="text-muted-foreground mb-1 block text-sm">模型</label>
               <ModelChannelSelect v-model="selectedModelId" @change="handleModelChange" />
             </div>
             <div>
-              <label class="text-muted-foreground mb-1 block text-[11.5px]">分辨率</label>
+              <label class="text-muted-foreground mb-1 block text-sm">分辨率</label>
               <ToggleGroup
                 type="single"
                 variant="outline"
@@ -530,7 +530,7 @@ onMounted(() => {
               </ToggleGroup>
             </div>
             <div>
-              <label class="text-muted-foreground mb-1 block text-[11.5px]">宽高比</label>
+              <label class="text-muted-foreground mb-1 block text-sm">宽高比</label>
               <Select v-model="aspectRatio">
                 <SelectTrigger class="w-full">
                   <SelectValue placeholder="选择宽高比" />
@@ -544,10 +544,10 @@ onMounted(() => {
         </section>
 
         <section class="border-border border-t pt-5">
-          <h3 class="text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
+          <h3 class="text-muted-foreground mb-2 text-sm font-medium tracking-wider uppercase">
             批量摘要
           </h3>
-          <dl class="flex flex-col gap-1.5 text-[12.5px]">
+          <dl class="flex flex-col gap-1.5 text-sm">
             <div class="flex items-baseline justify-between gap-3">
               <dt class="text-muted-foreground">任务数</dt>
               <dd class="tabular-nums">{{ taskCount }}</dd>
@@ -560,7 +560,7 @@ onMounted(() => {
               <dt class="text-muted-foreground">预计消耗</dt>
               <dd class="font-semibold tabular-nums">{{ formatCredits(totalCost) }} 积分</dd>
             </div>
-            <p class="text-muted-foreground/80 pt-1 text-[11.5px] leading-4">
+            <p class="text-muted-foreground/80 pt-1 text-sm leading-4">
               任务按每 3 秒 1 个的节奏依次提交，中途可切换页面，已提交任务不受影响。
             </p>
           </dl>
@@ -580,18 +580,18 @@ onMounted(() => {
 
         <div
           v-if="submitSummary"
-          class="text-muted-foreground flex items-center gap-2 text-[12px]"
+          class="text-muted-foreground flex items-center gap-2 text-sm"
         >
           <Progress :model-value="submitPercent" class="h-1 w-28" />
           {{ submitSummary }}
         </div>
         <span
           v-else-if="blockingHint"
-          class="text-destructive text-[12px]"
+          class="text-destructive text-sm"
         >
           {{ blockingHint }}
         </span>
-        <span v-else class="text-muted-foreground text-[12px]">
+        <span v-else class="text-muted-foreground text-sm">
           确认前会再提示一次消耗，提交后在任务面板查看进度
         </span>
       </div>

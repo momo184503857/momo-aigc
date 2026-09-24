@@ -80,7 +80,7 @@ const imageCrop: NodeModule = {
   title: '图片裁剪',
   description: '确定性居中裁切到目标比例（不缩放、不用 AI 重绘）。',
   icon: 'Crop',
-  color: '#e6a23c',
+  color: 'var(--warning)',
   inputs: [{ id: 'image', name: 'Image', dataType: 'Image', direction: 'input', required: true }],
   outputs: [{ id: 'image', name: 'Image', dataType: 'Image', direction: 'output' }],
   defaultConfig: { ratio: '3:4' },

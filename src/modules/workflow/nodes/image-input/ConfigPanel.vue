@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import { DsFileInput } from '@/components/design-system'
 import { ref } from 'vue'
-import { UiEmptyState } from '@/components/ui'
-import { Button } from '@/components/ui/button'
+import { UiEmptyState } from '@/components/design-system'
+import { Button } from '@/components/design-system/primitives/button'
 import type { WorkflowNode, LocalImageAsset } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()
 const emit = defineEmits<{ update: [patch: Record<string, unknown>] }>()
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<InstanceType<typeof DsFileInput> | null>(null)
 
 function isLocalImageAsset(value: unknown): value is LocalImageAsset {
   if (!value || typeof value !== 'object') return false
@@ -54,13 +55,13 @@ function removeImage(imageId: string) {
 
 <template>
   <div class="flex flex-col gap-3">
-    <input ref="fileInputRef" type="file" accept="image/*" multiple style="display:none" @change="handleFiles" />
+    <DsFileInput ref="fileInputRef" type="file" accept="image/*" multiple style="display:none" @change="handleFiles" />
     <Button variant="outline" @click="fileInputRef?.click()">添加图片</Button>
     <div v-if="images().length" class="image-list">
       <div v-for="img in images()" :key="img.id" class="image-item">
         <img :src="img.previewUrl" :alt="img.fileName" />
         <span>{{ img.fileName }}</span>
-        <Button variant="link" class="text-destructive" @click="removeImage(img.id)">删除</Button>
+        <Button variant="link"  @click="removeImage(img.id)">删除</Button>
       </div>
     </div>
     <UiEmptyState v-else title="暂无图片" />
@@ -69,7 +70,7 @@ function removeImage(imageId: string) {
 
 <style scoped>
 .image-list { display: flex; flex-direction: column; gap: 8px; }
-.image-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--momo-color-border-soft); border-radius: var(--momo-radius-sm); }
-.image-item img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--momo-radius-sm); }
-.image-item span { flex: 1; font-size: var(--momo-font-size-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.image-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--ds-radius); }
+.image-item img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--ds-radius); }
+.image-item span { flex: 1; font-size: var(--ds-font-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

@@ -2,16 +2,16 @@
   <!-- TODO(multiple-select): EP 多选下拉（multiple+filterable+allow-create）无对应物，用 Popover + Checkbox 列表 + 输入创建实现同等语义 -->
   <Popover>
     <PopoverTrigger as-child>
-      <button
+      <Button variant="ghost"
         type="button"
-        class="border-input focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-8 w-full flex-wrap items-center gap-1 rounded-lg border bg-transparent px-2 py-1 text-sm outline-none focus-visible:ring-3"
+        class="border-input focus-visible:border-ring flex min-h-8 w-full flex-wrap items-center gap-1 border outline-none"
       >
         <template v-if="selectedTags.length > 0">
           <Badge v-for="tag in selectedTags" :key="tag.id" variant="secondary">{{ tag.name }}</Badge>
         </template>
         <span v-else class="text-muted-foreground">选择或输入标签（可选）</span>
         <ChevronDown class="text-muted-foreground ml-auto size-4 shrink-0" />
-      </button>
+      </Button>
     </PopoverTrigger>
     <PopoverContent class="w-(--reka-popover-trigger-width) p-2" align="start">
       <Input v-model="keyword" placeholder="搜索或输入新标签" class="mb-1.5" />
@@ -28,15 +28,15 @@
           <span class="flex-1 truncate">{{ tag.name }}</span>
           <span class="text-muted-foreground text-xs">{{ tag.usage_count }} 条</span>
         </label>
-        <button
+        <Button variant="ghost"
           v-if="canCreate"
           type="button"
-          class="text-primary hover:bg-muted flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+          class="flex w-full cursor-pointer items-center gap-2"
           @click="createTag"
         >
           <Plus class="size-3.5" />
           <span>创建标签「{{ keyword.trim() }}」</span>
-        </button>
+        </Button>
         <p v-if="filteredTags.length === 0 && !canCreate" class="text-muted-foreground px-2 py-3 text-center text-xs">
           无匹配标签
         </p>
@@ -46,12 +46,13 @@
 </template>
 
 <script setup lang="ts">
+import { Button } from '@/components/design-system'
 import { ref, computed, watch, onMounted } from 'vue'
 import { ChevronDown, Plus } from '@lucide/vue'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/design-system/primitives/popover'
+import { Checkbox } from '@/components/design-system/primitives/checkbox'
+import { Input } from '@/components/design-system/primitives/input'
+import { Badge } from '@/components/design-system/primitives/badge'
 import { adminBuyerShowApi, type BuyerShowTag } from '@/services/buyerShowApi'
 
 const props = defineProps<{ modelValue: number[] }>()

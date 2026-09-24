@@ -93,7 +93,7 @@ const imageQa: NodeModule = {
   title: '图片质检',
   description: '识图模型组图质检，不合格时自动生成修正指令并触发重跑。',
   icon: 'Finished',
-  color: '#f56c6c',
+  color: 'var(--destructive)',
   inputs: [
     ...Array.from({ length: 8 }, (_, i) => ({
       id: `image_${i + 1}`,

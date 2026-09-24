@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Info } from '@lucide/vue'
-import { UiNumberInput } from '@/components/ui'
-import { Alert, AlertTitle } from '@/components/ui/alert'
-import { Label } from '@/components/ui/label'
+import { UiNumberInput } from '@/components/design-system'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
+import { Label } from '@/components/design-system/primitives/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()

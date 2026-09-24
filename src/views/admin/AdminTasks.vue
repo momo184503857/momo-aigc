@@ -5,19 +5,19 @@ import { toBJMinute } from '@/utils/datetime'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import { adminApi } from '@/services/adminApi'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 import {
   Table,
   TableBody,
@@ -26,8 +26,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { UiEmptyState, UiPagination } from '@/components/ui'
+} from '@/components/design-system/primitives/table'
+import { UiEmptyState, UiPagination } from '@/components/design-system'
 
 const modelCatalog = useModelCatalogStore()
 
@@ -123,7 +123,7 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
           :model-value="filterStatus || ALL_STATUS"
           @update:model-value="(v) => (filterStatus = String(v) === ALL_STATUS ? '' : String(v))"
         >
-          <SelectTrigger class="h-7 w-30 text-[0.8rem]">
+          <SelectTrigger class="w-30">
             <SelectValue placeholder="状态筛选" />
           </SelectTrigger>
           <SelectContent>
@@ -135,16 +135,16 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
         </Select>
         <!-- 清空后由 watch 回到第 1 页并重查，避免与手动 loadTasks 重复请求 -->
         <div class="relative w-30">
-          <Input v-model="filterUserId" placeholder="用户ID" class="h-7 pr-6 text-[0.8rem]" />
-          <button
+          <Input v-model="filterUserId" placeholder="用户ID"  />
+          <Button variant="ghost"
             v-if="filterUserId"
             type="button"
-            class="text-muted-foreground hover:text-foreground absolute top-1/2 right-1.5 -translate-y-1/2 cursor-pointer"
+            class="absolute top-1/2 right-1.5 -translate-y-1/2 cursor-pointer"
             title="清除"
             @click="filterUserId = ''"
           >
             <X class="size-3.5" />
-          </button>
+          </Button>
         </div>
         <Button size="sm" variant="outline" @click="loadTasks">刷新</Button>
       </div>
@@ -201,15 +201,15 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
                 <TableCell>{{ toBJMinute(row.created_at) }}</TableCell>
                 <TableCell class="text-right">
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="sm"
-                    class="text-destructive hover:text-destructive"
+
                     @click="handleDelete(row)"
                   >删除</Button>
                 </TableCell>
               </TableRow>
               <TableRow v-if="expandedIds.has(row.id)">
-                <TableCell :colspan="10" class="bg-muted/40 p-3">
+                <TableCell :colspan="10" class="p-3">
                   <div v-if="row.route_attempts?.length" class="overflow-auto rounded-lg border">
                     <Table>
                       <TableHeader>
@@ -268,6 +268,6 @@ watch([filterStatus, filterUserId], () => { page.value = 1; loadTasks() })
 </template>
 
 <style scoped>
-.filters { display: flex; gap: var(--momo-space-2); align-items: center; }
-.task-no { font-family: var(--momo-font-mono, monospace); font-size: var(--momo-font-size-xs); }
+.filters { display: flex; gap: var(--ds-space-2); align-items: center; }
+.task-no { font-family: var(--ds-font-mono, monospace); font-size: var(--ds-font-small); }
 </style>

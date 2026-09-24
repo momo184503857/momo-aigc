@@ -21,18 +21,18 @@ import { formatCredits } from '@/types/adapter'
 import { toBJMinute } from '@/utils/datetime'
 import { BasicPage } from '@/components/global-layout'
 import { DataTableColumnHeader, DataTableLoading, DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { Label } from '@/components/design-system/primitives/label'
+import { Badge } from '@/components/design-system/primitives/badge'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 import {
   Dialog,
   DialogContent,
@@ -40,7 +40,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/design-system/primitives/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,9 +48,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+} from '@/components/design-system/primitives/dropdown-menu'
+import { RadioGroup, RadioGroupItem } from '@/components/design-system/primitives/radio-group'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 import {
   Table,
   TableBody,
@@ -58,14 +58,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/design-system/primitives/table'
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
+} from '@/components/design-system/primitives/empty'
 
 interface UserItem {
   id: number
@@ -335,11 +335,11 @@ onMounted(() => {
 <template>
   <BasicPage title="用户管理" description="账户、积分与产出汇总，全部走后端分页与排序。" sticky>
     <template #actions>
-      <Button class="h-9 px-4" variant="outline" :disabled="loading" @click="loadUsers">
+      <Button  variant="outline" :disabled="loading" @click="loadUsers">
         <RefreshCw :class="loading ? 'animate-spin' : ''" />
         刷新
       </Button>
-      <Button class="h-9 px-4" @click="createVisible = true">
+      <Button  @click="createVisible = true">
         <UserRoundPlus />
         创建用户
       </Button>
@@ -350,7 +350,7 @@ onMounted(() => {
         <Input
           v-model="searchQuery"
           placeholder="搜索用户名 / 邮箱 / 备注..."
-          class="h-8 w-[150px] lg:w-[250px]"
+          class="w-[150px] lg:w-[250px]"
           @keyup.enter="commitSearch"
           @blur="commitSearch"
         />
@@ -358,7 +358,7 @@ onMounted(() => {
           :model-value="statusFilter || ALL_STATUS"
           @update:model-value="(v) => { statusFilter = String(v) === ALL_STATUS ? '' : String(v); reloadFromFirstPage() }"
         >
-          <SelectTrigger class="h-8 w-[7.5rem]">
+          <SelectTrigger class="w-[7.5rem]">
             <SelectValue placeholder="全部" />
           </SelectTrigger>
           <SelectContent>
@@ -451,7 +451,7 @@ onMounted(() => {
                   <span v-if="row.admin_note" class="block truncate text-sm" :title="row.admin_note">{{ row.admin_note }}</span>
                   <span v-else class="text-muted-foreground/60">—</span>
                 </TableCell>
-                <TableCell class="text-right font-medium tabular-nums" :class="row.points <= 0 ? 'text-destructive' : ''">
+                <TableCell class="text-right tabular-nums" :class="row.points <= 0 ? 'text-destructive' : ''">
                   {{ formatCredits(row.points, { creditDigits: 2 }) }}
                 </TableCell>
                 <TableCell class="text-right tabular-nums">
@@ -460,18 +460,18 @@ onMounted(() => {
                 <TableCell class="text-right tabular-nums">
                   <span class="text-success">+{{ formatCredits(row.total_recharged || 0, { creditDigits: 2 }) }}</span>
                 </TableCell>
-                <TableCell class="text-sm tabular-nums">
+                <TableCell class="tabular-nums">
                   <span>{{ row.submitted_count }}</span>
                   <span class="text-muted-foreground/60"> / </span>
                   <span class="text-success">{{ row.completed_count }}</span>
                   <span class="text-muted-foreground/60"> / </span>
                   <span :class="row.failed_count > 0 ? 'text-destructive' : 'text-muted-foreground/60'">{{ row.failed_count }}</span>
                 </TableCell>
-                <TableCell class="text-muted-foreground text-sm tabular-nums">{{ toBJMinute(row.last_login_at) }}</TableCell>
+                <TableCell class="tabular-nums">{{ toBJMinute(row.last_login_at) }}</TableCell>
                 <TableCell class="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
-                      <Button variant="ghost" class="flex h-8 w-8 p-0 data-[state=open]:bg-muted">
+                      <Button variant="ghost" class="flex w-8">
                         <Ellipsis class="size-4" />
                         <span class="sr-only">打开操作菜单</span>
                       </Button>
@@ -559,17 +559,17 @@ onMounted(() => {
                 v-model="createPassword"
                 :type="showCreatePassword ? 'text' : 'password'"
                 placeholder="输入初始密码"
-                class="pr-9"
+
               />
-              <button
+              <Button variant="ghost"
                 type="button"
-                class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+                class="absolute top-1/2 right-2.5 -translate-y-1/2"
                 :title="showCreatePassword ? '隐藏密码' : '显示密码'"
                 @click="showCreatePassword = !showCreatePassword"
               >
                 <EyeOff v-if="showCreatePassword" class="size-4" />
                 <Eye v-else class="size-4" />
-              </button>
+              </Button>
             </div>
           </div>
         </form>

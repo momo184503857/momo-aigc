@@ -5,7 +5,7 @@ const textInput: NodeModule = {
   title: '文本输入',
   description: '输入商品信息、卖点和补充说明。',
   icon: 'EditPen',
-  color: '#0088ff',
+  color: 'var(--ds-chart-blue)',
   inputs: [],
   outputs: [{ id: 'text', name: 'Text', dataType: 'Text', direction: 'output' }],
   defaultConfig: { text: '' },

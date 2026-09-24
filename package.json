@@ -15,7 +15,7 @@
     "check:ui": "node scripts/verify-design-system.mjs",
     "test:ui": "node scripts/test-design-system.mjs",
     "test:ui:browser": "node scripts/test-design-system-browser.cjs",
-    "test:ui:phase-two": "node scripts/test-ui-phase-two.cjs",
+    "test:ui:phase-two": "node scripts/test-ui-phase-two.cjs && node scripts/test-ui-full.cjs && node scripts/test-ui-workflows.cjs",
     "test:ui:auth": "node scripts/test-ui-auth.cjs",
     "test:ui:prompts": "node scripts/test-ui-prompts.cjs"
   },

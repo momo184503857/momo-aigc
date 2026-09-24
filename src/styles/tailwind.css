@@ -1,20 +1,9 @@
-/* ============================================
-   墨墨 AI 生图 — Tailwind v4 + shadcn-vue 语义层
-
-   本文件只做两件事：
-   1. 引入 Tailwind / 动画工具类
-   2. 把 shadcn 语义 token（--background / --primary / --sidebar-* …）
-      桥接到 styles/tokens/ 里已有的 --momo-* 真源
-
-   颜色值一律不在这里硬编码，改配色只需改 tokens/_colors.css。
-   ============================================ */
-
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-/* 深色工具类只作用于最近的主题域，不穿透浅色展厅或旧页面兼容边界。 */
+/* 深色工具类只作用于最近的主题域，不穿透浅色展厅。 */
 @custom-variant dark {
-  @scope (.dark) to (.ds-theme:not(.dark), .legacy-surface) {
+  @scope (.dark) to (.ds-theme:not(.dark)) {
     @slot;
   }
 }
@@ -31,8 +20,8 @@
 @custom-variant data-vertical (&:where([data-orientation="vertical"]));
 
 @theme inline {
-  --font-sans: var(--momo-font-sans);
-  --font-mono: var(--momo-font-mono);
+  --font-sans: var(--ds-font);
+  --font-mono: var(--ds-font-mono);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -73,58 +62,11 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* 阴影阶梯复用 momo token，避免出现第二套阴影语言 */
-  --shadow-sm: var(--momo-shadow-sm);
-  --shadow-md: var(--momo-shadow-md);
-  --shadow-lg: var(--momo-shadow-lg);
+  /* 公共主题阴影 */
+  --shadow-sm: var(--ds-shadow);
+  --shadow-md: var(--ds-shadow);
+  --shadow-lg: var(--ds-shadow);
   --font-heading: var(--font-sans);
-}
-
-:root {
-  --radius: 8px;
-
-  --background: var(--momo-color-bg-page);
-  --foreground: var(--momo-color-text);
-
-  --card: var(--momo-color-bg);
-  --card-foreground: var(--momo-color-text);
-
-  --popover: var(--momo-color-bg);
-  --popover-foreground: var(--momo-color-text);
-
-  --primary: var(--momo-color-brand);
-  --primary-foreground: #ffffff;
-
-  --secondary: var(--momo-color-bg-muted);
-  --secondary-foreground: var(--momo-color-text);
-
-  --muted: var(--momo-color-bg-muted);
-  --muted-foreground: var(--momo-color-text-tertiary);
-
-  --accent: var(--momo-color-brand-subtle);
-  --accent-foreground: var(--momo-color-brand-active);
-
-  --destructive: var(--momo-color-danger);
-  --destructive-foreground: #ffffff;
-
-  --success: var(--momo-color-success);
-  --success-foreground: #ffffff;
-
-  --warning: var(--momo-color-warning);
-  --warning-foreground: #ffffff;
-
-  --border: var(--momo-color-border-soft);
-  --input: var(--momo-color-border);
-  --ring: var(--momo-color-brand);
-
-  --sidebar: var(--momo-color-bg);
-  --sidebar-foreground: var(--momo-color-text-secondary);
-  --sidebar-primary: var(--momo-color-brand);
-  --sidebar-primary-foreground: var(--momo-color-brand-active);
-  --sidebar-accent: var(--momo-color-bg-muted);
-  --sidebar-accent-foreground: var(--momo-color-text);
-  --sidebar-border: var(--momo-color-border-soft);
-  --sidebar-ring: var(--momo-color-brand);
 }
 
 @layer base {
@@ -138,7 +80,7 @@
 
   /* 键盘焦点统一可见，鼠标点击不残留焦点环 */
   :focus-visible {
-    outline: 2px solid var(--momo-color-brand);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
   }
 }
@@ -151,14 +93,14 @@
 /* 表格型页面：内容撑满但不超过阅读上限 */
 @utility content-max {
   width: 100%;
-  max-width: var(--momo-content-max-width);
+  max-width: var(--ds-content-width);
   margin-inline: auto;
 }
 
 /* 表单型 / 阅读型页面：更窄的单列宽度 */
 @utility content-narrow {
   width: 100%;
-  max-width: var(--momo-content-narrow-width);
+  max-width: var(--ds-content-narrow);
   margin-inline: auto;
 }
 
@@ -166,15 +108,15 @@
 @utility surface {
   background-color: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--momo-radius-xl);
-  box-shadow: var(--momo-shadow-sm);
+  border-radius: var(--ds-card-radius);
+  box-shadow: var(--ds-shadow);
 }
 
 /* 图片/媒体网格容器：统一缩略图圆角与描边，避免各页面各写一套 */
 @utility media-tile {
-  border-radius: var(--momo-radius-md);
+  border-radius: var(--ds-radius);
   border: 1px solid var(--border);
-  background-color: var(--momo-color-bg-muted);
+  background-color: var(--muted);
   object-fit: cover;
 }
 

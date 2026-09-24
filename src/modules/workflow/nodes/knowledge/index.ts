@@ -6,7 +6,7 @@ const knowledge: NodeModule = {
   title: '知识库',
   description: '持有大段规则/基调文本，可与上游文本合并输出。',
   icon: 'Notebook',
-  color: '#33c1c1',
+  color: 'var(--ds-chart-teal)',
   inputs: [{ id: 'text', name: 'Text', dataType: 'Text', direction: 'input' }],
   outputs: [{ id: 'text', name: 'Text', dataType: 'Text', direction: 'output' }],
   defaultConfig: { content: '', mergeMode: 'rules-first' },

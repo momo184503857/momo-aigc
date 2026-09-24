@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DsFileInput } from '@/components/design-system'
 /**
  * AdminAiConfig - 管理后台「配置」页：AI 服务商 / 模型 / Key 池管理。
  *
@@ -12,7 +13,7 @@ defineOptions({ name: 'AdminAiConfig' })
 import { ref, computed, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useClipboard } from '@/composables/useClipboard'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import {
   aiConfigApi,
   type ProviderRow,
@@ -23,31 +24,31 @@ import {
   type LogicalModelRouteRow,
 } from '@/services/aiConfigApi'
 import { Plus, RefreshCw, Pencil, Trash2, Key, Unplug, Upload, MessageCircle, Copy, CircleHelp, ArrowUp, ArrowDown, LoaderCircle, CircleCheck, CircleX, X, GripVertical, ChevronDown, Eye, EyeOff } from '@lucide/vue'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Alert, AlertDescription } from '@/components/design-system/primitives/alert'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Checkbox } from '@/components/design-system/primitives/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/design-system/primitives/collapsible'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+} from '@/components/design-system/primitives/dialog'
+import { Input } from '@/components/design-system/primitives/input'
+import { Label } from '@/components/design-system/primitives/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/design-system/primitives/popover'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
+} from '@/components/design-system/primitives/select'
+import { Separator } from '@/components/design-system/primitives/separator'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { Switch } from '@/components/design-system/primitives/switch'
 import {
   Table,
   TableBody,
@@ -56,12 +57,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { UiEmptyState, UiNumberInput } from '@/components/ui'
+} from '@/components/design-system/primitives/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/design-system/primitives/tabs'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/design-system/primitives/tooltip'
+import { UiEmptyState, UiNumberInput } from '@/components/design-system'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const { copy } = useClipboard()
@@ -521,7 +522,7 @@ async function onDebugImageChange(uploadFile: any) {
 }
 
 /** 原生 file input 适配：包装成 onDebugImageChange 期望的 { raw } 结构 */
-const debugFileInput = ref<HTMLInputElement | null>(null)
+const debugFileInput = ref<InstanceType<typeof DsFileInput> | null>(null)
 function onDebugFileInput(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -1061,8 +1062,8 @@ onMounted(() => {
                         <TableCell class="max-w-36 truncate" :title="row.remark">{{ row.remark || '—' }}</TableCell>
                         <TableCell class="text-center">
                           <div class="flex items-center justify-center gap-1">
-                            <Button variant="ghost" size="sm" class="text-primary" @click="openModelEdit(row)"><Pencil />编辑</Button>
-                            <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="deleteModel(row)"><Trash2 />删除</Button>
+                            <Button variant="ghost" size="sm"  @click="openModelEdit(row)"><Pencil />编辑</Button>
+                            <Button variant="destructive" size="sm"  @click="deleteModel(row)"><Trash2 />删除</Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1099,7 +1100,7 @@ onMounted(() => {
                           <div v-if="row.key" class="flex min-w-0 items-center gap-1">
                             <code class="min-w-0 flex-1 truncate font-mono text-sm" :title="row.key">{{ row.key }}</code>
                             <Button
-                              variant="ghost" size="sm" class="text-primary"
+                              variant="ghost" size="sm"
                               @click="copy(row.key, { successMsg: 'Key 已复制' })"
                             ><Copy />复制</Button>
                           </div>
@@ -1137,19 +1138,19 @@ onMounted(() => {
                           <div class="flex items-center justify-center gap-1">
                             <Button
                               v-if="row.status === 'exhausted'"
-                              variant="ghost" size="sm" class="text-success"
+                              variant="ghost" size="sm"
                               @click="reactivateKey(row)"
                             >重新启用</Button>
                             <Button
-                              variant="ghost" size="sm" class="text-success"
+                              variant="ghost" size="sm"
                               :disabled="testingKeyId === row.id"
                               @click="testKey(row)"
                             >
                               <LoaderCircle v-if="testingKeyId === row.id" class="animate-spin" />
                               测试
                             </Button>
-                            <Button variant="ghost" size="sm" class="text-primary" @click="openKeyEdit(row)"><Pencil />编辑</Button>
-                            <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="deleteKey(row)"><Trash2 />删除</Button>
+                            <Button variant="ghost" size="sm"  @click="openKeyEdit(row)"><Pencil />编辑</Button>
+                            <Button variant="destructive" size="sm"  @click="deleteKey(row)"><Trash2 />删除</Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1196,7 +1197,7 @@ onMounted(() => {
                   <div class="grid gap-1.5">
                     <Label>图片</Label>
                     <div class="flex flex-wrap items-center gap-2.5">
-                      <input
+                      <DsFileInput
                         ref="debugFileInput"
                         type="file"
                         accept="image/*"
@@ -1211,7 +1212,7 @@ onMounted(() => {
                       <template v-if="debugImage">
                         <img :src="debugImage.dataUrl" class="media-tile size-14" alt="调试图片" />
                         <span class="text-muted-foreground max-w-56 truncate text-xs">{{ debugImage.name }}（{{ debugImage.mimeType }}）</span>
-                        <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="debugImage = null">移除</Button>
+                        <Button variant="ghost" size="sm"  @click="debugImage = null">移除</Button>
                       </template>
                     </div>
                     <p v-if="debugModelRow && !debugModelRow.supports_vision" class="text-muted-foreground/60 text-xs">
@@ -1269,8 +1270,8 @@ onMounted(() => {
             <span class="text-muted-foreground min-w-0 flex-1 text-xs">标准模型能力由平台代码定义；管理员维护显示名和前台统一售卖价。</span>
           </div>
           <!-- 滚动盒必须是 Table 自带的 table-container：外层 div 滚动时 sticky 表头会被内层 overflow-x-auto 容器吃掉（同 MyQuotaPage） -->
-          <div class="overflow-hidden rounded-lg border [&_[data-slot=table-container]]:max-h-[calc(100vh_-_330px)]">
-            <Table class="[&_th]:bg-card [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:shadow-[inset_0_-1px_0_var(--border)]">
+          <div class="overflow-hidden rounded-lg border ">
+            <Table >
               <TableHeader>
                 <TableRow>
                   <TableHead>Code</TableHead>
@@ -1288,14 +1289,14 @@ onMounted(() => {
                   <TableCell>
                     <Input
                       v-if="renamingId === row.id"
-                      v-model="renamingValue" class="h-7 text-[0.8rem]" maxlength="100"
+                      v-model="renamingValue"  maxlength="100"
                       @keyup.enter="commitRename(row)"
                       @keyup.esc="renamingId = null"
                       @blur="commitRename(row)"
                     />
                     <div v-else class="flex min-h-6 items-center gap-1.5">
                       <span class="min-w-0 flex-1 truncate">{{ row.name }}</span>
-                      <Button variant="ghost" size="sm" class="text-primary" @click="startRename(row)"><Pencil />改名</Button>
+                      <Button variant="ghost" size="sm"  @click="startRename(row)"><Pencil />改名</Button>
                     </div>
                   </TableCell>
                   <TableCell class="text-center">
@@ -1346,7 +1347,7 @@ onMounted(() => {
                   </TableCell>
                   <TableCell class="text-center">{{ row.modelCount }}</TableCell>
                   <TableCell class="text-center">
-                    <Button v-if="row.kind === 'image'" variant="ghost" size="sm" class="text-primary" @click="openRouteEditor(row)">
+                    <Button v-if="row.kind === 'image'" variant="ghost" size="sm"  @click="openRouteEditor(row)">
                       <Pencil />编辑
                     </Button>
                     <span v-else class="text-muted-foreground/60">—</span>
@@ -1597,7 +1598,7 @@ onMounted(() => {
                   <PopoverTrigger as-child>
                     <Button
                       variant="outline"
-                      class="min-w-0 flex-1 justify-between font-normal sm:max-w-[420px]"
+                      class="min-w-0 flex-1 justify-between sm:max-w-[420px]"
                     >
                       <span class="truncate">
                         {{ modelForm.overrideRatios.length ? modelForm.overrideRatios.join('、') : '全部继承' }}
@@ -1711,14 +1712,14 @@ onMounted(() => {
               @dragover.prevent
               @drop.prevent="dropRoute(route)"
             >
-              <button
+              <Button variant="ghost"
                 type="button"
                 class="route-drag-handle"
                 :aria-label="`拖动调整 ${route.providerName} 的顺序`"
                 title="按住拖动调整顺序"
               >
                 <GripVertical class="size-4" />
-              </button>
+              </Button>
               <span class="route-index">{{ index + 1 }}</span>
               <div class="route-main">
                 <div class="route-title-row">
@@ -1787,17 +1788,17 @@ onMounted(() => {
                 v-model="keyForm.key"
                 :type="showKeyInput ? 'text' : 'password'"
                 :placeholder="keyEditing ? '留空表示不修改 Key 内容' : 'ark-... / sk-...'"
-                class="pr-9"
+
               />
-              <button
+              <Button variant="ghost"
                 type="button"
-                class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+                class="absolute top-1/2 right-2.5 -translate-y-1/2"
                 :title="showKeyInput ? '隐藏密码' : '显示密码'"
                 @click="showKeyInput = !showKeyInput"
               >
                 <EyeOff v-if="showKeyInput" class="size-4" />
                 <Eye v-else class="size-4" />
-              </button>
+              </Button>
             </div>
           </div>
           <div class="grid gap-1.5">
@@ -1828,8 +1829,8 @@ onMounted(() => {
 
 <style scoped>
 .form-hint {
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-tertiary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   line-height: 1.6;
 }
 
@@ -1838,48 +1839,48 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--momo-space-3);
-  margin-bottom: var(--momo-space-3);
-  padding: var(--momo-space-2) var(--momo-space-3);
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-sm);
-  background: var(--momo-color-bg-soft);
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-3);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
+  background: var(--muted);
 }
 .route-editor-intro > div {
   display: flex;
   flex-direction: column;
-  gap: var(--momo-space-1);
+  gap: var(--ds-space-1);
   min-width: 0;
 }
 .route-editor-intro span {
-  color: var(--momo-color-text-secondary);
-  font-size: var(--momo-font-size-xs);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
   line-height: 1.6;
 }
 .route-list {
   display: flex;
   flex-direction: column;
-  gap: var(--momo-space-2);
-  max-height: var(--momo-dialog-xs);
+  gap: var(--ds-space-2);
+  max-height: var(--ds-dialog-width);
   overflow-y: auto;
 }
 .route-item {
   display: flex;
   align-items: center;
-  gap: var(--momo-space-2);
-  min-height: calc(var(--momo-space-8) * 2);
-  padding: var(--momo-space-2) var(--momo-space-3);
-  border: 1px solid var(--momo-color-border-soft);
-  border-radius: var(--momo-radius-md);
-  background: var(--momo-color-bg);
-  transition: border-color var(--momo-transition-fast), background-color var(--momo-transition-fast), opacity var(--momo-transition-fast);
+  gap: var(--ds-space-2);
+  min-height: calc(var(--ds-space-8) * 2);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
+  background: var(--card);
+  transition: border-color var(--ds-motion-fast), background-color var(--ds-motion-fast), opacity var(--ds-motion-fast);
 }
 .route-item:hover {
-  border-color: var(--momo-color-brand-border);
-  background: var(--momo-color-brand-subtle);
+  border-color: var(--border);
+  background: var(--accent);
 }
 .route-item-disabled {
-  background: var(--momo-color-bg-soft);
+  background: var(--muted);
 }
 .route-item-disabled .route-main {
   opacity: 0.72;
@@ -1889,72 +1890,70 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--momo-space-7);
-  height: var(--momo-control-height);
+  width: var(--ds-space-7);
+  height: var(--ds-control-height);
   padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--momo-color-text-tertiary);
+
   cursor: grab;
 }
 .route-drag-handle:active { cursor: grabbing; }
 .route-drag-handle:focus-visible {
-  outline: 2px solid var(--momo-color-control-focus);
+
   outline-offset: 2px;
-  border-radius: var(--momo-radius-sm);
+
 }
 .route-index {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--momo-space-6);
-  height: var(--momo-space-6);
+  width: var(--ds-space-6);
+  height: var(--ds-space-6);
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--momo-color-bg-muted);
-  color: var(--momo-color-text-secondary);
-  font-size: var(--momo-font-size-xs);
-  font-weight: var(--momo-font-weight-semibold);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
+  font-weight: var(--ds-weight-heading);
 }
 .route-main { flex: 1; min-width: 0; }
 .route-title-row {
   display: flex;
   align-items: center;
-  gap: var(--momo-space-2);
+  gap: var(--ds-space-2);
   min-width: 0;
 }
 .route-model-name {
   min-width: 0;
   overflow: hidden;
-  color: var(--momo-color-text-secondary);
-  font-size: var(--momo-font-size-xs);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .route-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--momo-space-2) var(--momo-space-3);
-  margin-top: var(--momo-space-1);
-  color: var(--momo-color-text-tertiary);
-  font-size: var(--momo-font-size-xs);
+  gap: var(--ds-space-2) var(--ds-space-3);
+  margin-top: var(--ds-space-1);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
 }
 .route-meta code {
-  color: var(--momo-color-text-secondary);
+  color: var(--muted-foreground);
   word-break: break-all;
 }
 .route-toggle {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--momo-space-1);
+  gap: var(--ds-space-1);
   flex-shrink: 0;
-  color: var(--momo-color-text-secondary);
-  font-size: var(--momo-font-size-xs);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
 }
 .route-keyboard-actions {
   display: flex;
-  gap: var(--momo-space-1);
+  gap: var(--ds-space-1);
   flex-shrink: 0;
 }
 </style>
@@ -1964,14 +1963,14 @@ onMounted(() => {
 .cost-tip {
   min-width: 220px;
   max-width: 360px;
-  font-size: 12px;
+  font-size: var(--ds-font-small);
   line-height: 1.6;
 }
 .cost-tip-title {
   font-weight: 600;
   margin-bottom: 6px;
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid var(--card);
 }
 .cost-tip-row {
   display: flex;

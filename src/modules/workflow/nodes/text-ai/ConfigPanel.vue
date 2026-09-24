@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Info } from '@lucide/vue'
-import { Alert, AlertTitle } from '@/components/ui/alert'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
+import { Input } from '@/components/design-system/primitives/input'
+import { Label } from '@/components/design-system/primitives/label'
 import {
   Select,
   SelectContent,
@@ -11,10 +11,10 @@ import {
   SelectItem,
   SelectLabel,
   SelectTrigger,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+} from '@/components/design-system/primitives/select'
+import { Separator } from '@/components/design-system/primitives/separator'
+import { Switch } from '@/components/design-system/primitives/switch'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 

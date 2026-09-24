@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DsFileInput } from '@/components/design-system'
 /**
  * 批量传表格做图 —— Excel 驱动的批量生图
  *
@@ -32,26 +33,26 @@ import { formatCredits } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
 import type { ModelId } from '@/types/adapter'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
-import { Alert, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Progress } from '@/components/ui/progress'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Checkbox } from '@/components/design-system/primitives/checkbox'
+import { Progress } from '@/components/design-system/primitives/progress'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/design-system/primitives/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 import {
   Table,
   TableBody,
@@ -59,8 +60,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+} from '@/components/design-system/primitives/table'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 
 const router = useRouter()
 const { success, warning, error } = useUiFeedback()
@@ -86,7 +87,7 @@ interface TableRow {
 
 type Step = 'upload' | 'preview' | 'generating'
 const step = ref<Step>('upload')
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<InstanceType<typeof DsFileInput> | null>(null)
 const tableData = ref<TableRow[]>([])
 const nextId = ref(1)
 
@@ -511,7 +512,7 @@ onUnmounted(() => {
         </Button>
         <div class="min-w-0">
           <h2 class="truncate">批量传表格做图</h2>
-          <p class="text-muted-foreground truncate text-[12.5px]">
+          <p class="text-muted-foreground truncate text-sm">
             <template v-if="step === 'upload'">一行 = 一个任务：文件名可选，提示词与图片链接必填</template>
             <template v-else>
               共 {{ tableData.length }} 条 · 已选 {{ selectedCount }} 条 · 参考图 {{ imageTotal }} 张
@@ -523,9 +524,9 @@ onUnmounted(() => {
 
     <template #extra>
       <ol class="border-border mr-1 hidden items-center gap-1.5 border-r pr-4 md:flex">
-        <li v-for="(s, i) in steps" :key="s.label" class="flex items-center gap-1.5 text-[12px]">
+        <li v-for="(s, i) in steps" :key="s.label" class="flex items-center gap-1.5 text-sm">
           <span
-            class="flex size-4 items-center justify-center rounded-full border text-[10px] font-semibold tabular-nums"
+            class="flex size-4 items-center justify-center rounded-full border text-sm font-semibold tabular-nums"
             :class="s.done ? 'border-success bg-success text-white' : 'border-border text-muted-foreground'"
           >
             <CircleCheck v-if="s.done" class="size-2.5" />
@@ -562,46 +563,46 @@ onUnmounted(() => {
             <FileText class="size-5" />
           </span>
           <div class="min-w-0 flex-1">
-            <h3 class="text-[13px] font-semibold">选择填好的 Excel 文件</h3>
-            <p class="text-muted-foreground mt-0.5 text-[12px]">
+            <h3 class="text-sm font-semibold">选择填好的 Excel 文件</h3>
+            <p class="text-muted-foreground mt-0.5 text-sm">
               支持 .xlsx / .xls；解析后进入校对页，可逐条勾选后再提交。
             </p>
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <Button variant="outline" @click="downloadTemplate"><Download />下载模板</Button>
             <Button @click="fileInputRef?.click()"><FileText />上传表格</Button>
-            <input ref="fileInputRef" type="file" accept=".xlsx,.xls" hidden @change="handleFileUpload" />
+            <DsFileInput ref="fileInputRef" type="file" accept=".xlsx,.xls" hidden @change="handleFileUpload" />
           </div>
         </div>
       </section>
 
       <!-- 列格式说明：原先只有一句灰字，现在是可对照填写的规格 -->
       <section class="border-border overflow-hidden rounded-lg border">
-        <h3 class="text-muted-foreground border-border bg-muted/40 border-b px-3 py-1.5 text-[11px] font-medium tracking-wider uppercase">
+        <h3 class="text-muted-foreground border-border bg-muted/40 border-b px-3 py-1.5 text-sm font-medium tracking-wider uppercase">
           表格列格式
         </h3>
-        <dl class="divide-border divide-y text-[12.5px]">
+        <dl class="divide-border divide-y text-sm">
           <div class="flex items-baseline gap-3 px-3 py-2">
             <dt class="w-28 shrink-0 font-medium">文件名</dt>
             <dd class="text-muted-foreground min-w-0 flex-1">可选，仅用于下载时命名，留空则用时间戳</dd>
-            <dd class="text-muted-foreground/70 shrink-0 text-[11px]">示例_01</dd>
+            <dd class="text-muted-foreground/70 shrink-0 text-sm">示例_01</dd>
           </div>
           <div class="flex items-baseline gap-3 px-3 py-2">
             <dt class="w-28 shrink-0 font-medium">
               提示词 <span class="text-destructive">*</span>
             </dt>
             <dd class="text-muted-foreground min-w-0 flex-1">必填，为该行生成任务的实际描述</dd>
-            <dd class="text-muted-foreground/70 shrink-0 text-[11px]">将模特衣服换成红色连衣裙</dd>
+            <dd class="text-muted-foreground/70 shrink-0 text-sm">将模特衣服换成红色连衣裙</dd>
           </div>
           <div class="flex items-baseline gap-3 px-3 py-2">
             <dt class="w-28 shrink-0 font-medium">
               图片链接 <span class="text-destructive">*</span>
             </dt>
             <dd class="text-muted-foreground min-w-0 flex-1">必填，多个链接用半角/全角逗号分隔，作为参考图</dd>
-            <dd class="text-muted-foreground/70 shrink-0 text-[11px]">https://…/a.jpg,https://…/b.jpg</dd>
+            <dd class="text-muted-foreground/70 shrink-0 text-sm">https://…/a.jpg,https://…/b.jpg</dd>
           </div>
         </dl>
-        <p class="text-muted-foreground border-border bg-muted/30 border-t px-3 py-2 text-[11.5px]">
+        <p class="text-muted-foreground border-border bg-muted/30 border-t px-3 py-2 text-sm">
           提示词或图片链接为空的行会在解析时被跳过；列名包含「文件名 / 提示词 / 图片 / 链接」即可自动识别。
         </p>
       </section>
@@ -610,23 +611,23 @@ onUnmounted(() => {
     <!-- Step 2 + 3: 同一张表（预览 / 生成进度） -->
     <div v-if="step !== 'upload'" class="content-max min-w-0">
       <div class="batch-surface border-border bg-card rounded-lg border">
-        <Table>
+        <Table sticky-header max-height="65vh">
           <TableHeader>
             <TableRow>
-              <TableHead class="sticky top-0 z-10 w-9 bg-muted">
+              <TableHead class="sticky top-0 z-10 w-9">
                 <Checkbox
                   :model-value="allSelected ? true : someSelected ? 'indeterminate' : false"
                   aria-label="全选"
                   @update:model-value="toggleAll"
                 />
               </TableHead>
-              <TableHead class="sticky top-0 z-10 w-9 bg-muted text-[11px] font-normal tabular-nums">#</TableHead>
-              <TableHead class="sticky top-0 z-10 w-36 bg-muted">文件名</TableHead>
-              <TableHead class="sticky top-0 z-10 min-w-52 bg-muted">提示词</TableHead>
-              <TableHead class="sticky top-0 z-10 w-24 bg-muted">参考图</TableHead>
+              <TableHead class="sticky top-0 z-10 w-9 tabular-nums">#</TableHead>
+              <TableHead class="sticky top-0 z-10 w-36">文件名</TableHead>
+              <TableHead class="sticky top-0 z-10 min-w-52">提示词</TableHead>
+              <TableHead class="sticky top-0 z-10 w-24">参考图</TableHead>
               <template v-if="step === 'generating'">
-                <TableHead class="sticky top-0 z-10 w-40 bg-muted">状态</TableHead>
-                <TableHead class="sticky top-0 z-10 w-16 bg-muted">结果</TableHead>
+                <TableHead class="sticky top-0 z-10 w-40">状态</TableHead>
+                <TableHead class="sticky top-0 z-10 w-16">结果</TableHead>
               </template>
             </TableRow>
           </TableHeader>
@@ -643,19 +644,19 @@ onUnmounted(() => {
                   @update:model-value="(v) => (row.selected = v === true)"
                 />
               </TableCell>
-              <TableCell class="text-muted-foreground text-[11px] tabular-nums">{{ i + 1 }}</TableCell>
-              <TableCell class="max-w-36 truncate text-[12.5px]" :title="row.filename">
+              <TableCell class="tabular-nums">{{ i + 1 }}</TableCell>
+              <TableCell class="max-w-36 truncate" :title="row.filename">
                 {{ row.filename || '—' }}
               </TableCell>
               <TableCell class="max-w-96 p-0">
-                <button
+                <Button variant="ghost"
                   type="button"
-                  class="hover:bg-muted/60 block w-full cursor-pointer truncate px-2 py-2 text-left text-[12.5px] transition-colors"
+                  class="block w-full cursor-pointer truncate text-left transition-colors"
                   :title="row.prompt"
                   @click="openDetail(row)"
                 >
                   {{ row.prompt }}
-                </button>
+                </Button>
               </TableCell>
               <TableCell>
                 <div class="flex items-center gap-1.5">
@@ -667,10 +668,10 @@ onUnmounted(() => {
                     :alt="fileTail(url)"
                     @error="($event.target as HTMLImageElement).style.display='none'"
                   />
-                  <span v-if="row.imageUrls.length > 2" class="text-muted-foreground text-[11px] tabular-nums">
+                  <span v-if="row.imageUrls.length > 2" class="text-muted-foreground text-sm tabular-nums">
                     +{{ row.imageUrls.length - 2 }}
                   </span>
-                  <span v-else class="text-muted-foreground text-[11px] tabular-nums">
+                  <span v-else class="text-muted-foreground text-sm tabular-nums">
                     {{ row.imageUrls.length }} 张
                   </span>
                 </div>
@@ -696,11 +697,11 @@ onUnmounted(() => {
                         <div class="bg-primary h-full rounded-full transition-all" :style="{ width: row.progress + '%' }" />
                       </div>
                     </div>
-                    <span v-if="row.status === 'in_progress'" class="text-muted-foreground text-[11px] tabular-nums">
+                    <span v-if="row.status === 'in_progress'" class="text-muted-foreground text-sm tabular-nums">
                       {{ row.progress }}%
                     </span>
                   </div>
-                  <p v-if="row.errorMsg" class="text-destructive/90 mt-1 truncate text-[11px]" :title="row.errorMsg">
+                  <p v-if="row.errorMsg" class="text-destructive/90 mt-1 truncate text-sm" :title="row.errorMsg">
                     {{ row.errorMsg }}
                   </p>
                 </TableCell>
@@ -716,7 +717,7 @@ onUnmounted(() => {
                     v-else-if="row.status === 'failed'"
                     variant="ghost"
                     size="sm"
-                    class="text-destructive hover:text-destructive"
+
                     @click="retryRow(row)"
                   >
                     <RefreshCw />重试
@@ -728,7 +729,7 @@ onUnmounted(() => {
         </Table>
       </div>
 
-      <p class="text-muted-foreground mt-2 text-[11.5px]">
+      <p class="text-muted-foreground mt-2 text-sm">
         点击提示词或结果缩略图查看该条任务详情；表格内容以 Excel 为准，不在此页编辑。
       </p>
     </div>
@@ -738,9 +739,9 @@ onUnmounted(() => {
       <div class="content-max flex flex-col gap-2.5">
         <!-- 输出参数：进入生成后不再暴露，避免误改影响「重试」 -->
         <div v-if="step !== 'generating'" class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">参数</span>
+          <span class="text-muted-foreground text-sm font-medium tracking-wider uppercase">参数</span>
           <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-[12px]">模型</span>
+            <span class="text-muted-foreground text-sm">模型</span>
             <ModelChannelSelect
               v-model="selectedModelId"
               class="w-64"
@@ -748,7 +749,7 @@ onUnmounted(() => {
             />
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-[12px]">分辨率</span>
+            <span class="text-muted-foreground text-sm">分辨率</span>
             <ToggleGroup
               type="single"
               variant="outline"
@@ -760,7 +761,7 @@ onUnmounted(() => {
             </ToggleGroup>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-[12px]">宽高比</span>
+            <span class="text-muted-foreground text-sm">宽高比</span>
             <Select v-model="aspectRatio">
               <SelectTrigger class="w-28">
                 <SelectValue placeholder="宽高比" />
@@ -770,7 +771,7 @@ onUnmounted(() => {
               </SelectContent>
             </Select>
           </div>
-          <span class="text-muted-foreground text-[11.5px] tabular-nums">
+          <span class="text-muted-foreground text-sm tabular-nums">
             单价 {{ formatCredits(unitPrice) }} / 任务
           </span>
         </div>
@@ -781,10 +782,10 @@ onUnmounted(() => {
             <Button size="lg" class="min-w-52 gap-2" :disabled="selectedCount === 0" @click="handleGenerate">
               开始生成 · {{ selectedCount }} 个任务 · {{ formatCredits(selectedCost) }}
             </Button>
-            <span v-if="selectedCount === 0" class="text-destructive text-[12px]">
+            <span v-if="selectedCount === 0" class="text-destructive text-sm">
               请至少勾选一条任务
             </span>
-            <span v-else class="text-muted-foreground text-[12px]">
+            <span v-else class="text-muted-foreground text-sm">
               任务按每 3 秒 1 个依次提交，未勾选的行不会提交
             </span>
             <Button variant="outline" size="sm" class="gap-1.5" @click="step = 'upload'">
@@ -795,14 +796,14 @@ onUnmounted(() => {
 
           <div v-else-if="step === 'generating'" class="flex min-w-0 flex-1 flex-col gap-2">
             <div class="flex items-center gap-3">
-              <span class="text-[12px] font-medium whitespace-nowrap">
+              <span class="text-sm font-medium whitespace-nowrap">
                 {{ allDone ? '全部任务已结束' : '正在生成' }}
               </span>
               <Progress
                 :model-value="progressPercent"
-                class="h-1 w-full max-w-md [&_[data-slot=progress-indicator]]:bg-success"
+                class="h-1 w-full max-w-md "
               />
-              <span class="text-muted-foreground text-[11px] tabular-nums whitespace-nowrap">
+              <span class="text-muted-foreground text-sm tabular-nums whitespace-nowrap">
                 {{ completedCount }} / {{ tableData.length }} · 成功 {{ successCount }} · 失败 {{ failedRows.length }} · 进行中 {{ runningCount }}
               </span>
             </div>
@@ -826,11 +827,11 @@ onUnmounted(() => {
                 <RefreshCw class="size-3.5" />
                 重试失败项{{ selectedFailedCount ? `（已选 ${selectedFailedCount}）` : '' }}
               </Button>
-              <span class="text-muted-foreground text-[11.5px]">
+              <span class="text-muted-foreground text-sm">
                 仅下载已勾选的行
               </span>
             </div>
-            <span v-else class="text-muted-foreground text-[12px]">
+            <span v-else class="text-muted-foreground text-sm">
               结果可下载与重试的入口会在全部任务结束后出现
             </span>
           </div>
@@ -847,15 +848,15 @@ onUnmounted(() => {
           任务详情{{ detailRow?.filename ? ` · ${detailRow.filename}` : '' }}
         </DialogTitle>
       </DialogHeader>
-      <div v-if="detailRow" class="flex flex-col gap-4 text-[13px]">
+      <div v-if="detailRow" class="flex flex-col gap-4 text-sm">
         <section>
-          <h3 class="text-muted-foreground mb-1 text-[11px] font-medium tracking-wider uppercase">提示词</h3>
+          <h3 class="text-muted-foreground mb-1 text-sm font-medium tracking-wider uppercase">提示词</h3>
           <p class="border-border bg-muted/30 rounded-md border px-2.5 py-2 leading-6 whitespace-pre-wrap">
             {{ detailRow.prompt }}
           </p>
         </section>
         <section>
-          <h3 class="text-muted-foreground mb-1.5 text-[11px] font-medium tracking-wider uppercase">
+          <h3 class="text-muted-foreground mb-1.5 text-sm font-medium tracking-wider uppercase">
             参考图 · {{ detailRow.imageUrls.length }} 张
           </h3>
           <ul class="flex flex-col gap-1.5">
@@ -865,7 +866,7 @@ onUnmounted(() => {
                 :href="url"
                 target="_blank"
                 rel="noopener"
-                class="text-primary min-w-0 flex-1 truncate text-[12px] hover:underline"
+                class="text-primary min-w-0 flex-1 truncate text-sm hover:underline"
                 :title="url"
               >
                 {{ truncateUrl(url, 56) }}
@@ -875,43 +876,21 @@ onUnmounted(() => {
         </section>
         <section class="border-border flex flex-wrap items-center gap-x-6 gap-y-2 border-t pt-3">
           <span class="flex items-center gap-2">
-            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">状态</span>
+            <span class="text-muted-foreground text-sm tracking-wider uppercase">状态</span>
             <Badge :variant="STATUS_META[detailRow.status].badge">{{ STATUS_META[detailRow.status].label }}</Badge>
           </span>
-          <span v-if="detailRow.progress" class="text-muted-foreground text-[12px] tabular-nums">
+          <span v-if="detailRow.progress" class="text-muted-foreground text-sm tabular-nums">
             进度 {{ detailRow.progress }}%
           </span>
-          <span v-if="detailRow.errorMsg" class="text-destructive text-[12px]">
+          <span v-if="detailRow.errorMsg" class="text-destructive text-sm">
             {{ detailRow.errorMsg }}
           </span>
         </section>
         <section v-if="detailRow.resultUrl" class="border-border border-t pt-3">
-          <h3 class="text-muted-foreground mb-1.5 text-[11px] font-medium tracking-wider uppercase">生成结果</h3>
+          <h3 class="text-muted-foreground mb-1.5 text-sm font-medium tracking-wider uppercase">生成结果</h3>
           <img :src="detailRow.resultUrl" class="border-border w-full rounded-md border object-cover" alt="生成结果" />
         </section>
       </div>
     </DialogContent>
   </Dialog>
 </template>
-
-<style scoped>
-/* 表头随 .page-content 吸顶：shadcn Table 自带 overflow-x 容器会截断 sticky，
-   这里让该容器不产生滚动，滚动仍由 PageLayout 的 .page-content 承担 */
-.batch-surface :deep([data-slot="table-container"]) {
-  overflow: visible;
-}
-
-/* 表头下沿的分隔线画在 th 上，否则吸顶时会随 tr 一起滚走 */
-.batch-surface :deep(thead th) {
-  border-bottom: 1px solid var(--border);
-}
-.batch-surface :deep(thead tr) {
-  border-bottom: 0;
-}
-.batch-surface :deep(thead th:first-child) {
-  border-top-left-radius: var(--momo-radius-lg);
-}
-.batch-surface :deep(thead th:last-child) {
-  border-top-right-radius: var(--momo-radius-lg);
-}
-</style>

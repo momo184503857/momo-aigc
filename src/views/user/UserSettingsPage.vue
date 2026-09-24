@@ -5,12 +5,12 @@ import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/services/authApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useCodeCountdown } from '@/composables/useCodeCountdown'
-import PageLayout from '@/components/PageLayout.vue'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Label } from '@/components/design-system/primitives/label'
+import { Separator } from '@/components/design-system/primitives/separator'
 
 defineOptions({ name: 'UserSettings' })
 
@@ -148,7 +148,7 @@ function togglePasswordReveal(field: PasswordFieldType) {
   <PageLayout>
     <template #header>
       <h2>个人设置</h2>
-      <p class="text-muted-foreground mt-1 text-[13px]">
+      <p class="text-muted-foreground mt-1 text-sm">
         修改账号显示名称、绑定登录邮箱、更换密码。
       </p>
     </template>
@@ -173,16 +173,16 @@ function togglePasswordReveal(field: PasswordFieldType) {
             {{ avatarInitial }}
           </span>
           <div class="min-w-0">
-            <p class="truncate text-[15px] leading-tight font-semibold">
+            <p class="truncate text-sm leading-tight font-semibold">
               {{ auth.user?.nickname || auth.user?.username || '未设置' }}
             </p>
-            <p class="text-muted-foreground mt-0.5 truncate text-[12px]">
+            <p class="text-muted-foreground mt-0.5 truncate text-sm">
               @{{ auth.user?.username }}
             </p>
           </div>
         </div>
 
-        <dl class="mt-5 space-y-2 text-[13px]">
+        <dl class="mt-5 space-y-2 text-sm">
           <div class="flex items-baseline justify-between gap-3">
             <dt class="text-muted-foreground shrink-0">用户名</dt>
             <dd class="min-w-0 truncate font-medium">{{ auth.user?.username }}</dd>
@@ -203,7 +203,7 @@ function togglePasswordReveal(field: PasswordFieldType) {
           </div>
         </dl>
 
-        <p class="text-muted-foreground/80 mt-4 text-[12px] leading-5">
+        <p class="text-muted-foreground/80 mt-4 text-sm leading-5">
           用户名与角色由平台维护，不可自行修改。
         </p>
       </aside>
@@ -214,14 +214,14 @@ function togglePasswordReveal(field: PasswordFieldType) {
         <section class="pt-0.5 pb-6">
           <div class="mb-3.5 flex items-center gap-2">
             <User class="text-muted-foreground size-3.5 shrink-0" />
-            <h3 class="text-[13px] font-semibold">昵称</h3>
-            <p class="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
+            <h3 class="text-sm font-semibold">昵称</h3>
+            <p class="text-muted-foreground min-w-0 flex-1 truncate text-sm">
               展示在工作台中
             </p>
           </div>
 
           <div class="grid items-start gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-4">
-            <Label for="nickname" class="text-muted-foreground pt-2 text-[13px] font-normal">
+            <Label for="nickname" class="text-muted-foreground pt-2 text-sm font-normal">
               显示名称
             </Label>
             <div class="flex flex-wrap items-center gap-2">
@@ -237,10 +237,10 @@ function togglePasswordReveal(field: PasswordFieldType) {
                 <LoaderCircle v-if="nicknameLoading" class="animate-spin" />
                 保存
               </Button>
-              <span class="text-muted-foreground text-[12px] tabular-nums">
+              <span class="text-muted-foreground text-sm tabular-nums">
                 {{ nickname.length }}/32
               </span>
-              <span v-if="nicknameDirty" class="text-warning text-[12px]">未保存</span>
+              <span v-if="nicknameDirty" class="text-warning text-sm">未保存</span>
             </div>
           </div>
         </section>
@@ -251,14 +251,14 @@ function togglePasswordReveal(field: PasswordFieldType) {
         <section v-if="!emailBound" class="py-6">
           <div class="mb-3.5 flex items-center gap-2">
             <ShieldCheck class="text-muted-foreground size-3.5 shrink-0" />
-            <h3 class="text-[13px] font-semibold">绑定邮箱</h3>
-            <p class="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
+            <h3 class="text-sm font-semibold">绑定邮箱</h3>
+            <p class="text-muted-foreground min-w-0 flex-1 truncate text-sm">
               绑定后可用邮箱登录和接收验证码
             </p>
           </div>
 
           <div class="grid items-start gap-3 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-4">
-            <Label for="bind-email" class="text-muted-foreground pt-2 text-[13px] font-normal">
+            <Label for="bind-email" class="text-muted-foreground pt-2 text-sm font-normal">
               邮箱
             </Label>
             <div class="flex flex-wrap items-center gap-2">
@@ -280,7 +280,7 @@ function togglePasswordReveal(field: PasswordFieldType) {
               </Button>
             </div>
 
-            <Label for="bind-code" class="text-muted-foreground pt-2 text-[13px] font-normal">
+            <Label for="bind-code" class="text-muted-foreground pt-2 text-sm font-normal">
               验证码
             </Label>
             <div class="flex flex-wrap items-center gap-2">
@@ -305,85 +305,85 @@ function togglePasswordReveal(field: PasswordFieldType) {
         <section class="pt-6 pb-2">
           <div class="mb-3.5 flex items-center gap-2">
             <Key class="text-muted-foreground size-3.5 shrink-0" />
-            <h3 class="text-[13px] font-semibold">修改密码</h3>
-            <p class="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
+            <h3 class="text-sm font-semibold">修改密码</h3>
+            <p class="text-muted-foreground min-w-0 flex-1 truncate text-sm">
               新密码至少 6 位，修改后需重新登录
             </p>
           </div>
 
           <div class="grid items-start gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-4">
-            <span class="text-muted-foreground pt-2 text-[13px] font-normal">密码</span>
+            <span class="text-muted-foreground pt-2 text-sm font-normal">密码</span>
             <div class="grid gap-3 sm:grid-cols-2 xl:max-w-xl">
               <!-- 旧密码 -->
               <div class="grid content-start gap-1">
-                <Label for="old-password" class="text-[12px] font-normal">旧密码</Label>
+                <Label for="old-password" class="text-sm font-normal">旧密码</Label>
                 <div class="relative">
                   <Input
                     id="old-password"
                     v-model="oldPassword"
                     :type="passwordRevealed.old ? 'text' : 'password'"
                     placeholder="请输入旧密码"
-                    class="pr-9"
+
                     :disabled="passwordLoading"
                   />
-                  <button
+                  <Button variant="ghost"
                     type="button"
-                    class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
+                    class="absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
                     :title="passwordRevealed.old ? '隐藏密码' : '显示密码'"
                     @click="togglePasswordReveal('old')"
                   >
                     <EyeOff v-if="passwordRevealed.old" class="size-4" />
                     <Eye v-else class="size-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               <!-- 新密码 -->
               <div class="grid content-start gap-1">
-                <Label for="new-password" class="text-[12px] font-normal">新密码</Label>
+                <Label for="new-password" class="text-sm font-normal">新密码</Label>
                 <div class="relative">
                   <Input
                     id="new-password"
                     v-model="newPassword"
                     :type="passwordRevealed.new ? 'text' : 'password'"
                     placeholder="至少6位"
-                    class="pr-9"
+
                     :disabled="passwordLoading"
                   />
-                  <button
+                  <Button variant="ghost"
                     type="button"
-                    class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
+                    class="absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
                     :title="passwordRevealed.new ? '隐藏密码' : '显示密码'"
                     @click="togglePasswordReveal('new')"
                   >
                     <EyeOff v-if="passwordRevealed.new" class="size-4" />
                     <Eye v-else class="size-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               <!-- 确认新密码 -->
               <div class="grid content-start gap-1">
-                <Label for="confirm-password" class="text-[12px] font-normal">确认新密码</Label>
+                <Label for="confirm-password" class="text-sm font-normal">确认新密码</Label>
                 <div class="relative">
                   <Input
                     id="confirm-password"
                     v-model="confirmPassword"
                     :type="passwordRevealed.confirm ? 'text' : 'password'"
                     placeholder="请再次输入新密码"
-                    class="pr-9"
+
                     :disabled="passwordLoading"
                     @keyup.enter="handleChangePassword"
                   />
-                  <button
+                  <Button variant="ghost"
                     type="button"
-                    class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
+                    class="absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
                     :title="passwordRevealed.confirm ? '隐藏密码' : '显示密码'"
                     @click="togglePasswordReveal('confirm')"
                   >
                     <EyeOff v-if="passwordRevealed.confirm" class="size-4" />
                     <Eye v-else class="size-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -396,7 +396,7 @@ function togglePasswordReveal(field: PasswordFieldType) {
             </Button>
             <span
               v-if="passwordHint"
-              class="text-[12px]"
+              class="text-sm"
               :class="passwordMismatch ? 'text-destructive' : 'text-muted-foreground'"
             >
               {{ passwordHint }}

@@ -6,11 +6,11 @@ const { success, info, error } = useUiFeedback()
 import { featurePromptApi } from '@/services/featurePromptApi'
 import type { FeaturePromptItem } from '@/services/featurePromptApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import { LoaderCircle } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/design-system/primitives/button'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 
 const categoryGroups = [
   {
@@ -198,12 +198,12 @@ onMounted(() => load())
   gap: 6px;
   margin: 0 0 12px;
   padding: 6px 0;
-  background: var(--momo-color-bg-page);
-  font-size: var(--momo-font-size-xs);
-  font-weight: var(--momo-font-weight-medium);
+  background: var(--background);
+  font-size: var(--ds-font-small);
+  font-weight: var(--ds-weight-medium);
   letter-spacing: 0.06em;
-  color: var(--momo-color-text-secondary);
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
 }
 
 /* 提示词本身已经自带边框，外面再套一层卡片纯属装饰；只留一条发丝线分行 */
@@ -227,9 +227,9 @@ onMounted(() => load())
 }
 
 .feature-label {
-  font-size: var(--momo-font-size-sm);
-  font-weight: var(--momo-font-weight-medium);
-  color: var(--momo-color-text);
+  font-size: var(--ds-font-small);
+  font-weight: var(--ds-weight-medium);
+  color: var(--foreground);
 }
 
 /* 脏标记：文字 + 圆点，比原来「整张卡描边变品牌色」更明确，也不会和焦点态混淆 */
@@ -237,23 +237,23 @@ onMounted(() => load())
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-warning);
+  font-size: var(--ds-font-small);
+  color: var(--warning);
 }
 .dirty-flag::before {
   content: '';
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--momo-color-warning);
+  background: var(--warning);
 }
 
 .uninit {
   margin: 0;
   padding: 10px 12px;
-  border: 1px dashed var(--momo-color-border);
-  border-radius: var(--momo-radius-md);
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-placeholder);
+  border: 1px dashed var(--border);
+  border-radius: var(--ds-radius);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 </style>

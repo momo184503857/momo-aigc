@@ -10,9 +10,9 @@
 import { ref, watch, onMounted, onActivated, nextTick } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success } = useUiFeedback()
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import PhotographyForm from '@/components/PhotographyForm.vue'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/design-system/primitives/badge'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useTaskManager } from '@/composables/useTaskManager'
 

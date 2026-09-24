@@ -7,14 +7,14 @@
  */
 import { ArrowDown, ArrowUp, ChevronsUpDown } from '@lucide/vue'
 import { computed } from 'vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/design-system/primitives/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/design-system/primitives/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 defineOptions({ inheritAttrs: false })

@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { DsFileInput, DsUpload } from '@/components/design-system'
 import { ref } from 'vue'
 import { Plus, RefreshCw, X } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { UiImagePreview } from '@/components/ui'
+import { Button } from '@/components/design-system/primitives/button'
+import { UiImagePreview } from '@/components/design-system'
 defineOptions({ name: 'ImageSlotUpload' })
 
 export interface SlotImage {
@@ -71,7 +72,7 @@ function handleFileInput(e: Event) {
   input.value = ''
 }
 
-const replaceInputRef = ref<HTMLInputElement | null>(null)
+const replaceInputRef = ref<InstanceType<typeof DsFileInput> | null>(null)
 const replacingIndex = ref<number | null>(null)
 
 function handleReplaceClick(index: number) {
@@ -147,36 +148,29 @@ function showPreview(dataUrl: string) {
         :style="{ width: size + 'px', height: size + 'px' }"
       >
         <img :src="img.dataUrl" class="size-full cursor-zoom-in object-cover" @click="showPreview(img.dataUrl)" />
-        <button
+        <Button variant="secondary" size="icon-sm"
           type="button"
-          class="bg-destructive text-destructive-foreground hover:bg-destructive/90 absolute top-1.5 right-1.5 z-2 flex size-5.5 cursor-pointer items-center justify-center rounded-full"
+          class="absolute top-1.5 right-1.5 z-2 flex cursor-pointer items-center justify-center"
+          :aria-label="`删除图片${i + 1}`"
           @click.stop="handleRemove(i)"
         >
           <X class="size-3.5" />
-        </button>
+        </Button>
         <!-- Replace button overlay on bottom-right of image -->
-        <button
+        <Button variant="secondary" size="icon-sm"
           type="button"
-          class="bg-primary text-primary-foreground hover:bg-primary/90 absolute right-1.5 bottom-1.5 z-2 flex size-5.5 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110"
+          class="absolute right-1.5 bottom-1.5 z-2 flex cursor-pointer items-center justify-center transition-transform hover:scale-110"
+          :aria-label="`替换图片${i + 1}`"
           @click="handleReplaceClick(i)"
         >
           <RefreshCw class="size-3.5" />
-        </button>
+        </Button>
       </div>
       <!-- Hidden file input for replace -->
-      <input ref="replaceInputRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
+      <DsFileInput ref="replaceInputRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
         @change="handleFileReplace" />
       <!-- Add button: visible when slot is not yet filled -->
-      <label
-        v-if="modelValue.length < maxCount"
-        class="border-border-strong hover:border-primary text-muted-foreground hover:text-primary flex shrink-0 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed transition-colors"
-        :style="{ width: size + 'px', height: size + 'px' }"
-      >
-        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden
-          @change="handleFileInput" />
-        <Plus class="size-8" :stroke-width="1.5" />
-        <span class="text-muted-foreground text-xs">点击上传</span>
-      </label>
+      <DsUpload v-if="modelValue.length < maxCount" variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
     </div>
     <div v-if="label" class="text-muted-foreground mt-2 text-sm" :class="alignLeft ? 'text-left' : 'text-center'">
       <span v-if="required" class="text-destructive">*</span>
@@ -198,7 +192,7 @@ function showPreview(dataUrl: string) {
       <div
         v-for="t in starredTemplates"
         :key="t.id"
-        class="border-border-light hover:border-primary size-24 shrink-0 cursor-pointer overflow-hidden rounded-sm border-2 transition-all hover:scale-108"
+        class="border-border hover:border-primary size-24 shrink-0 cursor-pointer overflow-hidden rounded-sm border-2 transition-all hover:scale-108"
         :title="t.name"
         @click="emit('starred-select', t)"
       >

@@ -7,21 +7,21 @@ import { Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, LoaderCircle } from '@lu
 import { photographyApi } from '@/services/photographyApi'
 import type { PhotographyElement, PhotographyElementPrompt } from '@/services/photographyApi'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
-import PageLayout from '@/components/PageLayout.vue'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Textarea } from '@/components/ui/textarea'
-import { UiEmptyState, UiNumberInput } from '@/components/ui'
+} from '@/components/design-system/primitives/dialog'
+import { Input } from '@/components/design-system/primitives/input'
+import { Label } from '@/components/design-system/primitives/label'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { UiEmptyState, UiNumberInput } from '@/components/design-system'
 
 // ─── State ───
 interface ElementWithPrompts {
@@ -255,7 +255,7 @@ onMounted(() => load())
         :class="{ inactive: el.status !== 'active' }"
       >
         <div class="element-head">
-          <button
+          <Button variant="ghost"
             type="button"
             class="element-title"
             :aria-expanded="expandedElements.has(el.id)"
@@ -268,7 +268,7 @@ onMounted(() => load())
             <span class="element-meta">
               标识 {{ el.name }} · 最多 {{ el.max_images }} 张图 · {{ el.prompts.length }} 个模型
             </span>
-          </button>
+          </Button>
 
           <div class="element-actions" @click.stop>
             <Button variant="ghost" size="icon-sm" :disabled="ei === 0" title="上移" @click="handleMoveUp(el, ei)">
@@ -288,9 +288,9 @@ onMounted(() => load())
               {{ el.status === 'active' ? '禁用' : '启用' }}
             </Button>
             <Button
-              variant="ghost"
+              variant="destructive"
               size="icon-sm"
-              class="text-destructive hover:text-destructive"
+
               title="删除"
               @click="handleDelete(el)"
             >
@@ -360,11 +360,11 @@ onMounted(() => load())
   display: flex;
   flex-direction: column;
   /* 分行靠发丝线而不是靠卡片：一屏能多看两三个元素 */
-  border-top: 1px solid var(--momo-color-border-soft);
+  border-top: 1px solid var(--border);
 }
 
 .element {
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  border-bottom: 1px solid var(--border);
 }
 .element.inactive {
   opacity: 0.62;
@@ -379,12 +379,12 @@ onMounted(() => load())
   align-items: center;
   gap: 12px;
   padding: 8px 0;
-  background: var(--momo-color-bg-page);
+  background: var(--background);
   border-bottom: 1px solid transparent;
 }
 .element-head:focus-within,
 .element:hover > .element-head {
-  border-bottom-color: var(--momo-color-border-soft);
+  border-bottom-color: var(--border);
 }
 
 .element-title {
@@ -394,9 +394,7 @@ onMounted(() => load())
   flex: 1;
   min-width: 0;
   padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
+
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -406,7 +404,7 @@ onMounted(() => load())
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: var(--momo-color-text-secondary);
+  color: var(--muted-foreground);
   transition: transform 0.2s;
 }
 .chevron.rotated {
@@ -414,9 +412,9 @@ onMounted(() => load())
 }
 
 .element-label {
-  font-size: var(--momo-font-size-base);
-  font-weight: var(--momo-font-weight-semibold);
-  color: var(--momo-color-text);
+  font-size: var(--ds-font-body);
+  font-weight: var(--ds-weight-heading);
+  color: var(--foreground);
   white-space: nowrap;
 }
 
@@ -425,8 +423,8 @@ onMounted(() => load())
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-tertiary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
 
@@ -458,8 +456,8 @@ onMounted(() => load())
   gap: 6px;
   min-width: 0;
   padding-top: 8px;
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 
 .dirty-dot {
@@ -467,7 +465,7 @@ onMounted(() => load())
   height: 5px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--momo-color-warning);
+  background: var(--warning);
 }
 
 @media (max-width: 900px) {

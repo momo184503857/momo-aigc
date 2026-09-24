@@ -5,8 +5,8 @@
  */
 import { ref, computed } from 'vue'
 import { Plus, Trash2 } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
 
 defineOptions({ name: 'SupplementaryImageUpload' })
 
@@ -170,7 +170,7 @@ function showPreview(dataUrl: string) {
           <Button
             variant="destructive"
             size="icon-xs"
-            class="absolute top-1 right-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+            class="absolute top-1 right-1 opacity-0 transition-opacity group-hover:opacity-100"
             @click.stop="handleRemove(index)"
           >
             <Trash2 />
@@ -180,7 +180,7 @@ function showPreview(dataUrl: string) {
           :model-value="img.name"
           placeholder="图片命名"
           :maxlength="10"
-          class="h-7 text-[0.8rem]"
+
           @update:model-value="handleNameChange(index, $event)"
         />
       </div>

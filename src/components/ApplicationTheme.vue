@@ -4,7 +4,6 @@ import { designSystemKey } from '@/components/design-system/context'
 import { DsThemeProvider, TooltipProvider } from '@/components/design-system'
 import { useAppearanceStore } from '@/stores/appearance'
 import FeedbackHost from './FeedbackHost.vue'
-import '@/styles/legacy-surface.css'
 const appearance = useAppearanceStore()
 const parentTheme = inject(designSystemKey, null)
 </script>

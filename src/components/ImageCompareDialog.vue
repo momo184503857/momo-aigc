@@ -307,24 +307,24 @@ defineExpose({ open })
   align-items: center;
   justify-content: space-between;
   padding: 0 0 12px 0;
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
   margin-bottom: 12px;
 }
 .compare-nav-hint kbd {
   display: inline-block;
   padding: 2px 6px;
-  font-size: var(--momo-font-size-xs);
+  font-size: var(--ds-font-small);
   font-family: inherit;
-  background: var(--momo-color-bg-muted);
-  border: 1px solid var(--momo-color-border);
-  border-radius: var(--momo-radius-sm);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius);
   line-height: 1;
 }
 .compare-nav-pos {
   font-weight: 600;
-  color: var(--momo-color-text);
+  color: var(--foreground);
 }
 .compare-layout {
   display: flex;
@@ -347,9 +347,9 @@ defineExpose({ open })
 }
 .compare-title {
   margin: 0;
-  font-size: var(--momo-font-size-base);
+  font-size: var(--ds-font-body);
   font-weight: 600;
-  color: var(--momo-color-text);
+  color: var(--foreground);
 }
 
 /* Zoom container */
@@ -357,8 +357,8 @@ defineExpose({ open })
   flex: 1;
   overflow: hidden;
   position: relative;
-  background: var(--momo-color-bg-muted);
-  border-radius: var(--momo-radius-md);
+  background: var(--muted);
+  border-radius: var(--ds-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -376,11 +376,11 @@ defineExpose({ open })
   position: absolute;
   bottom: 8px;
   right: 8px;
-  background: var(--momo-color-overlay);
-  color: var(--momo-color-text-inverse);
+  background: var(--ds-overlay);
+  color: var(--primary-foreground);
   padding: 2px 8px;
-  border-radius: var(--momo-radius-sm);
-  font-size: var(--momo-font-size-sm);
+  border-radius: var(--ds-radius);
+  font-size: var(--ds-font-small);
   pointer-events: none;
   z-index: 2;
 }
@@ -394,7 +394,7 @@ defineExpose({ open })
   display: flex;
   gap: 4px;
   padding: 6px 8px;
-  background: linear-gradient(transparent, var(--momo-color-overlay));
+  background: linear-gradient(transparent, var(--ds-overlay));
   pointer-events: auto;
   flex-wrap: wrap;
 }
@@ -402,12 +402,12 @@ defineExpose({ open })
   width: 40px;
   height: 40px;
   object-fit: cover;
-  border-radius: var(--momo-radius-sm);
+  border-radius: var(--ds-radius);
   border: 2px solid transparent;
   cursor: pointer;
 }
 .thumb-item.active {
-  border-color: var(--momo-color-brand);
+  border-color: var(--primary);
 }
 
 /* Detail info overlay */
@@ -420,9 +420,9 @@ defineExpose({ open })
   flex-wrap: wrap;
   gap: 12px;
   padding: 6px 10px;
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-inverse);
-  background: linear-gradient(transparent, var(--momo-color-overlay));
+  font-size: var(--ds-font-small);
+  color: var(--primary-foreground);
+  background: linear-gradient(transparent, var(--ds-overlay));
   pointer-events: none;
 }
 
@@ -431,18 +431,18 @@ defineExpose({ open })
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--momo-color-text-secondary);
-  font-size: var(--momo-font-size-sm);
+  color: var(--muted-foreground);
+  font-size: var(--ds-font-small);
 }
 /* Free-gen uses the studio skin without changing other preview entry points. */
-.studio-compare{padding:var(--momo-space-6);border-radius:var(--momo-space-5);background:var(--momo-color-bg-page);border-color:var(--momo-color-border-soft);gap:var(--momo-space-4)}
-.studio-compare-header{color:var(--momo-color-text);padding-right:var(--momo-space-6)}
-.studio-compare .compare-nav-hint{border:0;margin:0;padding:0;gap:var(--momo-space-3)}
-.studio-compare .compare-layout{gap:var(--momo-space-5);min-height:0}
-.studio-compare .compare-side,.studio-compare .compare-main{padding:var(--momo-space-4);border:1px solid var(--momo-color-border-soft);border-radius:var(--momo-space-4);background:var(--momo-color-bg);gap:var(--momo-space-3)}
-.studio-compare .zoom-container{min-height:0;border-radius:var(--momo-radius-xl);background:var(--momo-color-bg-soft)}
-.studio-compare .strip-overlay{background:var(--momo-color-bg);color:var(--momo-color-text-secondary);padding:var(--momo-space-2);gap:var(--momo-space-2);border-top:1px solid var(--momo-color-border-soft)}
-.studio-compare .zoom-info{background:var(--momo-color-brand-subtle);color:var(--momo-color-brand);border-radius:var(--momo-radius-full)}
-.studio-compare .thumb-item{border-radius:var(--momo-radius-md)}
-@media(max-width:640px){.studio-compare{padding:var(--momo-space-3)}.studio-compare .compare-layout{flex-direction:column;height:72vh;gap:var(--momo-space-3)}.studio-compare .compare-side,.studio-compare .compare-main{min-height:0;padding:var(--momo-space-2)}}
+.studio-compare{padding:var(--ds-space-6);border-radius:var(--ds-space-5);background:var(--background);border-color:var(--border);gap:var(--ds-space-4)}
+.studio-compare-header{color:var(--foreground);padding-right:var(--ds-space-6)}
+.studio-compare .compare-nav-hint{border:0;margin:0;padding:0;gap:var(--ds-space-3)}
+.studio-compare .compare-layout{gap:var(--ds-space-5);min-height:0}
+.studio-compare .compare-side,.studio-compare .compare-main{padding:var(--ds-space-4);border:1px solid var(--border);border-radius:var(--ds-space-4);background:var(--card);gap:var(--ds-space-3)}
+.studio-compare .zoom-container{min-height:0;border-radius:var(--ds-card-radius);background:var(--muted)}
+.studio-compare .strip-overlay{background:var(--card);color:var(--muted-foreground);padding:var(--ds-space-2);gap:var(--ds-space-2);border-top:1px solid var(--border)}
+.studio-compare .zoom-info{background:var(--accent);color:var(--primary);border-radius:var(--ds-radius-full)}
+.studio-compare .thumb-item{border-radius:var(--ds-radius)}
+@media(max-width:640px){.studio-compare{padding:var(--ds-space-3)}.studio-compare .compare-layout{flex-direction:column;height:72vh;gap:var(--ds-space-3)}.studio-compare .compare-side,.studio-compare .compare-main{min-height:0;padding:var(--ds-space-2)}}
 </style>

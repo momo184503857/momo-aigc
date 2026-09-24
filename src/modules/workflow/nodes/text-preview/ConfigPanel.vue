@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Info } from '@lucide/vue'
-import { Alert, AlertTitle } from '@/components/ui/alert'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
 </script>
 
 <template>

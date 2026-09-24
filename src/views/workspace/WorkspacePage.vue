@@ -17,8 +17,8 @@ import { useServerStatusStore } from '@/stores/serverStatus'
 import { useTaskManager } from '@/composables/useTaskManager'
 import type { ModelId } from '@/types/adapter'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Button } from '@/components/design-system/primitives/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +26,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/design-system/primitives/dropdown-menu'
 
 const serverStatus = useServerStatusStore()
 const tm = useTaskManager()
@@ -217,7 +217,7 @@ onActivated(async () => {
         </DropdownMenu>
 
         <div class="min-w-0">
-          <h1 class="truncate text-[15px] leading-tight font-semibold">{{ activeLabel }}</h1>
+          <h1 class="truncate text-sm leading-tight font-semibold">{{ activeLabel }}</h1>
           <p class="text-muted-foreground truncate text-xs">{{ activeDesc }}</p>
         </div>
 
@@ -231,7 +231,7 @@ onActivated(async () => {
 
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
-              <Button variant="ghost" size="icon" class="size-8" aria-label="更多操作">
+              <Button variant="ghost" size="icon"  aria-label="更多操作">
                 <Ellipsis class="size-4" />
               </Button>
             </DropdownMenuTrigger>

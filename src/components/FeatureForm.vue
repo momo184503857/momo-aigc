@@ -18,22 +18,22 @@ import SupplementaryImageUpload from './SupplementaryImageUpload.vue'
 import type { SupplementaryImage } from './SupplementaryImageUpload.vue'
 import { templateApi } from '@/services/templateApi'
 import { Star, TriangleAlert, Info, LoaderCircle, Wand2, LayoutTemplate } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Alert, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
+import { Badge } from '@/components/design-system/primitives/badge'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover'
+} from '@/components/design-system/primitives/popover'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 
 const { warning } = useUiFeedback()
 
@@ -431,7 +431,7 @@ defineExpose({ setParams })
       <section v-if="slots.length > 0" class="pb-5">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div class="min-w-0">
-            <h2 class="text-[13px] font-semibold">
+            <h2 class="text-sm font-semibold">
               参考图
               <span class="text-muted-foreground ml-1.5 font-normal">
                 {{ slots.length }} 张 · 支持拖拽图片到框内
@@ -444,33 +444,33 @@ defineExpose({ setParams })
                 <Button size="sm" variant="ghost" class="gap-1.5">
                   <Star class="size-3.5" />
                   收藏模板
-                  <Badge v-if="starredTemplates.length" variant="secondary" class="ml-0.5 h-4 px-1 text-[10px]">
+                  <Badge v-if="starredTemplates.length" variant="secondary" class="ml-0.5 h-4 px-1">
                     {{ starredTemplates.length }}
                   </Badge>
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" class="w-88 p-3">
-                <p class="text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
+                <p class="text-muted-foreground mb-2 text-sm font-medium tracking-wider uppercase">
                   收藏模板
                 </p>
                 <div v-if="starredTemplates.length" class="max-h-64 grid grid-cols-4 gap-2 overflow-y-auto">
-                  <button
+                  <Button variant="ghost"
                     v-for="t in starredTemplates"
                     :key="t.id"
                     type="button"
                     :title="t.name"
-                    class="hover:border-primary aspect-square cursor-pointer overflow-hidden rounded-md border border-border p-0 transition-colors hover:ring-2 hover:ring-ring/30"
+                    class="hover:border-primary aspect-square cursor-pointer overflow-hidden border border-border transition-colors"
                     @click="pickStarred(t)"
                   >
                     <img :src="t.public_url" :alt="t.name" class="size-full object-cover" />
-                  </button>
+                  </Button>
                 </div>
-                <p v-else class="text-muted-foreground py-6 text-center text-[13px]">
+                <p v-else class="text-muted-foreground py-6 text-center text-sm">
                   还没有收藏的模板
                 </p>
                 <div class="mt-2.5 flex items-center justify-between gap-2 border-t pt-2.5">
-                  <span class="text-muted-foreground text-[11px]">点击即填入第一个参考图位</span>
-                  <RouterLink to="/templates" class="text-[12px] text-primary hover:underline">
+                  <span class="text-muted-foreground text-sm">点击即填入第一个参考图位</span>
+                  <RouterLink to="/templates" class="text-sm text-primary hover:underline">
                     去模板图库收藏 ›
                   </RouterLink>
                 </div>
@@ -507,7 +507,7 @@ defineExpose({ setParams })
       <!-- ② 细节补充 -->
       <section v-if="config.hasSupplementaryImages" class="pb-5">
         <div class="mb-3">
-          <h2 class="text-[13px] font-semibold">
+          <h2 class="text-sm font-semibold">
             细节补充
             <span class="text-muted-foreground ml-1.5 font-normal">可选，最多 5 张，每张需命名（如：领口、袖口、面料）</span>
           </h2>
@@ -518,8 +518,8 @@ defineExpose({ setParams })
       <!-- ③ 生成描述 -->
       <section v-if="config.hasUserPrompt" class="pb-3">
         <div class="mb-3 flex items-center justify-between gap-2">
-          <h2 class="text-[13px] font-semibold">{{ userPromptLabel }}</h2>
-          <span class="text-muted-foreground text-[11px] tabular-nums">{{ userPrompt.length }} 字</span>
+          <h2 class="text-sm font-semibold">{{ userPromptLabel }}</h2>
+          <span class="text-muted-foreground text-sm tabular-nums">{{ userPrompt.length }} 字</span>
         </div>
         <Textarea
           v-model="userPrompt"
@@ -547,11 +547,11 @@ defineExpose({ setParams })
       <div class="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">模型</span>
+            <span class="text-muted-foreground text-sm tracking-wider uppercase">模型</span>
             <ModelChannelSelect v-model="selectedModelId" class="w-44" @change="handleModelChange" />
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">分辨率</span>
+            <span class="text-muted-foreground text-sm tracking-wider uppercase">分辨率</span>
             <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
               <SelectTrigger class="w-24">
                 <SelectValue placeholder="选择分辨率" />
@@ -562,7 +562,7 @@ defineExpose({ setParams })
             </Select>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">比例</span>
+            <span class="text-muted-foreground text-sm tracking-wider uppercase">比例</span>
             <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
               <SelectTrigger class="w-20">
                 <SelectValue placeholder="宽高比" />
@@ -573,7 +573,7 @@ defineExpose({ setParams })
             </Select>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-[11px] tracking-wider uppercase">张数</span>
+            <span class="text-muted-foreground text-sm tracking-wider uppercase">张数</span>
             <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
               <SelectTrigger class="w-18">
                 <SelectValue />
@@ -587,7 +587,7 @@ defineExpose({ setParams })
 
         <div class="ml-auto flex items-center gap-3">
           <span
-            class="text-[11px] tabular-nums"
+            class="text-sm tabular-nums"
             :class="blockingHint ? 'text-destructive' : 'text-muted-foreground'"
           >
             {{ blockingHint || '⌘/Ctrl + Enter 快速生成' }}

@@ -19,35 +19,35 @@ import {
 } from '@lucide/vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
 import { ossApi } from '@/services/ossApi'
-import PageLayout from '@/components/PageLayout.vue'
+import { DsScrollPage as PageLayout } from '@/components/design-system'
 import GalleryTagInput from '@/components/gallery/GalleryTagInput.vue'
-import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Separator } from '@/components/ui/separator'
+import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/design-system'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
+import { Label } from '@/components/design-system/primitives/label'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { Separator } from '@/components/design-system/primitives/separator'
 import { cn } from '@/lib/utils'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover'
+} from '@/components/design-system/primitives/popover'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/design-system/primitives/dropdown-menu'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/design-system/primitives/dialog'
 import { useImagePreview } from '@/composables/useImagePreview'
 
 interface TemplateItem {
@@ -454,7 +454,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
   <PageLayout>
     <template #header>
       <h2>模板图库</h2>
-      <p class="text-muted-foreground mt-1 max-w-3xl text-[13px] leading-normal">
+      <p class="text-muted-foreground mt-1 max-w-3xl text-sm leading-normal">
         上传、打标签并检索参考图。被收藏的图片会按你排定的顺序出现在工作台的「收藏模板」里。
       </p>
     </template>
@@ -488,14 +488,14 @@ async function removeFromStarred(tmpl: TemplateItem) {
           </PopoverTrigger>
           <PopoverContent align="start" class="w-64 p-0">
             <div class="px-3 pt-3 pb-2">
-              <p class="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+              <p class="text-muted-foreground text-sm font-medium tracking-wider uppercase">
                 按标签筛选
               </p>
             </div>
             <div v-if="tags.length" class="max-h-72 overflow-y-auto px-2 pb-2">
-              <button
+              <Button variant="ghost"
                 type="button"
-                class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors"
+                class="flex w-full cursor-pointer items-center justify-between gap-2 transition-colors"
                 :class="cn(
                   selectedTagId === undefined
                     ? 'bg-muted font-medium text-foreground'
@@ -505,12 +505,12 @@ async function removeFromStarred(tmpl: TemplateItem) {
               >
                 <span>全部标签</span>
                 <Check v-if="selectedTagId === undefined" class="size-3.5 shrink-0" />
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost"
                 v-for="tag in tags"
                 :key="tag.id"
                 type="button"
-                class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors"
+                class="flex w-full cursor-pointer items-center justify-between gap-2 transition-colors"
                 :class="cn(
                   selectedTagId === tag.id
                     ? 'bg-muted font-medium text-foreground'
@@ -519,12 +519,12 @@ async function removeFromStarred(tmpl: TemplateItem) {
                 @click="selectedTagId = tag.id; tagPopoverOpen = false"
               >
                 <span class="truncate">{{ tag.name }}</span>
-                <span class="text-muted-foreground/70 shrink-0 text-[11px] tabular-nums">
+                <span class="text-muted-foreground/70 shrink-0 text-sm tabular-nums">
                   {{ tag.usage_count }}
                 </span>
-              </button>
+              </Button>
             </div>
-            <p v-else class="text-muted-foreground px-3 py-6 text-center text-[13px]">
+            <p v-else class="text-muted-foreground px-3 py-6 text-center text-sm">
               还没有标签，编辑图片时可新建
             </p>
           </PopoverContent>
@@ -532,7 +532,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
 
         <Separator orientation="vertical" class="h-4" />
 
-        <span class="text-muted-foreground text-[12px] tabular-nums">
+        <span class="text-muted-foreground text-sm tabular-nums">
           共 {{ total }} 张 · 第 {{ currentPage }} / {{ pageCount }} 页
         </span>
 
@@ -550,7 +550,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
         <!-- 选择态：只有选了东西才出现，替代原来常驻的批量条 -->
         <template v-if="selectedIds.size > 0 && !starredMode">
           <Separator orientation="vertical" class="h-4" />
-          <span class="text-[13px] font-medium tabular-nums">已选 {{ selectedIds.size }} 张</span>
+          <span class="text-sm font-medium tabular-nums">已选 {{ selectedIds.size }} 张</span>
           <div class="ml-auto flex items-center gap-2">
             <Button variant="ghost" size="sm" class="gap-1.5" @click="clearSelection">
               <X class="size-3.5" />取消选择
@@ -563,7 +563,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
       </div>
 
       <!-- 收藏模式说明：贴着工具栏，不再单独占一条彩色横幅 -->
-      <p v-if="starredMode" class="text-muted-foreground flex items-center gap-1.5 pt-2 text-[12px]">
+      <p v-if="starredMode" class="text-muted-foreground flex items-center gap-1.5 pt-2 text-sm">
         <GripVertical class="size-3.5 shrink-0" />
         把图片拖到下方「收藏序列」即可设为收藏；在序列里左右拖动调整顺序，越靠左越靠前。
       </p>
@@ -575,7 +575,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
       class="border-destructive/30 bg-destructive/5 flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-12 text-center"
     >
       <TriangleAlert class="text-destructive size-6" :stroke-width="1.5" />
-      <p class="text-[13px] font-medium">图库加载失败</p>
+      <p class="text-sm font-medium">图库加载失败</p>
       <Button size="sm" variant="outline" class="mt-1 gap-1.5" @click="loadTemplates">
         <RefreshCw class="size-3.5" />重试
       </Button>
@@ -633,7 +633,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
 
             <!-- 收藏状态：图块角标 -->
             <div v-if="t.is_starred" class="absolute top-1.5 right-1.5 z-10">
-              <Badge variant="warning" class="h-5 gap-1 border border-border/60 px-1.5 text-[11px]">
+              <Badge variant="warning" class="h-5 gap-1 border border-border/60 px-1.5">
                 <Star class="size-3 fill-current" />收藏
               </Badge>
             </div>
@@ -641,18 +641,18 @@ async function removeFromStarred(tmpl: TemplateItem) {
             <!-- 拖拽模式下的把手：明确「这张可以拖」 -->
             <div
               v-if="starredMode"
-              class="bg-background/90 absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-[11px]"
+              class="bg-background/90 absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-sm"
             >
               <GripVertical class="text-muted-foreground size-3.5" />拖入下方
             </div>
 
             <!-- 批量选择圈：悬停或已选时才现身 -->
-            <button
+            <Button variant="ghost"
               v-else
               type="button"
               :aria-label="selectedIds.has(t.id) ? '取消选择' : '选择这张'"
               :aria-pressed="selectedIds.has(t.id)"
-              class="absolute right-1.5 bottom-1.5 z-20 flex size-6 cursor-pointer items-center justify-center rounded-md border transition-[opacity,background-color,color]"
+              class="absolute right-1.5 bottom-1.5 z-20 flex cursor-pointer items-center justify-center border transition-[opacity,background-color,color]"
               :class="cn(
                 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
                 selectedIds.has(t.id)
@@ -662,7 +662,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
               @click.stop="toggleSelect(t.id)"
             >
               <Check class="size-3.5" />
-            </button>
+            </Button>
 
             <!-- 悬停操作层：预览 + 更多 -->
             <div
@@ -674,7 +674,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
                 size="icon-sm"
                 title="看大图"
                 aria-label="看大图"
-                class="shadow-sm"
+
                 @click.stop="openPreview(t.public_url)"
               >
                 <Eye class="size-3.5" />
@@ -686,7 +686,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
                     size="icon-sm"
                     title="更多操作"
                     aria-label="更多操作"
-                    class="shadow-sm"
+
                     @click.stop
                   >
                     <Ellipsis class="size-3.5" />
@@ -705,12 +705,12 @@ async function removeFromStarred(tmpl: TemplateItem) {
 
           <div class="min-w-0 px-2.5 py-2">
             <p
-              class="truncate text-[13px] leading-5 font-medium"
+              class="truncate text-sm leading-5 font-medium"
               :title="t.name || t.original_filename"
             >
               {{ t.name || t.original_filename }}
             </p>
-            <p class="text-muted-foreground mt-0.5 truncate text-[11px] tabular-nums" :title="templateSpec(t)">
+            <p class="text-muted-foreground mt-0.5 truncate text-sm tabular-nums" :title="templateSpec(t)">
               {{ templateSpec(t) || '未标注尺寸' }}
             </p>
           </div>
@@ -723,7 +723,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
       v-if="total > 0 && !starredMode"
       class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3"
     >
-      <span v-if="total <= pageSize" class="text-muted-foreground text-[12px] tabular-nums">
+      <span v-if="total <= pageSize" class="text-muted-foreground text-sm tabular-nums">
         共 {{ total }} 张图片，全部在本页
       </span>
       <UiPagination
@@ -743,12 +743,12 @@ async function removeFromStarred(tmpl: TemplateItem) {
     <div v-if="starredMode" class="sticky bottom-0 z-10 bg-background pt-3">
       <div class="mb-1.5 flex items-center justify-between gap-3">
         <div class="flex items-baseline gap-2">
-          <span class="text-[13px] font-medium">收藏序列</span>
-          <span class="text-muted-foreground text-[11px] tabular-nums">
+          <span class="text-sm font-medium">收藏序列</span>
+          <span class="text-muted-foreground text-sm tabular-nums">
             {{ starredList.length }} 张 · 越靠左越靠前
           </span>
         </div>
-        <span v-if="dragState" class="text-muted-foreground text-[11px]">松手即保存顺序</span>
+        <span v-if="dragState" class="text-muted-foreground text-sm">松手即保存顺序</span>
       </div>
       <div
         class="border-border bg-card relative rounded-lg border-2 border-dashed p-2.5 transition-colors"
@@ -759,7 +759,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
       >
         <div v-if="starredList.length === 0" class="flex min-h-24 flex-col items-center justify-center gap-1 text-center">
           <Star class="text-muted-foreground/40 size-6" :stroke-width="1.5" />
-          <p class="text-muted-foreground text-[13px]">把上方图片拖到这里设为收藏模板</p>
+          <p class="text-muted-foreground text-sm">把上方图片拖到这里设为收藏模板</p>
         </div>
         <div v-else ref="zoneItemsRef" class="zone-items flex min-h-24 items-start gap-2.5 overflow-x-auto pb-1">
           <div
@@ -772,18 +772,18 @@ async function removeFromStarred(tmpl: TemplateItem) {
             <div class="border-border group-hover/zone:border-primary relative aspect-square overflow-hidden rounded-md border-2 transition-colors">
               <img :src="t.public_url" :alt="t.name" class="pointer-events-none size-full object-cover" />
               <span
-                class="bg-primary text-primary-foreground absolute top-1 left-1 flex size-4.5 items-center justify-center rounded text-[10px] font-semibold tabular-nums"
+                class="bg-primary text-primary-foreground absolute top-1 left-1 flex size-4.5 items-center justify-center rounded text-sm font-semibold tabular-nums"
               >{{ index + 1 }}</span>
-              <button
+              <Button variant="destructive"
                 type="button"
-                class="zone-item-remove bg-foreground/70 text-background absolute top-1 right-1 flex size-4.5 cursor-pointer items-center justify-center rounded opacity-0 transition-opacity group-hover/zone:opacity-100"
+                class="zone-item-remove absolute top-1 right-1 flex cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/zone:opacity-100"
                 aria-label="从收藏序列移除"
                 @click.stop="removeFromStarred(t)"
               >
                 <X class="size-3" />
-              </button>
+              </Button>
             </div>
-            <p class="text-muted-foreground truncate text-center text-[11px]" :title="t.name || t.original_filename">
+            <p class="text-muted-foreground truncate text-center text-sm" :title="t.name || t.original_filename">
               {{ t.name || t.original_filename }}
             </p>
           </div>
@@ -835,7 +835,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
   height: 6px;
 }
 .zone-items::-webkit-scrollbar-thumb {
-  background: var(--momo-color-border);
+  background: var(--border);
   border-radius: 3px;
 }
 .zone-item.is-dragging {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DsSearchInput } from '@/components/design-system'
 import { useMediaQuery, useWindowSize } from '@vueuse/core'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useTaskPanelStore } from '@/stores/taskPanel'
@@ -216,17 +217,17 @@ function clearRemarkSearch() {
           @change="tm.applyFilters"
         />
         <div class="remark-search relative">
-          <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-          <Input
+
+          <DsSearchInput :clearable="false"
             v-model="tm.filterRemark.value"
             placeholder="搜索备注"
-            class="h-7 pl-7.5 text-[0.8rem]"
+
             @keyup.enter="tm.applyFilters"
           />
           <Button variant="ghost" size="icon-xs" aria-label="清除备注搜索"
             v-if="tm.filterRemark.value"
             type="button"
-            class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
+            class="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
             @click="clearRemarkSearch"
           >
             <X class="size-3.5" />
@@ -339,7 +340,7 @@ function clearRemarkSearch() {
 .task-panel-backdrop {
   position: fixed;
   inset: 0;
-  background: var(--momo-overlay-light);
+  background: var(--ds-overlay);
   z-index: 1999;
 }
 
@@ -350,9 +351,9 @@ function clearRemarkSearch() {
   bottom: 0;
   z-index: 2000;
   display: flex;
-  background: var(--momo-color-bg);
-  box-shadow: var(--momo-shadow-lg);
-  max-width: calc(100vw - var(--momo-sidebar-collapsed-width));
+  background: var(--card);
+  box-shadow: var(--ds-shadow);
+  max-width: calc(100vw - var(--ds-sidebar-collapsed-width));
   animation: task-panel-slide-in 0.25s ease-out;
 }
 
@@ -362,12 +363,12 @@ function clearRemarkSearch() {
 }
 
 .task-panel.side-by-side {
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+  box-shadow: -2px 0 8px var(--ds-overlay-soft);
 }
 
 .task-panel.overlay {
-  box-shadow: var(--momo-shadow-lg);
-  border-left: 1px solid var(--momo-color-border-soft);
+  box-shadow: var(--ds-shadow);
+  border-left: 1px solid var(--border);
 }
 
 /* Splitter */
@@ -375,7 +376,7 @@ function clearRemarkSearch() {
   width: 10px;
   flex-shrink: 0;
   cursor: col-resize;
-  background: var(--momo-color-border-soft);
+  background: var(--border);
   transition: background 0.2s, box-shadow 0.2s;
   display: flex;
   align-items: center;
@@ -389,21 +390,21 @@ function clearRemarkSearch() {
   width: 2px;
   height: 24px;
   border-radius: 1px;
-  background: var(--momo-color-text-placeholder);
+  background: var(--muted-foreground);
   transition: background 0.2s, height 0.2s;
 }
 
 .task-panel-splitter:hover,
 .task-panel-splitter.dragging {
-  background: var(--momo-color-brand-border);
-  box-shadow: 0 0 8px var(--momo-color-ring);
+  background: var(--border);
+  box-shadow: 0 0 8px var(--ring);
 }
 
 .task-panel-splitter:hover::before,
 .task-panel-splitter:hover::after,
 .task-panel-splitter.dragging::before,
 .task-panel-splitter.dragging::after {
-  background: var(--momo-color-brand);
+  background: var(--primary);
   height: 32px;
 }
 
@@ -423,7 +424,7 @@ function clearRemarkSearch() {
   justify-content: space-between;
   gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -435,9 +436,9 @@ function clearRemarkSearch() {
 }
 
 .task-panel-title {
-  font-size: var(--momo-font-size-lg);
+  font-size: var(--ds-font-heading);
   font-weight: 600;
-  color: var(--momo-color-text);
+  color: var(--foreground);
   white-space: nowrap;
 }
 
@@ -454,7 +455,7 @@ function clearRemarkSearch() {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap; /* 窄面板时搜索框换行，避免被压缩裁切 */
 }
@@ -469,15 +470,15 @@ function clearRemarkSearch() {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--momo-color-border-soft);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 
 .bulk-count {
-  font-size: var(--momo-font-size-base);
+  font-size: var(--ds-font-body);
   font-weight: 500;
-  color: var(--momo-color-brand);
+  color: var(--primary);
   margin-right: 4px;
 }
 
@@ -496,12 +497,12 @@ function clearRemarkSearch() {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  border-top: 1px solid var(--momo-color-border-soft);
+  border-top: 1px solid var(--border);
 }
 
 .page-size-label {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
   white-space: nowrap;
   display: flex;
   align-items: center;
@@ -510,14 +511,13 @@ function clearRemarkSearch() {
 
 .page-size-inline-input {
   width: 36px;
-  border: none;
-  border-bottom: 1px solid var(--momo-color-border);
-  background: transparent;
+
+  border-bottom: 1px solid var(--border);
+
   text-align: center;
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text);
+
   padding: 2px 0;
-  outline: none;
+
   -moz-appearance: textfield;
 }
 .page-size-inline-input::-webkit-inner-spin-button,
@@ -526,6 +526,6 @@ function clearRemarkSearch() {
   margin: 0;
 }
 .page-size-inline-input:focus {
-  border-bottom-color: var(--momo-color-brand);
+  border-bottom-color: var(--primary);
 }
 </style>

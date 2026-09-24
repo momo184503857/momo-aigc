@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/design-system/primitives/label'
+import { Textarea } from '@/components/design-system/primitives/textarea'
 import type { WorkflowNode } from '@/modules/workflow/types/workflow'
 
 const props = defineProps<{ node: WorkflowNode }>()

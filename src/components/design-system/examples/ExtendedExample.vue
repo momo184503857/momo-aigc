@@ -53,4 +53,5 @@ function send(text:string){messages.value.push({id:String(Date.now()),role:'user
 <U.DsBackTop v-else-if="family==='backtop'" :target="null" />
 <template v-else-if="family==='skip-link'"><U.DsSkipLink target-id="ds-skip-target" /><p id="ds-skip-target" tabindex="-1">主要内容区域</p></template>
 <U.DsNotice v-if="notice" :title="notice" />
-</div></template>
+</div>  <U.DsColorPicker v-if="family === 'color-picker'" model-value="" :presets="['var(--primary)', 'var(--success)', 'var(--warning)']" allow-automatic />
+</template>

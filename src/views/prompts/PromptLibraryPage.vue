@@ -147,7 +147,7 @@ onMounted(loadList)
         <form id="prompt-edit-form" class="ds-stack" @submit.prevent="handleSave">
           <DsField v-slot="field" label="标签">
             <div class="ds-row">
-              <div v-for="tag in form.tags" :key="tag" class="ds-row"><Badge variant="secondary">{{ tag }}</Badge><Button size="icon-sm" variant="ghost" :disabled="saving" :aria-label="`移除标签${tag}`" @click="removeTag(tag)">×</Button></div>
+              <div v-for="tag in form.tags" :key="tag" class="ds-row"><Badge variant="secondary">{{ tag }}</Badge><Button size="icon-sm" variant="destructive" :disabled="saving" :aria-label="`移除标签${tag}`" @click="removeTag(tag)">×</Button></div>
               <Input :id="field.id" v-model="tagInput" :aria-describedby="field.describedby" placeholder="输入标签后回车" :disabled="saving" list="prompt-tag-options" @keydown.enter.prevent="addTagFromInput" />
               <datalist id="prompt-tag-options"><option v-for="tag in allTags" :key="tag" :value="tag" /></datalist>
             </div>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DsSearchInput } from '@/components/design-system'
+import { Button } from '@/components/design-system'
 import { computed, ref, type Component } from 'vue'
 import {
   Blocks,
@@ -14,7 +16,7 @@ import {
   ZoomIn,
 } from '@lucide/vue'
 import { cn } from '@/lib/utils'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/design-system/primitives/input'
 
 defineOptions({ name: 'FeatureNav' })
 
@@ -73,40 +75,35 @@ function select(tabId: string) {
 <template>
   <div class="flex h-full min-h-0 flex-col bg-muted/40">
     <div class="relative shrink-0 p-2 pb-1">
-      <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-4.5 size-3.5 -translate-y-1/2" />
-      <Input
+
+      <DsSearchInput :clearable="false"
         v-model="keyword"
         placeholder="搜索功能"
         aria-label="搜索功能"
-        class="h-8 rounded-md bg-background pr-7 pl-8 text-[13px]"
+
       />
-      <button
+      <Button variant="ghost"
         v-if="keyword"
         type="button"
         aria-label="清除搜索"
-        class="text-muted-foreground hover:text-foreground absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer"
+        class="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer"
         @click="keyword = ''"
       >
         <X class="size-3.5" />
-      </button>
+      </Button>
     </div>
 
     <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-4" aria-label="功能导航">
       <div v-for="group in filteredGroups" :key="group.name" class="mt-3 first:mt-1.5">
-        <p class="text-muted-foreground px-2 pb-1 text-[11px] font-medium tracking-wider uppercase">
+        <p class="text-muted-foreground px-2 pb-1 text-sm font-medium tracking-wider uppercase">
           {{ group.name }}
         </p>
         <ul class="space-y-px">
           <li v-for="tab in group.tabs" :key="tab.id">
-            <button
+            <Button :variant="activeTab === tab.id ? 'secondary' : 'ghost'"
               type="button"
               :aria-current="activeTab === tab.id ? 'page' : undefined"
-              :class="cn(
-                'flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors',
-                activeTab === tab.id
-                  ? 'bg-background text-foreground font-medium shadow-xs ring-1 ring-border/60'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )"
+              class="w-full justify-start gap-2"
               @click="select(tab.id)"
             >
               <component
@@ -114,15 +111,15 @@ function select(tabId: string) {
                 :class="cn('size-4 shrink-0', activeTab === tab.id && 'text-foreground')"
               />
               <span class="truncate">{{ tab.label }}</span>
-              <span v-if="tab.hint" class="text-muted-foreground/80 ml-auto shrink-0 text-[11px] tabular-nums">
+              <span v-if="tab.hint" class="text-muted-foreground/80 ml-auto shrink-0 text-sm tabular-nums">
                 {{ tab.hint }}
               </span>
-            </button>
+            </Button>
           </li>
         </ul>
       </div>
 
-      <p v-if="filteredGroups.length === 0" class="text-muted-foreground px-2 py-8 text-center text-[13px]">
+      <p v-if="filteredGroups.length === 0" class="text-muted-foreground px-2 py-8 text-center text-sm">
         没有匹配「{{ keyword }}」的功能
       </p>
     </nav>

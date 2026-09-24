@@ -1078,5 +1078,53 @@
     "contract": "title、subtitle；default 插槽",
     "events": "无",
     "usage": "登录及验证流程的响应式展示容器，不包含业务逻辑"
+  },
+  {
+    "id": "scroll-page",
+    "title": "滚动页面",
+    "category": "公共组合",
+    "group": "布局",
+    "source": "composites/DsScrollPage.vue",
+    "example": "composite",
+    "family": "scroll-page",
+    "contract": "title/subtitle/maxWidth/contentPadding/showFooter；header/extra/filters/default/footer 插槽",
+    "events": "无",
+    "usage": "固定页头与动作栏；保留 page-content 作为唯一滚动和观察根"
+  },
+  {
+    "id": "file-input",
+    "title": "文件选择入口",
+    "category": "公共组合",
+    "group": "上传",
+    "source": "primitives/DsFileInput.vue",
+    "example": "composite",
+    "family": "file-input",
+    "contract": "accept/multiple/disabled；透传 DOM change；click()/value 供重选",
+    "events": "change(Event)",
+    "usage": "无视觉隐藏选择器；调用方负责文件校验，不请求 API"
+  },
+  {
+    "id": "search-input",
+    "title": "搜索输入",
+    "category": "公共组合",
+    "group": "表单",
+    "source": "composites/DsSearchInput.vue",
+    "example": "composite",
+    "family": "search-input",
+    "contract": "modelValue/disabled/clearable；输入属性透传真实 input",
+    "events": "update:modelValue",
+    "usage": "公共搜索图标与清除按钮布局，页面不覆盖输入内边距"
+  },
+  {
+    "id": "canvas-controls",
+    "title": "画布视图控制",
+    "category": "公共组合",
+    "group": "画布",
+    "source": "composites/DsCanvasControls.vue",
+    "example": "composite",
+    "family": "canvas-controls",
+    "contract": "只展示缩放和适配按钮，不依赖画布业务引擎",
+    "events": "zoomIn/zoomOut/fit",
+    "usage": "业务层连接引擎方法，控件使用公共主题"
   }
 ]

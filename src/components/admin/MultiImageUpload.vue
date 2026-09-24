@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DsFileInput } from '@/components/design-system'
 /**
  * MultiImageUpload — 通用多图上传（OSS 直传，scope=materials）。
  * v-model 为图片 URL 数组；受 max 上限约束（超出提示并截断）。
@@ -9,8 +10,8 @@ import { computed, ref } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { ossApi } from '@/services/ossApi'
 import { X, LoaderCircle, Upload } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { UiImagePreview } from '@/components/ui'
+import { Button } from '@/components/design-system/primitives/button'
+import { UiImagePreview } from '@/components/design-system'
 import { useImagePreview } from '@/composables/useImagePreview'
 
 defineOptions({ name: 'MultiImageUpload' })
@@ -29,7 +30,7 @@ const emit = defineEmits<{
 }>()
 
 const ui = useUiFeedback()
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<InstanceType<typeof DsFileInput> | null>(null)
 /** 并发上传中的占位数（仅展示用） */
 const uploadingCount = ref(0)
 
@@ -141,9 +142,9 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
           <img :src="url" :alt="`图片 ${idx + 1}`" @click.stop="openPreview(url)" />
           <div class="img-overlay">
             <Button
-              variant="ghost"
+              variant="destructive"
               size="icon-xs"
-              class="m-0.5 text-white hover:bg-black/30 hover:text-white"
+              class="m-0.5"
               title="删除"
               @click.stop="removeImage(idx)"
             >
@@ -167,7 +168,7 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
     <div v-if="sortable" class="sort-tip">
       拖拽图片调整顺序{{ captionPrefix ? `，图片顺序即${captionPrefix}顺序` : '' }}
     </div>
-    <input
+    <DsFileInput
       ref="fileInputRef"
       type="file"
       accept="image/*"
@@ -188,9 +189,9 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
 }
 .img-cell {
   position: relative;
-  border-radius: var(--momo-radius-sm);
+  border-radius: var(--ds-radius);
   overflow: hidden;
-  background: var(--momo-color-bg-muted);
+  background: var(--muted);
   display: flex;
   flex-direction: column;
 }
@@ -216,22 +217,22 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
   flex: none;
   padding: 3px 0;
   text-align: center;
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-secondary);
-  background: var(--momo-color-bg-muted);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
+  background: var(--muted);
   user-select: none;
 }
 .img-cell.dragging {
   opacity: 0.45;
 }
 .img-cell.drop-target .img-wrap {
-  outline: 2px dashed var(--momo-color-brand);
+  outline: 2px dashed var(--primary);
   outline-offset: -2px;
 }
 .sort-tip {
-  margin-top: var(--momo-space-2);
-  font-size: var(--momo-font-size-xs);
-  color: var(--momo-color-text-tertiary);
+  margin-top: var(--ds-space-2);
+  font-size: var(--ds-font-small);
+  color: var(--muted-foreground);
 }
 .img-loading {
   width: 100%;
@@ -239,7 +240,7 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--momo-color-text-placeholder);
+  color: var(--muted-foreground);
 }
 .img-overlay {
   position: absolute;
@@ -247,7 +248,7 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.45), transparent 60%);
+  background: linear-gradient(to bottom, var(--ds-overlay-soft), transparent 60%);
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -256,23 +257,23 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
 }
 .upload-trigger {
   aspect-ratio: 1;
-  border: 1px dashed var(--momo-color-border);
-  border-radius: var(--momo-radius-sm);
+  border: 1px dashed var(--border);
+  border-radius: var(--ds-radius);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 4px;
   cursor: pointer;
-  color: var(--momo-color-text-placeholder);
+  color: var(--muted-foreground);
   transition: border-color 0.15s, color 0.15s;
 }
 .upload-trigger:hover {
-  border-color: var(--momo-color-brand);
-  color: var(--momo-color-brand);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 .upload-trigger span {
-  font-size: var(--momo-font-size-xs);
+  font-size: var(--ds-font-small);
 }
 .upload-tip {
   opacity: 0.7;
