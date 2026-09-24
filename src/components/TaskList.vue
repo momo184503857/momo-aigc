@@ -14,6 +14,8 @@ import type { ModelId } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 
 export interface TaskItem {
+  /** 同一次自由生图提交的持久化批次标识 */
+  client_business_id?: string | null
   id: number
   /** 系统任务号（gen-YYYYMMDDHHRRRR，展示/复制/下载命名） */
   task_no?: string

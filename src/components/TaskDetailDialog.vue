@@ -158,8 +158,9 @@ function statusVariant(status: string): 'success' | 'destructive' | 'secondary' 
         </div>
       </div>
 
-      <DialogFooter v-if="task?.status === 'completed' && task?.result_image_urls?.[0]">
-        <Button @click="emit('publish', task!)">
+      <DialogFooter v-if="task && ($slots.actions || (task.status === 'completed' && task.result_image_urls?.[0]))" class="flex-wrap">
+        <slot name="actions" />
+        <Button v-if="task?.status === 'completed' && task?.result_image_urls?.[0]" @click="emit('publish', task!)">
           <Share2 />
           发布到作品库
         </Button>

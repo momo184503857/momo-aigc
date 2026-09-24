@@ -246,9 +246,12 @@ export function useTaskManager() {
     // 乐观任务的模型名就地取自目录：提交/轮询响应都不含 model，缺了任务列表会显示空模型
     const optimisticModelId = useModelCatalogStore().getModel(params.logicalModelId)?.modelId ?? ''
 
+    const submissionId = params.featureId === 'free-gen' ? `free-gen:${crypto.randomUUID()}` : undefined
+
     for (let i = 0; i < cnt; i++) {
       const newTask = reactive<TaskItem>({
         id: 0,
+        client_business_id: submissionId,
         task_no: '',
         provider_task_id: '',
         toapis_task_id: '',
@@ -283,6 +286,7 @@ export function useTaskManager() {
           refImages: params.refImages,
           featureId: params.featureId,
           n: 1,
+          clientBusinessId: submissionId,
           supplementaryImages: params.supplementaryImages,
           promptSegments: params.promptSegments,
           negativePrompt: params.negativePrompt,

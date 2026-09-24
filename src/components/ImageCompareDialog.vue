@@ -15,6 +15,8 @@ const props = defineProps<{
   modelValue: boolean
   initialIndex?: number
   taskId?: number
+  initialResultIndex?: number
+  studio?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -113,6 +115,11 @@ watch(() => props.modelValue, (visible) => {
     }
     // Initialize activeTaskId from the parent-provided taskId anchor
     activeTaskId.value = props.taskId || 0
+    activeRefIndex.value = 0
+    activeResultIndex.value = props.initialResultIndex ?? 0
+    refScale.value = resultScale.value = 1
+    refTranslate.value = { x: 0, y: 0 }
+    resultTranslate.value = { x: 0, y: 0 }
   } else {
     window.removeEventListener('keydown', handleKeydown)
     currentIndex.value = 0
@@ -192,10 +199,11 @@ defineExpose({ open })
   <Dialog :open="modelValue" @update:open="(v: boolean) => { if (!v) close() }">
     <DialogContent
       class="compare-dialog sm:max-w-[90vw]"
+      :class="{ 'studio-compare': studio }"
       @mouseup="handleMouseUp"
       @mousemove="handleMouseMove"
     >
-      <DialogHeader class="sr-only">
+      <DialogHeader :class="studio ? 'studio-compare-header' : 'sr-only'">
         <DialogTitle>图片对比</DialogTitle>
       </DialogHeader>
     <div class="compare-nav-hint">
@@ -426,4 +434,15 @@ defineExpose({ open })
   color: var(--momo-color-text-secondary);
   font-size: var(--momo-font-size-sm);
 }
+/* Free-gen uses the studio skin without changing other preview entry points. */
+.studio-compare{padding:var(--momo-space-6);border-radius:var(--momo-space-5);background:var(--momo-color-bg-page);border-color:var(--momo-color-border-soft);gap:var(--momo-space-4)}
+.studio-compare-header{color:var(--momo-color-text);padding-right:var(--momo-space-6)}
+.studio-compare .compare-nav-hint{border:0;margin:0;padding:0;gap:var(--momo-space-3)}
+.studio-compare .compare-layout{gap:var(--momo-space-5);min-height:0}
+.studio-compare .compare-side,.studio-compare .compare-main{padding:var(--momo-space-4);border:1px solid var(--momo-color-border-soft);border-radius:var(--momo-space-4);background:var(--momo-color-bg);gap:var(--momo-space-3)}
+.studio-compare .zoom-container{min-height:0;border-radius:var(--momo-radius-xl);background:var(--momo-color-bg-soft)}
+.studio-compare .strip-overlay{background:var(--momo-color-bg);color:var(--momo-color-text-secondary);padding:var(--momo-space-2);gap:var(--momo-space-2);border-top:1px solid var(--momo-color-border-soft)}
+.studio-compare .zoom-info{background:var(--momo-color-brand-subtle);color:var(--momo-color-brand);border-radius:var(--momo-radius-full)}
+.studio-compare .thumb-item{border-radius:var(--momo-radius-md)}
+@media(max-width:640px){.studio-compare{padding:var(--momo-space-3)}.studio-compare .compare-layout{flex-direction:column;height:72vh;gap:var(--momo-space-3)}.studio-compare .compare-side,.studio-compare .compare-main{min-height:0;padding:var(--momo-space-2)}}
 </style>

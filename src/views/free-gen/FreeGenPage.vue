@@ -1,20 +1,13 @@
 <script setup lang="ts">
-/**
- * FreeGenPage - 自由生图
- * 从原 WorkspacePage 的「自由生图」tab 拎出的独立页面，直接渲染 GenerationForm。
- *
- * Layout 口径：本页只做一件事——组参数然后提交。所以页头常驻（标题 + 一句话说明 +
- * 渠道/任务状态），主体是一列有界的编排工作台，滚动与吸底生成栏都归 GenerationForm，
- * 页面不再另加一层滚动容器。
- */
+// 正式自由生图工作台：真实生成表单与任务结果双栏。
 import { ref, watch, onMounted, onActivated, nextTick } from 'vue'
 
 defineOptions({ name: 'FreeGen' })
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success } = useUiFeedback()
-import PageLayout from '@/components/PageLayout.vue'
+import FreeGenResults from './FreeGenResults.vue'
 import GenerationForm from '@/components/GenerationForm.vue'
-import { Badge } from '@/components/ui/badge'
+
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useTaskManager } from '@/composables/useTaskManager'
 
@@ -124,24 +117,13 @@ onActivated(async () => {
 </script>
 
 <template>
-  <PageLayout
-    title="自由生图"
-    subtitle="参考图 + 提示词 + 出图参数，一次提交；进度与结果看全局任务面板"
-  >
-    <template #extra>
-      <Badge v-if="serverStatus.loaded && !serverStatus.canGenerate" variant="warning">
-        无可用渠道
-      </Badge>
-      <Badge v-else-if="tm.activeTaskCount.value > 0" variant="secondary" class="tabular-nums">
-        {{ tm.activeTaskCount.value }} 个任务生成中
-      </Badge>
-    </template>
-
-    <!-- 单列表单工作台：列宽收成阅读尺度并撑满可用高度，
-         GenerationForm 内部的滚动区 + 常驻生成栏因此才有确定的高度 -->
-    <div class="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
-      <GenerationForm ref="generationForm"
-        @generate="(p) => handleGenerate({ ...p, featureId: 'free-gen' })" />
-    </div>
-  </PageLayout>
+  <main class="free-gen-studio" aria-label="自由生图工作台">
+    <GenerationForm ref="generationForm" @generate="(p) => handleGenerate({ ...p, featureId: 'free-gen' })" />
+    <FreeGenResults @reuse="tm.handleCopyParams" />
+  </main>
 </template>
+
+<style scoped>
+.free-gen-studio{height:100%;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--momo-space-5);padding:var(--momo-space-6);background:var(--momo-color-bg-page)}
+@media(max-width:800px){.free-gen-studio{overflow:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(640px,80svh) minmax(480px,70svh);padding:var(--momo-space-3);gap:var(--momo-space-3)}}
+</style>

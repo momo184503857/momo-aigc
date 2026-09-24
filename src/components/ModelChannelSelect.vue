@@ -18,6 +18,7 @@ defineOptions({ inheritAttrs: false })
 const props = defineProps<{
   /** 逻辑模型 id；0 = 未选中（由宿主负责默认值） */
   modelValue: number
+  contentPosition?: 'item-aligned' | 'popper'
 }>()
 
 const emit = defineEmits<{
@@ -71,7 +72,7 @@ function priceClass(text: string): string {
         {{ selectedModel?.displayName ?? (modelCatalog.loaded ? '选择模型' : '加载中…') }}
       </span>
     </SelectTrigger>
-    <SelectContent>
+    <SelectContent :position="contentPosition" align="start">
       <SelectItem
         v-for="model in modelCatalog.flatImageModels"
         :key="model.id"
