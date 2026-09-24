@@ -12,7 +12,7 @@ const isGuestPage = computed(() => !!route.meta.guest)
 
 <template>
   <ApplicationTheme>
-  <AdminAuthLayout v-if="isGuestPage" class="legacy-surface">
+  <AdminAuthLayout v-if="isGuestPage">
     <router-view />
   </AdminAuthLayout>
   <AdminLayout v-else>

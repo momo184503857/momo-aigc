@@ -11,6 +11,7 @@ import { useUiFeedback } from './useUiFeedback'
 export function useCodeCountdown() {
   const { success, error } = useUiFeedback()
   const countdown = ref(0)
+  const sending = ref(false)
   let timer: ReturnType<typeof setInterval> | null = null
 
   function start(seconds: number) {
@@ -26,7 +27,8 @@ export function useCodeCountdown() {
   }
 
   async function send(email: string, purpose: CodePurpose): Promise<boolean> {
-    if (countdown.value > 0) return false
+    if (countdown.value > 0 || sending.value) return false
+    sending.value = true
     try {
       await authApi.sendCode(email, purpose)
       success('验证码已发送，请查收邮箱')
@@ -35,11 +37,14 @@ export function useCodeCountdown() {
     } catch (e: any) {
       error(e.response?.data?.error || '验证码发送失败')
       return false
+    } finally {
+      sending.value = false
     }
   }
 
   async function sendCustom(email: string, fn: (email: string) => Promise<unknown>): Promise<boolean> {
-    if (countdown.value > 0) return false
+    if (countdown.value > 0 || sending.value) return false
+    sending.value = true
     try {
       await fn(email)
       success('验证码已发送，请查收邮箱')
@@ -48,6 +53,8 @@ export function useCodeCountdown() {
     } catch (e: any) {
       error(e.response?.data?.error || '验证码发送失败')
       return false
+    } finally {
+      sending.value = false
     }
   }
 
@@ -55,5 +62,5 @@ export function useCodeCountdown() {
     if (timer) clearInterval(timer)
   })
 
-  return { countdown, send, sendCustom }
+  return { countdown, sending, send, sendCustom }
 }

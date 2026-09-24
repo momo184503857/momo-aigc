@@ -85,3 +85,6 @@ export { default as DsReferenceImage } from './composites/DsReferenceImage.vue'
 export { default as DsNavigationDock } from './composites/DsNavigationDock.vue'
 
 export { default as DsTextPicker } from './composites/DsTextPicker.vue'
+
+export { default as DsPasswordInput } from './composites/DsPasswordInput.vue'
+export { default as DsAuthPanel } from './composites/DsAuthPanel.vue'

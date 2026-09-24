@@ -1,32 +1,21 @@
 <script setup lang="ts">
 defineOptions({ name: 'PromptLibraryPage' })
 import { ref, onMounted } from 'vue'
-import { Plus, Pencil, Trash2, Search, Star, LoaderCircle } from '@lucide/vue'
+import { Plus, Pencil, Trash2, Star, LoaderCircle } from '@lucide/vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, error, confirmDanger } = useUiFeedback()
 import { promptLibraryApi } from '@/services/promptLibraryApi'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import { usePromptLibrary } from '@/composables/usePromptLibrary'
-import PageLayout from '@/components/PageLayout.vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
-import { UiEmptyState, UiPagination } from '@/components/ui'
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-
+  Button, Input, Textarea, Badge, Switch, UiEmptyState, UiPagination,
+  DsPage, DsSection, DsField, Skeleton,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/design-system'
 
 // 列表/筛选/分页/收藏 共享逻辑
 const {
-  items, allTags, displayItems, total,
+  loading, allTags, displayItems, total,
   keyword, activeTag, onlyFavorites, page, pageSize,
   load, toggleFavorite,
 } = usePromptLibrary({ pageSize: 10 })
@@ -82,7 +71,7 @@ function validate(): boolean {
 }
 
 async function handleSave() {
-  if (!validate()) return
+  if (saving.value || !validate()) return
 
   saving.value = true
   try {
@@ -119,172 +108,62 @@ onMounted(loadList)
 </script>
 
 <template>
-  <PageLayout>
-    <template #header><h2>提示词库</h2></template>
-    <template #extra>
-      <Button size="sm" @click="openCreate"><Plus />新建提示词</Button>
+  <DsPage title="提示词库">
+    <template #actions><Button @click="openCreate"><Plus />新建提示词</Button></template>
+    <template #filters>
+      <div class="ds-row">
+        <Input v-model="keyword" aria-label="搜索提示词" placeholder="搜索提示词标题和正文" />
+        <div class="ds-row"><Switch id="prompt-favorites" v-model="onlyFavorites" aria-label="仅看收藏" /><label for="prompt-favorites" class="ds-caption">仅看收藏</label></div>
+      </div>
+      <div v-if="allTags.length" class="ds-row" role="group" aria-label="标签筛选">
+        <Button size="sm" :variant="!activeTag ? 'default' : 'outline'" :aria-pressed="!activeTag" @click="activeTag = undefined">全部</Button>
+        <Button v-for="tag in allTags" :key="tag" size="sm" :variant="activeTag === tag ? 'default' : 'outline'" :aria-pressed="activeTag === tag" @click="activeTag = tag">{{ tag }}</Button>
+      </div>
     </template>
-
-    <!-- 筛选容器 -->
-    <div class="filter-bar">
-      <div class="relative w-80 max-w-full">
-        <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-        <Input v-model="keyword" placeholder="搜索提示词标题和正文" class="pl-8" />
-      </div>
-      <div class="filter-fav">
-        <span class="filter-fav-label">仅看收藏</span>
-        <Switch v-model="onlyFavorites" />
-      </div>
-    </div>
-
-    <!-- 标签筛选条 -->
-    <div v-if="allTags.length > 0" class="tag-filter">
-      <Badge
-        :variant="!activeTag ? 'default' : 'secondary'"
-        class="tag-chip"
-        @click="activeTag = undefined"
-      >
-        全部
-      </Badge>
-      <Badge
-        v-for="tag in allTags"
-        :key="tag"
-        :variant="activeTag === tag ? 'default' : 'secondary'"
-        class="tag-chip"
-        @click="activeTag = tag"
-      >
-        {{ tag }}
-      </Badge>
-    </div>
-
-    <UiEmptyState v-if="!displayItems.length" title="暂无提示词，点击右上角创建" />
-
-    <div v-else class="prompt-list">
-      <div v-for="item in displayItems" :key="item.id" class="prompt-item">
-        <Star
-          class="fav-btn"
-          :class="{ active: item.is_starred }"
-          @click="toggleFavorite(item)"
-        />
-        <div class="item-main">
-          <div class="item-name">
-            {{ item.name }}
-            <Badge v-if="Object.values(item.segments || {}).some(Boolean)" variant="success" class="struct-badge">结构化</Badge>
-          </div>
-          <div class="item-content">{{ item.content }}</div>
-          <div v-if="item.tags.length" class="item-tags">
-            <Badge v-for="tag in item.tags" :key="tag" variant="secondary">{{ tag }}</Badge>
-          </div>
+    <div v-if="loading" role="status" aria-label="正在加载提示词" class="ds-stack"><Skeleton v-for="n in 3" :key="n" class="h-20" /></div>
+    <UiEmptyState v-else-if="!displayItems.length" title="暂无提示词" description="调整筛选条件或新建提示词" />
+    <div v-else class="ds-stack">
+      <DsSection v-for="item in displayItems" :key="item.id" :title="item.name">
+        <template #actions>
+          <Button size="icon-sm" :variant="item.is_starred ? 'secondary' : 'ghost'" :aria-label="`${item.is_starred ? '取消收藏' : '收藏'}${item.name}`" :aria-pressed="item.is_starred" @click="toggleFavorite(item)"><Star /></Button>
+        </template>
+        <p class="ds-content-excerpt">{{ item.content }}</p>
+        <div class="ds-row">
+          <Badge v-if="Object.values(item.segments || {}).some(Boolean)" variant="success">结构化</Badge>
+          <Badge v-for="tag in item.tags" :key="tag" variant="secondary">{{ tag }}</Badge>
         </div>
-        <div class="item-actions">
+        <template #footer>
           <Button size="sm" variant="outline" @click="openEdit(item)"><Pencil />编辑</Button>
-          <Button size="sm" variant="ghost" class="text-destructive hover:text-destructive" @click="handleDelete(item)"><Trash2 />删除</Button>
-        </div>
-      </div>
+          <Button size="sm" variant="destructive" @click="handleDelete(item)"><Trash2 />删除</Button>
+        </template>
+      </DsSection>
     </div>
-
-    <!-- 分页器 -->
-    <div v-if="total > pageSize" class="pagination-wrap">
-      <UiPagination
-        v-model:current-page="page"
-        :page-size="pageSize"
-        :page-sizes="[pageSize]"
-        :total="total"
-      />
-    </div>
-
-    <Dialog :open="dialogVisible" @update:open="(v: boolean) => (dialogVisible = v)">
-      <DialogContent class="edit-dialog sm:max-w-4xl" @pointer-down-outside.prevent>
-        <DialogHeader>
-          <DialogTitle>{{ isEditing ? '编辑提示词' : '新建提示词' }}</DialogTitle>
-        </DialogHeader>
-
-        <div class="flex flex-col gap-4">
-          <div class="grid gap-1.5">
-            <Label>标签</Label>
-            <div class="flex flex-wrap items-center gap-1.5">
-              <Badge v-for="tag in form.tags" :key="tag" variant="secondary" class="gap-1">
-                {{ tag }}
-                <button type="button" class="hover:text-destructive cursor-pointer" @click="removeTag(tag)">×</button>
-              </Badge>
-              <Input
-                v-model="tagInput"
-                placeholder="输入标签后回车"
-                class="h-7 w-40 text-[0.8rem]"
-                list="prompt-tag-options"
-                @keyup.enter.prevent="addTagFromInput"
-              />
-              <datalist id="prompt-tag-options">
-                <option v-for="tag in allTags" :key="tag" :value="tag" />
-              </datalist>
+    <template #footer>
+      <UiPagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :page-sizes="[pageSize]" :total="total" />
+    </template>
+    <Dialog :open="dialogVisible" @update:open="(v: boolean) => { if (!saving) dialogVisible = v }">
+      <DialogContent class="sm:max-w-4xl" @pointer-down-outside.prevent>
+        <DialogHeader><DialogTitle>{{ isEditing ? '编辑提示词' : '新建提示词' }}</DialogTitle><DialogDescription>设置标签、名称和提示词内容。</DialogDescription></DialogHeader>
+        <form id="prompt-edit-form" class="ds-stack" @submit.prevent="handleSave">
+          <DsField v-slot="field" label="标签">
+            <div class="ds-row">
+              <div v-for="tag in form.tags" :key="tag" class="ds-row"><Badge variant="secondary">{{ tag }}</Badge><Button size="icon-sm" variant="ghost" :disabled="saving" :aria-label="`移除标签${tag}`" @click="removeTag(tag)">×</Button></div>
+              <Input :id="field.id" v-model="tagInput" :aria-describedby="field.describedby" placeholder="输入标签后回车" :disabled="saving" list="prompt-tag-options" @keydown.enter.prevent="addTagFromInput" />
+              <datalist id="prompt-tag-options"><option v-for="tag in allTags" :key="tag" :value="tag" /></datalist>
             </div>
-          </div>
-          <div class="grid gap-1.5">
-            <Label for="prompt-name">名称</Label>
-            <Input id="prompt-name" v-model="form.name" placeholder="提示词名称" maxlength="100" />
-            <p v-if="formErrors.name" class="text-destructive text-xs">{{ formErrors.name }}</p>
-          </div>
-          <div class="grid gap-1.5">
-            <Label for="prompt-content">内容</Label>
-            <Textarea id="prompt-content" v-model="form.content" :rows="6" placeholder="请输入提示词内容" />
-            <p v-if="formErrors.content" class="text-destructive text-xs">{{ formErrors.content }}</p>
-          </div>
-        </div>
-
+          </DsField>
+          <DsField v-slot="field" label="名称" required :error="formErrors.name">
+            <Input :id="field.id" v-model="form.name" :aria-describedby="field.describedby" :aria-invalid="field.invalid" :disabled="saving" placeholder="提示词名称" maxlength="100" />
+          </DsField>
+          <DsField v-slot="field" label="内容" required :error="formErrors.content">
+            <Textarea :id="field.id" v-model="form.content" :aria-describedby="field.describedby" :aria-invalid="field.invalid" :disabled="saving" :rows="6" placeholder="请输入提示词内容" />
+          </DsField>
+        </form>
         <DialogFooter>
-          <Button variant="outline" @click="dialogVisible = false">取消</Button>
-          <Button :disabled="saving" @click="handleSave">
-            <LoaderCircle v-if="saving" class="animate-spin" />
-            保存
-          </Button>
+          <Button variant="outline" :disabled="saving" @click="dialogVisible = false">取消</Button>
+          <Button type="submit" form="prompt-edit-form" :disabled="saving" :aria-busy="saving"><LoaderCircle v-if="saving" class="animate-spin" />保存</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  </PageLayout>
+  </DsPage>
 </template>
-
-<style scoped>
-.filter-bar {
-  display: flex; align-items: center; gap: 16px;
-  margin-bottom: 12px;
-}
-.filter-fav { display: flex; align-items: center; gap: 8px; }
-.filter-fav-label { font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); }
-
-.tag-filter {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  margin-bottom: 14px;
-}
-.tag-chip { cursor: pointer; user-select: none; }
-
-.prompt-list { display: flex; flex-direction: column; gap: 8px; }
-.prompt-item {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 12px; background: var(--momo-color-bg-soft);
-  border-radius: var(--momo-radius-md); border: 1px solid var(--momo-color-border-light);
-}
-.fav-btn {
-  flex-shrink: 0; cursor: pointer; margin-top: 2px;
-  width: 18px; height: 18px;
-  color: var(--momo-color-text-placeholder); transition: color 0.2s;
-}
-.fav-btn:hover { color: var(--momo-color-warning); }
-.fav-btn.active { color: var(--momo-color-warning); fill: var(--momo-color-warning); }
-.item-main { flex: 1; min-width: 0; }
-.item-name { font-weight: 600; font-size: var(--momo-font-size-base); color: var(--momo-color-text); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
-.struct-badge { flex-shrink: 0; }
-.item-content {
-  font-size: var(--momo-font-size-sm); color: var(--momo-color-text-secondary); white-space: pre-wrap; word-break: break-all;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
-.item-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-.item-actions { flex-shrink: 0; display: flex; gap: 4px; }
-
-.pagination-wrap { display: flex; justify-content: center; margin-top: 16px; }
-
-.edit-dialog {
-  height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-</style>

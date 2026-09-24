@@ -28,6 +28,21 @@ for (const file of walk('src').filter(f => /\.(vue|ts|css)$/.test(f) && !f.inclu
     assert(!source.includes('<Teleport to="body">'), `${file}: 浮层不能逃离主题`)
   }
 }
+// 已迁移范围不允许使用存量豁免；每批验收后再扩展此清单。
+const migratedFiles = new Set([
+  'src/layouts/AuthShell.vue',
+  'src/views/login/LoginPage.vue',
+  'src/views/login/RegisterPage.vue',
+  'src/views/login/ForgotPasswordPage.vue',
+  'src/admin/views/AdminLoginPage.vue',
+  'src/views/prompts/PromptLibraryPage.vue',
+])
+for (const file of migratedFiles) {
+  const source = fs.readFileSync(file, 'utf8')
+  assert(!source.includes('--momo-'), `${file}: 已迁移文件不得使用旧主题`)
+  assert(!source.includes('legacy-surface'), `${file}: 已迁移文件不得退回兼容主题`)
+  assert(!findings.some(f => f.file === file), `${file}: 已迁移文件不得使用存量 UI 豁免`)
+}
 const baselinePath = 'scripts/design-system-baseline.json'
 // 显式刷新只允许维护存量清单；CI/默认检查绝不自动接受新增问题。
 if(process.argv.includes('--write-baseline')) {

@@ -1,20 +1,5 @@
 [
   {
-    "file": "src/admin/views/AdminLoginPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/button'"
-  },
-  {
-    "file": "src/admin/views/AdminLoginPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/input'"
-  },
-  {
-    "file": "src/admin/views/AdminLoginPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/label'"
-  },
-  {
     "file": "src/components/FeatureForm.vue",
     "rule": "visual-override",
     "text": "class=\"text-[13px] font-semibold\""
@@ -838,11 +823,6 @@
     "file": "src/components/sg/ThemeCard.vue",
     "rule": "legacy-import",
     "text": "from '@/components/ui/badge'"
-  },
-  {
-    "file": "src/layouts/AuthShell.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/card'"
   },
   {
     "file": "src/modules/workflow/components/WorkflowCanvas.vue",
@@ -2370,81 +2350,6 @@
     "text": "from '@/components/ui/tabs'"
   },
   {
-    "file": "src/views/login/ForgotPasswordPage.vue",
-    "rule": "native-control",
-    "text": "<button"
-  },
-  {
-    "file": "src/views/login/ForgotPasswordPage.vue",
-    "rule": "native-control",
-    "text": "<button"
-  },
-  {
-    "file": "src/views/login/ForgotPasswordPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/button'"
-  },
-  {
-    "file": "src/views/login/ForgotPasswordPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/input'"
-  },
-  {
-    "file": "src/views/login/ForgotPasswordPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/label'"
-  },
-  {
-    "file": "src/views/login/LoginPage.vue",
-    "rule": "native-control",
-    "text": "<button"
-  },
-  {
-    "file": "src/views/login/LoginPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/button'"
-  },
-  {
-    "file": "src/views/login/LoginPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/input'"
-  },
-  {
-    "file": "src/views/login/LoginPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/label'"
-  },
-  {
-    "file": "src/views/login/LoginPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/tabs'"
-  },
-  {
-    "file": "src/views/login/RegisterPage.vue",
-    "rule": "native-control",
-    "text": "<button"
-  },
-  {
-    "file": "src/views/login/RegisterPage.vue",
-    "rule": "native-control",
-    "text": "<button"
-  },
-  {
-    "file": "src/views/login/RegisterPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/button'"
-  },
-  {
-    "file": "src/views/login/RegisterPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/input'"
-  },
-  {
-    "file": "src/views/login/RegisterPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/label'"
-  },
-  {
     "file": "src/views/photography/PhotographyPage.vue",
     "rule": "legacy-import",
     "text": "from '@/components/ui/badge'"
@@ -2526,56 +2431,6 @@
   },
   {
     "file": "src/views/prompt-workshop/PromptWorkshopPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/dialog'"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "visual-override",
-    "text": "class=\"h-7 w-40 text-[0.8rem]\""
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "native-control",
-    "text": "<button"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/button'"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/input'"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/textarea'"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/label'"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/badge'"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui/switch'"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
-    "rule": "legacy-import",
-    "text": "from '@/components/ui'"
-  },
-  {
-    "file": "src/views/prompts/PromptLibraryPage.vue",
     "rule": "legacy-import",
     "text": "from '@/components/ui/dialog'"
   },

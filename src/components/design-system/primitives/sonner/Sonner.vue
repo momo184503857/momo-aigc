@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { ToasterProps } from 'vue-sonner'
+import 'vue-sonner/style.css'
 
 import {
   CircleCheckIcon,

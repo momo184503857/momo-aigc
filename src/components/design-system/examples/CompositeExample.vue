@@ -14,6 +14,10 @@ const message = ref('')
 const status = computed(() => props.state === 'error' ? 'failed' : props.state === 'loading' ? 'running' : props.state === 'empty' ? 'pending' : 'done')
 </script>
 <template>
+  <U.DsField v-if="family === 'password-input'" v-slot="field" label="密码示例" :error="state === 'error' ? '请输入有效密码' : undefined">
+    <U.DsPasswordInput :id="field.id" v-model="keyword" :aria-describedby="field.describedby" :aria-invalid="field.invalid" :disabled="state === 'disabled' || state === 'loading'" autocomplete="new-password" />
+  </U.DsField>
+  <U.DsAuthPanel v-if="family === 'auth-panel'" subtitle="认证面板示例"><p class="ds-caption">此处展示业务表单，不发送认证请求。</p></U.DsAuthPanel>
   <div v-if="family === 'text-picker'">
     <U.Button variant="outline" @click="pickerOpen = true">选择文本（模拟）</U.Button>
     <U.DsTextPicker v-model:open="pickerOpen" :items="state === 'empty' ? [] : [{id:'sample',title:'商品摄影',content:'柔和自然光，保留商品细节',tags:['摄影'],starred:true}]" :tags="['摄影']" :total="state === 'empty' ? 0 : 1" :page-size="8" :loading="state === 'loading'" :empty="state === 'empty'" @select="message = '已选择：' + $event; pickerOpen = false" @favorite="message = '收藏事件：' + $event" />

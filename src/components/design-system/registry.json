@@ -1054,5 +1054,29 @@
     "usage": "业务层负责加载、筛选、收藏与选择；公共层管理弹窗及条目视觉",
     "group": "内容选择",
     "events": "select(id)、favorite(id)、closeAutoFocus(event)"
+  },
+  {
+    "id": "password-input",
+    "title": "密码输入",
+    "category": "公共组合",
+    "group": "表单",
+    "source": "composites/DsPasswordInput.vue",
+    "example": "composite",
+    "family": "password-input",
+    "contract": "受控 modelValue；disabled；输入属性透传真实 input",
+    "events": "update:modelValue",
+    "usage": "密码显隐与键盘操作；不访问认证接口"
+  },
+  {
+    "id": "auth-panel",
+    "title": "认证面板",
+    "category": "公共组合",
+    "group": "布局",
+    "source": "composites/DsAuthPanel.vue",
+    "example": "composite",
+    "family": "auth-panel",
+    "contract": "title、subtitle；default 插槽",
+    "events": "无",
+    "usage": "登录及验证流程的响应式展示容器，不包含业务逻辑"
   }
 ]

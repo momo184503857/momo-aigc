@@ -283,3 +283,22 @@
 .ds-picker-pagination { display:flex; justify-content:center; margin-top:var(--ds-space-3); }
 @keyframes ds-picker-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .ds-picker-spinner { animation:none; } }
+
+/* 认证组合：控件视觉由公共层统一定义，页面只组合业务字段。 */
+.ds-auth-shell { min-height:100svh; width:100%; display:grid; place-items:center; padding:var(--ds-space-4); background:var(--background); }
+.ds-auth-panel { width:100%; max-width:400px; min-width:0; }
+.ds-auth-heading { display:flex; flex-direction:column; align-items:center; text-align:center; }
+.ds-auth-mark { display:grid; place-items:center; width:40px; height:40px; border-radius:var(--ds-radius); background:var(--primary); color:var(--primary-foreground); }
+.ds-auth-mark svg { width:20px; height:20px; }
+.ds-auth-form { display:grid; gap:var(--ds-space-4); }
+.ds-auth-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:var(--ds-space-2); margin-top:var(--ds-space-5); color:var(--muted-foreground); font-size:var(--ds-font-small); }
+.ds-password-input { display:flex; align-items:center; gap:var(--ds-space-1); min-width:0; }
+.ds-password-input > input { flex:1; min-width:0; }
+.ds-password-input > button { flex-shrink:0; }
+.ds-code-input { display:flex; align-items:center; gap:var(--ds-space-2); min-width:0; }
+.ds-code-input > input { flex:1; min-width:0; }
+.ds-code-input > button { flex-shrink:0; }
+.ds-auth-tabs { width:100%; }
+.ds-auth-tabs [data-slot='tabs-list'] { width:100%; }
+
+.ds-content-excerpt { color:var(--muted-foreground); font-size:var(--ds-font-small); white-space:pre-wrap; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }

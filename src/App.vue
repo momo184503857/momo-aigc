@@ -17,7 +17,7 @@ const isAdminPage = computed(() => route.path.startsWith('/admin'))
 <template>
   <router-view v-if="isPrototype" />
   <ApplicationTheme v-else>
-  <AuthLayout v-if="isGuestPage" class="legacy-surface">
+  <AuthLayout v-if="isGuestPage">
     <router-view />
   </AuthLayout>
   <AdminApp v-else-if="isAdminPage">
