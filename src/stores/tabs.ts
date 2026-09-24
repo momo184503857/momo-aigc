@@ -1,19 +1,8 @@
+import { routeMetaMap } from '@/configs/navigation'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  Award,
-  BookOpen,
-  Image as ImageIcon,
-  Layers,
-  LayoutTemplate,
-  NotebookPen,
-  PenLine,
-  ScrollText,
-  Sparkles,
-  Users,
-  Workflow,
-} from '@lucide/vue'
+import { Workflow } from '@lucide/vue'
 import type { Component } from 'vue'
 
 export interface TabItem {
@@ -29,24 +18,7 @@ const STORAGE_KEY = 'momo_tabs'
 
 // Route path -> { title, icon, componentName } mapping
 // 图标与 SidebarMenu 保持同一套语义映射
-const ROUTE_META_MAP: Record<string, { title: string; icon: Component; componentName: string }> = {
-  '/free-gen': { title: '自由生图', icon: PenLine, componentName: 'FreeGen' },
-  '/workspace': { title: '快速生图', icon: Sparkles, componentName: 'Workspace' },
-  '/templates': { title: '模板图库', icon: LayoutTemplate, componentName: 'TemplatesPage' },
-  '/results': { title: '生图结果', icon: ImageIcon, componentName: 'ResultsPage' },
-  '/prompts': { title: '提示词库', icon: BookOpen, componentName: 'PromptLibraryPage' },
-  '/prompt-workshop': { title: '提示词工坊', icon: NotebookPen, componentName: 'PromptWorkshopPage' },
-  '/suite-prompt': { title: '成套提示词', icon: Layers, componentName: 'SuitePromptPage' },
-  '/expert': { title: '提示词专家', icon: NotebookPen, componentName: 'ExpertPage' },
-  '/admin/users': { title: '用户管理', icon: Users, componentName: 'AdminUsers' },
-  '/admin/dashboard': { title: '生图日志', icon: ScrollText, componentName: 'AdminDashboard' },
-  '/admin/templates': { title: '模板管理', icon: LayoutTemplate, componentName: 'AdminTemplates' },
-  '/admin/feature-prompts': { title: '功能提示词', icon: PenLine, componentName: 'AdminFeaturePrompts' },
-  '/admin/works': { title: '作品库管理', icon: Award, componentName: 'AdminWorks' },
-  '/admin/prompt-cases': { title: '提示词案例', icon: ImageIcon, componentName: 'AdminPromptCases' },
-  '/canvas-projects': { title: 'AI画布', icon: Workflow, componentName: 'CanvasProjects' },
-  '/works': { title: '作品库', icon: Award, componentName: 'WorksGalleryPage' },
-}
+const ROUTE_META_MAP = routeMetaMap
 
 // Normalize path: strip trailing slash
 function normalizePath(path: string): string {
@@ -83,12 +55,12 @@ export const useTabStore = defineStore('tabs', () => {
 
   // Initialize with workspace tab, merge with saved tabs
   const savedTabs = restoreTabs()
-  const hasWorkspace = savedTabs.some((t) => t.id === '/workspace')
+  const hasWorkspace = savedTabs.some((t) => t.id === '/free-gen')
   if (!hasWorkspace) {
-    const meta = ROUTE_META_MAP['/workspace']
+    const meta = ROUTE_META_MAP['/free-gen']
     savedTabs.unshift({
-      id: '/workspace',
-      path: '/workspace',
+      id: '/free-gen',
+      path: '/free-gen',
       title: meta.title,
       icon: meta.icon,
       closable: true,
@@ -121,7 +93,7 @@ export const useTabStore = defineStore('tabs', () => {
     if (!meta) {
       const aiCanvasMatch = np.match(/^\/ai-canvas\/\d+$/)
       if (aiCanvasMatch) {
-        meta = { title: 'AI画布', icon: Workflow, componentName: 'AICanvas' }
+        meta = { path: np, title: 'AI画布', icon: Workflow, componentName: 'AICanvas' }
       }
     }
     if (!meta) return
@@ -130,7 +102,7 @@ export const useTabStore = defineStore('tabs', () => {
       path: np,
       title: meta.title,
       icon: meta.icon,
-      closable: np !== '/workspace',
+      closable: np !== '/free-gen',
       componentName: meta.componentName,
     })
     activeTabId.value = np
@@ -156,17 +128,17 @@ export const useTabStore = defineStore('tabs', () => {
 
     // If all tabs closed, auto-create workspace
     if (tabs.value.length === 0) {
-      const meta = ROUTE_META_MAP['/workspace']
+      const meta = ROUTE_META_MAP['/free-gen']
       tabs.value.push({
-        id: '/workspace',
-        path: '/workspace',
+        id: '/free-gen',
+        path: '/free-gen',
         title: meta.title,
         icon: meta.icon,
         closable: true,
         componentName: meta.componentName,
       })
-      activeTabId.value = '/workspace'
-      router.push('/workspace')
+      activeTabId.value = '/free-gen'
+      router.push('/free-gen')
       persist()
       return
     }
@@ -205,17 +177,17 @@ export const useTabStore = defineStore('tabs', () => {
   // Close all closable tabs
   function removeAllClosable() {
     tabs.value = []
-    const meta = ROUTE_META_MAP['/workspace']
+    const meta = ROUTE_META_MAP['/free-gen']
     tabs.value.push({
-      id: '/workspace',
-      path: '/workspace',
+      id: '/free-gen',
+      path: '/free-gen',
       title: meta.title,
       icon: meta.icon,
       closable: true,
       componentName: meta.componentName,
     })
-    activeTabId.value = '/workspace'
-    router.push('/workspace')
+    activeTabId.value = '/free-gen'
+    router.push('/free-gen')
     persist()
   }
 

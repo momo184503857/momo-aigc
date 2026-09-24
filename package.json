@@ -11,7 +11,11 @@
     "build:server": "tsc -p server/tsconfig.json",
     "start:server": "node server/dist/index.js",
     "check": "vue-tsc -b && tsc -p server/tsconfig.json --noEmit",
-    "pull-db": "bash scripts/pull-db.sh"
+    "pull-db": "bash scripts/pull-db.sh",
+    "check:ui": "node scripts/verify-design-system.mjs",
+    "test:ui": "node scripts/test-design-system.mjs",
+    "test:ui:browser": "node scripts/test-design-system-browser.cjs",
+    "test:ui:phase-two": "node scripts/test-ui-phase-two.cjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.47.0",

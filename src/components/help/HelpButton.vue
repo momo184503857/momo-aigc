@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { CircleHelp } from '@lucide/vue'
 import { useHelp } from '@/composables/useHelp'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@/components/design-system/primitives/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/design-system/primitives/tooltip'
 
 const { open, available } = useHelp()
 </script>

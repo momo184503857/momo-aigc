@@ -10,15 +10,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Toaster } from '@/components/ui/sonner'
+} from '@/components/design-system/primitives/alert-dialog'
+import { Button } from '@/components/design-system/primitives/button'
+import { Input } from '@/components/design-system/primitives/input'
 import { feedbackDialog, settleFeedbackDialog } from '@/composables/useUiFeedback'
 </script>
 
 <template>
-  <Toaster position="top-center" :close-button="true" />
 
   <AlertDialog
     :open="feedbackDialog.open"

@@ -39,7 +39,7 @@ async function handlePasswordLogin() {
   loading.value = true
   try {
     const ok = await auth.login(account.value, password.value)
-    if (ok) router.push('/workspace')
+    if (ok) router.push('/free-gen')
   } catch (err: any) {
     error(err.response?.data?.error || '登录失败，请重试')
   } finally {
@@ -61,7 +61,7 @@ async function handleCodeLogin() {
   loading.value = true
   try {
     const ok = await auth.loginWithCode(email.value, code.value)
-    if (ok) router.push('/workspace')
+    if (ok) router.push('/free-gen')
   } catch (err: any) {
     error(err.response?.data?.error || '登录失败，请重试')
   } finally {

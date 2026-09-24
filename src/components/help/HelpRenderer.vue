@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { FileText, TriangleAlert } from '@lucide/vue'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { Button } from '@/components/design-system/primitives/button'
 import { renderHelpMarkdown } from '@/utils/helpMarkdown'
 
 const props = defineProps<{

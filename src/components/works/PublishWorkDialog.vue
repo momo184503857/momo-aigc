@@ -11,13 +11,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Checkbox } from '@/components/ui/checkbox'
+} from '@/components/design-system/primitives/dialog'
+import { Button } from '@/components/design-system/primitives/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { Label } from '@/components/design-system/primitives/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/design-system/primitives/popover'
+import { Checkbox } from '@/components/design-system/primitives/checkbox'
 import { worksApi, adminWorksApi } from '@/services/worksApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import type { TaskItem } from '@/components/TaskList.vue'
@@ -150,7 +150,7 @@ function toggleTag(id: number) {
             <!-- TODO(multiple-select): EP 多选下拉（multiple）无对应物，用 Popover + Checkbox 列表实现多选（原 allow-create 在本组件无创建标签的 API 调用，未保留） -->
             <Popover>
               <PopoverTrigger as-child>
-                <button
+                <Button variant="outline"
                   type="button"
                   class="border-input focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-8 w-full flex-wrap items-center gap-1 rounded-lg border bg-transparent px-2 py-1 text-sm outline-none focus-visible:ring-3"
                 >
@@ -159,7 +159,7 @@ function toggleTag(id: number) {
                   </template>
                   <span v-else class="text-muted-foreground">选择或输入标签</span>
                   <ChevronDown class="text-muted-foreground ml-auto size-4 shrink-0" />
-                </button>
+                </Button>
               </PopoverTrigger>
               <PopoverContent class="w-(--reka-popover-trigger-width) p-1" align="start">
                 <div class="max-h-56 overflow-y-auto">

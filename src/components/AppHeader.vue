@@ -7,6 +7,7 @@ export interface Crumb {
 </script>
 
 <script setup lang="ts">
+import AppearanceSettings from './AppearanceSettings.vue'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,9 +15,9 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
-import { Separator } from '@/components/ui/separator'
-import { SidebarTrigger } from '@/components/ui/sidebar'
+} from '@/components/design-system/primitives/breadcrumb'
+import { Separator } from '@/components/design-system/primitives/separator'
+import { SidebarTrigger } from '@/components/design-system/primitives/sidebar'
 
 defineProps<{
   crumbs: Crumb[]
@@ -46,6 +47,7 @@ defineProps<{
 
     <div class="ml-auto flex items-center gap-2">
       <slot name="actions" />
+      <AppearanceSettings />
     </div>
   </header>
 </template>

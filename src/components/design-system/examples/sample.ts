@@ -1,0 +1,2 @@
+// 内嵌示例素材，不访问外部服务。
+export const sampleImage = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480"><rect width="640" height="480" fill="#e8ddcc"/><ellipse cx="320" cy="435" rx="170" ry="20" fill="#cbbca6"/><path d="M245 88 190 120 150 240 225 265 240 215 225 420 415 420 400 215 415 265 490 240 450 120 395 88 360 112 280 112Z" fill="#8e9b84"/><path d="M280 112Q320 150 360 112" fill="none" stroke="#65735c" stroke-width="8"/></svg>`)

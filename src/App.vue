@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AdminApp from '@/admin/AdminApp.vue'
-import FeedbackHost from '@/components/FeedbackHost.vue'
+import ApplicationTheme from '@/components/ApplicationTheme.vue'
 
 const route = useRoute()
 const isPrototype = computed(() => import.meta.env.DEV && !!route.meta.prototype)
@@ -16,7 +16,8 @@ const isAdminPage = computed(() => route.path.startsWith('/admin'))
 
 <template>
   <router-view v-if="isPrototype" />
-  <AuthLayout v-else-if="isGuestPage">
+  <ApplicationTheme v-else>
+  <AuthLayout v-if="isGuestPage" class="legacy-surface">
     <router-view />
   </AuthLayout>
   <AdminApp v-else-if="isAdminPage">
@@ -26,6 +27,5 @@ const isAdminPage = computed(() => route.path.startsWith('/admin'))
     <router-view />
   </MainLayout>
 
-  <!-- /admin 路由由 AdminApp 自带 FeedbackHost，避免同一单例状态被挂载两次 -->
-  <FeedbackHost v-if="!isAdminPage && !isPrototype" />
+  </ApplicationTheme>
 </template>

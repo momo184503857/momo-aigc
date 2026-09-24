@@ -1,27 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  ArrowLeft,
-  Award,
-  Blocks,
-  Camera,
-  ChevronsUpDown,
-  Coins,
-  Image as ImageIcon,
-  Layers,
-  LayoutTemplate,
-  LogOut,
-  PenLine,
-  ScrollText,
-  Settings,
-  ShieldCheck,
-  Users,
-} from '@lucide/vue'
-import type { Component } from 'vue'
+import { ArrowLeft, ChevronsUpDown, Coins, LogOut, ShieldCheck } from '@lucide/vue'
+import { adminSections, canonicalAdminPath } from '@/configs/navigation'
+import AppearanceSettings from '@/components/AppearanceSettings.vue'
+import { useSidebar } from '@/components/design-system/primitives/sidebar/utils'
 import { useAuthStore } from '@/stores/auth'
 import { formatCredits } from '@/types/adapter'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/design-system/primitives/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +15,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/design-system/primitives/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -42,42 +28,26 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from '@/components/ui/sidebar'
+} from '@/components/design-system/primitives/sidebar'
 
 const emit = defineEmits<{ (e: 'logout'): void; (e: 'back-to-user'): void }>()
 
 const auth = useAuthStore()
 const route = useRoute()
+const { setOpenMobile } = useSidebar()
 const router = useRouter()
 
-interface MenuItem {
-  path: string
-  title: string
-  icon: Component
-}
-
-// 图标与用户端 SidebarMenu / tabs store 共用同一套语义映射
-const menuItems: MenuItem[] = [
-  { path: '/admin/users', title: '用户管理', icon: Users },
-  { path: '/admin/dashboard', title: '生图日志', icon: ScrollText },
-  { path: '/admin/templates', title: '模板管理', icon: LayoutTemplate },
-  { path: '/admin/feature-prompts', title: '功能提示词', icon: PenLine },
-  { path: '/admin/photography', title: 'AI摄影配置', icon: Camera },
-  { path: '/admin/works', title: '作品库管理', icon: Award },
-  { path: '/admin/prompt-cases', title: '提示词案例', icon: ImageIcon },
-  { path: '/admin/prompt-modules', title: '提示词模块', icon: Blocks },
-  { path: '/admin/sg-assets', title: '成套生图资产', icon: Layers },
-  { path: '/admin/ai-config', title: '配置', icon: Settings },
-]
+const menuSections = adminSections
 
 const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0))
 const avatarInitial = computed(() => auth.displayName.charAt(0).toUpperCase())
 
 function isActive(path: string): boolean {
-  return route.path === path || route.path.startsWith(path + '/')
+  return canonicalAdminPath(route.path) === path
 }
 
 function navigate(path: string) {
+  setOpenMobile(false)
   router.push(path)
 }
 </script>
@@ -97,11 +67,11 @@ function navigate(path: string) {
     </SidebarHeader>
 
     <SidebarContent>
-      <SidebarGroup>
-        <SidebarGroupLabel>管理</SidebarGroupLabel>
+      <SidebarGroup v-for="section in menuSections" :key="section.title">
+        <SidebarGroupLabel>{{ section.title }}</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem v-for="item in menuItems" :key="item.path">
+            <SidebarMenuItem v-for="item in section.items" :key="item.path">
               <SidebarMenuButton
                 :is-active="isActive(item.path)"
                 :tooltip="item.title"
@@ -118,6 +88,7 @@ function navigate(path: string) {
     </SidebarContent>
 
     <SidebarFooter>
+      <AppearanceSettings />
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton :tooltip="'返回用户端'" @click="emit('back-to-user')">

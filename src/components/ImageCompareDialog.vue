@@ -8,7 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/design-system/primitives/dialog'
 
 const props = defineProps<{
   tasks: TaskItem[]

@@ -13,26 +13,26 @@ import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import { usePromptLibrary } from '@/composables/usePromptLibrary'
 import TemplateSelector from './TemplateSelector.vue'
 import ModelChannelSelect from './ModelChannelSelect.vue'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/design-system/primitives/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Switch } from '@/components/design-system/primitives/switch'
+import { Textarea } from '@/components/design-system/primitives/textarea'
+import { Input } from '@/components/design-system/primitives/input'
+import { Alert, AlertDescription, AlertTitle } from '@/components/design-system/primitives/alert'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/ui'
+} from '@/components/design-system/primitives/dialog'
+import { DsUpload, DsReferenceImage, DsSection, DsParameterPanel, UiEmptyState, UiImagePreview, UiPagination } from '@/components/design-system'
 
 const emit = defineEmits<{
   (e: 'generate', params: {
@@ -85,7 +85,13 @@ const {
   toggleFavorite: togglePromptFavorite,
 } = usePromptLibrary({ pageSize: 8 })
 
+let promptLibraryTrigger: HTMLElement | null = null
+function restorePromptFocus(event: Event) {
+  event.preventDefault()
+  promptLibraryTrigger?.focus()
+}
 async function openPromptLibrary() {
+  promptLibraryTrigger = document.activeElement as HTMLElement
   showPromptLibrary.value = true
   await loadPromptLibrary()
 }
@@ -176,24 +182,12 @@ function handleResolutionChange() {
 }
 
 // Add from file picker
-function handleAddImage() {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/png,image/jpeg,image/webp,image/gif'
-  input.multiple = true
-  input.onchange = async () => {
-    if (!input.files) return
-    for (const file of Array.from(input.files)) {
-      if (!canAddImage.value) break
-      const dataUrl = await fileToDataUrl(file)
-      referenceImages.value.push({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        dataUrl,
-        label: file.name,
-      })
-    }
+async function handleFiles(files: File[]) {
+  for (const file of files) {
+    if (!canAddImage.value) break
+    const dataUrl = await fileToDataUrl(file)
+    referenceImages.value.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, dataUrl, label: file.name })
   }
-  input.click()
 }
 
 // Delete
@@ -357,102 +351,64 @@ defineExpose({ setParams })
 </script>
 
 <template>
-  <div class="generation-form">
-    <div class="form-scroll-area">
-
-      <!-- Key missing warning -->
-      <Alert
-        v-if="serverStatus.loaded && !serverStatus.canGenerate"
-        variant="warning"
-        class="mb-4"
-      >
-        <TriangleAlert />
-        <AlertTitle>暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型</AlertTitle>
-      </Alert>
-
-      <!-- Reference Images -->
-      <div class="form-row image-section" role="region" aria-label="图片区">
-        <div class="section-heading">
-          <label class="form-label">参考图片</label>
-            <Button
-              size="sm"
-              variant="outline"
-              :disabled="!canAddImage"
-              @click="showTemplateSelector = true"
-            >
-              <Image />
-              从模板库选择
-            </Button>
+  <div class="ds-composer">
+    <div class="ds-composer-scroll">
+      <Alert v-if="serverStatus.loaded && !serverStatus.canGenerate" variant="warning"><TriangleAlert /><AlertTitle>暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型</AlertTitle></Alert>
+      <DsSection title="参考图片" aria-label="图片区">
+        <template #actions><Button size="sm" variant="outline" :disabled="!canAddImage" @click="showTemplateSelector = true"><Image />从模板库选择</Button></template>
+        <div class="ds-reference-list" :data-drag-over="isDragOver" @dragover="handleDragOver" @dragenter="handleDragEnter" @dragleave="handleDragLeave" @drop="handleDrop">
+          <DsReferenceImage v-for="(img,index) in referenceImages" :key="img.id" :src="img.dataUrl" :label="img.label" :dragging="draggedIndex === index" draggable="true" @dragstart="handleDragStart(index)" @dragover.prevent="handleDragOverItem(index)" @dragend="handleDragEnd" @preview="openPreview(img.dataUrl)" @remove="handleRemoveImage(index)" />
+          <DsUpload v-if="canAddImage" variant="tile" accept="image/png,image/jpeg,image/webp,image/gif" @select="handleFiles" />
         </div>
-        <div class="min-w-0 flex-1">
-          <div
-            class="images-container"
-            :class="{ 'is-drag-over': isDragOver }"
-            @dragover="handleDragOver"
-            @dragenter="handleDragEnter"
-            @dragleave="handleDragLeave"
-            @drop="handleDrop"
-          >
-            <div
-              v-for="(img, index) in referenceImages"
-              :key="img.id"
-              class="image-item group"
-              :class="{ 'is-dragging': draggedIndex === index }"
-              draggable="true"
-              @dragstart="handleDragStart(index)"
-              @dragover.prevent="handleDragOverItem(index)"
-              @dragend="handleDragEnd"
-              @click="openPreview(img.dataUrl)"
-            >
-              <img :src="img.dataUrl" :alt="img.label" draggable="false" class="size-full object-cover" />
-              <Button
-                variant="destructive"
-                size="icon-xs"
-                class="absolute top-1 right-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
-                @click.stop="handleRemoveImage(index)"
-              >
-                <Trash2 />
-              </Button>
-            </div>
-            <button
-              v-if="canAddImage"
-              class="upload-reference"
-              type="button"
-              @click="handleAddImage"
-            >
-              <Plus class="size-7" :stroke-width="1.5" />
-              <span class="mt-1 text-xs">添加参考图片</span>
-            </button>
-          </div>
-          <p v-if="referenceImages.length > 0" class="text-muted-foreground/70 mt-1.5 text-xs">可拖拽排序，最多{{ maxReferenceImages }}张</p>
-        </div>
-      </div>
+        <p v-if="referenceImages.length" class="ds-caption">可拖拽排序，最多{{ maxReferenceImages }}张</p>
+      </DsSection>
+      <DsSection title="画面描述" class="ds-prompt-section" aria-label="提示词区">
+        <template #actions><Button size="sm" variant="outline" @click="openPromptLibrary"><Library />从提示词库选择</Button></template>
+        <Textarea id="free-gen-prompt" v-model="prompt" aria-label="画面描述" required :rows="5" :aria-invalid="promptExceeded" aria-describedby="prompt-count" placeholder="描述你想要生成的图片..." />
+        <div id="prompt-count" class="ds-caption"><span v-if="promptExceeded" class="ds-error">超出字数限制 · </span>{{ prompt.length }}/{{ maxPromptChars }}</div>
+      </DsSection>
+    </div>
+    <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate" @submit="handleGenerate">
 
-      <!-- Prompt -->
-      <div class="form-row prompt-section" role="region" aria-label="提示词区">
-        <div class="section-heading">
-          <label for="free-gen-prompt" class="form-label">画面描述 <span class="text-destructive">*</span></label>
-            <Button size="sm" variant="outline" @click="openPromptLibrary">
-              <Library />
-              从提示词库选择
-            </Button>
+        <div class="ds-parameter">
+          <label class="ds-caption">模型</label>
+          <ModelChannelSelect aria-label="模型" content-position="popper" v-model="selectedModelId" class="w-full" @change="handleModelChange" />
         </div>
-        <div class="min-w-0 flex-1 prompt-body">
-          <Textarea
-            id="free-gen-prompt"
-            v-model="prompt"
-            :rows="4"
-            placeholder="描述你想要生成的图片..."
-            :class="{ 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20': promptExceeded }"
-          />
-          <div class="mt-1 flex justify-between">
-            <span v-if="promptExceeded" class="text-destructive text-xs">超出字数限制</span>
-            <span class="text-xs" :class="promptExceeded ? 'text-destructive font-medium' : 'text-muted-foreground/70'">{{ prompt.length }}/{{ maxPromptChars }}</span>
-          </div>
+        <div class="ds-parameter">
+          <label class="ds-caption">画面比例</label>
+          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
+            <SelectTrigger class="w-full" aria-label="画面比例">
+              <SelectValue placeholder="选择宽高比" />
+            </SelectTrigger>
+            <SelectContent position="popper" align="start">
+              <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      </div>
+        <div class="ds-parameter">
+          <label class="ds-caption">生成数量</label>
+          <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
+            <SelectTrigger class="w-full" aria-label="生成数量">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" align="start">
+              <SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }}张</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div class="ds-parameter">
+          <label class="ds-caption">分辨率</label>
+          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
+            <SelectTrigger class="w-full" aria-label="分辨率">
+              <SelectValue placeholder="选择分辨率" />
+            </SelectTrigger>
+            <SelectContent position="popper" align="start">
+              <SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-
+    </DsParameterPanel>
       <!-- Template Selector Dialog -->
       <TemplateSelector
         v-model:visible="showTemplateSelector"
@@ -464,7 +420,7 @@ defineExpose({ setParams })
 
       <!-- Prompt Library Dialog -->
       <Dialog :open="showPromptLibrary" @update:open="(v: boolean) => (showPromptLibrary = v)">
-        <DialogContent class="sm:max-w-3xl" @pointer-down-outside.prevent>
+        <DialogContent class="sm:max-w-3xl" @pointer-down-outside.prevent @close-auto-focus="restorePromptFocus">
           <DialogHeader>
             <DialogTitle>选择提示词</DialogTitle>
           </DialogHeader>
@@ -542,175 +498,6 @@ defineExpose({ setParams })
           </div>
         </DialogContent>
       </Dialog>
-    </div>
 
-    <!-- Footer: params bar + generate button pinned to bottom -->
-    <div class="form-footer" role="region" aria-label="参数区">
-      <div class="params-bar">
-        <div class="param-item">
-          <label class="param-label">模型</label>
-          <ModelChannelSelect content-position="popper" v-model="selectedModelId" class="w-full" @change="handleModelChange" />
-        </div>
-        <div class="param-item">
-          <label class="param-label">画面比例</label>
-          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
-            <SelectTrigger class="w-full">
-              <SelectValue placeholder="选择宽高比" />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="param-item">
-          <label class="param-label">生成数量</label>
-          <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
-            <SelectTrigger class="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              <SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }}张</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="param-item">
-          <label class="param-label">分辨率</label>
-          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
-            <SelectTrigger class="w-full">
-              <SelectValue placeholder="选择分辨率" />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              <SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <Button
-        size="lg"
-        class="w-full"
-        :disabled="!canGenerate"
-        @click="handleGenerate"
-      >
-        <Sparkles :size="18" />{{ generateButtonLabel }}
-      </Button>
-    </div>
   </div>
 </template>
-
-<style scoped>
-/* ─── Full-height flex layout ─── */
-.generation-form {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-.form-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  padding-right: 4px; /* room for scrollbar */
-}
-.form-footer {
-  flex-shrink: 0;
-  padding-top: 16px;
-  margin-top: 8px;
-  border-top: 1px solid var(--momo-color-border-soft);
-}
-
-/* ─── Params bar: one row of dropdowns above the generate button ─── */
-.params-bar {
-  display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(112px, 1fr));
-  align-items: end;
-  gap: 12px;
-  margin-bottom: 12px;
-  overflow-x: auto;
-}
-.param-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  min-width: 0;
-}
-.param-label {
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
-}
-
-/* ─── Inline row layout: label left, control right ─── */
-.form-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding-bottom: 14px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--momo-color-border-soft);
-}
-
-.form-label {
-  width: 72px;
-  flex-shrink: 0;
-  text-align: right;
-  font-size: var(--momo-font-size-sm);
-  color: var(--momo-color-text-secondary);
-  line-height: 32px;
-  padding-top: 2px;
-}
-
-/* ─── Images ─── */
-.images-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-height: 104px;
-  border-radius: var(--momo-radius-md);
-  padding: 4px;
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
-  border: 2px dashed transparent;
-}
-.images-container.is-drag-over {
-  background: var(--momo-color-brand-subtle);
-  border-color: var(--momo-color-brand);
-  box-shadow: 0 0 0 4px var(--momo-color-ring);
-}
-.image-item {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  border-radius: var(--momo-radius-md);
-  overflow: hidden;
-  border: 2px solid var(--momo-color-border);
-  cursor: grab;
-  transition: border-color 0.2s, opacity 0.2s;
-}
-.image-item:hover { border-color: var(--momo-color-brand); }
-.image-item.is-dragging { opacity: 0.5; border-color: var(--momo-color-brand); }
-.image-item img { pointer-events: none; }
-</style>
-
-<style scoped>
-/* Production studio: retain real catalog and submission handlers. */
-.generation-form{min-height:0;gap:var(--momo-space-4);background:transparent;overflow:hidden}
-.form-scroll-area{display:flex;flex-direction:column;gap:var(--momo-space-4);padding:0}
-.form-row{display:block;border:1px solid var(--momo-color-border-soft);padding:var(--momo-space-6);margin:0;background:var(--momo-color-bg);border-radius:var(--momo-space-5)}
-.image-section{flex-shrink:0}
-.prompt-section{flex:1;display:flex;flex-direction:column;align-items:stretch;min-height:min-content}
-.prompt-body{display:flex;flex-direction:column}
-.section-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--momo-space-3);margin-bottom:var(--momo-space-3);flex-shrink:0}
-.section-heading>button{flex-shrink:0}
-.prompt-section :deep(textarea){flex:1;min-height:calc(var(--momo-space-16) * 2)}
-.form-label{display:block;text-align:left;width:auto;color:var(--momo-color-text);font-weight:var(--momo-font-weight-medium);line-height:var(--momo-leading-normal);padding:0}
-.images-container{padding:0;gap:var(--momo-space-3);min-height:0}
-.image-item,.upload-reference{width:clamp(100px,13vw,164px);height:auto;aspect-ratio:1;border-radius:var(--momo-radius-xl)}
-.upload-reference{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:var(--momo-space-2);border:1px dashed var(--momo-color-brand-border);background:var(--momo-color-bg-soft);color:var(--momo-color-text-secondary)}
-.upload-reference:hover{background:var(--momo-color-brand-subtle)}
-.form-scroll-area :deep(textarea){min-height:var(--momo-space-16);border-radius:var(--momo-radius-xl);resize:vertical}
-.form-footer{border:1px solid var(--momo-color-border-soft);margin:0;padding:var(--momo-space-6);background:var(--momo-color-bg);border-radius:var(--momo-space-5)}
-.params-bar{grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr));gap:var(--momo-space-2);overflow:visible;margin-bottom:var(--momo-space-4)}
-.param-label{font-size:var(--momo-font-size-xs)}
-.param-item :deep([data-slot=select-trigger]){min-width:0;padding-inline:var(--momo-space-2)}
-.form-footer>button{height:calc(var(--momo-space-12) + var(--momo-space-1));border-radius:var(--momo-radius-xl);font-size:var(--momo-font-size-base)}
-@media(max-width:1200px){.params-bar{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.form-row,.form-footer{padding:var(--momo-space-4)}.image-item,.upload-reference{width:calc(var(--momo-space-16) * 2)}}
-</style>

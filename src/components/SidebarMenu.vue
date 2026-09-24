@@ -1,33 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  Aperture,
-  Award,
-  BookOpen,
-  Camera,
-  ChevronsUpDown,
-  Coins,
-  FolderOpen,
-  GraduationCap,
-  Image as ImageIcon,
-  LayoutTemplate,
-  LogOut,
-  NotebookPen,
-  PenLine,
-  Settings,
-  ShoppingBag,
-  Sparkles,
-  TrendingUp,
-  Wallet,
-  Workflow,
-  Wrench,
-} from '@lucide/vue'
-import type { Component } from 'vue'
+import { Aperture, ChevronsUpDown, Coins, FolderOpen, GraduationCap, LogOut } from '@lucide/vue'
+import { creationModes, canvasItem, resultsItem, resourceItems, assistantItems, accountItems, isCreationPath } from '@/configs/navigation'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/design-system'
+import { ChevronDown } from '@lucide/vue'
+import AppearanceSettings from './AppearanceSettings.vue'
+import { useSidebar } from '@/components/design-system/primitives/sidebar/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
 import { formatCredits } from '@/types/adapter'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/design-system/primitives/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +18,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/design-system/primitives/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -48,73 +31,33 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from '@/components/ui/sidebar'
+} from '@/components/design-system/primitives/sidebar'
 
 const auth = useAuthStore()
 const tabStore = useTabStore()
 const router = useRouter()
 const route = useRoute()
+const { setOpenMobile } = useSidebar()
 
 // 头像显示平台积分余额（fixed-channels：渠道由平台统一配置，计费单轨积分；2 位小数向上取整）
 const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0))
 const roleLabel = computed(() => (auth.user?.role === 'admin' ? '管理员' : '普通用户'))
 const avatarInitial = computed(() => auth.displayName.charAt(0).toUpperCase())
 
-interface MenuItem {
-  path: string
-  title: string
-  icon: Component
-}
-
-interface MenuSection {
-  title: string
-  items: MenuItem[]
-}
-
-// 图标语义全局唯一：同一业务含义在侧边栏、页签、页面内始终使用同一枚 Lucide 图标
-const menuSections: MenuSection[] = [
-  {
-    title: 'AI生图',
-    items: [
-      { path: '/free-gen', title: '自由生图', icon: PenLine },
-      { path: '/workspace', title: '快速生图', icon: Sparkles },
-      { path: '/photography', title: 'AI摄影', icon: Camera },
-      { path: '/canvas-projects', title: 'AI画布', icon: Workflow },
-      { path: '/toolbox', title: 'AI工具箱', icon: Wrench },
-      { path: '/buyer-show', title: 'AI买家秀', icon: ShoppingBag },
-    ],
-  },
-  {
-    title: 'AI学习',
-    items: [
-      { path: '/works', title: '作品库', icon: Award },
-      { path: '/prompt-workshop', title: '提示词工坊', icon: NotebookPen },
-      { path: '/expert', title: '提示词专家', icon: GraduationCap },
-      { path: '/themes', title: '主题库', icon: FolderOpen },
-    ],
-  },
-  {
-    title: '资产管理',
-    items: [
-      { path: '/templates', title: '模板图库', icon: LayoutTemplate },
-      { path: '/prompts', title: '提示词库', icon: BookOpen },
-      { path: '/results', title: '生图结果', icon: ImageIcon },
-    ],
-  },
+const expandedGroups = ref<Record<string, boolean>>({资源中心:true,提示词助手:true})
+const menuSections = [
+ {title:'工作空间',items:[{...creationModes[0],title:'创作工作台'},canvasItem,resultsItem]},
+ {title:'资源中心',items:resourceItems}, {title:'提示词助手',items:assistantItems},
 ]
-
-const accountMenuItems = [
-  { title: '我的额度', icon: Coins, path: '/my-quota' },
-  { title: '我的消耗', icon: TrendingUp, path: '/my-consumption' },
-  { title: '计费说明', icon: Wallet, path: '/pricing' },
-  { title: '个人设置', icon: Settings, path: '/settings' },
-]
-
+const accountMenuItems = accountItems
 function isActive(path: string): boolean {
+  if (path === '/free-gen') return isCreationPath(route.path)
+  if (path === '/canvas-projects' && route.path.startsWith('/ai-canvas/')) return true
   return route.path === path || route.path.startsWith(path + '/')
 }
 
 function navigate(path: string) {
+  setOpenMobile(false)
   tabStore.syncFromRoute(path)
   router.push(path)
 }
@@ -131,7 +74,7 @@ function handleLogout() {
       <SidebarMenuButton
         size="lg"
         class="hover:bg-transparent active:bg-transparent"
-        @click="router.push('/workspace')"
+        @click="router.push('/free-gen')"
       >
         <span class="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
           <Aperture class="size-4" />
@@ -145,8 +88,10 @@ function handleLogout() {
 
     <SidebarContent>
       <SidebarGroup v-for="section in menuSections" :key="section.title">
-        <SidebarGroupLabel>{{ section.title }}</SidebarGroupLabel>
-        <SidebarGroupContent>
+        <Collapsible :open="section.title === '工作空间' || expandedGroups[section.title]" @update:open="expandedGroups[section.title] = $event">
+        <SidebarGroupLabel v-if="section.title === '工作空间'">{{ section.title }}</SidebarGroupLabel>
+        <CollapsibleTrigger v-else as-child><SidebarMenuButton :tooltip="section.title"><FolderOpen v-if="section.title === '资源中心'" /><GraduationCap v-else /><span>{{ section.title }}</span><ChevronDown class="ml-auto size-4" /></SidebarMenuButton></CollapsibleTrigger>
+        <CollapsibleContent><SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in section.items" :key="item.path">
               <SidebarMenuButton
@@ -160,11 +105,12 @@ function handleLogout() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-        </SidebarGroupContent>
+        </SidebarGroupContent></CollapsibleContent></Collapsible>
       </SidebarGroup>
     </SidebarContent>
 
     <SidebarFooter v-if="auth.user">
+      <AppearanceSettings />
       <div class="text-muted-foreground flex items-center gap-1.5 px-2 pb-1 text-xs group-data-[collapsible=icon]:hidden">
         <Coins class="size-3.5 shrink-0 text-warning" />
         <span>可用积分</span>
@@ -206,6 +152,7 @@ function handleLogout() {
             {{ item.title }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem v-if="auth.isAdmin" @select="router.push('/admin/users')">管理后台</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" @select="handleLogout">
             <LogOut />
             退出登录

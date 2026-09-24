@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { routeMetaMap } from '@/configs/navigation'
 import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
@@ -189,6 +190,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
+      path: '/admin/ui-components',
+      name: 'AdminUiComponents',
+      component: () => import('@/views/admin/AdminUiComponents.vue'),
+      meta: { title: 'UI 组件库', requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/admin/users',
       name: 'AdminUsers',
       component: () => import('@/views/admin/AdminUsers.vue'),
@@ -271,6 +278,8 @@ const router = createRouter({
   ],
 })
 
+for (const route of router.getRoutes()) { if (routeMetaMap[route.path]) route.meta.title = routeMetaMap[route.path].title }
+
 const APP_TITLE = '墨墨 AI 生图'
 const ADMIN_TITLE = '墨墨AI生图管理员后台'
 
@@ -301,7 +310,7 @@ router.beforeEach(async (to, _from, next) => {
 
   if (to.meta.guest) {
     if (auth.isLoggedIn) {
-      next('/workspace')
+      next('/free-gen')
       return
     }
     next()
@@ -314,7 +323,7 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.requiresAdmin && !auth.isAdmin) {
-    next('/workspace')
+    next('/free-gen')
     return
   }
 

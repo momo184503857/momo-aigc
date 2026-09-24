@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 正式自由生图工作台：真实生成表单与任务结果双栏。
+import { DsStudio } from '@/components/design-system'
 import { ref, watch, onMounted, onActivated, nextTick } from 'vue'
 
 defineOptions({ name: 'FreeGen' })
@@ -117,13 +118,8 @@ onActivated(async () => {
 </script>
 
 <template>
-  <main class="free-gen-studio" aria-label="自由生图工作台">
+  <DsStudio title="自由生图工作台">
     <GenerationForm ref="generationForm" @generate="(p) => handleGenerate({ ...p, featureId: 'free-gen' })" />
     <FreeGenResults @reuse="tm.handleCopyParams" />
-  </main>
+  </DsStudio>
 </template>
-
-<style scoped>
-.free-gen-studio{height:100%;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--momo-space-5);padding:var(--momo-space-6);background:var(--momo-color-bg-page)}
-@media(max-width:800px){.free-gen-studio{overflow:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(640px,80svh) minmax(480px,70svh);padding:var(--momo-space-3);gap:var(--momo-space-3)}}
-</style>

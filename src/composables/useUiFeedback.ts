@@ -93,19 +93,19 @@ export async function promptDialog(
 
 export function useUiFeedback() {
   function success(message: string) {
-    toast.success(message)
+    toast.success(message, { toasterId: 'momo-application' })
   }
 
   function info(message: string) {
-    toast.info(message)
+    toast.info(message, { toasterId: 'momo-application' })
   }
 
   function warning(message: string) {
-    toast.warning(message)
+    toast.warning(message, { toasterId: 'momo-application' })
   }
 
   function error(err: unknown, fallback = '操作失败') {
-    toast.error(translateError(err) || fallback)
+    toast.error(translateError(err) || fallback, { toasterId: 'momo-application' })
   }
 
   async function confirmDanger(options: {

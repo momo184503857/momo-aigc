@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useMediaQuery, useWindowSize } from '@vueuse/core'
 import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { List, LoaderCircle } from '@lucide/vue'
@@ -6,14 +7,15 @@ import { useServerStatusStore } from '@/stores/serverStatus'
 import { useTaskPanelStore } from '@/stores/taskPanel'
 import { useTabStore } from '@/stores/tabs'
 import { useTaskManager } from '@/composables/useTaskManager'
+import CreationModeNav from '@/components/CreationModeNav.vue'
 import AppHeader, { type Crumb } from '@/components/AppHeader.vue'
 import SidebarMenu from '@/components/SidebarMenu.vue'
 import TaskPanel from '@/components/TaskPanel.vue'
 import TabBar from '@/components/TabBar.vue'
 import HelpButton from '@/components/help/HelpButton.vue'
 import HelpDrawer from '@/components/help/HelpDrawer.vue'
-import { Button } from '@/components/ui/button'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { Button } from '@/components/design-system/primitives/button'
+import { SidebarInset, SidebarProvider } from '@/components/design-system/primitives/sidebar'
 
 const serverStatus = useServerStatusStore()
 const taskPanel = useTaskPanelStore()
@@ -26,9 +28,11 @@ watch(() => route.path, (path) => {
   tabStore.syncFromRoute(path)
 }, { immediate: true })
 
+const narrowScreen = useMediaQuery('(max-width: 1023px)')
+const { width: viewportWidth } = useWindowSize()
 const contentStyle = computed(() => {
-  if (taskPanel.isSideBySide) {
-    return { marginRight: taskPanel.panelWidth + 'px' }
+  if (taskPanel.isSideBySide && !narrowScreen.value) {
+    return { marginRight: Math.min(taskPanel.panelWidth, viewportWidth.value - 320) + 'px' }
   }
   return {}
 })
@@ -60,7 +64,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <SidebarProvider class="h-svh overflow-hidden">
+  <SidebarProvider class="h-svh overflow-hidden" persist keyboard-shortcut storage-key="sidebar_state">
     <SidebarMenu />
 
     <SidebarInset :style="contentStyle" class="h-svh overflow-hidden">
@@ -84,13 +88,14 @@ onMounted(() => {
       </AppHeader>
 
       <TabBar />
+      <CreationModeNav />
 
       <!-- 滚动与内边距全部交给页面外壳 PageLayout（.page-content 是唯一滚动容器），
            页面才能做全出血布局与吸底动作栏 -->
       <div class="min-h-0 flex-1 overflow-hidden">
         <router-view v-slot="{ Component }">
           <KeepAlive :include="tabStore.keepAliveInclude">
-            <component :is="Component" />
+            <component :is="Component" :class="route.path !== '/free-gen' ? 'legacy-surface' : undefined" />
           </KeepAlive>
         </router-view>
       </div>

@@ -2,17 +2,17 @@
 import { ref, watch } from 'vue'
 import { CircleCheck } from '@lucide/vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { UiEmptyState } from '@/components/ui'
+import { Button } from '@/components/design-system/primitives/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { UiEmptyState } from '@/components/design-system'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/design-system/primitives/dialog'
 
 const props = defineProps<{ visible: boolean; single?: boolean }>()
 const emit = defineEmits<{

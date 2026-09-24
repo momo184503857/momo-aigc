@@ -11,7 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from '@/components/ui/select'
+} from '@/components/design-system/primitives/select'
 
 defineOptions({ inheritAttrs: false })
 
@@ -67,7 +67,7 @@ function priceClass(text: string): string {
     :disabled="!modelCatalog.loaded || modelCatalog.flatImageModels.length === 0"
     @update:model-value="onSelect(String($event))"
   >
-    <SelectTrigger class="w-full" :class="attrs.class">
+    <SelectTrigger class="w-full" v-bind="attrs" :aria-label="String(attrs['aria-label'] || '模型')">
       <span class="flex-1 truncate text-left">
         {{ selectedModel?.displayName ?? (modelCatalog.loaded ? '选择模型' : '加载中…') }}
       </span>

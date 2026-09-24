@@ -5,21 +5,21 @@ import {
   ChevronDown, LoaderCircle, Image as ImageIcon, ZoomIn, ZoomOut, Crosshair,
 } from '@lucide/vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
+import { Button } from '@/components/design-system/primitives/button'
+import { Slider } from '@/components/design-system/primitives/slider'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/design-system/primitives/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/design-system/primitives/dropdown-menu'
 import { isOssImageUrl } from '@/utils/download'
 import type { TaskItem } from '@/components/TaskList.vue'
 

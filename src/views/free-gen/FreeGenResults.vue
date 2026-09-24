@@ -10,7 +10,7 @@ import type { TaskItem } from '@/components/TaskList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 import PublishWorkDialog from '@/components/works/PublishWorkDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
-import { Button } from '@/components/ui/button'
+import { Button, DsImageCard, DsResultGroup } from '@/components/design-system'
 
 const emit = defineEmits<{ reuse: [task: TaskItem] }>()
 const tm = useTaskManager()
@@ -88,32 +88,18 @@ function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
 </script>
 
 <template>
-  <section class="studio-results-panel" aria-label="创作结果">
-    <header><h2>创作结果</h2></header>
-    <div class="results-scroll">
-      <div v-if="loading && !tasks.length" class="results-empty" role="status"><LoaderCircle class="animate-spin" />正在加载创作记录</div>
-      <div v-else-if="loadError && !tasks.length" class="results-empty" role="alert"><CircleAlert />创作记录加载失败<Button variant="outline" @click="load()">重新加载</Button></div>
-      <div v-else-if="!tasks.length" class="results-empty"><Image :size="40" /><h3>下一张好图，从你的想法开始。</h3><p>添加参考图片或写下画面描述，结果会显示在这里。</p></div>
-      <div v-else class="result-grid">
-        <article v-for="round in rounds" :key="round.key" class="result-task">
-          <time>{{ toBJMinute(round.createdAt) }}</time>
-          <div class="round-images" tabindex="0" :aria-label="`${toBJMinute(round.createdAt)} 提交的图片，可左右滚动`">
-          <div v-for="{ task, url, index, key } in round.items" :key="key" class="result-tile">
-            <button v-if="url" class="result-image" :aria-label="`预览图片 ${task.task_no || task.id}-${index + 1}`" @click="preview(task, index)">
-              <img v-if="!unavailable.has(url)" :src="url" alt="生成结果" loading="lazy" @error="unavailable.add(url)" />
-              <span v-else class="image-fallback"><Image />图片暂时无法加载</span>
-            </button>
-            <div v-else class="result-placeholder" role="status"><CircleAlert v-if="task.status === 'failed'" /><LoaderCircle v-else class="animate-spin" /><span>{{ labels[task.status] || '等待结果' }}</span><span v-if="task.progress > 0 && task.status !== 'failed'">{{ task.progress }}%</span></div>
-            <div class="result-actions" aria-label="图片操作">
-              <button :disabled="!url" aria-label="下载" title="下载" @click="download(task, url, index)"><Download :size="14" /></button>
-              <button aria-label="重新编辑" title="重新编辑" @click="reuse(task)"><RotateCcw :size="14" /></button>
-              <button aria-label="详情" title="详情" @click="showDetail(task)"><Info :size="14" /></button>
-            </div>
-          </div>
-          </div>
-        </article>
+  <section class="ds-results-panel" aria-label="创作结果">
+    <header><h2 class="ds-heading">创作结果</h2></header>
+    <div class="ds-results-scroll">
+      <div v-if="loading && !tasks.length" class="ds-results-empty" role="status"><LoaderCircle class="animate-spin" />正在加载创作记录</div>
+      <div v-else-if="loadError && !tasks.length" class="ds-results-empty" role="alert"><CircleAlert />创作记录加载失败<Button variant="outline" @click="load()">重新加载</Button></div>
+      <div v-else-if="!tasks.length" class="ds-results-empty"><Image :size="40" /><h3>下一张好图，从你的想法开始。</h3><p>添加参考图片或写下画面描述，结果会显示在这里。</p></div>
+      <div v-else class="ds-result-list">
+        <DsResultGroup v-for="round in rounds" :key="round.key" :label="toBJMinute(round.createdAt)">
+          <DsImageCard v-for="{ task, url, index, key } in round.items" :key="key" :src="url" :title="`图片 ${task.task_no || task.id}-${index + 1}`" external-preview :loading="!url && task.status !== 'failed'" :status-label="labels[task.status] || '等待结果'" :progress="task.progress" @preview="preview(task,index)" @download="download(task,url,index)" @edit="reuse(task)" @detail="showDetail(task)" />
+        </DsResultGroup>
       </div>
-      <Button v-if="history.length < total" variant="ghost" class="load-more" :disabled="loading" @click="load(true)">{{ loading ? '加载中…' : '加载更多' }}</Button>
+      <Button v-if="history.length < total" variant="ghost" class="w-full" :disabled="loading" @click="load(true)">{{ loading ? '加载中…' : '加载更多' }}</Button>
     </div>
     <ImageCompareDialog v-model="previewOpen" :tasks="tasks" :task-id="previewTaskId" :initial-index="previewIndex" :initial-result-index="previewResultIndex" studio />
     <TaskDetailDialog ref="detail" :task="selectedTask" @publish="(task) => { publishTask = task; publishOpen = true }">
@@ -129,32 +115,3 @@ function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
     <PublishWorkDialog v-model:visible="publishOpen" :task="publishTask" />
   </section>
 </template>
-
-<style scoped>
-.studio-results-panel{min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--momo-color-bg);border:1px solid var(--momo-color-border-soft);border-radius:var(--momo-space-5);overflow:hidden;container-type:inline-size}
-header{padding:var(--momo-space-7);padding-bottom:var(--momo-space-5);flex-shrink:0}
-h2{font-size:var(--momo-font-size-xl);font-weight:var(--momo-font-weight-semibold);margin:0}
-.results-scroll{flex:1;min-height:0;overflow:auto;padding:0 var(--momo-space-7) var(--momo-space-7)}
-.result-grid{display:flex;flex-direction:column;gap:var(--momo-space-3)}
-.round-images{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 3 * var(--momo-space-2)) / 4);gap:var(--momo-space-2);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity}
-.round-images>.result-tile{scroll-snap-align:start;min-width:0}
-.result-task{min-width:0;border-top:1px solid var(--momo-color-border-soft);padding-top:var(--momo-space-2)}
-time{display:flex;flex-wrap:wrap;gap:0 var(--momo-space-1);font-size:var(--momo-font-size-xs);color:var(--momo-color-text-tertiary);margin-bottom:var(--momo-space-2);overflow-wrap:anywhere}
-.result-tile{position:relative}
-.result-image,.result-placeholder{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1;border-radius:var(--momo-radius-xl);overflow:hidden;background:var(--momo-color-bg-soft)}
-.result-image img{width:100%;height:100%;object-fit:cover}
-.result-placeholder,.image-fallback{display:flex;flex-direction:column;align-items:center;gap:var(--momo-space-2);font-size:var(--momo-font-size-xs);color:var(--momo-color-text-secondary)}
-.result-actions{position:absolute;inset:auto 0 0;display:flex;background:var(--momo-color-bg);border-radius:var(--momo-radius-lg);box-shadow:var(--momo-shadow-sm);padding:var(--momo-space-1);opacity:0;pointer-events:none;transition:opacity .15s}
-.result-tile:hover .result-actions,.result-tile:focus-within .result-actions{opacity:1;pointer-events:auto}
-.result-actions button{display:flex;align-items:center;justify-content:center;gap:var(--momo-space-1);flex:1;min-width:0;padding:var(--momo-space-2) 0;font-size:var(--momo-font-size-xs);white-space:nowrap;border-radius:var(--momo-radius-sm)}
-.result-actions button:hover{color:var(--momo-color-brand);background:var(--momo-color-bg-soft)}
-.result-actions button:disabled{opacity:.4;cursor:not-allowed}
-.results-empty{height:100%;min-height:var(--momo-space-16);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--momo-space-4);text-align:center;color:var(--momo-color-text-secondary)}
-.results-empty h3{font-size:var(--momo-font-size-lg);color:var(--momo-color-text)}
-.results-empty p{font-size:var(--momo-font-size-sm)}
-.load-more{width:100%;margin-top:var(--momo-space-4)}
-
-@media(max-width:600px){header,.results-scroll{padding:var(--momo-space-4)}}
-@media(hover:none){.result-actions{opacity:1;pointer-events:auto}}
-@media(prefers-reduced-motion:reduce){.result-actions{transition:none}}
-</style>

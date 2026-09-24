@@ -12,7 +12,12 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+/* 深色工具类只作用于最近的主题域，不穿透浅色展厅或旧页面兼容边界。 */
+@custom-variant dark {
+  @scope (.dark) to (.ds-theme:not(.dark), .legacy-surface) {
+    @slot;
+  }
+}
 
 /* reka-ui 用 data-state / data-orientation 表达状态，而组件里的 data-open: / data-checked: /
    data-horizontal: 等简写变体默认会编译成 [data-open] 这类字面属性选择器（永不命中）。

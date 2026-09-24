@@ -4,10 +4,10 @@ import { RefreshCw, Trash2, Eye, LoaderCircle, Image, Copy, Download, Check, Pen
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { parseUTC, toBJMinute } from '@/utils/datetime'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { UiEmptyState } from '@/components/ui'
+import { Button } from '@/components/design-system/primitives/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Skeleton } from '@/components/design-system/primitives/skeleton'
+import { UiEmptyState } from '@/components/design-system'
 const { success, info, warning, error } = useUiFeedback()
 const { retryOnError } = useImageRetry()
 import type { ModelId } from '@/types/adapter'
@@ -437,8 +437,8 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .task-select-circle {
   position: absolute; top: 10px; left: 10px; z-index: 3;
   width: 24px; height: 24px; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.9);
-  background: rgba(0,0,0,0.25);
+  border: 2px solid var(--momo-overlay-text);
+  background: var(--momo-overlay-dim);
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s ease;
   cursor: pointer;

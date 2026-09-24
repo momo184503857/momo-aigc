@@ -1,3 +1,5 @@
+> **历史文档**：以下为旧体系上下文，不作为新功能视觉规范。当前规范见 [公共 UI 设计规范](../ui/ui-design-guidelines.md)，公共库与展厅已进入第一阶段，旧页面尚未迁移。
+
 # 墨墨 AI 生图 UI 设计规范
 
 > **视觉参数权威正本**已迁移至 [`docs/ui/ui-design-guidelines.md`](../ui/ui-design-guidelines.md)（对齐 DDB UI 设计规范）。

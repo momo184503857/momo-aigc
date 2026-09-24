@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+import { routeMetaMap, canonicalAdminPath } from '@/configs/navigation'
 import { useAuthStore } from '@/stores/auth'
 
 /**
@@ -20,6 +21,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin',
     redirect: '/admin/users',
+  },
+  {
+    path: '/ui-components',
+    alias: '/admin/ui-components',
+    name: 'AdminUiComponents',
+    component: () => import('@/views/admin/AdminUiComponents.vue'),
+    meta: { title: 'UI 组件库' },
   },
   {
     path: '/users',
@@ -104,6 +112,8 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes,
 })
+
+for (const route of router.getRoutes()) { const entry = routeMetaMap[canonicalAdminPath(route.path)]; if (entry) route.meta.title = entry.title }
 
 router.beforeEach(async (to, _from) => {
   const auth = useAuthStore()

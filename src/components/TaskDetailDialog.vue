@@ -7,15 +7,15 @@ import { getFeatureLabel } from '@/configs/featureConfig'
 import { useClipboard } from '@/composables/useClipboard'
 import { downloadUrl } from '@/utils/download'
 import { useImageRetry } from '@/composables/useImageRetry'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/design-system/primitives/button'
+import { Badge } from '@/components/design-system/primitives/badge'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/design-system/primitives/dialog'
 const { copy } = useClipboard()
 const { retryOnError } = useImageRetry()
 

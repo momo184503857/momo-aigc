@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useMediaQuery, useWindowSize } from '@vueuse/core'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useTaskPanelStore } from '@/stores/taskPanel'
 import { useTaskManager } from '@/composables/useTaskManager'
@@ -10,20 +11,22 @@ import PublishWorkDialog from '@/components/works/PublishWorkDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { X, List, LayoutGrid, Columns2, PictureInPicture2, Search } from '@lucide/vue'
 import { formatCredits } from '@/types/adapter'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/design-system/primitives/button'
+import { Badge } from '@/components/design-system/primitives/badge'
+import { Input } from '@/components/design-system/primitives/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { UiDateRangePicker, UiPagination } from '@/components/ui'
+} from '@/components/design-system/primitives/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
+import { UiDateRangePicker, UiPagination } from '@/components/design-system'
 
 const taskPanel = useTaskPanelStore()
+const narrowScreen = useMediaQuery('(max-width: 1023px)')
+const { width: viewportWidth } = useWindowSize()
 const tm = useTaskManager()
 
 // ─── Detail dialog ───
@@ -109,13 +112,13 @@ onUnmounted(() => {
 // ─── Overlay backdrop ───
 function onBackdropClick() {
   if (suppressNextClick) return
-  if (taskPanel.isOverlay) {
+  if (taskPanel.isOverlay || narrowScreen.value) {
     taskPanel.collapse()
   }
 }
 
 const panelStyle = computed(() => ({
-  width: taskPanel.panelWidth + 'px',
+  width: (narrowScreen.value ? viewportWidth.value : Math.min(taskPanel.panelWidth, viewportWidth.value - 320)) + 'px',
 }))
 
 // 功能筛选 Select 不接受空串值，用哨兵值映射「全部功能」
@@ -142,7 +145,7 @@ function clearRemarkSearch() {
 <template>
   <!-- Overlay backdrop -->
   <div
-    v-if="taskPanel.isOverlay"
+    v-if="!taskPanel.isCollapsed && (taskPanel.isOverlay || narrowScreen)"
     class="task-panel-backdrop"
     @click="onBackdropClick"
   />
@@ -152,8 +155,8 @@ function clearRemarkSearch() {
     v-if="!taskPanel.isCollapsed"
     class="task-panel"
     :class="{
-      'side-by-side': taskPanel.isSideBySide,
-      'overlay': taskPanel.isOverlay,
+      'side-by-side': taskPanel.isSideBySide && !narrowScreen,
+      'overlay': taskPanel.isOverlay || narrowScreen,
     }"
     :style="panelStyle"
   >
@@ -230,14 +233,14 @@ function clearRemarkSearch() {
             class="h-7 pl-7.5 text-[0.8rem]"
             @keyup.enter="tm.applyFilters"
           />
-          <button
+          <Button variant="ghost" size="icon-xs" aria-label="清除备注搜索"
             v-if="tm.filterRemark.value"
             type="button"
             class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
             @click="clearRemarkSearch"
           >
             <X class="size-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -302,7 +305,7 @@ function clearRemarkSearch() {
       <div v-if="tm.total.value > 0 && !tm.bulkMode.value" class="task-panel-footer">
         <label class="page-size-label">
           每页
-          <input
+          <Input
             type="number"
             class="page-size-inline-input"
             :value="tm.pageSize.value"

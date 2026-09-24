@@ -8,7 +8,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
+} from '@/components/design-system/primitives/sheet'
 
 const { visible, currentEntry, close } = useHelp()
 
