@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ChevronsUpDown, Coins, LogOut, ShieldCheck } from '@lucide/vue'
+import { ArrowLeft, ChevronsUpDown, Coins, LogOut } from '@lucide/vue'
 import { adminSections, canonicalAdminPath } from '@/configs/navigation'
 import AppearanceSettings from '@/components/AppearanceSettings.vue'
+import { DsBrandLogo } from '@/components/design-system'
 import { useSidebar } from '@/components/design-system/primitives/sidebar/utils'
 import { useAuthStore } from '@/stores/auth'
 import { formatCredits } from '@/types/adapter'
@@ -56,9 +57,7 @@ function navigate(path: string) {
   <Sidebar collapsible="icon">
     <SidebarHeader class="border-b border-sidebar-border">
       <SidebarMenuButton size="lg" class="hover:bg-transparent active:bg-transparent">
-        <span class="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-          <ShieldCheck class="size-4" />
-        </span>
+        <DsBrandLogo mark-only />
         <span class="grid flex-1 gap-0.5 text-left leading-none">
           <span class="text-sidebar-foreground truncate text-sm font-semibold">墨墨管理后台</span>
           <span class="text-muted-foreground truncate text-xs">运营与配置</span>

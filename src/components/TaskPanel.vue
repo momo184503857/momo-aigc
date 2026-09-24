@@ -5,6 +5,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useTaskPanelStore } from '@/stores/taskPanel'
 import { useTaskManager } from '@/composables/useTaskManager'
 import TaskList from '@/components/TaskList.vue'
+import TaskResultsList from '@/components/TaskResultsList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ImageEditorDialog from '@/components/ImageEditorDialog.vue'
@@ -127,6 +128,10 @@ function onViewModeChange(v: unknown) {
   if (v) tm.viewMode.value = String(v) as 'list' | 'grid'
 }
 
+function onListViewChange(v: unknown) {
+  if (v === 'new' || v === 'legacy') taskPanel.setListView(v)
+}
+
 function clearRemarkSearch() {
   tm.filterRemark.value = ''
   tm.applyFilters()
@@ -165,7 +170,7 @@ function clearRemarkSearch() {
         <div class="task-panel-header-left">
           <span class="task-panel-title">任务列表</span>
           <Badge variant="secondary">积分: {{ formatCredits(tm.userPoints.value) }}</Badge>
-          <Badge v-if="tm.hasActiveJobs.value" variant="warning">生成中...</Badge>
+          <Badge v-if="tm.taskSummary.value.active > 0 || tm.hasActiveJobs.value" variant="warning">生成中...</Badge>
         </div>
         <div class="task-panel-header-right">
           <!-- Mode toggle -->
@@ -190,8 +195,22 @@ function clearRemarkSearch() {
         </div>
       </div>
 
+      <div class="task-panel-view-switch">
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          aria-label="任务列表版本"
+          :model-value="taskPanel.listView"
+          @update:model-value="onListViewChange"
+        >
+          <ToggleGroupItem value="new">新版任务列表</ToggleGroupItem>
+          <ToggleGroupItem value="legacy">旧版任务列表</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
       <!-- Filters -->
-      <div class="task-panel-filters">
+      <div v-if="taskPanel.listView === 'legacy'" class="task-panel-filters">
         <Select
           :model-value="tm.filterFeature.value || ALL_FEATURES"
           @update:model-value="onFeatureFilterChange"
@@ -236,7 +255,7 @@ function clearRemarkSearch() {
       </div>
 
       <!-- Bulk / View mode controls -->
-      <div class="task-panel-toolbar">
+      <div v-if="taskPanel.listView === 'legacy'" class="task-panel-toolbar">
         <template v-if="tm.bulkMode.value">
           <span class="bulk-count">已选 {{ tm.selectedIds.value.size }} 项</span>
           <Button size="sm" variant="outline" @click="tm.selectAllTasks">
@@ -271,7 +290,10 @@ function clearRemarkSearch() {
       </div>
 
       <!-- Task list -->
-      <div class="task-panel-body">
+      <div v-if="taskPanel.listView === 'new'" class="task-panel-body task-panel-body-new">
+        <TaskResultsList @reuse="tm.handleCopyParams" />
+      </div>
+      <div v-else class="task-panel-body">
         <TaskList
           :tasks="tm.tasks.value"
           :view-mode="tm.viewMode.value"
@@ -292,7 +314,7 @@ function clearRemarkSearch() {
       </div>
 
       <!-- Pagination -->
-      <div v-if="tm.total.value > 0 && !tm.bulkMode.value" class="task-panel-footer">
+      <div v-if="taskPanel.listView === 'legacy' && tm.total.value > 0 && !tm.bulkMode.value" class="task-panel-footer">
         <label class="page-size-label">
           每页
           <Input
@@ -449,6 +471,12 @@ function clearRemarkSearch() {
   flex-shrink: 0;
 }
 
+.task-panel-view-switch {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 /* Filters */
 .task-panel-filters {
   display: flex;
@@ -488,6 +516,7 @@ function clearRemarkSearch() {
   overflow-y: auto;
   padding: 12px 16px;
 }
+.task-panel-body-new { padding: 0; overflow: hidden; }
 
 /* Footer */
 .task-panel-footer {

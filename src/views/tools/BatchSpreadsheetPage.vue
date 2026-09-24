@@ -33,7 +33,7 @@ import { formatCredits } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
 import type { ModelId } from '@/types/adapter'
-import { DsScrollPage as PageLayout } from '@/components/design-system'
+import { DsParameterPanel, DsScrollPage as PageLayout } from '@/components/design-system'
 import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
 import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
 import { Badge } from '@/components/design-system/primitives/badge'
@@ -61,7 +61,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/design-system/primitives/table'
-import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 
 const router = useRouter()
 const { success, warning, error } = useUiFeedback()
@@ -737,64 +736,20 @@ onUnmounted(() => {
     <!-- 常驻命令栏：参数（校对阶段）+ 主操作 + 进度 -->
     <template #footer>
       <div class="content-max flex flex-col gap-2.5">
-        <!-- 输出参数：进入生成后不再暴露，避免误改影响「重试」 -->
-        <div v-if="step !== 'generating'" class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span class="text-muted-foreground text-sm font-medium tracking-wider uppercase">参数</span>
-          <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-sm">模型</span>
-            <ModelChannelSelect
-              v-model="selectedModelId"
-              class="w-64"
-              @change="handleModelChange"
-            />
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-sm">分辨率</span>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              :model-value="resolution"
-              @update:model-value="(v) => { if (v) { resolution = String(v); handleResolutionChange() } }"
-            >
-              <ToggleGroupItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-sm">宽高比</span>
-            <Select v-model="aspectRatio">
-              <SelectTrigger class="w-28">
-                <SelectValue placeholder="宽高比" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <span class="text-muted-foreground text-sm tabular-nums">
-            单价 {{ formatCredits(unitPrice) }} / 任务
-          </span>
-        </div>
-
-        <!-- 动作行 -->
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <template v-if="step === 'preview'">
-            <Button size="lg" class="min-w-52 gap-2" :disabled="selectedCount === 0" @click="handleGenerate">
-              开始生成 · {{ selectedCount }} 个任务 · {{ formatCredits(selectedCost) }}
-            </Button>
-            <span v-if="selectedCount === 0" class="text-destructive text-sm">
-              请至少勾选一条任务
-            </span>
-            <span v-else class="text-muted-foreground text-sm">
-              任务按每 3 秒 1 个依次提交，未勾选的行不会提交
-            </span>
-            <Button variant="outline" size="sm" class="gap-1.5" @click="step = 'upload'">
-              <FileText class="size-3.5" />
-              重新上传
-            </Button>
+        <DsParameterPanel v-if="step !== 'generating'" :label="`开始生成 · ${selectedCount} 个任务 · ${formatCredits(selectedCost)}`" :disabled="step !== 'preview' || selectedCount === 0" :reason="step === 'upload' ? '请先上传并校对表格' : selectedCount === 0 ? '请至少勾选一条任务' : `单价 ${formatCredits(unitPrice)} / 任务`" :reason-tone="step === 'preview' && selectedCount === 0 ? 'error' : 'default'" @submit="handleGenerate">
+          <div class="ds-parameter"><span class="ds-caption">模型</span><ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" /></div>
+          <div class="ds-parameter"><span class="ds-caption">画面比例</span><Select v-model="aspectRatio"><SelectTrigger aria-label="画面比例"><SelectValue placeholder="宽高比" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent></Select></div>
+          <div class="ds-parameter"><span class="ds-caption">任务数量</span><output class="ds-parameter-value tabular-nums">{{ selectedCount }} 个</output></div>
+          <div class="ds-parameter"><span class="ds-caption">分辨率</span><Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }"><SelectTrigger aria-label="分辨率"><SelectValue placeholder="选择分辨率" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent></Select></div>
+          <template #after>
+            <div v-if="step === 'preview'" class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-muted-foreground text-sm">任务按每 3 秒 1 个依次提交，未勾选的行不会提交</span>
+              <Button variant="outline" size="sm" class="gap-1.5" @click="step = 'upload'"><FileText class="size-3.5" />重新上传</Button>
+            </div>
           </template>
+        </DsParameterPanel>
 
-          <div v-else-if="step === 'generating'" class="flex min-w-0 flex-1 flex-col gap-2">
+          <div v-else class="flex min-w-0 flex-1 flex-col gap-2">
             <div class="flex items-center gap-3">
               <span class="text-sm font-medium whitespace-nowrap">
                 {{ allDone ? '全部任务已结束' : '正在生成' }}
@@ -835,7 +790,6 @@ onUnmounted(() => {
               结果可下载与重试的入口会在全部任务结束后出现
             </span>
           </div>
-        </div>
       </div>
     </template>
   </PageLayout>

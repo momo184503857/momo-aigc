@@ -88,6 +88,7 @@ export { default as DsTextPicker } from './composites/DsTextPicker.vue'
 
 export { default as DsPasswordInput } from './composites/DsPasswordInput.vue'
 export { default as DsAuthPanel } from './composites/DsAuthPanel.vue'
+export { default as DsBrandLogo } from './composites/DsBrandLogo.vue'
 
 export { default as DsScrollPage } from './composites/DsScrollPage.vue'
 export { default as DsFileInput } from './primitives/DsFileInput.vue'

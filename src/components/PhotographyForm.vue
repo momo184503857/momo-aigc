@@ -17,7 +17,7 @@ import ModelChannelSelect from './ModelChannelSelect.vue'
 import { Plus, Trash2, X, LoaderCircle } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
 import { Textarea } from '@/components/design-system/primitives/textarea'
-import { UiEmptyState, UiNumberInput } from '@/components/design-system'
+import { DsParameterPanel, UiEmptyState, UiNumberInput } from '@/components/design-system'
 import {
   Select,
   SelectContent,
@@ -555,47 +555,6 @@ onMounted(() => loadElements())
 <template>
   <div class="photography-form">
     <div class="form-scroll-area">
-      <!-- ─── Basic params ─── -->
-      <div class="params-row">
-        <div class="param-item">
-          <label>模型</label>
-          <ModelChannelSelect
-            v-model="selectedModelId"
-            class="w-95"
-            @change="handleModelChange"
-          />
-        </div>
-        <div class="param-item">
-          <label>分辨率</label>
-          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
-            <SelectTrigger class="w-35">
-              <SelectValue placeholder="分辨率" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="param-item">
-          <label>宽高比</label>
-          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
-            <SelectTrigger class="w-35">
-              <SelectValue placeholder="宽高比" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="r in availableAspectRatios" :key="r" :value="r">{{ r }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="param-item">
-          <label>数量</label>
-          <UiNumberInput v-model="count" :min="1" :max="5" class="w-35" />
-        </div>
-        <div v-if="currentPrice" class="param-item price">
-          <span class="text-warning text-sm font-medium whitespace-nowrap">{{ formatCredits(currentPrice) }} /张</span>
-        </div>
-      </div>
-
       <!-- ─── Image pool ─── -->
       <div class="pool-section">
         <label class="section-label">
@@ -732,19 +691,32 @@ onMounted(() => loadElements())
         />
       </div>
 
-      <!-- ─── Generate bar ─── -->
-      <div class="generate-bar">
-        <Button
-          size="lg"
-          :disabled="!canGenerate"
-          @click="handleGenerate"
-        >
-          {{ generateButtonLabel }}
-        </Button>
-        <span v-if="!canGenerate && serverStatus.loaded" class="text-muted-foreground text-sm">
-          {{ serverStatus.canGenerate ? '请至少分配一张图片到元素' : '暂无可用模型，请联系管理员配置渠道与模型' }}
-        </span>
-      </div>
+    </div>
+    <div class="shrink-0 border-t p-3">
+      <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate" :reason="!canGenerate && serverStatus.loaded ? (serverStatus.canGenerate ? '请至少分配一张图片到元素' : '暂无可用模型，请联系管理员配置渠道与模型') : undefined" @submit="handleGenerate">
+        <div class="ds-parameter">
+          <span class="ds-caption">模型</span>
+          <ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" />
+        </div>
+        <div class="ds-parameter">
+          <span class="ds-caption">画面比例</span>
+          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
+            <SelectTrigger aria-label="画面比例"><SelectValue placeholder="宽高比" /></SelectTrigger>
+            <SelectContent position="popper"><SelectItem v-for="r in availableAspectRatios" :key="r" :value="r">{{ r }}</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <div class="ds-parameter">
+          <span class="ds-caption">生成数量</span>
+          <UiNumberInput v-model="count" :min="1" :max="5" aria-label="生成数量" />
+        </div>
+        <div class="ds-parameter">
+          <span class="ds-caption">分辨率</span>
+          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
+            <SelectTrigger aria-label="分辨率"><SelectValue placeholder="分辨率" /></SelectTrigger>
+            <SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent>
+          </Select>
+        </div>
+      </DsParameterPanel>
     </div>
   </div>
 </template>
@@ -761,21 +733,6 @@ onMounted(() => loadElements())
   overflow-y: auto;
   padding-right: 8px;
 }
-
-/* ─── Params row ─── */
-.params-row {
-  display: flex;
-  gap: 16px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-.param-item { display: flex; flex-direction: column; gap: 6px; }
-.param-item label {
-  font-size: var(--ds-font-small);
-  color: var(--muted-foreground);
-}
-.price { margin-left: auto; }
 
 /* ─── Sections ─── */
 .prompt-section { margin-bottom: 24px; }
@@ -881,12 +838,4 @@ onMounted(() => loadElements())
   min-height: 72px;
 }
 
-/* ─── Generate bar ─── */
-.generate-bar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
 </style>

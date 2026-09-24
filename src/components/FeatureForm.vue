@@ -17,11 +17,13 @@ import ModelChannelSelect from './ModelChannelSelect.vue'
 import SupplementaryImageUpload from './SupplementaryImageUpload.vue'
 import type { SupplementaryImage } from './SupplementaryImageUpload.vue'
 import { templateApi } from '@/services/templateApi'
-import { Star, TriangleAlert, Info, LoaderCircle, Wand2, LayoutTemplate } from '@lucide/vue'
+import { Star, TriangleAlert, Info, LoaderCircle, Wand2, LayoutTemplate, CircleHelp } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
 import { Textarea } from '@/components/design-system/primitives/textarea'
 import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
 import { Badge } from '@/components/design-system/primitives/badge'
+import { DsParameterPanel } from '@/components/design-system'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/design-system/primitives/tooltip'
 import {
   Popover,
   PopoverContent,
@@ -427,9 +429,9 @@ defineExpose({ setParams })
         <AlertTitle>提示词加载失败，将使用默认配置</AlertTitle>
       </Alert>
 
-      <!-- ① 参考图 -->
-      <section v-if="slots.length > 0" class="pb-5">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <!-- ① 参考图与细节补充 -->
+      <section v-if="slots.length > 0 || config.hasSupplementaryImages" class="pb-5">
+        <div v-if="slots.length > 0" class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div class="min-w-0">
             <h2 class="text-sm font-semibold">
               参考图
@@ -496,26 +498,33 @@ defineExpose({ setParams })
             :required="slot.required"
             :model-value="getSlotImages(slot.key)"
             :show-template-btn="false"
-            :starred-templates="[]"
+            :starred-templates="starredTemplates"
+            show-starred-on-hover
             :size="164"
             align-left
             @update:model-value="setSlotImages(slot.key, $event)"
+            @starred-select="handleStarredSelect(slot.key, $event)"
           />
+          <div v-if="config.hasSupplementaryImages" class="min-w-40 flex-1">
+            <div class="mb-3 flex items-center gap-1">
+              <h2 class="text-sm font-semibold">细节补充</h2>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button variant="ghost" size="icon-xs" aria-label="细节补充说明">
+                    <CircleHelp class="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  可选，最多 5 张，每张需命名（如：领口、袖口、面料）
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <SupplementaryImageUpload v-model="supplementaryImages" />
+          </div>
         </div>
       </section>
 
-      <!-- ② 细节补充 -->
-      <section v-if="config.hasSupplementaryImages" class="pb-5">
-        <div class="mb-3">
-          <h2 class="text-sm font-semibold">
-            细节补充
-            <span class="text-muted-foreground ml-1.5 font-normal">可选，最多 5 张，每张需命名（如：领口、袖口、面料）</span>
-          </h2>
-        </div>
-        <SupplementaryImageUpload v-model="supplementaryImages" />
-      </section>
-
-      <!-- ③ 生成描述 -->
+      <!-- ② 生成描述 -->
       <section v-if="config.hasUserPrompt" class="pb-3">
         <div class="mb-3 flex items-center justify-between gap-2">
           <h2 class="text-sm font-semibold">{{ userPromptLabel }}</h2>
@@ -528,7 +537,7 @@ defineExpose({ setParams })
         />
       </section>
 
-      <!-- ④ 提示词（高级，默认收起） -->
+      <!-- ③ 提示词（高级，默认收起） -->
       <section class="pb-1">
         <PromptEditorPanel
           v-model="promptPanelModel"
@@ -542,61 +551,34 @@ defineExpose({ setParams })
       </section>
     </div>
 
-    <!-- Sticky 生成栏：参数收进一行，主操作独占右侧 -->
     <div class="bg-background shrink-0 border-t px-5 py-3">
-      <div class="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-sm tracking-wider uppercase">模型</span>
-            <ModelChannelSelect v-model="selectedModelId" class="w-44" @change="handleModelChange" />
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-sm tracking-wider uppercase">分辨率</span>
-            <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
-              <SelectTrigger class="w-24">
-                <SelectValue placeholder="选择分辨率" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-sm tracking-wider uppercase">比例</span>
-            <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
-              <SelectTrigger class="w-20">
-                <SelectValue placeholder="宽高比" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-sm tracking-wider uppercase">张数</span>
-            <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
-              <SelectTrigger class="w-18">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 张</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate" :reason="blockingHint || undefined" reason-tone="error" @submit="handleGenerate">
+        <div class="ds-parameter">
+          <span class="ds-caption">模型</span>
+          <ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" />
         </div>
-
-        <div class="ml-auto flex items-center gap-3">
-          <span
-            class="text-sm tabular-nums"
-            :class="blockingHint ? 'text-destructive' : 'text-muted-foreground'"
-          >
-            {{ blockingHint || '⌘/Ctrl + Enter 快速生成' }}
-          </span>
-          <Button size="lg" class="min-w-40 gap-2" :disabled="!canGenerate" @click="handleGenerate">
-            {{ generateButtonLabel }}
-          </Button>
+        <div class="ds-parameter">
+          <span class="ds-caption">画面比例</span>
+          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
+            <SelectTrigger aria-label="画面比例"><SelectValue placeholder="选择宽高比" /></SelectTrigger>
+            <SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent>
+          </Select>
         </div>
-      </div>
+        <div class="ds-parameter">
+          <span class="ds-caption">生成数量</span>
+          <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
+            <SelectTrigger aria-label="生成数量"><SelectValue /></SelectTrigger>
+            <SelectContent position="popper"><SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 张</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <div class="ds-parameter">
+          <span class="ds-caption">分辨率</span>
+          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
+            <SelectTrigger aria-label="分辨率"><SelectValue placeholder="选择分辨率" /></SelectTrigger>
+            <SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent>
+          </Select>
+        </div>
+      </DsParameterPanel>
     </div>
   </div>
 

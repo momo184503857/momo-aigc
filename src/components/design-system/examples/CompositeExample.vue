@@ -9,6 +9,8 @@ const pickerOpen = ref(false)
 const keyword = ref('')
 const prompt = ref('柔和自然光，保留商品细节')
 const model = ref('standard')
+const ratio = ref('1:1')
+const resolution = ref('1K')
 const count = ref<number | undefined>(2)
 const fileNames = ref<string[]>([])
 const message = ref('')
@@ -22,6 +24,7 @@ const status = computed(() => props.state === 'error' ? 'failed' : props.state =
   <U.DsField v-if="family === 'password-input'" v-slot="field" label="密码示例" :error="state === 'error' ? '请输入有效密码' : undefined">
     <U.DsPasswordInput :id="field.id" v-model="keyword" :aria-describedby="field.describedby" :aria-invalid="field.invalid" :disabled="state === 'disabled' || state === 'loading'" autocomplete="new-password" />
   </U.DsField>
+  <U.DsBrandLogo v-if="family === 'brand-logo'" />
   <U.DsAuthPanel v-if="family === 'auth-panel'" subtitle="认证面板示例"><p class="ds-caption">此处展示业务表单，不发送认证请求。</p></U.DsAuthPanel>
   <div v-if="family === 'text-picker'">
     <U.Button variant="outline" @click="pickerOpen = true">选择文本（模拟）</U.Button>
@@ -43,7 +46,12 @@ const status = computed(() => props.state === 'error' ? 'failed' : props.state =
   <div v-else-if="family === 'parameters'" class="ds-stack"><U.DsField v-slot="field" label="模型"><U.Select v-model="model"><U.SelectTrigger :id="field.id"><U.SelectValue /></U.SelectTrigger><U.SelectContent><U.SelectItem value="standard">标准模型（模拟）</U.SelectItem><U.SelectItem value="detail">细节模型（模拟）</U.SelectItem></U.SelectContent></U.Select></U.DsField><U.DsField v-slot="field" label="生成数量"><U.UiNumberInput :id="field.id" v-model="count" :min="1" :max="8" /></U.DsField></div>
   <div v-else-if="family === 'data-state'" class="ds-stack"><U.UiEmptyState v-if="state === 'empty'" title="暂无数据" description="调整筛选条件后重试" /><U.Skeleton v-else-if="state === 'loading'" class="h-20" /><U.DsNotice v-else-if="state === 'error'" title="加载失败" error description="网络异常，请重新加载" /><U.Table v-else><U.TableHeader><U.TableRow><U.TableHead>任务</U.TableHead><U.TableHead>结果</U.TableHead></U.TableRow></U.TableHeader><U.TableBody><U.TableRow><U.TableCell>任务一</U.TableCell><U.TableCell>已完成</U.TableCell></U.TableRow></U.TableBody></U.Table></div>
   <U.DsStudio v-if="family === 'studio'"><U.DsSection title="创作参数"><U.Input v-model="prompt" aria-label="创作描述示例" /></U.DsSection><U.DsImageCard :src="sampleImage" title="创作结果示例" /></U.DsStudio>
-  <U.DsParameterPanel v-if="family === 'parameter-panel'" label="生成图片（模拟）" :disabled="state === 'disabled'" :busy="state === 'loading'" @submit="message = '生成事件（模拟）'"><U.DsField label="描述"><U.Input v-model="prompt" aria-label="描述示例" /></U.DsField></U.DsParameterPanel>
+  <U.DsParameterPanel v-if="family === 'parameter-panel'" label="生成图片 · 0.20 积分（模拟）" :disabled="state === 'disabled'" :busy="state === 'loading'" @submit="message = '生成事件（模拟）'">
+    <div class="ds-parameter"><span class="ds-caption">模型</span><U.Select v-model="model"><U.SelectTrigger aria-label="模型"><U.SelectValue /></U.SelectTrigger><U.SelectContent><U.SelectItem value="standard">标准模型</U.SelectItem></U.SelectContent></U.Select></div>
+    <div class="ds-parameter"><span class="ds-caption">画面比例</span><U.Select v-model="ratio"><U.SelectTrigger aria-label="画面比例"><U.SelectValue /></U.SelectTrigger><U.SelectContent><U.SelectItem value="1:1">1:1</U.SelectItem><U.SelectItem value="3:4">3:4</U.SelectItem></U.SelectContent></U.Select></div>
+    <div class="ds-parameter"><span class="ds-caption">生成数量</span><U.UiNumberInput v-model="count" :min="1" :max="5" aria-label="生成数量" /></div>
+    <div class="ds-parameter"><span class="ds-caption">分辨率</span><U.Select v-model="resolution"><U.SelectTrigger aria-label="分辨率"><U.SelectValue /></U.SelectTrigger><U.SelectContent><U.SelectItem value="1K">1K</U.SelectItem><U.SelectItem value="2K">2K</U.SelectItem></U.SelectContent></U.Select></div>
+  </U.DsParameterPanel>
   <U.DsResultGroup v-if="family === 'result-group'" label="今日 12:30"><U.DsImageCard v-for="i in 5" :key="i" :src="sampleImage" :title="`示例 ${i}`" /></U.DsResultGroup>
   <U.DsReferenceImage v-if="family === 'reference-image'" :src="sampleImage" label="参考图示例" @remove="message = '移除事件（模拟）'" @preview="message = '预览事件（模拟）'" />
   <U.DsNotice v-if="message" :title="message" />

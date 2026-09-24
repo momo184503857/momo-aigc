@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { DsFileInput, DsUpload } from '@/components/design-system'
-import { ref } from 'vue'
+import { onUnmounted, ref } from 'vue'
 import { Plus, RefreshCw, X } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/design-system/primitives/hover-card'
 import { UiImagePreview } from '@/components/design-system'
 defineOptions({ name: 'ImageSlotUpload' })
 
@@ -27,6 +28,8 @@ const props = withDefaults(defineProps<{
   showTemplateBtn?: boolean
   size?: number
   alignLeft?: boolean
+  useObjectUrls?: boolean
+  showStarredOnHover?: boolean
   starredTemplates?: StarredTemplate[]
 }>(), { size: 200, starredTemplates: () => [] })
 
@@ -49,13 +52,32 @@ function readFileAsDataUrl(file: File): Promise<string> {
   })
 }
 
+// 批量上传时保留原始 File，只用对象 URL 展示缩略图，避免 100 张图转 base64 驻留内存。
+const ownedObjectUrls = new Set<string>()
+function previewForFile(file: File): Promise<string> {
+  if (!props.useObjectUrls) return readFileAsDataUrl(file)
+  const url = URL.createObjectURL(file)
+  ownedObjectUrls.add(url)
+  return Promise.resolve(url)
+}
+
+function releasePreview(url: string) {
+  if (!ownedObjectUrls.delete(url)) return
+  URL.revokeObjectURL(url)
+}
+
+onUnmounted(() => {
+  for (const url of ownedObjectUrls) URL.revokeObjectURL(url)
+  ownedObjectUrls.clear()
+})
+
 async function addFromFiles(fileList: FileList | File[]) {
   const files = Array.from(fileList)
   let current = [...props.modelValue]
   for (const file of files) {
     if (current.length >= props.maxCount) break
     if (!file.type.startsWith('image/')) continue
-    const dataUrl = await readFileAsDataUrl(file)
+    const dataUrl = await previewForFile(file)
     const img: SlotImage = {
       id: generateId(),
       dataUrl,
@@ -86,11 +108,13 @@ function handleFileReplace(e: Event) {
   const file = input.files[0]
   if (!file.type.startsWith('image/')) return
   const idx = replacingIndex.value
-  readFileAsDataUrl(file).then(dataUrl => {
+  const oldPreview = props.modelValue[idx]?.dataUrl
+  previewForFile(file).then(dataUrl => {
     const newImages = props.modelValue.map((img, i) =>
       i === idx ? { id: img.id, dataUrl, file } : img
     )
     emit('update:modelValue', newImages)
+    if (oldPreview) releasePreview(oldPreview)
   })
   input.value = ''
   replacingIndex.value = null
@@ -120,12 +144,19 @@ function handleDrop(e: DragEvent) {
 
 function handleRemove(index: number) {
   const updated = [...props.modelValue]
-  updated.splice(index, 1)
+  const [removed] = updated.splice(index, 1)
   emit('update:modelValue', updated)
+  if (removed) releasePreview(removed.dataUrl)
 }
 
 const previewUrl = ref<string>('')
 const showPreviewDialog = ref(false)
+const starredHoverOpen = ref(false)
+
+function selectStarred(template: StarredTemplate) {
+  emit('starred-select', template)
+  starredHoverOpen.value = false
+}
 
 function showPreview(dataUrl: string) {
   previewUrl.value = dataUrl
@@ -170,7 +201,32 @@ function showPreview(dataUrl: string) {
       <DsFileInput ref="replaceInputRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
         @change="handleFileReplace" />
       <!-- Add button: visible when slot is not yet filled -->
-      <DsUpload v-if="modelValue.length < maxCount" variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
+      <HoverCard v-if="modelValue.length < maxCount && showStarredOnHover" v-model:open="starredHoverOpen" :open-delay="0">
+        <HoverCardTrigger as-child>
+          <div>
+            <DsUpload variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
+          </div>
+        </HoverCardTrigger>
+        <HoverCardContent side="bottom" align="start" class="w-80 p-3">
+          <p class="text-muted-foreground mb-2 text-sm font-medium">收藏模板</p>
+          <div v-if="starredTemplates.length" class="grid max-h-64 grid-cols-4 gap-2 overflow-y-auto">
+            <Button
+              v-for="t in starredTemplates"
+              :key="t.id"
+              type="button"
+              variant="ghost"
+              class="border-border hover:border-primary aspect-square h-auto w-full overflow-hidden border p-0"
+              :aria-label="`使用收藏模板：${t.name}`"
+              :title="t.name"
+              @click="selectStarred(t)"
+            >
+              <img :src="t.public_url" :alt="t.name" class="size-full object-cover" />
+            </Button>
+          </div>
+          <p v-else class="text-muted-foreground py-4 text-center text-sm">还没有收藏的模板</p>
+        </HoverCardContent>
+      </HoverCard>
+      <DsUpload v-else-if="modelValue.length < maxCount" variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
     </div>
     <div v-if="label" class="text-muted-foreground mt-2 text-sm" :class="alignLeft ? 'text-left' : 'text-center'">
       <span v-if="required" class="text-destructive">*</span>

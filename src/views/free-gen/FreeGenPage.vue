@@ -6,7 +6,6 @@ import { ref, watch, onMounted, onActivated, nextTick } from 'vue'
 defineOptions({ name: 'FreeGen' })
 import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success } = useUiFeedback()
-import FreeGenResults from './FreeGenResults.vue'
 import GenerationForm from '@/components/GenerationForm.vue'
 
 import { useServerStatusStore } from '@/stores/serverStatus'
@@ -118,8 +117,7 @@ onActivated(async () => {
 </script>
 
 <template>
-  <DsStudio title="自由生图工作台">
+  <DsStudio title="自由生图工作台" class="free-gen-studio">
     <GenerationForm ref="generationForm" @generate="(p) => handleGenerate({ ...p, featureId: 'free-gen' })" />
-    <FreeGenResults @reuse="tm.handleCopyParams" />
   </DsStudio>
 </template>

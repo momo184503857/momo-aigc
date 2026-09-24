@@ -77,10 +77,11 @@ function priceClass(text: string): string {
         v-for="model in modelCatalog.flatImageModels"
         :key="model.id"
         :value="String(model.id)"
+        class="pr-1.5 [&>span:first-child]:hidden [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1"
       >
-        <span class="flex min-w-0 flex-1 items-center justify-between gap-2">
+        <span class="flex w-full min-w-0 items-center justify-between gap-2">
           <span class="truncate">{{ model.displayName }}</span>
-          <span class="shrink-0 text-xs whitespace-nowrap" :class="priceClass(modelPriceLabel(model))">
+          <span class="ml-auto shrink-0 text-right text-xs whitespace-nowrap" :class="priceClass(modelPriceLabel(model))">
             {{ modelPriceLabel(model) }}
           </span>
         </span>

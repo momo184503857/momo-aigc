@@ -1003,9 +1003,9 @@
     "source": "composites/DsParameterPanel.vue",
     "example": "composite",
     "family": "parameter-panel",
-    "contract": "类型化属性与插槽；纯展示，不调用业务接口",
-    "events": "通过组件 emits 交给业务层",
-    "usage": "用于创作工作台及可复用场景"
+    "contract": "label、busyLabel、busy、disabled、reason、reasonTone；default 为参数字段，after 为辅助状态和次要操作",
+    "events": "submit 交给业务页处理，不调用生图接口",
+    "usage": "所有非 AI 画布生图入口的参数与主按钮使用同一面板"
   },
   {
     "id": "result-group",
@@ -1066,6 +1066,18 @@
     "contract": "受控 modelValue；disabled；输入属性透传真实 input",
     "events": "update:modelValue",
     "usage": "密码显隐与键盘操作；不访问认证接口"
+  },
+  {
+    "id": "brand-logo",
+    "title": "品牌标识",
+    "category": "公共组合",
+    "group": "标识与切换",
+    "source": "composites/DsBrandLogo.vue",
+    "example": "composite",
+    "family": "brand-logo",
+    "contract": "markOnly 控制是否只显示 M 标记",
+    "events": "无",
+    "usage": "导航、认证和后台共用标识，颜色继承当前主题文字色"
   },
   {
     "id": "auth-panel",

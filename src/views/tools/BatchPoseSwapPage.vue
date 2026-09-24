@@ -2,7 +2,7 @@
 /**
  * 批量换衣服（模特图 × 1  +  衣服图 × N）
  *
- * 结构：主列 = 批量素材与提示词，右栏 = 共用素材与输出参数，吸底栏 = 提交与进度。
+ * 结构：主列 = 批量素材与提示词，右栏 = 共用素材与摘要，吸底栏 = 公共参数与提交进度。
  * 提交循环本身未改动，只额外镜像了 4 个纯视图进度状态（isSubmitting / submitCursor /
  * submitDone / submitFailedAt），用于逐张进度反馈。
  */
@@ -22,7 +22,7 @@ import { formatCredits } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
 import type { ModelId } from '@/types/adapter'
-import { DsScrollPage as PageLayout } from '@/components/design-system'
+import { DsParameterPanel, DsScrollPage as PageLayout } from '@/components/design-system'
 import PromptEditorPanel from '@/components/PromptEditorPanel.vue'
 import ImageSlotUpload from '@/components/ImageSlotUpload.vue'
 import type { SlotImage } from '@/components/ImageSlotUpload.vue'
@@ -39,7 +39,6 @@ import {
   SelectValue,
 } from '@/components/design-system/primitives/select'
 import { Textarea } from '@/components/design-system/primitives/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 import { cn } from '@/lib/utils'
 
 const router = useRouter()
@@ -402,16 +401,17 @@ onMounted(() => {
             <h3 class="text-sm font-semibold">
               衣服图
               <span class="text-muted-foreground ml-1.5 font-normal">
-                必填 · 每张生成 1 个任务，最多 20 张，可直接拖图
+                必填 · 每张生成 1 个任务，最多 100 张，可直接拖图
               </span>
             </h3>
             <Badge variant="outline" class="h-4 shrink-0 px-1.5 tabular-nums">
-              {{ garmentImages.length }} / 20
+              {{ garmentImages.length }} / 100
             </Badge>
           </div>
           <ImageSlotUpload
             label=""
-            :max-count="20"
+            :max-count="100"
+            use-object-urls
             :required="true"
             :model-value="garmentImages"
             :size="120"
@@ -485,7 +485,7 @@ onMounted(() => {
         </section>
       </div>
 
-      <!-- 右栏：共用素材 + 输出参数 -->
+      <!-- 右栏：共用素材 + 批量摘要 -->
       <aside class="flex min-w-0 flex-col gap-6">
         <section>
           <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -504,41 +504,6 @@ onMounted(() => {
             align-left
             @update:model-value="modelImages = $event"
           />
-        </section>
-
-        <section class="border-border border-t pt-5">
-          <h3 class="text-muted-foreground mb-2.5 text-sm font-medium tracking-wider uppercase">
-            输出参数
-          </h3>
-          <div class="flex flex-col gap-3">
-            <div>
-              <label class="text-muted-foreground mb-1 block text-sm">模型</label>
-              <ModelChannelSelect v-model="selectedModelId" @change="handleModelChange" />
-            </div>
-            <div>
-              <label class="text-muted-foreground mb-1 block text-sm">分辨率</label>
-              <ToggleGroup
-                type="single"
-                variant="outline"
-                size="sm"
-                :model-value="resolution"
-                @update:model-value="(v) => { if (v) { resolution = String(v); handleResolutionChange() } }"
-              >
-                <ToggleGroupItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-            <div>
-              <label class="text-muted-foreground mb-1 block text-sm">宽高比</label>
-              <Select v-model="aspectRatio">
-                <SelectTrigger class="w-full">
-                  <SelectValue placeholder="选择宽高比" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
         </section>
 
         <section class="border-border border-t pt-5">
@@ -566,33 +531,19 @@ onMounted(() => {
       </aside>
     </div>
 
-    <!-- 吸底操作栏 -->
+    <!-- 统一参数与吸底操作栏 -->
     <template #footer>
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-        <Button size="lg" class="min-w-52 gap-2" :disabled="!canGenerate" @click="handleGenerate">
-          <LoaderCircle v-if="isSubmitting" class="size-3.5 animate-spin" />
-          {{ isSubmitting
-            ? `提交中 ${submitDone} / ${taskCount}`
-            : `批量生成 · ${taskCount} 个任务 · ${formatCredits(totalCost)}` }}
-        </Button>
-
-        <div
-          v-if="submitSummary"
-          class="text-muted-foreground flex items-center gap-2 text-sm"
-        >
-          <Progress :model-value="submitPercent" class="h-1 w-28" />
-          {{ submitSummary }}
-        </div>
-        <span
-          v-else-if="blockingHint"
-          class="text-destructive text-sm"
-        >
-          {{ blockingHint }}
-        </span>
-        <span v-else class="text-muted-foreground text-sm">
-          确认前会再提示一次消耗，提交后在任务面板查看进度
-        </span>
-      </div>
+      <DsParameterPanel :label="`批量生成 · ${taskCount} 个任务 · ${formatCredits(totalCost)}`" :busy="isSubmitting" :busy-label="`提交中 ${submitDone} / ${taskCount}`" :disabled="!canGenerate" @submit="handleGenerate">
+        <div class="ds-parameter"><span class="ds-caption">模型</span><ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" /></div>
+        <div class="ds-parameter"><span class="ds-caption">画面比例</span><Select v-model="aspectRatio"><SelectTrigger aria-label="画面比例"><SelectValue placeholder="选择宽高比" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent></Select></div>
+        <div class="ds-parameter"><span class="ds-caption">任务数量</span><output class="ds-parameter-value tabular-nums">{{ taskCount }} 个</output></div>
+        <div class="ds-parameter"><span class="ds-caption">分辨率</span><Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }"><SelectTrigger aria-label="分辨率"><SelectValue placeholder="选择分辨率" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent></Select></div>
+        <template #after>
+          <div v-if="submitSummary" class="text-muted-foreground flex items-center gap-2 text-sm"><Progress :model-value="submitPercent" class="h-1 w-28" />{{ submitSummary }}</div>
+          <span v-else-if="blockingHint" class="text-destructive text-sm">{{ blockingHint }}</span>
+          <span v-else class="text-muted-foreground text-sm">确认前会再提示一次消耗，提交后在任务面板查看进度</span>
+        </template>
+      </DsParameterPanel>
     </template>
   </PageLayout>
 </template>

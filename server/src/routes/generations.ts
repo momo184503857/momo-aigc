@@ -684,6 +684,19 @@ generationsRouter.post('/:id/reimport', async (req: AuthRequest, res) => {
   res.json({ success: true, data: { resultUrls: imported } })
 })
 
+// ── GET /api/generations/summary（全量待完成任务数，不受列表分页或筛选影响）──
+
+generationsRouter.get('/summary', (req: AuthRequest, res) => {
+  const counts = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN status IN ('submitted', 'queued') THEN 1 ELSE 0 END), 0) AS queued,
+      COALESCE(SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END), 0) AS generating,
+      COALESCE(SUM(CASE WHEN status = 'importing' THEN 1 ELSE 0 END), 0) AS importing
+    FROM generation_tasks WHERE user_id = ?
+  `).get(req.user!.userId) as { queued: number; generating: number; importing: number }
+  res.json({ success: true, data: { ...counts, active: counts.queued + counts.generating + counts.importing } })
+})
+
 // ── GET /api/generations（列表，兼容旧 /api/tasks 过滤参数）──
 
 generationsRouter.get('/', (req: AuthRequest, res) => {

@@ -4,6 +4,7 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { generationApi } from '@/services/generationApi'
+import type { GenerationTaskSummary } from '@/services/generationApi'
 import { pointsApi } from '@/services/pointsApi'
 import { taskApi } from '@/services/taskApi'
 import { submitTask } from '@/services/imageGeneration'
@@ -51,6 +52,7 @@ const selectedIds = ref(new Set<number>())
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const taskSummary = ref<GenerationTaskSummary>({ queued: 0, generating: 0, importing: 0, active: 0 })
 
 // Filters
 const filterFeatureId = ref('')
@@ -164,6 +166,13 @@ export function useTaskManager() {
 
   // ─── Load history ───
 
+  async function loadTaskSummary() {
+    try {
+      const res = await generationApi.summary()
+      taskSummary.value = res.data.data
+    } catch { /* keep the last known counts until the next refresh */ }
+  }
+
   async function loadHistory() {
     loading.value = true
     try {
@@ -197,6 +206,7 @@ export function useTaskManager() {
       console.error('Load history error:', e)
     } finally {
       loading.value = false
+      await loadTaskSummary()
     }
   }
 
@@ -335,6 +345,7 @@ export function useTaskManager() {
         await pollTask(task)
       } catch { /* ignore */ }
     }
+    await loadTaskSummary()
   }
 
   async function pollTask(task: TaskItem) {
@@ -379,7 +390,7 @@ export function useTaskManager() {
   }
 
   // Watch active jobs: start/stop polling
-  watch(hasActiveJobs, (active) => {
+  watch(() => hasActiveJobs.value || taskSummary.value.active > 0, (active) => {
     if (active) {
       startPolling()
     } else {
@@ -652,6 +663,7 @@ export function useTaskManager() {
     page,
     pageSize,
     total,
+    taskSummary,
     filterFeature,
     filterDateRange,
     filterRemark,

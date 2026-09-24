@@ -19,7 +19,6 @@ import {
   RefreshCw,
   Trash2,
   TriangleAlert,
-  Wand2,
 } from '@lucide/vue'
 import * as XLSX from 'xlsx'
 
@@ -35,7 +34,7 @@ import { buyerShowBatchApi } from '@/services/buyerShowBatchApi'
 import type { BatchItemRow } from '@/services/buyerShowBatchApi'
 import { translateError } from '@/utils/errors'
 import { formatCredits } from '@/types/adapter'
-import { UiImagePreview, UiEmptyState } from '@/components/design-system'
+import { DsParameterPanel, UiImagePreview, UiEmptyState } from '@/components/design-system'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
@@ -59,7 +58,6 @@ import {
   TableRow,
 } from '@/components/design-system/primitives/table'
 import { Textarea } from '@/components/design-system/primitives/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 
 const { success, warning, error, confirmDanger } = useUiFeedback()
 const serverStatus = useServerStatusStore()
@@ -724,7 +722,7 @@ onUnmounted(() => {
 
     <!-- 工作区 -->
     <template v-else>
-      <div class="bg-muted flex flex-col gap-3 rounded-lg p-3">
+      <div class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center gap-2">
           <Button variant="outline" @click="downloadTemplate"><Download />下载模板</Button>
           <Button @click="fileInputRef?.click()"><FileText />上传新表格</Button>
@@ -733,66 +731,15 @@ onUnmounted(() => {
           <span class="text-muted-foreground ml-auto text-sm">共 {{ tableData.length }} 条，已选 {{ selectedCount }} 条</span>
         </div>
 
-        <div class="flex flex-wrap items-center gap-4">
-          <div class="flex items-center gap-2">
-            <label class="text-muted-foreground text-sm whitespace-nowrap">模型</label>
-            <ModelChannelSelect
-              v-model="selectedModelId"
-              class="w-[360px]"
-              @change="handleModelChange"
-            />
-          </div>
-          <div class="flex items-center gap-2">
-            <label class="text-muted-foreground text-sm whitespace-nowrap">分辨率</label>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              :model-value="resolution"
-              @update:model-value="(v) => { if (v) { resolution = String(v); handleResolutionChange() } }"
-            >
-              <ToggleGroupItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-          <div class="flex items-center gap-2">
-            <label class="text-muted-foreground text-sm whitespace-nowrap">宽高比</label>
-            <Select v-model="aspectRatio">
-              <SelectTrigger class="w-30">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div class="flex items-center gap-2">
-            <label class="text-muted-foreground text-sm whitespace-nowrap">张数</label>
-            <Select :model-value="String(countN)" @update:model-value="(v) => (countN = Number(v))">
-              <SelectTrigger class="w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 张</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div class="border-border flex items-center gap-3 border-t pt-3">
-          <span v-if="submittableCount > 0" class="text-success text-sm">预计 {{ formatCredits(estimateCost) }}</span>
-          <Button
-            :disabled="isGenerating || submittableCount === 0"
-            @click="handleGenerate"
-          >
-            <LoaderCircle v-if="isGenerating" class="animate-spin" /><Wand2 v-else />一键生图 · {{ submittableCount }} 个
-          </Button>
-          <Button
-            variant="outline"
-            :disabled="zipping || downloadableCount === 0"
-            @click="downloadZip"
-          >
-            <LoaderCircle v-if="zipping" class="animate-spin" /><Download v-else />一键下载 · {{ downloadableCount }} 张
-          </Button>
-        </div>
+        <DsParameterPanel :label="`一键生图 · ${submittableCount} 个 · ${formatCredits(estimateCost)}`" :busy="isGenerating" :disabled="submittableCount === 0" @submit="handleGenerate">
+          <div class="ds-parameter"><span class="ds-caption">模型</span><ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" /></div>
+          <div class="ds-parameter"><span class="ds-caption">画面比例</span><Select v-model="aspectRatio"><SelectTrigger aria-label="画面比例"><SelectValue /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent></Select></div>
+          <div class="ds-parameter"><span class="ds-caption">生成数量</span><Select :model-value="String(countN)" @update:model-value="(v) => (countN = Number(v))"><SelectTrigger aria-label="生成数量"><SelectValue /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 张</SelectItem></SelectContent></Select></div>
+          <div class="ds-parameter"><span class="ds-caption">分辨率</span><Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }"><SelectTrigger aria-label="分辨率"><SelectValue /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent></Select></div>
+          <template #after>
+            <Button variant="outline" :disabled="zipping || downloadableCount === 0" @click="downloadZip"><LoaderCircle v-if="zipping" class="animate-spin" /><Download v-else />一键下载 · {{ downloadableCount }} 张</Button>
+          </template>
+        </DsParameterPanel>
       </div>
 
       <div class="min-h-0">

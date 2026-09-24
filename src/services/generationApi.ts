@@ -46,6 +46,13 @@ export interface GenerationStatus {
   completedAt?: string
 }
 
+export interface GenerationTaskSummary {
+  queued: number
+  generating: number
+  importing: number
+  active: number
+}
+
 export interface GenerationTaskRecord {
   id: number
   task_no?: string
@@ -75,6 +82,10 @@ export interface GenerationTaskRecord {
 }
 
 export const generationApi = {
+  /** 当前用户的全量待完成任务数，不受任务列表分页和筛选影响 */
+  summary(): Promise<{ data: { data: GenerationTaskSummary } }> {
+    return http.get('/generations/summary')
+  },
   /** 提交生成任务（n>1 服务端返回多条任务） */
   submit(params: GenerationSubmitParams): Promise<{ data: { success: boolean; data: GenerationSubmitResult; error?: string } }> {
     return http.post('/generations', params, { timeout: 90000 })

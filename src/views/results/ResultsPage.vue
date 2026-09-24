@@ -7,11 +7,11 @@
  * 批量模式不再改写页头，而是在内容滚动区顶部钉一条选择栏。
  */
 defineOptions({ name: 'ResultsPage' })
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useImageRetry } from '@/composables/useImageRetry'
 import { useImagePreview } from '@/composables/useImagePreview'
-import { Download, Trash2, Image as ImageIcon, Check, X, Ellipsis, RefreshCw, TriangleAlert, Eye } from '@lucide/vue'
+import { Download, Trash2, Image as ImageIcon, Check, X, Ellipsis, RefreshCw, TriangleAlert, FileText } from '@lucide/vue'
 import { DsScrollPage as PageLayout } from '@/components/design-system'
 import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/design-system'
 import { Button } from '@/components/design-system/primitives/button'
@@ -31,6 +31,7 @@ import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import { cn } from '@/lib/utils'
 import { toBJDate } from '@/utils/datetime'
 import type { TaskItem } from '@/components/TaskList.vue'
+import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
 const { retryOnError } = useImageRetry()
@@ -40,6 +41,13 @@ const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(24)
 const total = ref(0)
+const taskDetailDialog = ref<InstanceType<typeof TaskDetailDialog>>()
+const detailTask = ref<TaskItem | null>(null)
+
+function showDetail(task: TaskItem) {
+  detailTask.value = task
+  nextTick(() => taskDetailDialog.value?.open())
+}
 
 // 仅 UI：请求失败时把原因显性化（原来只 console.error，页面看起来像“空的”）
 const loadFailed = ref(false)
@@ -112,15 +120,6 @@ async function handleDownload(task: TaskItem) {
   }
 }
 
-async function handleDelete(task: TaskItem) {
-  try {
-    await taskApi.delete(task.id)
-    tasks.value = tasks.value.filter((t) => t.id !== task.id)
-    total.value--
-    success('已删除')
-  } catch { /* cancelled */ }
-}
-
 // ─── Batch operations ───
 
 async function handleBatchDelete() {
@@ -186,9 +185,6 @@ onMounted(() => { loadResults() })
   <PageLayout>
     <template #header>
       <h2>生图结果</h2>
-      <p class="text-muted-foreground mt-1 max-w-3xl text-sm leading-normal">
-        已完成任务的成图清单。点击缩略图看大图，支持逐张下载或批量清理。
-      </p>
     </template>
     <template #extra>
       <Button v-if="!bulkMode" variant="outline" size="sm" class="gap-1.5" @click="toggleBulkMode">
@@ -353,15 +349,13 @@ onMounted(() => { loadResults() })
               class="absolute right-1.5 bottom-1.5 z-20 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"
             >
               <Button
-                v-if="task.result_image_urls?.[0]"
                 variant="secondary"
-                size="icon-sm"
-                title="看大图"
-                aria-label="看大图"
-
-                @click.stop="openPreview(task.result_image_urls[0])"
+                size="sm"
+                title="查看详情"
+                :aria-label="`查看任务详情：${task.task_no || task.id}`"
+                @click.stop="showDetail(task)"
               >
-                <Eye class="size-3.5" />
+                <FileText class="size-3.5" />查看详情
               </Button>
               <Button
                 v-if="task.result_image_urls?.[0]"
@@ -374,31 +368,6 @@ onMounted(() => { loadResults() })
               >
                 <Download class="size-3.5" />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger as-child>
-                  <Button
-                    variant="secondary"
-                    size="icon-sm"
-                    title="更多操作"
-                    aria-label="更多操作"
-
-                    @click.stop
-                  >
-                    <Ellipsis class="size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" class="w-44">
-                  <DropdownMenuItem
-                    v-if="task.result_image_urls?.[0]"
-                    @click="handleDownload(task)"
-                  >
-                    <Download />下载原图
-                  </DropdownMenuItem>
-                  <DropdownMenuItem @click="handleDelete(task)" class="text-destructive">
-                    <Trash2 />删除结果
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </div>
 
@@ -445,4 +414,5 @@ onMounted(() => { loadResults() })
 
   <!-- Preview -->
   <UiImagePreview v-model="previewVisible" :url="previewUrl" />
+  <TaskDetailDialog ref="taskDetailDialog" :task="detailTask" @close="detailTask = null" />
 </template>

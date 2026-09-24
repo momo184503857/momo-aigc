@@ -3,7 +3,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const root = 'src/components/design-system'
 const registry = JSON.parse(fs.readFileSync(`${root}/registry.json`, 'utf8'))
-const walk = dir => fs.readdirSync(dir, {withFileTypes:true}).flatMap(e => e.isDirectory() ? walk(path.join(dir,e.name)) : [path.join(dir,e.name)])
+const walk = dir => fs.readdirSync(dir, {withFileTypes:true}).flatMap(e => e.isDirectory() ? walk(path.join(dir,e.name)) : [path.join(dir,e.name).split(path.sep).join('/')])
 const findings = []
 for (const file of walk('src').filter(f => /\.(vue|ts|css)$/.test(f) && !f.includes('/prototype/') && !f.startsWith('src/components/ui/') && !f.startsWith('src/styles/tokens'))) {
   const source = fs.readFileSync(file,'utf8')
