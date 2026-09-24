@@ -3,8 +3,8 @@
  * GenerationForm - 生图参数表单
  * 从 ToolFlux 复制并改造：去掉 ChannelId/Electron/提示词库，接入 Web API
  */
-import { ref, computed } from 'vue'
-import { Plus, Sparkles, Trash2, Image, Library, Search, Star, LoaderCircle, TriangleAlert } from '@lucide/vue'
+import { ref, computed, onUnmounted } from 'vue'
+import { Image, Library, TriangleAlert } from '@lucide/vue'
 import { formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -14,10 +14,7 @@ import { usePromptLibrary } from '@/composables/usePromptLibrary'
 import TemplateSelector from './TemplateSelector.vue'
 import ModelChannelSelect from './ModelChannelSelect.vue'
 import { Button } from '@/components/design-system/primitives/button'
-import { Badge } from '@/components/design-system/primitives/badge'
-import { Switch } from '@/components/design-system/primitives/switch'
 import { Textarea } from '@/components/design-system/primitives/textarea'
-import { Input } from '@/components/design-system/primitives/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/design-system/primitives/alert'
 import {
   Select,
@@ -26,13 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/design-system/primitives/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/design-system/primitives/dialog'
-import { DsUpload, DsReferenceImage, DsSection, DsParameterPanel, UiEmptyState, UiImagePreview, UiPagination } from '@/components/design-system'
+import { DsUpload, DsReferenceImage, DsSection, DsParameterPanel, DsTextPicker, UiImagePreview } from '@/components/design-system'
 
 const emit = defineEmits<{
   (e: 'generate', params: {
@@ -84,6 +75,15 @@ const {
   load: loadPromptLibrary,
   toggleFavorite: togglePromptFavorite,
 } = usePromptLibrary({ pageSize: 8 })
+
+function selectLibraryItem(id: string) {
+  const item = promptLibraryDisplayItems.value.find(item => item.id === id)
+  if (item) selectPromptFromLibrary(item)
+}
+function favoriteLibraryItem(id: string) {
+  const item = promptLibraryDisplayItems.value.find(item => item.id === id)
+  if (item) void togglePromptFavorite(item)
+}
 
 let promptLibraryTrigger: HTMLElement | null = null
 function restorePromptFocus(event: Event) {
@@ -280,15 +280,23 @@ function handleDragLeave(e: DragEvent) {
   if (!related || !target.contains(related)) isDragOver.value = false
 }
 
+// 固定两秒防连点，不等待上传、请求或后台生成完成。
+const generateLocked = ref(false)
+let generateUnlockTimer: ReturnType<typeof setTimeout> | undefined
+onUnmounted(() => clearTimeout(generateUnlockTimer))
+
 // Generate
 function handleGenerate() {
-  if (!canGenerate.value) return
+  if (!canGenerate.value || generateLocked.value) return
 
   // Build ordered ref list to preserve user's drag-and-drop order
   const refImages = referenceImages.value.map((r) => {
     if (r.sourceUrl) return { url: r.sourceUrl }
     return { file: dataUrlToFile(r.dataUrl, r.label) }
   })
+
+  generateLocked.value = true
+  generateUnlockTimer = setTimeout(() => { generateLocked.value = false }, 2000)
 
   emit('generate', {
     logicalModelId: selectedModelId.value,
@@ -368,7 +376,7 @@ defineExpose({ setParams })
         <div id="prompt-count" class="ds-caption"><span v-if="promptExceeded" class="ds-error">超出字数限制 · </span>{{ prompt.length }}/{{ maxPromptChars }}</div>
       </DsSection>
     </div>
-    <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate" @submit="handleGenerate">
+    <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate || generateLocked" @submit="handleGenerate">
 
         <div class="ds-parameter">
           <label class="ds-caption">模型</label>
@@ -418,86 +426,25 @@ defineExpose({ setParams })
       <!-- Image Preview Lightbox -->
       <UiImagePreview v-model="previewVisible" :url="previewImageUrl" />
 
-      <!-- Prompt Library Dialog -->
-      <Dialog :open="showPromptLibrary" @update:open="(v: boolean) => (showPromptLibrary = v)">
-        <DialogContent class="sm:max-w-3xl" @pointer-down-outside.prevent @close-auto-focus="restorePromptFocus">
-          <DialogHeader>
-            <DialogTitle>选择提示词</DialogTitle>
-          </DialogHeader>
-
-          <!-- 筛选容器：模糊搜索 + 仅看收藏 -->
-          <div class="mb-3 flex items-center gap-4">
-            <div class="relative w-80 max-w-full">
-              <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-              <Input v-model="promptLibraryKeyword" placeholder="搜索提示词标题和正文" class="pl-8" />
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-foreground/80 text-sm">仅看收藏</span>
-              <Switch v-model="promptLibraryOnlyFavorites" />
-            </div>
-          </div>
-
-          <!-- Tag filter -->
-          <div v-if="promptLibraryAllTags.length > 0" class="mb-3.5 flex flex-wrap gap-1.5">
-            <Badge
-              :variant="!promptLibraryActiveTag ? 'default' : 'secondary'"
-              class="cursor-pointer select-none"
-              @click="promptLibraryActiveTag = undefined"
-            >
-              全部
-            </Badge>
-            <Badge
-              v-for="tag in promptLibraryAllTags"
-              :key="tag"
-              :variant="promptLibraryActiveTag === tag ? 'default' : 'secondary'"
-              class="cursor-pointer select-none"
-              @click="promptLibraryActiveTag = tag"
-            >
-              {{ tag }}
-            </Badge>
-          </div>
-
-          <div v-if="promptLibraryLoading" class="py-10 text-center">
-            <LoaderCircle class="text-muted-foreground mx-auto size-6 animate-spin" />
-            <p class="text-muted-foreground mt-2 text-sm">加载中...</p>
-          </div>
-          <template v-else-if="promptLibraryDisplayItems.length === 0">
-            <UiEmptyState v-if="promptLibraryItems.length === 0" title="提示词库为空，请先在提示词库页面添加" />
-            <UiEmptyState v-else title="没有匹配的提示词" />
-          </template>
-          <div v-else class="flex max-h-110 flex-col gap-2 overflow-y-auto">
-            <div
-              v-for="item in promptLibraryDisplayItems"
-              :key="item.id"
-              class="border-border-light hover:border-primary hover:bg-accent flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 transition-colors"
-              @click="selectPromptFromLibrary(item)"
-            >
-              <Star
-                class="mt-0.5 size-4 shrink-0 cursor-pointer transition-colors"
-                :class="item.is_starred ? 'fill-warning text-warning' : 'text-muted-foreground/50 hover:text-warning'"
-                @click.stop="togglePromptFavorite(item)"
-              />
-              <div class="min-w-0 flex-1">
-                <div class="text-foreground mb-1 text-sm font-semibold">{{ item.name }}</div>
-                <div class="text-foreground/80 line-clamp-2 text-sm break-all whitespace-pre-wrap">{{ item.content }}</div>
-                <div v-if="item.tags.length > 0" class="mt-1.5 flex flex-wrap gap-1">
-                  <Badge v-for="tag in item.tags" :key="tag" variant="secondary">{{ tag }}</Badge>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 分页器 -->
-          <div v-if="promptLibraryTotal > promptLibraryPageSize" class="mt-3.5 flex justify-center">
-            <UiPagination
-              v-model:current-page="promptLibraryPage"
-              :page-size="promptLibraryPageSize"
-              :page-sizes="[promptLibraryPageSize]"
-              :total="promptLibraryTotal"
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <DsTextPicker
+        v-model:open="showPromptLibrary"
+        v-model:keyword="promptLibraryKeyword"
+        v-model:only-favorites="promptLibraryOnlyFavorites"
+        v-model:active-tag="promptLibraryActiveTag"
+        v-model:page="promptLibraryPage"
+        title="选择提示词"
+        search-placeholder="搜索提示词标题和正文"
+        empty-text="提示词库为空，请先在提示词库页面添加"
+        :items="promptLibraryDisplayItems.map(item => ({ id: item.id, title: item.name, content: item.content, tags: item.tags, starred: item.is_starred }))"
+        :tags="promptLibraryAllTags"
+        :loading="promptLibraryLoading"
+        :empty="promptLibraryItems.length === 0"
+        :total="promptLibraryTotal"
+        :page-size="promptLibraryPageSize"
+        @select="selectLibraryItem"
+        @favorite="favoriteLibraryItem"
+        @close-auto-focus="restorePromptFocus"
+      />
 
   </div>
 </template>

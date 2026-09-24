@@ -83,3 +83,5 @@ export { default as DsResultGroup } from './composites/DsResultGroup.vue'
 export { default as DsReferenceImage } from './composites/DsReferenceImage.vue'
 
 export { default as DsNavigationDock } from './composites/DsNavigationDock.vue'
+
+export { default as DsTextPicker } from './composites/DsTextPicker.vue'

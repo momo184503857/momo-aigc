@@ -1042,5 +1042,17 @@
     "contract": "items 图标与标签；active 当前页面；label 导航名称；orientation 横向分段导航或纵向悬浮导航",
     "events": "navigate(path)",
     "usage": "悬浮式大图标导航；键盘可访问；不访问业务接口"
+  },
+  {
+    "id": "text-picker",
+    "title": "文本选择弹窗",
+    "category": "公共组合",
+    "family": "text-picker",
+    "source": "composites/DsTextPicker.vue",
+    "example": "composite",
+    "contract": "受控 open/keyword/onlyFavorites/activeTag/page；items 为展示数据",
+    "usage": "业务层负责加载、筛选、收藏与选择；公共层管理弹窗及条目视觉",
+    "group": "内容选择",
+    "events": "select(id)、favorite(id)、closeAutoFocus(event)"
   }
 ]
