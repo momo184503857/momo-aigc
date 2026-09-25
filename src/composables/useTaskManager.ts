@@ -1,4 +1,5 @@
 import { ref, computed, reactive, watch } from 'vue'
+import { v4 as uuidv4 } from 'uuid'
 import { useRouter } from 'vue-router'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
@@ -256,7 +257,8 @@ export function useTaskManager() {
     // 乐观任务的模型名就地取自目录：提交/轮询响应都不含 model，缺了任务列表会显示空模型
     const optimisticModelId = useModelCatalogStore().getModel(params.logicalModelId)?.modelId ?? ''
 
-    const submissionId = params.featureId === 'free-gen' ? `free-gen:${crypto.randomUUID()}` : undefined
+    // uuid 在普通 HTTP 下使用 getRandomValues，避免 randomUUID 的安全上下文限制。
+    const submissionId = params.featureId === 'free-gen' ? `free-gen:${uuidv4()}` : undefined
 
     for (let i = 0; i < cnt; i++) {
       const newTask = reactive<TaskItem>({
