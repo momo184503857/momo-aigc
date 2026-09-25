@@ -61,7 +61,7 @@
   --popover: var(--card);
   --popover-foreground: var(--foreground);
   --primary: var(--ds-orange);
-  --primary-foreground: var(--ds-ink);
+  --primary-foreground: var(--ds-white);
   --secondary: #eceae7;
   --secondary-foreground: var(--foreground);
   --muted: #efeeec;
@@ -532,3 +532,72 @@
 .ds-image-preview-heading { flex-shrink: 0; padding-right: var(--ds-space-8); }
 .ds-image-preview-stage { flex: 1; min-height: 0; min-width: 0; display: flex; align-items: center; justify-content: center; }
 .ds-image-preview-stage img { width: 100%; height: 100%; object-fit: contain; border-radius: var(--ds-image-radius); }
+
+/* 分段切换：连续分组仅外侧圆角，间隔分组每项圆角；不裁切键盘焦点。 */
+.ds-theme [data-slot='toggle-group'],
+.ds-theme [data-slot='toggle-group-item'] { border-radius: var(--ds-button-radius); }
+.ds-theme [data-slot='toggle-group'][data-spacing='0'] > [data-slot='toggle-group-item'] { border-radius: 0; }
+.ds-theme [data-slot='toggle-group'][data-spacing='0']:not([data-orientation='vertical']) > [data-slot='toggle-group-item']:first-child { border-top-left-radius: var(--ds-button-radius); border-bottom-left-radius: var(--ds-button-radius); }
+.ds-theme [data-slot='toggle-group'][data-spacing='0']:not([data-orientation='vertical']) > [data-slot='toggle-group-item']:last-child { border-top-right-radius: var(--ds-button-radius); border-bottom-right-radius: var(--ds-button-radius); }
+.ds-theme [data-slot='toggle-group'][data-spacing='0'][data-orientation='vertical'] > [data-slot='toggle-group-item']:first-child { border-top-left-radius: var(--ds-button-radius); border-top-right-radius: var(--ds-button-radius); }
+.ds-theme [data-slot='toggle-group'][data-spacing='0'][data-orientation='vertical'] > [data-slot='toggle-group-item']:last-child { border-bottom-left-radius: var(--ds-button-radius); border-bottom-right-radius: var(--ds-button-radius); }
+
+/* 分段选项以品牌实底突出当前值；悬浮未选中项不能伪装成选中态。 */
+.ds-theme [data-slot='toggle-group-item'][data-state='off'] { background: var(--card); color: var(--muted-foreground); }
+.ds-theme [data-slot='toggle-group-item'][data-state='off']:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); }
+.ds-theme [data-slot='toggle-group-item'][data-state='on'] { background: var(--primary); color: var(--primary-foreground); font-weight: var(--ds-weight-heading); border-color: var(--primary); }
+.ds-theme [data-slot='toggle-group-item'][data-state='on']:hover:not(:disabled) { background: var(--ds-hover); }
+
+/* Popover 的 as-child 会替换 data-slot，日期触发器通过公共类保持控件圆角。 */
+.ds-theme .ds-date-range-trigger { border-radius: var(--ds-button-radius); height: var(--ds-control-height); min-height: var(--ds-control-height); }
+.ds-theme .ds-date-range-content { border-radius: var(--ds-card-radius); }
+.ds-theme .ds-date-range-content input[type='date'] { border-radius: var(--ds-field-radius); }
+
+.ds-date-calendar-nav { display:flex; align-items:center; justify-content:space-between; gap:var(--ds-space-2); }
+.ds-date-calendar-months { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--ds-space-6); width:560px; max-width:calc(100vw - 64px); }
+.ds-date-calendar-month { min-width:0; text-align:center; }
+.ds-date-calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:var(--ds-space-1); margin-top:var(--ds-space-3); }
+.ds-theme .ds-date-calendar-day[data-slot='button'] { width:100%; min-width:0; padding:0; }
+.ds-theme .ds-date-calendar-day[data-in-range='true'] { background:var(--accent); color:var(--accent-foreground); }
+.ds-theme .ds-date-calendar-day[data-endpoint='true'] { background:var(--primary); color:var(--primary-foreground); }
+@media(max-width:600px) { .ds-date-calendar-months { grid-template-columns:minmax(0,1fr); width:280px; } .ds-date-range-content { max-height:var(--reka-popover-content-available-height); overflow-y:auto; } }
+
+.ds-textarea-with-footer { position:relative; display:flex; flex-direction:column; flex:1; min-height:0; }
+.ds-textarea-with-footer [data-slot='textarea'] { padding-bottom:var(--ds-space-8); }
+.ds-textarea-footer { position:absolute; left:var(--ds-space-3); right:var(--ds-space-6); bottom:var(--ds-space-2); pointer-events:none; background:var(--card); }
+
+/* 公共选择菜单与触发器保持相同圆角、边框及主题状态。 */
+.ds-theme [data-slot='select-content'] { border:1px solid var(--border); border-radius:var(--ds-field-radius); padding:var(--ds-space-1); background:var(--popover); color:var(--popover-foreground); box-shadow:var(--ds-shadow); min-width:var(--reka-select-trigger-width); }
+.ds-theme [data-slot='select-item'] { min-height:var(--ds-control-height); border-radius:var(--ds-field-radius); padding-left:var(--ds-space-3); }
+.ds-theme [data-slot='select-item'][data-highlighted] { background:var(--accent); color:var(--accent-foreground); }
+.ds-theme [data-slot='select-item'][data-state='checked'] { background:var(--primary); color:var(--primary-foreground); font-weight:var(--ds-weight-heading); }
+.ds-theme [data-slot='select-item'][data-state='checked'] svg { color:var(--primary-foreground); }
+
+.ds-theme .ds-cascader-trigger { min-height:var(--ds-control-height); border-radius:var(--ds-field-radius); justify-content:space-between; min-width:120px; }
+.ds-theme .ds-cascader-content { display:flex; flex-direction:row; gap:var(--ds-space-1); width:max-content; max-width:calc(100vw - 32px); border:1px solid var(--border); border-radius:var(--ds-field-radius); padding:var(--ds-space-1); }
+.ds-cascader-column { display:flex; flex-direction:column; min-width:128px; max-height:min(420px,var(--reka-popover-content-available-height)); overflow-y:auto; }
+.ds-cascader-column + .ds-cascader-column { border-left:1px solid var(--border); padding-left:var(--ds-space-1); }
+.ds-theme .ds-cascader-option { justify-content:space-between; }
+.ds-theme .ds-cascader-option[data-expanded='true'] { background:var(--accent); color:var(--accent-foreground); }
+.ds-theme .ds-cascader-option[data-selected='true'] { background:var(--primary); color:var(--primary-foreground); }
+
+.ds-date-range-control { position:relative; display:inline-flex; min-width:0; }
+.ds-theme .ds-date-range-clearable { padding-right:var(--ds-space-8); }
+.ds-theme .ds-date-range-clear { position:absolute; right:var(--ds-space-1); top:50%; transform:translateY(-50%); }
+
+.ds-infinite-status { min-height:var(--ds-space-8); padding:var(--ds-space-3); text-align:center; color:var(--muted-foreground); font-size:var(--ds-font-small); }
+
+/* 紧凑调宽手柄：仅手柄本身可拖拽，非整条分隔线。 */
+.ds-theme [data-slot='button'][data-variant='resize'] {
+  width:var(--ds-space-6); min-width:var(--ds-space-6);
+  height:var(--ds-space-16); min-height:var(--ds-space-16); padding:0;
+  border:1px solid var(--border); border-radius:var(--ds-radius-full);
+  background:var(--card); color:var(--muted-foreground);
+  box-shadow:0 2px 6px var(--ds-overlay-soft);
+  cursor:col-resize; touch-action:none;
+}
+.ds-theme [data-slot='button'][data-variant='resize']:hover,
+.ds-theme [data-slot='button'][data-variant='resize']:focus-visible,
+.ds-theme [data-slot='button'][data-variant='resize'][data-dragging='true'] {
+  background:var(--accent); color:var(--accent-foreground); border-color:var(--primary);
+}

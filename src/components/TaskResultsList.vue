@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated, onDeactivated, onUnmounted, nextTick } from 'vue'
 import { Image, LoaderCircle, CircleAlert } from '@lucide/vue'
+import { useInfiniteLoader } from '@/composables/useInfiniteLoader'
 import { generationApi } from '@/services/generationApi'
 import { useTaskManager } from '@/composables/useTaskManager'
 import { useUiFeedback } from '@/composables/useUiFeedback'
@@ -19,6 +20,9 @@ const page = ref(1)
 const total = ref(0)
 const loading = ref(false)
 const loadError = ref(false)
+const moreMarker = ref<HTMLElement>()
+const active = ref(true)
+useInfiniteLoader(moreMarker, () => active.value && history.value.length < total.value && !loading.value && !loadError.value, () => load(true))
 const previewTaskId = ref(0)
 const previewIndex = ref(0)
 const previewResultIndex = ref(0)
@@ -57,13 +61,13 @@ let inFlight = false
 async function load(more = false, quiet = false) {
   if (inFlight) return
   inFlight = true
-  if (!quiet) loading.value = true
+  loading.value = true
   const target = more ? page.value + 1 : 1
   try {
-    const response = await generationApi.list({ page: target, pageSize: more ? 30 : page.value * 30 })
-    const data = response.data.data
+    const responses = await Promise.all((more ? [target] : Array.from({ length: page.value }, (_, i) => i + 1)).map(p => generationApi.list({ page: p, pageSize: 30 })))
+    const data = { records: responses.flatMap(response => response.data.data.records), total: responses[0]!.data.data.total }
     const records = data.records.map(r => ({ ...r, aspectRatio: r.aspectRatio ?? r.aspect_ratio, task_no: r.taskNo ?? r.task_no })) as TaskItem[]
-    history.value = more ? [...history.value, ...records] : records
+    history.value = more ? [...new Map([...history.value, ...records].map(task => [task.id, task])).values()] : records
     if (more) page.value = target
     total.value = data.total
     loadError.value = false
@@ -73,8 +77,8 @@ async function load(more = false, quiet = false) {
 function start() { if (timer) return; void load(); timer = setInterval(() => { void load(false, true) }, 8000) }
 function stop() { clearInterval(timer); timer = undefined }
 onMounted(start)
-onActivated(start)
-onDeactivated(stop)
+onActivated(() => { active.value = true; start() })
+onDeactivated(() => { active.value = false; stop() })
 onUnmounted(stop)
 async function showDetail(task: TaskItem) { selected.value = task; await nextTick(); detail.value?.open() }
 async function download(task: TaskItem, url: string, index: number) {
@@ -85,7 +89,7 @@ function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
 </script>
 
 <template>
-  <section class="ds-results-panel task-results-list" aria-label="新版任务列表">
+  <section class="ds-results-panel task-results-list" aria-label="简洁版">
     <div class="ds-results-scroll pt-3">
       <div v-if="loading && !tasks.length" class="ds-results-empty" role="status"><LoaderCircle class="animate-spin" />正在加载任务</div>
       <div v-else-if="loadError && !tasks.length" class="ds-results-empty" role="alert"><CircleAlert />任务加载失败<Button variant="outline" @click="load()">重新加载</Button></div>
@@ -95,7 +99,11 @@ function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
           <DsImageCard v-for="{ task, url, index, key } in round.items" :key="key" :src="url" :title="`图片 ${task.task_no || task.id}-${index + 1}`" external-preview :loading="!url && task.status !== 'failed'" :status-label="labels[task.status] || '等待结果'" :progress="task.progress" @preview="preview(task,index)" @download="download(task,url,index)" @edit="reuse(task)" @detail="showDetail(task)" />
         </DsResultGroup>
       </div>
-      <Button v-if="history.length < total" variant="ghost" class="w-full" :disabled="loading" @click="load(true)">{{ loading ? '加载中…' : '加载更多' }}</Button>
+      <div ref="moreMarker" class="ds-infinite-status" role="status">
+        <Button v-if="loadError && tasks.length" variant="outline" @click="load(history.length < total)">加载失败，点击重试</Button>
+        <span v-else-if="loading && tasks.length">正在加载更多…</span>
+        <span v-else-if="history.length >= total && tasks.length">已加载全部任务</span>
+      </div>
     </div>
     <ImageCompareDialog v-model="previewOpen" :tasks="tasks" :task-id="previewTaskId" :initial-index="previewIndex" :initial-result-index="previewResultIndex" studio />
     <TaskDetailDialog ref="detail" :task="selectedTask">

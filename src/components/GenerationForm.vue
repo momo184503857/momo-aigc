@@ -372,8 +372,9 @@ defineExpose({ setParams })
       </DsSection>
       <DsSection title="画面描述" class="ds-prompt-section" aria-label="提示词区">
         <template #actions><Button size="sm" variant="outline" @click="openPromptLibrary"><Library />从提示词库选择</Button></template>
-        <Textarea id="free-gen-prompt" v-model="prompt" aria-label="画面描述" required :rows="5" :aria-invalid="promptExceeded" aria-describedby="prompt-count" placeholder="描述你想要生成的图片..." />
-        <div id="prompt-count" class="ds-caption"><span v-if="promptExceeded" class="ds-error">超出字数限制 · </span>{{ prompt.length }}/{{ maxPromptChars }}</div>
+        <Textarea id="free-gen-prompt" v-model="prompt" aria-label="画面描述" required :rows="5" :aria-invalid="promptExceeded" aria-describedby="prompt-count" placeholder="描述你想要生成的图片...">
+          <template #footer><div id="prompt-count" class="ds-caption"><span v-if="promptExceeded" class="ds-error">超出字数限制 · </span>{{ prompt.length }}/{{ maxPromptChars }}</div></template>
+        </Textarea>
       </DsSection>
     </div>
     <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate || generateLocked" @submit="handleGenerate">

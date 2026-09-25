@@ -96,3 +96,5 @@ export { default as DsSearchInput } from './composites/DsSearchInput.vue'
 export { default as DsCanvasControls } from './composites/DsCanvasControls.vue'
 
 export { default as DsLinkedPanel } from './composites/DsLinkedPanel.vue'
+
+export { default as DsCascaderPicker } from './composites/DsCascaderPicker.vue'

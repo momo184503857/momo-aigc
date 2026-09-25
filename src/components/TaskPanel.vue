@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { DsSearchInput } from '@/components/design-system'
+import { DsSearchInput, DsCascaderPicker } from '@/components/design-system'
 import { useMediaQuery, useWindowSize } from '@vueuse/core'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useTaskPanelStore } from '@/stores/taskPanel'
+import { useInfiniteLoader } from '@/composables/useInfiniteLoader'
 import { useTaskManager } from '@/composables/useTaskManager'
 import TaskList from '@/components/TaskList.vue'
 import TaskResultsList from '@/components/TaskResultsList.vue'
@@ -10,24 +11,18 @@ import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ImageEditorDialog from '@/components/ImageEditorDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
-import { X, List, LayoutGrid, Columns2, PictureInPicture2, Search } from '@lucide/vue'
+import { X, Columns2, PictureInPicture2, Search, GripVertical } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
-import { Badge } from '@/components/design-system/primitives/badge'
-import { Input } from '@/components/design-system/primitives/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/primitives/select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
-import { UiDateRangePicker, UiPagination } from '@/components/design-system'
+import { UiDateRangePicker } from '@/components/design-system'
 
 const taskPanel = useTaskPanelStore()
 const narrowScreen = useMediaQuery('(max-width: 1023px)')
 const { width: viewportWidth } = useWindowSize()
 const tm = useTaskManager()
+const moreMarker = ref<HTMLElement>()
+const hasMore = computed(() => tm.page.value * tm.pageSize.value < tm.total.value)
+useInfiniteLoader(moreMarker, () => taskPanel.listView === 'legacy' && !taskPanel.isCollapsed && hasMore.value && !tm.loading.value && !tm.loadingMore.value && !tm.historyError.value, () => tm.loadHistory(true))
 
 // ─── Detail dialog ───
 const taskDetailDialog = ref<InstanceType<typeof TaskDetailDialog>>()
@@ -61,28 +56,34 @@ const isDragging = ref(false)
 let suppressNextClick = false
 let dragStartX = 0
 let dragStartWidth = 0
+let previousCursor = ''
+let previousUserSelect = ''
+const maxPanelWidth = computed(() => Math.max(360, viewportWidth.value - 320))
+function resizePanel(width: number) { taskPanel.setWidth(Math.min(maxPanelWidth.value, width)) }
 
-function onSplitterMouseDown(e: MouseEvent) {
-  if (taskPanel.isCollapsed) return
+function onSplitterPointerDown(e: PointerEvent) {
+  if (taskPanel.isCollapsed || narrowScreen.value || e.button !== 0) return
   isDragging.value = true
   dragStartX = e.clientX
-  dragStartWidth = taskPanel.panelWidth
+  dragStartWidth = (e.currentTarget as HTMLElement).closest('.task-panel')!.getBoundingClientRect().width
+  previousCursor = document.body.style.cursor
+  previousUserSelect = document.body.style.userSelect
   document.body.style.cursor = 'col-resize'
   document.body.style.userSelect = 'none'
   e.preventDefault()
 }
 
-function onPointerMove(e: MouseEvent) {
+function onPointerMove(e: PointerEvent) {
   if (!isDragging.value) return
   const delta = dragStartX - e.clientX
-  taskPanel.setWidth(dragStartWidth + delta)
+  resizePanel(dragStartWidth + delta)
 }
 
 function onPointerUp() {
   if (!isDragging.value) return
   isDragging.value = false
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
+  document.body.style.cursor = previousCursor
+  document.body.style.userSelect = previousUserSelect
   // mouseup is followed by a click; if it lands on the backdrop it would
   // collapse the panel, so suppress that single click.
   suppressNextClick = true
@@ -90,14 +91,17 @@ function onPointerUp() {
 }
 
 onMounted(() => {
-  document.addEventListener('mousemove', onPointerMove)
-  document.addEventListener('mouseup', onPointerUp)
+  document.addEventListener('pointermove', onPointerMove)
+  document.addEventListener('pointerup', onPointerUp)
+  document.addEventListener('pointercancel', onPointerUp)
   tm.init()
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', onPointerMove)
-  document.removeEventListener('mouseup', onPointerUp)
+  document.removeEventListener('pointermove', onPointerMove)
+  document.removeEventListener('pointerup', onPointerUp)
+  document.removeEventListener('pointercancel', onPointerUp)
+  onPointerUp()
 })
 
 // ─── Overlay backdrop ───
@@ -112,8 +116,19 @@ const panelStyle = computed(() => ({
   width: (narrowScreen.value ? viewportWidth.value : Math.min(taskPanel.panelWidth, viewportWidth.value - 320)) + 'px',
 }))
 
-// 功能筛选 Select 不接受空串值，用哨兵值映射「全部功能」
+// 分类节点仅展开子项，最终筛选仍使用原有 feature_id。
 const ALL_FEATURES = '__all__'
+const featureGroups = computed(() => {
+  const direct = new Set(['', 'free-gen', 'ai-photography', 'canvas'])
+  const quick = tm.featureOptions.value.filter(item => !direct.has(item.id)).map(item => ({ value: item.id, label: item.label }))
+  return [
+    { value: ALL_FEATURES, label: '全部功能' },
+    { value: 'free-gen', label: '自由生图' },
+    { value: '__quick__', label: '快速生图', children: quick },
+    { value: 'ai-photography', label: 'AI 摄影' },
+    { value: 'canvas', label: 'AI 画布' },
+  ]
+})
 function onFeatureFilterChange(v: unknown) {
   tm.filterFeature.value = String(v) === ALL_FEATURES ? '' : String(v)
   tm.applyFilters()
@@ -121,10 +136,6 @@ function onFeatureFilterChange(v: unknown) {
 
 function onModeChange(v: unknown) {
   if (v) taskPanel.setMode(String(v) as 'side-by-side' | 'overlay')
-}
-
-function onViewModeChange(v: unknown) {
-  if (v) tm.viewMode.value = String(v) as 'list' | 'grid'
 }
 
 function onListViewChange(v: unknown) {
@@ -155,29 +166,25 @@ function clearRemarkSearch() {
     }"
     :style="panelStyle"
   >
-    <!-- Splitter (visible in both expanded modes) -->
-    <div
-      v-if="!taskPanel.isCollapsed"
-      class="task-panel-splitter"
-      :class="{ dragging: isDragging }"
-      @mousedown="onSplitterMouseDown"
-    />
+    <!-- 仅中间手柄可调宽，边缘不再占据整条拖拽区域。 -->
+    <Button
+      v-if="!narrowScreen"
+      variant="resize"
+      class="task-panel-resize-handle"
+      :data-dragging="isDragging"
+      role="separator"
+      aria-label="调整任务面板宽度"
+      aria-orientation="vertical"
+      :aria-valuemin="360"
+      :aria-valuemax="maxPanelWidth"
+      :aria-valuenow="Math.min(taskPanel.panelWidth, maxPanelWidth)"
+      title="左右拖动调整宽度，也可使用左右方向键"
+      @pointerdown="onSplitterPointerDown"
+      @keydown.left.prevent="resizePanel(Math.min(taskPanel.panelWidth, maxPanelWidth) + 24)"
+      @keydown.right.prevent="resizePanel(Math.min(taskPanel.panelWidth, maxPanelWidth) - 24)"
+    ><GripVertical /></Button>
 
     <div class="task-panel-inner">
-      <!-- Header -->
-      <div class="task-panel-header">
-        <div class="task-panel-header-left">
-          <span class="task-panel-title">任务列表</span>
-          <Badge v-if="tm.taskSummary.value.active > 0 || tm.hasActiveJobs.value" variant="warning">生成中...</Badge>
-        </div>
-        <div class="task-panel-header-right">
-          <!-- Collapse -->
-          <Button size="sm" variant="outline" @click="taskPanel.collapse()" title="收起">
-            <X />
-          </Button>
-        </div>
-      </div>
-
       <div class="task-panel-view-switch">
         <ToggleGroup
           type="single"
@@ -187,45 +194,39 @@ function clearRemarkSearch() {
           :model-value="taskPanel.listView"
           @update:model-value="onListViewChange"
         >
-          <ToggleGroupItem value="new">新版任务列表</ToggleGroupItem>
-          <ToggleGroupItem value="legacy">旧版任务列表</ToggleGroupItem>
+          <ToggleGroupItem value="new">简洁版</ToggleGroupItem>
+          <ToggleGroupItem value="legacy">专业版</ToggleGroupItem>
         </ToggleGroup>
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
-          aria-label="任务面板布局"
-          :model-value="taskPanel.isSideBySide ? 'side-by-side' : 'overlay'"
-          @update:model-value="onModeChange"
-        >
-          <ToggleGroupItem value="side-by-side" title="并排">
-            <Columns2 />并排
-          </ToggleGroupItem>
-          <ToggleGroupItem value="overlay" title="浮动">
-            <PictureInPicture2 />浮动
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <div class="task-panel-header-right">
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            aria-label="任务面板布局"
+            :model-value="taskPanel.isSideBySide ? 'side-by-side' : 'overlay'"
+            @update:model-value="onModeChange"
+          >
+            <ToggleGroupItem value="side-by-side" title="并排">
+              <Columns2 />并排
+            </ToggleGroupItem>
+            <ToggleGroupItem value="overlay" title="浮动">
+              <PictureInPicture2 />浮动
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Button size="icon-sm" variant="outline" aria-label="收起任务面板" title="收起" @click="taskPanel.collapse()">
+            <X />
+          </Button>
+        </div>
       </div>
 
       <!-- Filters -->
       <div v-if="taskPanel.listView === 'legacy'" class="task-panel-filters">
-        <Select
+        <DsCascaderPicker
           :model-value="tm.filterFeature.value || ALL_FEATURES"
+          :options="featureGroups"
+          label="功能筛选"
           @update:model-value="onFeatureFilterChange"
-        >
-          <SelectTrigger class="w-30" size="sm">
-            <SelectValue placeholder="功能筛选" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem
-              v-for="opt in tm.featureOptions.value"
-              :key="opt.id || ALL_FEATURES"
-              :value="opt.id || ALL_FEATURES"
-            >
-              {{ opt.label }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        />
         <UiDateRangePicker
           :model-value="tm.filterDateRange.value"
           :shortcuts="tm.dateShortcuts"
@@ -274,16 +275,7 @@ function clearRemarkSearch() {
         </template>
         <template v-else>
           <Button size="sm" variant="outline" @click="tm.toggleBulkMode">批量操作</Button>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            :model-value="tm.viewMode.value"
-            @update:model-value="onViewModeChange"
-          >
-            <ToggleGroupItem value="list" title="列表视图"><List /></ToggleGroupItem>
-            <ToggleGroupItem value="grid" title="网格视图"><LayoutGrid /></ToggleGroupItem>
-          </ToggleGroup>
+          <!-- 视图切换入口暂不展示，底层 list/grid 能力保留。 -->
         </template>
       </div>
 
@@ -309,30 +301,13 @@ function clearRemarkSearch() {
           @retry-import="tm.retryImportTask"
           @edit="handleEdit"
         />
+        <div ref="moreMarker" class="ds-infinite-status" role="status">
+          <Button v-if="tm.historyError.value" variant="outline" @click="tm.loadHistory(hasMore && tm.tasks.value.length > 0)">加载失败，点击重试</Button>
+          <span v-else-if="tm.loadingMore.value">正在加载更多…</span>
+          <span v-else-if="!hasMore && tm.tasks.value.length">已加载全部任务</span>
+        </div>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="taskPanel.listView === 'legacy' && tm.total.value > 0 && !tm.bulkMode.value" class="task-panel-footer">
-        <label class="page-size-label">
-          每页
-          <Input
-            type="number"
-            class="page-size-inline-input"
-            :value="tm.pageSize.value"
-            min="1"
-            max="200"
-            @change="(e: Event) => tm.handlePageSizeChange(Math.max(1, Math.min(200, Number((e.target as HTMLInputElement).value) || 20)))"
-          />
-          条
-        </label>
-        <UiPagination
-          :current-page="tm.page.value"
-          :page-size="tm.pageSize.value"
-          :total="tm.total.value"
-          :show-size-selector="false"
-          @current-change="tm.handlePageChange"
-        />
-      </div>
     </div>
   </div>
 
@@ -367,11 +342,13 @@ function clearRemarkSearch() {
 
 .task-panel {
   position: fixed;
-  top: 0;
+  top: var(--ds-space-3);
   right: 0;
-  bottom: 0;
+  bottom: var(--ds-space-3);
   z-index: 40;
   display: flex;
+  border-radius: var(--ds-card-radius) 0 0 var(--ds-card-radius);
+  overflow: hidden;
   background: var(--card);
   box-shadow: var(--ds-shadow);
   max-width: calc(100vw - var(--ds-sidebar-collapsed-width));
@@ -392,41 +369,13 @@ function clearRemarkSearch() {
   border-left: 1px solid var(--border);
 }
 
-/* Splitter */
-.task-panel-splitter {
-  width: 10px;
-  flex-shrink: 0;
-  cursor: col-resize;
-  background: var(--border);
-  transition: background 0.2s, box-shadow 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
-.task-panel-splitter::before,
-.task-panel-splitter::after {
-  content: '';
-  width: 2px;
-  height: 24px;
-  border-radius: 1px;
-  background: var(--muted-foreground);
-  transition: background 0.2s, height 0.2s;
-}
-
-.task-panel-splitter:hover,
-.task-panel-splitter.dragging {
-  background: var(--border);
-  box-shadow: 0 0 8px var(--ring);
-}
-
-.task-panel-splitter:hover::before,
-.task-panel-splitter:hover::after,
-.task-panel-splitter.dragging::before,
-.task-panel-splitter.dragging::after {
-  background: var(--primary);
-  height: 32px;
+/* 独立手柄悬在边缘中部，不占用整列布局。 */
+.task-panel-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
 }
 
 /* Inner container */

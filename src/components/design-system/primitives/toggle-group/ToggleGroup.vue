@@ -17,6 +17,7 @@ const props = withDefaults(defineProps<ToggleGroupRootProps & {
   spacing?: number
 }>(), {
   spacing: 0,
+  orientation: 'horizontal',
 })
 
 const emits = defineEmits<ToggleGroupRootEmits>()

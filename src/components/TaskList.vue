@@ -258,7 +258,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <Check v-if="isSelected(task.id)" class="size-3.5 text-white" />
         </div>
         <div class="task-thumb" @click="!bulkMode && emit('compareImages', idx)">
-          <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
+          <img loading="lazy" v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
             draggable="true"
             @error="retryOnError($event, task.result_image_urls[0])"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
@@ -304,7 +304,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
               </div>
               <!-- Input image thumbs -->
               <div v-if="task.input_image_urls?.length" class="task-input-thumbs">
-                <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
+                <img loading="lazy" v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
               </div>
             </div>
             <div class="task-meta">
@@ -362,7 +362,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <Check v-if="isSelected(task.id)" class="size-3.5 text-white" />
         </div>
         <div class="grid-thumb" @click="!bulkMode && emit('compareImages', idx)">
-          <img v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
+          <img loading="lazy" v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
             draggable="true"
             @error="retryOnError($event, task.result_image_urls[0])"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
@@ -393,7 +393,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
         <div class="grid-card-info">
           <!-- Input image thumbs -->
           <div v-if="task.input_image_urls?.length" class="grid-input-thumbs">
-            <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
+            <img loading="lazy" v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
           </div>
           <div class="grid-info-row prompt-row">
             <span class="gi-value prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task), 40) }}</span>

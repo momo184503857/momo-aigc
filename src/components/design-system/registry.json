@@ -1150,5 +1150,17 @@
     "usage": "常驻内容通过顶部尖角关联上方来源；随容器铺满，不浮动、不访问业务 API。",
     "group": "列表与卡片",
     "events": "无；交互通过插槽传入。"
+  },
+  {
+    "id": "composite-cascader-picker",
+    "title": "二级分类选择器",
+    "category": "公共组合",
+    "family": "cascader-picker",
+    "source": "composites/DsCascaderPicker.vue",
+    "example": "composite",
+    "contract": "modelValue/options/placeholder/disabled/label；父节点展开，叶节点选择。",
+    "usage": "纯展示二级数据，不请求业务接口；选中后关闭，重新打开定位已选分组。",
+    "group": "表单与输入",
+    "events": "update:modelValue/change"
   }
 ]

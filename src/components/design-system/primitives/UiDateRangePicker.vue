@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * UiDateRangePicker — 日期范围选择（Popover + 原生 date input + 快捷项）
+ * UiDateRangePicker — 日期范围选择（Popover + 双月日历 + 快捷项）
  * 对齐 el-date-picker daterange 的关键交互：v-model [Date, Date] | null、change 事件、快捷项、可清除。
  */
-import { computed, ref } from 'vue'
-import { CalendarDays, X } from '@lucide/vue'
+import { computed, ref, watch } from 'vue'
+import { CalendarDays, ChevronLeft, ChevronRight, X } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/design-system/primitives/popover'
 
@@ -38,10 +38,43 @@ function fmt(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function parseLocal(value: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!m) return null
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+const month = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+const pendingStart = ref<Date | null>(null)
+const hovered = ref<Date | null>(null)
+const weekdays = ['一', '二', '三', '四', '五', '六', '日']
+watch(open, (value) => {
+  pendingStart.value = null
+  hovered.value = null
+  if (value) {
+    const date = props.modelValue?.[0] ?? new Date()
+    month.value = new Date(date.getFullYear(), date.getMonth(), 1)
+  }
+})
+const months = computed(() => [0, 1].map(offset => {
+  const date = new Date(month.value.getFullYear(), month.value.getMonth() + offset, 1)
+  const padding = (date.getDay() + 6) % 7
+  const count = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  return { key: fmt(date), title: `${date.getFullYear()}年${date.getMonth() + 1}月`, days: Array.from({ length: 42 }, (_, i) => i >= padding && i < padding + count ? new Date(date.getFullYear(), date.getMonth(), i - padding + 1) : null) }
+}))
+function moveMonth(delta: number) {
+  month.value = new Date(month.value.getFullYear(), month.value.getMonth() + delta, 1)
+}
+const displayedRange = computed(() => {
+  const start = pendingStart.value ?? props.modelValue?.[0]
+  const end = pendingStart.value ? hovered.value ?? pendingStart.value : props.modelValue?.[1]
+  if (!start || !end) return null
+  return [fmt(start), fmt(end)].sort()
+})
+function dayState(date: Date) {
+  const range = displayedRange.value
+  const value = fmt(date)
+  return { endpoint: !!range && (value === range[0] || value === range[1]), inside: !!range && value > range[0]! && value < range[1]! }
+}
+function selectDate(date: Date) {
+  if (!pendingStart.value) { pendingStart.value = date; hovered.value = date; return }
+  const start = pendingStart.value
+  commit(start <= date ? start : date, start <= date ? date : start)
+  open.value = false
 }
 
 const startText = computed(() => (props.modelValue ? fmt(props.modelValue[0]) : ''))
@@ -53,16 +86,6 @@ function commit(start: Date | null, end: Date | null) {
   emit('change', value)
 }
 
-function onStartInput(e: Event) {
-  const d = parseLocal((e.target as HTMLInputElement).value)
-  commit(d, d ? (props.modelValue?.[1] ?? d) : null)
-}
-
-function onEndInput(e: Event) {
-  const d = parseLocal((e.target as HTMLInputElement).value)
-  commit(d ? (props.modelValue?.[0] ?? d) : null, d)
-}
-
 function applyShortcut(s: DateRangeShortcut) {
   const [start, end] = s.value()
   commit(start, end)
@@ -71,7 +94,11 @@ function applyShortcut(s: DateRangeShortcut) {
 
 function clear(e: MouseEvent) {
   e.stopPropagation()
+  if (props.disabled) return
+  pendingStart.value = null
+  hovered.value = null
   commit(null, null)
+  open.value = false
 }
 
 const label = computed(() =>
@@ -81,41 +108,41 @@ const label = computed(() =>
 
 <template>
   <Popover v-model:open="open">
+    <div class="ds-date-range-control">
     <PopoverTrigger as-child>
       <Button
         variant="outline"
         size="sm"
         :disabled="disabled"
-        class="justify-start gap-1.5 font-normal"
-        :class="{ 'text-muted-foreground': !modelValue }"
+        class="ds-date-range-trigger justify-start gap-1.5 font-normal"
+        :class="{ 'text-muted-foreground': !modelValue, 'ds-date-range-clearable': !!modelValue }"
       >
         <CalendarDays />
         <span class="truncate">{{ label }}</span>
-        <X
-          v-if="modelValue"
-          class="text-muted-foreground hover:text-foreground ml-auto size-3.5 shrink-0"
-          @click="clear"
-        />
+
       </Button>
     </PopoverTrigger>
-    <PopoverContent class="w-auto p-3" align="start">
-      <div class="flex items-center gap-2">
-        <input
-          type="date"
-          class="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-7 rounded-md border px-2 text-sm outline-none focus-visible:ring-2"
-          :value="startText"
-          :max="endText || undefined"
-          @change="onStartInput"
-        />
-        <span class="text-muted-foreground text-xs">至</span>
-        <input
-          type="date"
-          class="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-7 rounded-md border px-2 text-sm outline-none focus-visible:ring-2"
-          :value="endText"
-          :min="startText || undefined"
-          @change="onEndInput"
-        />
+      <Button v-if="modelValue" variant="ghost" size="icon-xs" class="ds-date-range-clear" :disabled="disabled" aria-label="清除日期范围" title="清除日期范围" @click="clear"><X /></Button>
+    </div>
+    <PopoverContent class="ds-date-range-content w-auto p-3" align="start" side="bottom">
+      <div class="ds-date-calendar-nav">
+        <Button variant="ghost" size="icon-sm" aria-label="上个月" @click="moveMonth(-1)"><ChevronLeft /></Button>
+        <span class="ds-caption" role="status">{{ pendingStart ? '请选择结束日期' : '请选择开始日期' }}</span>
+        <Button variant="ghost" size="icon-sm" aria-label="下个月" @click="moveMonth(1)"><ChevronRight /></Button>
       </div>
+      <div class="ds-date-calendar-months" @mouseleave="hovered = null">
+        <section v-for="item in months" :key="item.key" :aria-label="item.title" class="ds-date-calendar-month">
+          <h3 class="ds-heading">{{ item.title }}</h3>
+          <div class="ds-date-calendar-grid">
+            <span v-for="day in weekdays" :key="day" class="ds-caption">{{ day }}</span>
+            <template v-for="(date, index) in item.days" :key="index">
+              <Button v-if="date" variant="ghost" class="ds-date-calendar-day" :aria-label="fmt(date)" :aria-pressed="dayState(date).endpoint || dayState(date).inside" :data-endpoint="dayState(date).endpoint" :data-in-range="dayState(date).inside" @mouseenter="hovered = date" @focus="hovered = date" @click="selectDate(date)">{{ date.getDate() }}</Button>
+              <span v-else aria-hidden="true" />
+            </template>
+          </div>
+        </section>
+      </div>
+      <Button v-if="modelValue" variant="ghost" size="sm" @click="commit(null, null); open = false">清除日期</Button>
       <div v-if="shortcuts.length" class="mt-2.5 flex flex-wrap gap-1.5">
         <Button
           v-for="s in shortcuts"

@@ -40,6 +40,9 @@ function ensureCanvasEventListener(loadHistoryFn: () => void) {
 
 const tasks = ref<TaskItem[]>([])
 const loading = ref(false)
+const loadingMore = ref(false)
+const historyError = ref(false)
+let historyRequest = 0
 const viewMode = ref<'list' | 'grid'>('list')
 const userPoints = ref(0)
 
@@ -174,19 +177,26 @@ export function useTaskManager() {
     } catch { /* keep the last known counts until the next refresh */ }
   }
 
-  async function loadHistory() {
-    loading.value = true
+  async function loadHistory(more = false) {
+    if (more && (loading.value || loadingMore.value || page.value * pageSize.value >= total.value)) return
+    const request = ++historyRequest
+    const targetPage = more ? page.value + 1 : page.value
+    if (more) loadingMore.value = true
+    else { loading.value = true; loadingMore.value = false }
+    historyError.value = false
     try {
-      const res = await generationApi.list({
-        page: page.value,
+      const responses = await Promise.all((more ? [targetPage] : Array.from({ length: targetPage }, (_, i) => i + 1)).map(requestPage => generationApi.list({
+        page: requestPage,
         pageSize: pageSize.value,
         feature_id: filterFeatureId.value || undefined,
         start_date: filterStartDate.value || undefined,
         end_date: filterEndDate.value || undefined,
         remark: filterRemarkKw.value || undefined,
-      })
-      const records = res.data.data?.records || []
-      total.value = res.data.data?.total || 0
+      })))
+      if (request !== historyRequest) return
+      const records = responses.flatMap(res => res.data.data?.records || [])
+      total.value = responses[0]?.data.data?.total || 0
+      page.value = targetPage
 
       // Merge: keep in-progress local tasks that haven't appeared in API response yet
       const apiTasks: TaskItem[] = records.map((r: any) => ({
@@ -202,11 +212,14 @@ export function useTaskManager() {
       const localPolling = tasks.value.filter(
         t => t.id && !apiTaskIds.has(t.id) && (t.status === 'submitted' || t.status === 'queued' || t.status === 'in_progress')
       )
-      tasks.value = [...localPending, ...localPolling, ...apiTasks]
+      tasks.value = more
+        ? [...tasks.value.filter(t => !apiTaskIds.has(t.id)), ...apiTasks]
+        : [...localPending, ...localPolling, ...apiTasks]
     } catch (e) {
+      if (request === historyRequest) historyError.value = true
       console.error('Load history error:', e)
     } finally {
-      loading.value = false
+      if (request === historyRequest) { loading.value = false; loadingMore.value = false }
       await loadTaskSummary()
     }
   }
@@ -658,6 +671,8 @@ export function useTaskManager() {
     // State
     tasks,
     loading,
+    loadingMore,
+    historyError,
     viewMode,
     userPoints,
     bulkMode,

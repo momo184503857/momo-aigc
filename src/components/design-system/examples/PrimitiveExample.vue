@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { GripVertical } from '@lucide/vue'
 import * as U from '..'
 import { toast } from 'vue-sonner'
 import { useDesignSystem } from '../context'
@@ -20,8 +21,8 @@ const notice = ref(false)
 </script>
 <template>
   <div class="ds-stack">
-    <div v-if="family === 'button'" class="ds-row"><U.Button v-for="variant in (['default','outline','secondary','ghost','destructive','link'] as const)" :key="variant" :variant="variant" :disabled="disabled"><U.Spinner v-if="state === 'loading'" />{{ variant }}</U.Button><U.Button size="sm">小按钮</U.Button><U.Button size="lg">大按钮</U.Button><U.Button v-for="size in (['icon-xs','icon-sm','icon','icon-lg'] as const)" :key="size" :size="size" variant="secondary" :aria-label="`图标按钮 ${size}`" :disabled="disabled">＋</U.Button></div>
-    <U.DsField v-else-if="['input','textarea','label'].includes(family)" v-slot="field" label="提示词" :error="state === 'error' ? '请填写提示词' : undefined" help="描述希望生成的内容" required><U.Textarea v-if="family === 'textarea'" :id="field.id" v-model="text" :aria-invalid="field.invalid" :aria-describedby="field.describedby" :disabled="disabled" /><U.Input v-else :id="field.id" v-model="text" :aria-invalid="field.invalid" :aria-describedby="field.describedby" :disabled="disabled" /></U.DsField>
+    <div v-if="family === 'button'" class="ds-row"><U.Button v-for="variant in (['default','outline','secondary','ghost','destructive','link'] as const)" :key="variant" :variant="variant" :disabled="disabled"><U.Spinner v-if="state === 'loading'" />{{ variant }}</U.Button><U.Button size="sm">小按钮</U.Button><U.Button size="lg">大按钮</U.Button><U.Button variant="resize" :disabled="disabled" aria-label="调宽手柄示例"><GripVertical /></U.Button><U.Button v-for="size in (['icon-xs','icon-sm','icon','icon-lg'] as const)" :key="size" :size="size" variant="secondary" :aria-label="`图标按钮 ${size}`" :disabled="disabled">＋</U.Button></div>
+    <U.DsField v-else-if="['input','textarea','label'].includes(family)" v-slot="field" label="提示词" :error="state === 'error' ? '请填写提示词' : undefined" help="描述希望生成的内容" required><U.Textarea v-if="family === 'textarea'" :id="field.id" v-model="text" :aria-invalid="field.invalid" :aria-describedby="field.describedby" :disabled="disabled"><template #footer><span class="ds-caption">{{ text.length }}/32000</span></template></U.Textarea><U.Input v-else :id="field.id" v-model="text" :aria-invalid="field.invalid" :aria-describedby="field.describedby" :disabled="disabled" /></U.DsField>
     <div v-else-if="family === 'checkbox'" class="ds-row"><U.Checkbox id="ds-checkbox-demo" v-model="checked" :disabled="disabled" /><U.Label for="ds-checkbox-demo">保留原始构图</U.Label></div>
     <div v-else-if="family === 'switch'" class="ds-row"><U.Switch id="ds-switch-demo" v-model="checked" :disabled="disabled" /><U.Label for="ds-switch-demo">自动保存</U.Label></div>
     <U.RadioGroup v-else-if="family === 'radio-group'" v-model="selected" :disabled="disabled"><div v-for="(label, i) in ['标准','高清']" :key="label" class="ds-row"><U.RadioGroupItem :id="`ds-radio-${i}`" :value="i ? 'two' : 'one'" /><U.Label :for="`ds-radio-${i}`">{{ label }}</U.Label></div></U.RadioGroup>
@@ -43,7 +44,11 @@ const notice = ref(false)
     <U.UiPagination v-else-if="family === 'pagination'" v-model:current-page="page" v-model:page-size="size" :total="128" :disabled="disabled" />
     <U.Tabs v-else-if="family === 'tabs'" default-value="one"><U.TabsList><U.TabsTrigger value="one">参数</U.TabsTrigger><U.TabsTrigger value="two">结果</U.TabsTrigger></U.TabsList><U.TabsContent value="one">参数内容</U.TabsContent><U.TabsContent value="two">结果内容</U.TabsContent></U.Tabs>
     <U.Toggle v-else-if="family === 'toggle'" :disabled="disabled" aria-label="切换选中">选中</U.Toggle>
-    <U.ToggleGroup v-else-if="family === 'toggle-group'" type="single" default-value="grid" :disabled="disabled"><U.ToggleGroupItem value="grid">网格</U.ToggleGroupItem><U.ToggleGroupItem value="list">列表</U.ToggleGroupItem></U.ToggleGroup>
+    <div v-else-if="family === 'toggle-group'" class="ds-stack">
+      <U.ToggleGroup type="single" variant="outline" default-value="grid" :disabled="disabled" aria-label="横向分段示例"><U.ToggleGroupItem value="grid">网格</U.ToggleGroupItem><U.ToggleGroupItem value="list">列表</U.ToggleGroupItem></U.ToggleGroup>
+      <U.ToggleGroup type="single" orientation="vertical" variant="outline" default-value="top" :disabled="disabled" aria-label="纵向分段示例"><U.ToggleGroupItem value="top">上方</U.ToggleGroupItem><U.ToggleGroupItem value="bottom">下方</U.ToggleGroupItem></U.ToggleGroup>
+      <U.ToggleGroup type="multiple" :spacing="2" variant="outline" :disabled="disabled" aria-label="间隔多选示例"><U.ToggleGroupItem value="a">选项一</U.ToggleGroupItem><U.ToggleGroupItem value="b">选项二</U.ToggleGroupItem></U.ToggleGroup>
+    </div>
     <U.Breadcrumb v-else-if="family === 'breadcrumb'"><U.BreadcrumbList><U.BreadcrumbItem><U.BreadcrumbLink href="#">组件库</U.BreadcrumbLink></U.BreadcrumbItem><U.BreadcrumbSeparator /><U.BreadcrumbItem><U.BreadcrumbPage>导航组件</U.BreadcrumbPage></U.BreadcrumbItem></U.BreadcrumbList></U.Breadcrumb>
     <U.Collapsible v-else-if="family === 'collapsible'"><U.CollapsibleTrigger as-child><U.Button variant="outline">展开高级参数</U.Button></U.CollapsibleTrigger><U.CollapsibleContent>高级参数内容，重复点击可收起。</U.CollapsibleContent></U.Collapsible>
     <U.ScrollArea v-else-if="family === 'scroll-area'" class="h-40"><p v-for="i in 20" :key="i">第 {{ i }} 条模拟记录</p><U.ScrollBar /></U.ScrollArea>

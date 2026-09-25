@@ -9,6 +9,7 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         dock: 'ds-dock-item',
+        resize: 'ds-resize-handle',
         segment: 'ds-segment-item',
         default: 'bg-primary text-primary-foreground [a]:hover:bg-primary/80',
         outline: 'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-expanded:bg-muted aria-expanded:text-foreground',
