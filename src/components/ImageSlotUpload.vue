@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { DsFileInput, DsUpload } from '@/components/design-system'
 import { onUnmounted, ref } from 'vue'
-import { Plus, RefreshCw, X } from '@lucide/vue'
+import { Eye, RefreshCw, X } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/design-system/primitives/hover-card'
 import { UiImagePreview } from '@/components/design-system'
 defineOptions({ name: 'ImageSlotUpload' })
 
@@ -29,7 +28,6 @@ const props = withDefaults(defineProps<{
   size?: number
   alignLeft?: boolean
   useObjectUrls?: boolean
-  showStarredOnHover?: boolean
   starredTemplates?: StarredTemplate[]
 }>(), { size: 200, starredTemplates: () => [] })
 
@@ -151,13 +149,6 @@ function handleRemove(index: number) {
 
 const previewUrl = ref<string>('')
 const showPreviewDialog = ref(false)
-const starredHoverOpen = ref(false)
-
-function selectStarred(template: StarredTemplate) {
-  emit('starred-select', template)
-  starredHoverOpen.value = false
-}
-
 function showPreview(dataUrl: string) {
   previewUrl.value = dataUrl
   showPreviewDialog.value = true
@@ -187,46 +178,28 @@ function showPreview(dataUrl: string) {
         >
           <X class="size-3.5" />
         </Button>
-        <!-- Replace button overlay on bottom-right of image -->
-        <Button variant="secondary" size="icon-sm"
-          type="button"
-          class="absolute right-1.5 bottom-1.5 z-2 flex cursor-pointer items-center justify-center transition-transform hover:scale-110"
-          :aria-label="`替换图片${i + 1}`"
-          @click="handleReplaceClick(i)"
-        >
-          <RefreshCw class="size-3.5" />
-        </Button>
+        <div class="absolute right-1.5 bottom-1.5 z-2 flex gap-1.5">
+          <Button variant="secondary" size="icon-sm"
+            :aria-label="`查看图片${i + 1}`"
+            title="查看图片"
+            @click.stop="showPreview(img.dataUrl)"
+          >
+            <Eye class="size-3.5" />
+          </Button>
+          <Button variant="secondary" size="icon-sm"
+            :aria-label="`替换图片${i + 1}`"
+            title="替换图片"
+            @click.stop="handleReplaceClick(i)"
+          >
+            <RefreshCw class="size-3.5" />
+          </Button>
+        </div>
       </div>
       <!-- Hidden file input for replace -->
       <DsFileInput ref="replaceInputRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
         @change="handleFileReplace" />
       <!-- Add button: visible when slot is not yet filled -->
-      <HoverCard v-if="modelValue.length < maxCount && showStarredOnHover" v-model:open="starredHoverOpen" :open-delay="0">
-        <HoverCardTrigger as-child>
-          <div>
-            <DsUpload variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
-          </div>
-        </HoverCardTrigger>
-        <HoverCardContent side="bottom" align="start" class="w-80 p-3">
-          <p class="text-muted-foreground mb-2 text-sm font-medium">收藏模板</p>
-          <div v-if="starredTemplates.length" class="grid max-h-64 grid-cols-4 gap-2 overflow-y-auto">
-            <Button
-              v-for="t in starredTemplates"
-              :key="t.id"
-              type="button"
-              variant="ghost"
-              class="border-border hover:border-primary aspect-square h-auto w-full overflow-hidden border p-0"
-              :aria-label="`使用收藏模板：${t.name}`"
-              :title="t.name"
-              @click="selectStarred(t)"
-            >
-              <img :src="t.public_url" :alt="t.name" class="size-full object-cover" />
-            </Button>
-          </div>
-          <p v-else class="text-muted-foreground py-4 text-center text-sm">还没有收藏的模板</p>
-        </HoverCardContent>
-      </HoverCard>
-      <DsUpload v-else-if="modelValue.length < maxCount" variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
+      <DsUpload v-if="modelValue.length < maxCount" variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
     </div>
     <div v-if="label" class="text-muted-foreground mt-2 text-sm" :class="alignLeft ? 'text-left' : 'text-center'">
       <span v-if="required" class="text-destructive">*</span>

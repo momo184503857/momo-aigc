@@ -48,6 +48,7 @@
 - `DsToolbar(modelValue,selectedCount)`：update:modelValue/search/reset，业务层决定筛选行为。
 - `DsPage(title,description)`：actions/filters/default/footer 插槽；外层控制滚动归属。
 - `DsSection(title,description)`：default/footer；不内置业务数据。
+- `DsLinkedPanel(title,anchorOffset,anchorLabel)`：常驻关联气泡面板；default/actions/footer 插槽。顶部尖角指向来源控件，anchorOffset 是来源中心相对面板左侧的像素偏移，并自动限制在面板边界内；不含悬浮、传送或业务请求。
 - `DsNotice(title,description,error)`、`DsStatus(status)`、`DsNode(title,status)`：纯展示。
 
 Reka 组件保留受控 v-model、键盘和焦点契约；浮层不得直接挂到 body。通知通过主题 context 的 toastId 隔离，不能串到旧 FeedbackHost。

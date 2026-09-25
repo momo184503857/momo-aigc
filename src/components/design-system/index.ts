@@ -94,3 +94,5 @@ export { default as DsScrollPage } from './composites/DsScrollPage.vue'
 export { default as DsFileInput } from './primitives/DsFileInput.vue'
 export { default as DsSearchInput } from './composites/DsSearchInput.vue'
 export { default as DsCanvasControls } from './composites/DsCanvasControls.vue'
+
+export { default as DsLinkedPanel } from './composites/DsLinkedPanel.vue'

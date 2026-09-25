@@ -361,7 +361,8 @@ function clearRemarkSearch() {
   position: fixed;
   inset: 0;
   background: var(--ds-overlay);
-  z-index: 1999;
+  /* 任务面板及遮罩低于公共弹窗层（z-50）。 */
+  z-index: 39;
 }
 
 .task-panel {
@@ -369,7 +370,7 @@ function clearRemarkSearch() {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 2000;
+  z-index: 40;
   display: flex;
   background: var(--card);
   box-shadow: var(--ds-shadow);

@@ -17,18 +17,12 @@ import ModelChannelSelect from './ModelChannelSelect.vue'
 import SupplementaryImageUpload from './SupplementaryImageUpload.vue'
 import type { SupplementaryImage } from './SupplementaryImageUpload.vue'
 import { templateApi } from '@/services/templateApi'
-import { Star, TriangleAlert, Info, LoaderCircle, Wand2, LayoutTemplate, CircleHelp } from '@lucide/vue'
+import { TriangleAlert, Info, LoaderCircle, Wand2, LayoutTemplate, CircleHelp } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
 import { Textarea } from '@/components/design-system/primitives/textarea'
 import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
-import { Badge } from '@/components/design-system/primitives/badge'
-import { DsParameterPanel } from '@/components/design-system'
+import { DsParameterPanel, DsLinkedPanel } from '@/components/design-system'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/design-system/primitives/tooltip'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/design-system/primitives/popover'
 import {
   Select,
   SelectContent,
@@ -93,7 +87,6 @@ const supplementaryImages = ref<SupplementaryImage[]>([])
 // Template selector state
 const showTemplateSelector = ref(false)
 const templateTargetSlot = ref('')
-const starredOpen = ref(false)
 
 // Starred templates for quick access
 const starredTemplates = ref<StarredTemplate[]>([])
@@ -340,11 +333,10 @@ function handleStarredSelect(slotKey: string, template: StarredTemplate) {
   }
 }
 
-// 仅 UI：弹层内选完收藏模板后收起
+// 常驻收藏区复用第一个参考图位的填充逻辑
 function pickStarred(template: StarredTemplate) {
   if (!slots.value.length) return
   handleStarredSelect(slots.value[0].key, template)
-  starredOpen.value = false
 }
 
 // Exposed for copyParams
@@ -440,54 +432,6 @@ defineExpose({ setParams })
               </span>
             </h2>
           </div>
-          <div class="flex shrink-0 items-center gap-1.5">
-            <Popover v-model:open="starredOpen">
-              <PopoverTrigger as-child>
-                <Button size="sm" variant="ghost" class="gap-1.5">
-                  <Star class="size-3.5" />
-                  收藏模板
-                  <Badge v-if="starredTemplates.length" variant="secondary" class="ml-0.5 h-4 px-1">
-                    {{ starredTemplates.length }}
-                  </Badge>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" class="w-88 p-3">
-                <p class="text-muted-foreground mb-2 text-sm font-medium tracking-wider uppercase">
-                  收藏模板
-                </p>
-                <div v-if="starredTemplates.length" class="max-h-64 grid grid-cols-4 gap-2 overflow-y-auto">
-                  <Button variant="ghost"
-                    v-for="t in starredTemplates"
-                    :key="t.id"
-                    type="button"
-                    :title="t.name"
-                    class="hover:border-primary aspect-square cursor-pointer overflow-hidden border border-border transition-colors"
-                    @click="pickStarred(t)"
-                  >
-                    <img :src="t.public_url" :alt="t.name" class="size-full object-cover" />
-                  </Button>
-                </div>
-                <p v-else class="text-muted-foreground py-6 text-center text-sm">
-                  还没有收藏的模板
-                </p>
-                <div class="mt-2.5 flex items-center justify-between gap-2 border-t pt-2.5">
-                  <span class="text-muted-foreground text-sm">点击即填入第一个参考图位</span>
-                  <RouterLink to="/templates" class="text-sm text-primary hover:underline">
-                    去模板图库收藏 ›
-                  </RouterLink>
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Button
-              size="sm"
-              variant="ghost"
-              class="gap-1.5"
-              @click="handleTemplateSelect(slots[0].key)"
-            >
-              <Wand2 class="size-3.5" />
-              模板库
-            </Button>
-          </div>
         </div>
 
         <div class="flex flex-wrap items-start gap-4">
@@ -498,12 +442,9 @@ defineExpose({ setParams })
             :required="slot.required"
             :model-value="getSlotImages(slot.key)"
             :show-template-btn="false"
-            :starred-templates="starredTemplates"
-            show-starred-on-hover
             :size="164"
             align-left
             @update:model-value="setSlotImages(slot.key, $event)"
-            @starred-select="handleStarredSelect(slot.key, $event)"
           />
           <div v-if="config.hasSupplementaryImages" class="min-w-40 flex-1">
             <div class="mb-3 flex items-center gap-1">
@@ -523,6 +464,45 @@ defineExpose({ setParams })
           </div>
         </div>
       </section>
+
+      <DsLinkedPanel
+        v-if="slots.length > 0"
+        title="收藏模板"
+        :anchor-offset="82"
+        :anchor-label="slots[0].label"
+        class="mb-5 w-full min-w-0"
+      >
+        <template #actions>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              class="gap-1.5"
+              @click="handleTemplateSelect(slots[0].key)"
+            >
+              <Wand2 class="size-3.5" />
+              模板库
+            </Button>
+            <Button as-child variant="link" size="sm">
+              <RouterLink to="/templates">去模板图库收藏</RouterLink>
+            </Button>
+          </div>
+        </template>
+        <div v-if="starredTemplates.length" class="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3">
+          <div v-for="t in starredTemplates" :key="t.id" class="ds-result-tile">
+            <Button
+              variant="ghost"
+              class="ds-result-image"
+              :aria-label="`使用收藏模板：${t.name}`"
+              :title="t.name"
+              @click="pickStarred(t)"
+            >
+              <img :src="t.public_url" :alt="t.name" loading="lazy" />
+            </Button>
+          </div>
+        </div>
+        <p v-else class="ds-caption" role="status">还没有收藏的模板</p>
+      </DsLinkedPanel>
 
       <!-- ② 生成描述 -->
       <section v-if="config.hasUserPrompt" class="pb-3">

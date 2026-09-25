@@ -33,6 +33,16 @@ const status = computed(() => props.state === 'error' ? 'failed' : props.state =
   <U.DsNavigationDock v-if="family === 'navigation-dock'" :items="[{path:'/create',title:'创作工作台',icon:PenLine,active:true},{path:'/results',title:'生图记录',icon:Image},{path:'/prompts',title:'提示词库',icon:BookOpen}]" @navigate="message = '导航事件：' + $event" />
   <U.DsNavigationDock v-if="family === 'navigation-dock'" orientation="horizontal" label="资产分类示例" :items="[{path:'/results',title:'生图记录',icon:Image,active:true},{path:'/templates',title:'模板图库',icon:Image},{path:'/prompts',title:'提示词库',icon:BookOpen}]" @navigate="message = '分类切换：' + $event" />
   <U.DsPage v-if="family === 'page'" title="页面外壳" description="标题、筛选、主体与动作栏"><template #filters><U.DsToolbar v-model="keyword" /></template><U.DsNotice title="内容区"  /><template #footer><U.DsActionBar label="保存配置" /></template></U.DsPage>
+  <div v-else-if="family === 'linked-panel'" class="ds-stack">
+    <div class="w-40"><U.DsUpload variant="tile" label="来源图片" :disabled="state === 'disabled'" @select="message = '已选择来源图片（仅示例）'" /></div>
+    <U.DsLinkedPanel title="关联内容" anchor-label="来源图片" :anchor-offset="80" class="mt-4 w-full">
+      <template #actions><U.Button variant="ghost" :disabled="state === 'disabled'" @click="message = '打开内容库（模拟）'">内容库</U.Button></template>
+      <p v-if="state === 'empty'" class="ds-caption">暂无关联内容</p>
+      <p v-else-if="state === 'loading'" class="ds-caption" role="status">正在加载关联内容…</p>
+      <p v-else-if="state === 'error'" class="ds-caption" role="alert">加载失败，请重试</p>
+      <U.Button v-else variant="outline" :disabled="state === 'disabled'" @click="message = '已应用到来源图片（模拟）'">应用示例内容</U.Button>
+    </U.DsLinkedPanel>
+  </div>
   <U.DsSection v-else-if="family === 'section'" title="参数分区" ><p>标准模型 · 1K</p></U.DsSection>
   <U.DsField v-else-if="family === 'field'" v-slot="field" label="生成描述" help="说明主体、场景与构图" :error="state === 'error' ? '请补充主体描述' : undefined"><U.Textarea :id="field.id" v-model="prompt" :aria-invalid="field.invalid" :aria-describedby="field.describedby" /></U.DsField>
   <U.DsToolbar v-else-if="family === 'toolbar'" v-model="keyword" :selected-count="2" @search="message = '已筛选（模拟）'" @reset="keyword = ''" />
