@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Settings, LogOut, CircleHelp } from '@lucide/vue'
-import { creationModes, canvasItem, assetItem, accountItems, isCreationPath, isAssetPath } from '@/configs/navigation'
+import { creationModes, assetTabs, canvasItem, assetItem, accountItems, isCreationPath, isAssetPath } from '@/configs/navigation'
 import { DsBrandLogo, DsNavigationDock, Button } from '@/components/design-system'
 import { Sidebar } from '@/components/design-system/primitives/sidebar'
 import TaskDockEntry from './TaskDockEntry.vue'
@@ -18,11 +18,16 @@ const { open: openHelp, available: helpAvailable } = useHelp()
 const creditsLabel = computed(() => formatCredits(auth.user?.points ?? 0))
 const creditsValue = computed(() => creditsLabel.value.replace(/\s*积分$/, ''))
 const menuItems = computed(() => [
-  { ...creationModes[0], title: '创作工作台' }, canvasItem, assetItem,
-].map(item => ({ ...item, active: item.path === '/free-gen' ? isCreationPath(route.path)
-  : item.path === '/canvas-projects' ? route.path === item.path || route.path.startsWith('/ai-canvas/')
-  : item.path === '/assets' ? isAssetPath(route.path)
-  : route.path === item.path || route.path.startsWith(item.path + '/') })))
+  {
+    ...creationModes[0], title: '创作工作台', active: isCreationPath(route.path),
+    children: creationModes.map(item => ({ ...item, active: route.path === item.path || route.path.startsWith(item.path + '/') })),
+  },
+  { ...canvasItem, active: route.path === canvasItem.path || route.path.startsWith('/ai-canvas/') },
+  {
+    ...assetItem, path: assetTabs[0]!.path, active: isAssetPath(route.path),
+    children: assetTabs.map(item => ({ ...item, active: route.path === item.path || route.path === item.legacyPath })),
+  },
+])
 function navigate(path: string) { router.push(path) }
 function handleLogout() { auth.logout(); router.push('/login') }
 </script>
@@ -30,7 +35,7 @@ function handleLogout() { auth.logout(); router.push('/login') }
 <template>
   <Sidebar variant="dock" collapsible="none">
     <div class="ds-dock-brand">
-      <Button variant="ghost" class="ds-brand-button" aria-label="墨墨，返回创作工作台" @click="navigate('/free-gen')"><DsBrandLogo /></Button>
+      <Button variant="ghost" class="ds-brand-button" aria-label="墨墨，返回创作工作台" @click="navigate('/workspace')"><DsBrandLogo /></Button>
     </div>
     <div class="ds-dock-content">
       <div class="ds-dock-stack">

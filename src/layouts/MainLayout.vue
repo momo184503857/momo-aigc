@@ -4,7 +4,6 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useTaskPanelStore } from '@/stores/taskPanel'
-import CreationModeNav from '@/components/CreationModeNav.vue'
 import SidebarMenu from '@/components/SidebarMenu.vue'
 import TaskPanel from '@/components/TaskPanel.vue'
 import HelpDrawer from '@/components/help/HelpDrawer.vue'
@@ -33,8 +32,6 @@ onMounted(() => {
     <SidebarMenu />
 
     <SidebarInset :style="contentStyle" class="h-svh overflow-hidden">
-      <CreationModeNav />
-
       <!-- 滚动与内边距全部交给页面外壳 PageLayout（.page-content 是唯一滚动容器），
            页面才能做全出血布局与吸底动作栏 -->
       <div class="min-h-0 flex-1 overflow-hidden">

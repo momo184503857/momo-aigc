@@ -3,7 +3,7 @@ import { PenLine, Sparkles, Camera, ShoppingBag, Wrench, Workflow, LayoutTemplat
 export interface NavigationItem { path: string; title: string; icon: Component; componentName: string }
 const item = (path: string, title: string, icon: Component, componentName: string): NavigationItem => ({ path, title, icon, componentName })
 export const creationModes = [
- item('/free-gen','自由生图',PenLine,'FreeGen'), item('/workspace','快速生图',Sparkles,'Workspace'),
+ item('/workspace','快速生图',Sparkles,'Workspace'), item('/free-gen','自由生图',PenLine,'FreeGen'),
  item('/photography','AI摄影',Camera,'Photography'), item('/buyer-show','AI买家秀',ShoppingBag,'BuyerShow'), item('/toolbox','批量工具',Wrench,'ToolboxPage'),
 ]
 export const resourceItems = [item('/templates','模板图库',LayoutTemplate,'TemplatesPage'),item('/prompts','提示词库',BookOpen,'PromptLibraryPage')]

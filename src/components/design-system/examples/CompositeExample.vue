@@ -35,7 +35,7 @@ const status = computed(() => props.state === 'error' ? 'failed' : props.state =
     <U.Button variant="outline" @click="pickerOpen = true">选择文本（模拟）</U.Button>
     <U.DsTextPicker v-model:open="pickerOpen" :items="state === 'empty' ? [] : [{id:'sample',title:'商品摄影',content:'柔和自然光，保留商品细节',tags:['摄影'],starred:true}]" :tags="['摄影']" :total="state === 'empty' ? 0 : 1" :page-size="8" :loading="state === 'loading'" :empty="state === 'empty'" @select="message = '已选择：' + $event; pickerOpen = false" @favorite="message = '收藏事件：' + $event" />
   </div>
-  <U.DsNavigationDock v-if="family === 'navigation-dock'" :items="[{path:'/create',title:'创作工作台',icon:PenLine,active:true},{path:'/results',title:'生图记录',icon:Image},{path:'/prompts',title:'提示词库',icon:BookOpen}]" @navigate="message = '导航事件：' + $event" />
+  <U.DsNavigationDock v-if="family === 'navigation-dock'" :items="[{path:'/create',title:'创作工作台',icon:PenLine,active:true,children:[{path:'/create/quick',title:'快速生图',icon:PenLine,active:true},{path:'/create/free',title:'自由生图',icon:Image}]},{path:'/results',title:'生图记录',icon:Image},{path:'/prompts',title:'提示词库',icon:BookOpen}]" @navigate="message = '导航事件：' + $event" />
   <U.DsNavigationDock v-if="family === 'navigation-dock'" orientation="horizontal" label="资产分类示例" :items="[{path:'/results',title:'生图记录',icon:Image,active:true},{path:'/templates',title:'模板图库',icon:Image},{path:'/prompts',title:'提示词库',icon:BookOpen}]" @navigate="message = '分类切换：' + $event" />
   <U.DsPage v-if="family === 'page'" title="页面外壳" description="标题、筛选、主体与动作栏"><template #filters><U.DsToolbar v-model="keyword" /></template><U.DsNotice title="内容区"  /><template #footer><U.DsActionBar label="保存配置" /></template></U.DsPage>
   <div v-else-if="family === 'linked-panel'" class="ds-stack">

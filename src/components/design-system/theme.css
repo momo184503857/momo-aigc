@@ -267,7 +267,7 @@
 .ds-theme [data-slot='button'][data-variant='dock'] { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ds-space-2); min-height: 76px; width: 100%; padding: var(--ds-space-2) var(--ds-space-1); border: 0; border-radius: var(--ds-radius); background: transparent; color: var(--muted-foreground); font-size: var(--ds-font-small); font-weight: 500; cursor: pointer; }
 .ds-dock-item > svg { width: 28px; height: 28px; stroke-width: 1.7; }
 .ds-theme [data-slot='button'][data-variant='dock']:hover { background: var(--muted); color: var(--foreground); }
-.ds-theme [data-slot='button'][data-variant='dock'][aria-current=page] { background: var(--accent); color: var(--accent-foreground); }
+.ds-theme [data-slot='button'][data-variant='dock'][aria-current] { background: var(--accent); color: var(--accent-foreground); }
 .ds-dock-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .ds-dock-account { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-2); width: 88px; margin: 0 auto var(--ds-space-2); padding: var(--ds-space-3) var(--ds-space-2); border: 1px solid var(--border); border-radius: calc(var(--ds-radius) * 2); background: var(--card); box-shadow: var(--ds-shadow); }
 .ds-dock-credits { text-align: center; font-size: var(--ds-font-small); color: var(--muted-foreground); }
@@ -603,3 +603,8 @@
 .ds-theme [data-slot='button'][data-variant='resize'][data-dragging='true'] {
   background:var(--accent); color:var(--accent-foreground); border-color:var(--primary);
 }
+
+/* 主导航右侧悬浮子菜单：复用按钮语义与品牌选中态。 */
+.ds-dock-submenu { width:180px; max-width:calc(100vw - 96px); }
+.ds-dock-children { display:flex; flex-direction:column; gap:var(--ds-space-1); min-width:0; }
+.ds-theme [data-slot='button'].ds-dock-child { width:100%; min-height:36px; height:auto; justify-content:flex-start; gap:var(--ds-space-2); padding:var(--ds-space-2) var(--ds-space-3); font-size:var(--ds-font-small); white-space:normal; }
