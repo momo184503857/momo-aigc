@@ -1,3 +1,4 @@
+import { toolboxRouter, adminToolboxRouter } from './routes/toolbox.js'
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
@@ -67,6 +68,8 @@ app.use('/api/admin/tasks', adminTasksRouter)
 app.use('/api/admin/activity', adminActivityRouter)
 app.use('/api/admin/templates', adminTemplatesRouter)
 app.use('/api/admin/stats', adminStatsRouter)
+app.use('/api/toolbox', toolboxRouter)
+app.use('/api/admin/toolbox', adminToolboxRouter)
 app.use('/api/feature-prompts', featurePromptsRouter)
 app.use('/api/admin/feature-prompts', adminFeaturePromptsRouter)
 app.use('/api/proxy', proxyRouter)

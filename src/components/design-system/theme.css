@@ -228,7 +228,9 @@
 .ds-parameter-after {margin-top:var(--ds-space-3)}
 .ds-parameter-value {display:flex;align-items:center;min-height:var(--ds-control-height);width:100%;padding-inline:var(--ds-space-2);border:1px solid var(--input);border-radius:var(--ds-field-radius);background:var(--background);font-size:var(--ds-font-body)}
 .ds-action-full {display:flex;flex-direction:column;align-items:stretch;border-top:0;padding-top:0}
-.ds-action-full > [data-slot='button'] {width:100%;min-height:var(--ds-control-lg)}
+.ds-action-tooltip-trigger { display:inline-flex; cursor:not-allowed; }
+.ds-action-tooltip-trigger:focus-visible { outline:2px solid var(--ring); outline-offset:2px; border-radius:var(--ds-radius); }
+.ds-action-full > [data-slot='button'], .ds-action-full > .ds-action-tooltip-trigger > [data-slot='button'] {width:100%;min-height:var(--ds-control-lg)}
 .ds-results-panel {display:flex;flex-direction:column;min-height:0;min-width:0;border:1px solid var(--border);border-radius:var(--ds-card-radius);background:var(--card);overflow:hidden}
 .ds-results-panel > header {padding:var(--ds-space-5);flex-shrink:0}
 .ds-results-scroll {flex:1;min-height:0;overflow:auto;overflow-anchor:none;padding:0 var(--ds-space-5) var(--ds-space-5)}
@@ -608,3 +610,19 @@
 .ds-dock-submenu { width:180px; max-width:calc(100vw - 96px); }
 .ds-dock-children { display:flex; flex-direction:column; gap:var(--ds-space-1); min-width:0; }
 .ds-theme [data-slot='button'].ds-dock-child { width:100%; min-height:36px; height:auto; justify-content:flex-start; gap:var(--ds-space-2); padding:var(--ds-space-2) var(--ds-space-3); font-size:var(--ds-font-small); white-space:normal; }
+
+/* 工具入口卡：大幅 4:3 介绍图、名称、介绍与操作。 */
+.ds-tool-card { display:flex; flex-direction:column; height:100%; overflow:hidden; border:1px solid var(--border); border-radius:calc(var(--ds-radius) * 2); background:var(--card); color:var(--card-foreground); }
+.ds-tool-card-media { aspect-ratio:4 / 3; width:100%; flex-shrink:0; overflow:hidden; background:var(--muted); }
+.ds-tool-card-media > img { width:100%; height:100%; object-fit:cover; display:block; }
+.ds-tool-card-placeholder { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--ds-space-2); color:var(--muted-foreground); font-size:var(--ds-font-small); }
+.ds-tool-card-placeholder svg { width:32px; height:32px; }
+.ds-tool-card-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--ds-space-2); padding:var(--ds-space-4) var(--ds-space-4) 0; }
+.ds-tool-card-title { min-width:0; overflow-wrap:anywhere; font-size:var(--ds-font-body); font-weight:600; }
+.ds-tool-card-footer { display:flex; flex:1; flex-direction:column; gap:var(--ds-space-3); padding:var(--ds-space-2) var(--ds-space-4) var(--ds-space-4); }
+.ds-tool-card-description { flex:1; color:var(--muted-foreground); font-size:var(--ds-font-small); line-height:1.6; }
+
+/* 标准参数组合及底部承载区：页面不得各自补分隔线/内边距。 */
+.ds-parameter-host { flex-shrink:0; min-width:0; }
+.ds-parameter-dock { padding:var(--ds-space-3) var(--ds-space-5); background:var(--background); }
+.ds-parameter-model-option { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--ds-space-2); }

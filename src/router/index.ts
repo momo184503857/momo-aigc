@@ -154,6 +154,7 @@ const router = createRouter({
       redirect: '/admin/users',
       meta: { requiresAuth: true, requiresAdmin: true },
     },
+    { path: '/admin/toolbox', name: 'AdminToolbox', component: () => import('@/views/admin/AdminToolbox.vue'), meta: { title: '工具介绍图', requiresAuth: true, requiresAdmin: true } },
     {
       path: '/admin/ui-components',
       name: 'AdminUiComponents',

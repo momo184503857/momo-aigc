@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
+const generationModels = useGenerationModelOptions()
 import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
 import { ref, computed, watch, onMounted } from 'vue'
 import { formatCredits } from '@/types/adapter'
@@ -14,7 +16,6 @@ import PromptEditorPanel from './PromptEditorPanel.vue'
 import ImageSlotUpload from './ImageSlotUpload.vue'
 import type { SlotImage, StarredTemplate } from './ImageSlotUpload.vue'
 import TemplateSelector from './TemplateSelector.vue'
-import ModelChannelSelect from './ModelChannelSelect.vue'
 import SupplementaryImageUpload from './SupplementaryImageUpload.vue'
 import type { SupplementaryImage } from './SupplementaryImageUpload.vue'
 import { templateApi } from '@/services/templateApi'
@@ -24,13 +25,6 @@ import { Textarea } from '@/components/design-system/primitives/textarea'
 import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
 import { DsParameterPanel, DsLinkedPanel, Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/design-system'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/design-system/primitives/tooltip'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/primitives/select'
 
 const { warning } = useUiFeedback()
 
@@ -426,13 +420,18 @@ defineExpose({ setParams })
       <!-- ① 参考图与细节补充 -->
       <section v-if="slots.length > 0 || config.hasSupplementaryImages" class="pb-5">
         <div v-if="slots.length > 0" class="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div class="min-w-0">
-            <h2 class="text-sm font-semibold">
-              参考图
-              <span class="text-muted-foreground ml-1.5 font-normal">
+          <div class="flex min-w-0 items-center gap-1">
+            <h2 class="text-sm font-semibold">参考图</h2>
+            <Tooltip :delay-duration="200">
+              <TooltipTrigger as-child>
+                <Button variant="ghost" size="icon-xs" aria-label="参考图说明">
+                  <CircleHelp class="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
                 {{ slots.length }} 张 · 支持拖拽图片到框内
-              </span>
-            </h2>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -541,35 +540,24 @@ defineExpose({ setParams })
       </section>
     </div>
 
-    <div class="bg-background shrink-0 border-t px-5 py-3">
-      <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate" :reason="blockingHint || undefined" reason-tone="error" @submit="handleGenerate">
-        <div class="ds-parameter">
-          <span class="ds-caption">模型</span>
-          <ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" />
-        </div>
-        <div class="ds-parameter">
-          <span class="ds-caption">画面比例</span>
-          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
-            <SelectTrigger aria-label="画面比例"><SelectValue placeholder="选择宽高比" /></SelectTrigger>
-            <SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <div class="ds-parameter">
-          <span class="ds-caption">生成数量</span>
-          <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
-            <SelectTrigger aria-label="生成数量"><SelectValue /></SelectTrigger>
-            <SelectContent position="popper"><SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 张</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <div class="ds-parameter">
-          <span class="ds-caption">分辨率</span>
-          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
-            <SelectTrigger aria-label="分辨率"><SelectValue placeholder="选择分辨率" /></SelectTrigger>
-            <SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent>
-          </Select>
-        </div>
-      </DsParameterPanel>
-    </div>
+    <DsParameterPanel
+      placement="dock"
+      :label="generateButtonLabel"
+      :disabled="!canGenerate"
+      :reason="blockingHint || undefined"
+      reason-tone="error"
+      @submit="handleGenerate"
+      v-model:model-id="selectedModelId"
+      :models="generationModels"
+      :models-loading="!modelCatalog.loaded"
+      v-model:aspect-ratio="aspectRatio"
+      :aspect-ratios="availableAspectRatios"
+      v-model:count="count"
+      v-model:resolution="resolution"
+      :resolutions="availableResolutions"
+      @model-change="handleModelChange"
+      @resolution-change="handleResolutionChange"
+    />
   </div>
 
   <!-- Unknown feature fallback -->

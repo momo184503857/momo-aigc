@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
+const generationModels = useGenerationModelOptions()
 import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
 /**
  * PhotographyForm — AI摄影表单
@@ -14,18 +16,10 @@ import { useServerStatusStore } from '@/stores/serverStatus'
 import { photographyApi } from '@/services/photographyApi'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import PromptEditorPanel from './PromptEditorPanel.vue'
-import ModelChannelSelect from './ModelChannelSelect.vue'
 import { Plus, Trash2, X, LoaderCircle } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
 import { Textarea } from '@/components/design-system/primitives/textarea'
-import { DsParameterPanel, UiEmptyState, UiNumberInput } from '@/components/design-system'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/primitives/select'
+import { DsParameterPanel, UiEmptyState } from '@/components/design-system'
 
 const { warning } = useUiFeedback()
 const serverStatus = useServerStatusStore()
@@ -693,37 +687,30 @@ onMounted(() => loadElements())
       </div>
 
     </div>
-    <div class="shrink-0 border-t p-3">
-      <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate" :reason="!canGenerate && serverStatus.loaded ? (serverStatus.canGenerate ? '请至少分配一张图片到元素' : '暂无可用模型，请联系管理员配置渠道与模型') : undefined" @submit="handleGenerate">
-        <div class="ds-parameter">
-          <span class="ds-caption">模型</span>
-          <ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" />
-        </div>
-        <div class="ds-parameter">
-          <span class="ds-caption">画面比例</span>
-          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
-            <SelectTrigger aria-label="画面比例"><SelectValue placeholder="宽高比" /></SelectTrigger>
-            <SelectContent position="popper"><SelectItem v-for="r in availableAspectRatios" :key="r" :value="r">{{ r }}</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <div class="ds-parameter">
-          <span class="ds-caption">生成数量</span>
-          <UiNumberInput v-model="count" :min="1" :max="5" aria-label="生成数量" />
-        </div>
-        <div class="ds-parameter">
-          <span class="ds-caption">分辨率</span>
-          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
-            <SelectTrigger aria-label="分辨率"><SelectValue placeholder="分辨率" /></SelectTrigger>
-            <SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent>
-          </Select>
-        </div>
-      </DsParameterPanel>
-    </div>
+
+    <DsParameterPanel
+      placement="dock"
+      :label="generateButtonLabel"
+      :disabled="!canGenerate"
+      :reason="!canGenerate && serverStatus.loaded ? (serverStatus.canGenerate ? '请至少分配一张图片到元素' : '暂无可用模型，请联系管理员配置渠道与模型') : undefined"
+      @submit="handleGenerate"
+      v-model:model-id="selectedModelId"
+      :models="generationModels"
+      :models-loading="!modelCatalog.loaded"
+      v-model:aspect-ratio="aspectRatio"
+      :aspect-ratios="availableAspectRatios"
+      v-model:count="count"
+      v-model:resolution="resolution"
+      :resolutions="availableResolutions"
+      @model-change="handleModelChange"
+      @resolution-change="handleResolutionChange"
+    />
   </div>
 </template>
 
 <style scoped>
 .photography-form {
+  min-height: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -732,7 +719,7 @@ onMounted(() => loadElements())
 .form-scroll-area {
   flex: 1;
   overflow-y: auto;
-  padding-right: 8px;
+  padding: var(--ds-space-5);
 }
 
 /* ─── Sections ─── */

@@ -98,3 +98,4 @@ export { default as DsCanvasControls } from './composites/DsCanvasControls.vue'
 export { default as DsLinkedPanel } from './composites/DsLinkedPanel.vue'
 
 export { default as DsCascaderPicker } from './composites/DsCascaderPicker.vue'
+export { default as DsToolCard } from './composites/DsToolCard.vue'

@@ -12,7 +12,6 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success } = useUiFeedback()
 import { DsScrollPage as PageLayout } from '@/components/design-system'
 import PhotographyForm from '@/components/PhotographyForm.vue'
-import { Badge } from '@/components/design-system/primitives/badge'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useTaskManager } from '@/composables/useTaskManager'
 
@@ -103,19 +102,7 @@ onActivated(async () => {
 </script>
 
 <template>
-  <PageLayout
-    title="AI 摄影"
-    subtitle="参考图先进图片池，再拖拽分配到各元素位，一份参数批量出片"
-  >
-    <template #extra>
-      <Badge v-if="serverStatus.loaded && !serverStatus.canGenerate" variant="warning">
-        无可用渠道
-      </Badge>
-      <Badge v-else-if="tm.activeTaskCount.value > 0" variant="secondary" class="tabular-nums">
-        {{ tm.activeTaskCount.value }} 个任务生成中
-      </Badge>
-    </template>
-
+  <PageLayout content-padding="0">
     <!-- 有界工作台列：PhotographyForm 自带内部滚动与吸底生成栏，页面不再套第二层滚动 -->
     <div class="mx-auto flex h-full min-h-0 w-full max-w-[1240px] flex-col">
       <PhotographyForm ref="photographyForm" @generate="handleGenerate" />

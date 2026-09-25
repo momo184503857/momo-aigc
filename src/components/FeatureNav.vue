@@ -10,13 +10,11 @@ import {
   Paintbrush,
   PictureInPicture2,
   Scissors,
-  Search,
   User,
   X,
   ZoomIn,
 } from '@lucide/vue'
 import { cn } from '@/lib/utils'
-import { Input } from '@/components/design-system/primitives/input'
 
 defineOptions({ name: 'FeatureNav' })
 
@@ -78,11 +76,11 @@ function select(tabId: string) {
 
       <DsSearchInput :clearable="false"
         v-model="keyword"
-        placeholder="搜索功能"
+        placeholder="搜索"
         aria-label="搜索功能"
 
       />
-      <Button variant="ghost"
+      <Button variant="ghost" size="icon-xs"
         v-if="keyword"
         type="button"
         aria-label="清除搜索"
@@ -95,7 +93,7 @@ function select(tabId: string) {
 
     <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-4" aria-label="功能导航">
       <div v-for="group in filteredGroups" :key="group.name" class="mt-3 first:mt-1.5">
-        <p class="text-muted-foreground px-2 pb-1 text-sm font-medium tracking-wider uppercase">
+        <p class="text-muted-foreground px-1 pb-1 text-xs font-medium">
           {{ group.name }}
         </p>
         <ul class="space-y-px">
@@ -103,7 +101,7 @@ function select(tabId: string) {
             <Button :variant="activeTab === tab.id ? 'secondary' : 'ghost'"
               type="button"
               :aria-current="activeTab === tab.id ? 'page' : undefined"
-              class="w-full justify-start gap-2"
+              class="w-full justify-start gap-1 px-1.5 text-xs"
               @click="select(tab.id)"
             >
               <component

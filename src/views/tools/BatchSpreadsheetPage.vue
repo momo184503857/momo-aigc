@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
+const generationModels = useGenerationModelOptions()
 import { DsFileInput } from '@/components/design-system'
 /**
  * 批量传表格做图 —— Excel 驱动的批量生图
@@ -34,7 +36,6 @@ import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
 import type { ModelId } from '@/types/adapter'
 import { DsParameterPanel, DsScrollPage as PageLayout } from '@/components/design-system'
-import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
 import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
 import { Badge } from '@/components/design-system/primitives/badge'
 import { Button } from '@/components/design-system/primitives/button'
@@ -46,13 +47,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/design-system/primitives/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/primitives/select'
 import {
   Table,
   TableBody,
@@ -497,8 +491,7 @@ onUnmounted(() => {
 
 <template>
   <PageLayout>
-    <template #header>
-      <div class="flex min-w-0 items-center gap-2.5">
+    <template #actions>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -509,16 +502,6 @@ onUnmounted(() => {
         >
           <ArrowLeft class="size-4" />
         </Button>
-        <div class="min-w-0">
-          <h2 class="truncate">批量传表格做图</h2>
-          <p class="text-muted-foreground truncate text-sm">
-            <template v-if="step === 'upload'">一行 = 一个任务：文件名可选，提示词与图片链接必填</template>
-            <template v-else>
-              共 {{ tableData.length }} 条 · 已选 {{ selectedCount }} 条 · 参考图 {{ imageTotal }} 张
-            </template>
-          </p>
-        </div>
-      </div>
     </template>
 
     <template #extra>
@@ -736,15 +719,28 @@ onUnmounted(() => {
     <!-- 常驻命令栏：参数（校对阶段）+ 主操作 + 进度 -->
     <template #footer>
       <div class="content-max flex flex-col gap-2.5">
-        <DsParameterPanel v-if="step !== 'generating'" :label="`开始生成 · ${selectedCount} 个任务 · ${formatCredits(selectedCost)}`" :disabled="step !== 'preview' || selectedCount === 0" :reason="step === 'upload' ? '请先上传并校对表格' : selectedCount === 0 ? '请至少勾选一条任务' : `单价 ${formatCredits(unitPrice)} / 任务`" :reason-tone="step === 'preview' && selectedCount === 0 ? 'error' : 'default'" @submit="handleGenerate">
-          <div class="ds-parameter"><span class="ds-caption">模型</span><ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" /></div>
-          <div class="ds-parameter"><span class="ds-caption">画面比例</span><Select v-model="aspectRatio"><SelectTrigger aria-label="画面比例"><SelectValue placeholder="宽高比" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent></Select></div>
-          <div class="ds-parameter"><span class="ds-caption">任务数量</span><output class="ds-parameter-value tabular-nums">{{ selectedCount }} 个</output></div>
-          <div class="ds-parameter"><span class="ds-caption">分辨率</span><Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }"><SelectTrigger aria-label="分辨率"><SelectValue placeholder="选择分辨率" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent></Select></div>
+        <DsParameterPanel
+          v-if="step !== 'generating'"
+          :label="`开始生成 · ${selectedCount} 个任务 · ${formatCredits(selectedCost)}`"
+          :disabled="step !== 'preview' || selectedCount === 0"
+          :reason="step === 'upload' ? '请先上传并校对表格' : selectedCount === 0 ? '请至少勾选一条任务' : `单价 ${formatCredits(unitPrice)} / 任务`"
+          :reason-tone="step === 'preview' && selectedCount === 0 ? 'error' : 'default'"
+          @submit="handleGenerate"
+          v-model:model-id="selectedModelId"
+          :models="generationModels"
+          :models-loading="!modelCatalog.loaded"
+          v-model:aspect-ratio="aspectRatio"
+          :aspect-ratios="availableAspectRatios"
+          :task-count="selectedCount"
+          v-model:resolution="resolution"
+          :resolutions="availableResolutions"
+          @model-change="handleModelChange"
+          @resolution-change="handleResolutionChange"
+        >
           <template #after>
             <div v-if="step === 'preview'" class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-muted-foreground text-sm">任务按每 3 秒 1 个依次提交，未勾选的行不会提交</span>
-              <Button variant="outline" size="sm" class="gap-1.5" @click="step = 'upload'"><FileText class="size-3.5" />重新上传</Button>
+            <span class="text-muted-foreground text-sm">任务按每 3 秒 1 个依次提交，未勾选的行不会提交</span>
+            <Button variant="outline" size="sm" class="gap-1.5" @click="step = 'upload'"><FileText class="size-3.5" />重新上传</Button>
             </div>
           </template>
         </DsParameterPanel>

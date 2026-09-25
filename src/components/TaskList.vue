@@ -339,8 +339,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
           </div>
         </div>
         <div v-if="!bulkMode" class="task-actions">
-          <Button size="sm" @click="emit('regenerate', task)"><RefreshCw />重新生成</Button>
-          <Button size="sm" variant="outline" @click="emit('copyParams', task)"><Copy />复用参数</Button>
+          <Button size="sm" variant="default" @click="emit('copyParams', task)"><Copy />复用参数</Button>
           <Button size="sm" variant="outline" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)"><Download />下载</Button>
           <Button size="sm" variant="outline" @click="emit('viewDetail', task)"><Eye />详情</Button>
           <Button size="sm" variant="destructive"  @click="emit('delete', task)"><Trash2 />删除</Button>
@@ -418,8 +417,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
 
         <!-- Actions -->
         <div v-if="!bulkMode" class="grid-card-actions">
-          <Button size="sm" @click="emit('regenerate', task)"><RefreshCw />重新生成</Button>
-          <Button size="sm" variant="outline" @click="emit('copyParams', task)"><Copy />复用参数</Button>
+          <Button size="sm" variant="default" @click="emit('copyParams', task)"><Copy />复用参数</Button>
           <Button size="sm" variant="outline" :disabled="!task.result_image_urls?.[0]" @click="emit('download', task)"><Download />下载</Button>
           <Button size="sm" variant="outline" @click="emit('viewDetail', task)"><Eye />详情</Button>
           <Button size="sm" variant="destructive"  @click="emit('delete', task)"><Trash2 />删除</Button>
@@ -464,13 +462,15 @@ function handleImageDragStart(e: DragEvent, url: string) {
 .task-card:hover { box-shadow: var(--ds-shadow); }
 
 .task-thumb {
-  width: 140px; height: 140px; flex-shrink: 0;
+  width: 140px; height: 140px; aspect-ratio: 1; flex-shrink: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
   border-radius: var(--ds-radius); overflow: hidden;
-  background: var(--muted);
+  background: var(--card);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
 }
-.task-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.task-thumb img { width: 100%; height: 100%; object-fit: contain; }
 
 /* Thumb status placeholder (loading / empty / retry) */
 .thumb-status {
@@ -546,7 +546,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
   background: var(--muted);
   position: relative; overflow: hidden;
 }
-.grid-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.grid-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .grid-progress-bar {
   position: absolute; bottom: 0; left: 0; height: 3px;
   background: var(--primary);

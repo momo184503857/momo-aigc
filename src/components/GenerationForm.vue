@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
+const generationModels = useGenerationModelOptions()
 /**
  * GenerationForm - 生图参数表单
  * 从 ToolFlux 复制并改造：去掉 ChannelId/Electron/提示词库，接入 Web API
@@ -12,17 +14,9 @@ import type { CatalogModel } from '@/stores/modelCatalog'
 import type { PromptLibraryItem } from '@/services/promptLibraryApi'
 import { usePromptLibrary } from '@/composables/usePromptLibrary'
 import TemplateSelector from './TemplateSelector.vue'
-import ModelChannelSelect from './ModelChannelSelect.vue'
 import { Button } from '@/components/design-system/primitives/button'
 import { Textarea } from '@/components/design-system/primitives/textarea'
 import { Alert, AlertDescription, AlertTitle } from '@/components/design-system/primitives/alert'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/primitives/select'
 import { DsUpload, DsReferenceImage, DsSection, DsParameterPanel, DsTextPicker, UiImagePreview } from '@/components/design-system'
 
 const emit = defineEmits<{
@@ -282,6 +276,15 @@ function handleDragLeave(e: DragEvent) {
 
 // 固定两秒防连点，不等待上传、请求或后台生成完成。
 const generateLocked = ref(false)
+const blockingHint = computed(() => {
+  if (generateLocked.value) return '请稍候再提交'
+  if (!serverStatus.loaded) return '正在检查服务状态…'
+  if (!serverStatus.canGenerate) return '暂无可用模型，请联系管理员配置渠道与模型'
+  if (!selectedModelId.value) return '请选择生成模型'
+  if (!prompt.value.trim()) return '请输入画面描述'
+  if (prompt.value.length > maxPromptChars.value) return `画面描述不能超过 ${maxPromptChars.value} 字`
+  return ''
+})
 let generateUnlockTimer: ReturnType<typeof setTimeout> | undefined
 onUnmounted(() => clearTimeout(generateUnlockTimer))
 
@@ -377,47 +380,22 @@ defineExpose({ setParams })
         </Textarea>
       </DsSection>
     </div>
-    <DsParameterPanel :label="generateButtonLabel" :disabled="!canGenerate || generateLocked" @submit="handleGenerate">
-
-        <div class="ds-parameter">
-          <label class="ds-caption">模型</label>
-          <ModelChannelSelect aria-label="模型" content-position="popper" v-model="selectedModelId" class="w-full" @change="handleModelChange" />
-        </div>
-        <div class="ds-parameter">
-          <label class="ds-caption">画面比例</label>
-          <Select :model-value="aspectRatio" @update:model-value="(v) => (aspectRatio = String(v))">
-            <SelectTrigger class="w-full" aria-label="画面比例">
-              <SelectValue placeholder="选择宽高比" />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              <SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="ds-parameter">
-          <label class="ds-caption">生成数量</label>
-          <Select :model-value="String(count)" @update:model-value="(v) => (count = Number(v))">
-            <SelectTrigger class="w-full" aria-label="生成数量">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              <SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }}张</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="ds-parameter">
-          <label class="ds-caption">分辨率</label>
-          <Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }">
-            <SelectTrigger class="w-full" aria-label="分辨率">
-              <SelectValue placeholder="选择分辨率" />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              <SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-    </DsParameterPanel>
+    <DsParameterPanel
+      :label="generateButtonLabel"
+      :disabled="!canGenerate || generateLocked"
+      :reason="blockingHint"
+      @submit="handleGenerate"
+      v-model:model-id="selectedModelId"
+      :models="generationModels"
+      :models-loading="!modelCatalog.loaded"
+      v-model:aspect-ratio="aspectRatio"
+      :aspect-ratios="availableAspectRatios"
+      v-model:count="count"
+      v-model:resolution="resolution"
+      :resolutions="availableResolutions"
+      @model-change="handleModelChange"
+      @resolution-change="handleResolutionChange"
+    />
       <!-- Template Selector Dialog -->
       <TemplateSelector
         v-model:visible="showTemplateSelector"

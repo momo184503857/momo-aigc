@@ -22,6 +22,7 @@ const routes: RouteRecordRaw[] = [
     path: '/admin',
     redirect: '/admin/users',
   },
+  { path: '/toolbox', alias: '/admin/toolbox', name: 'AdminToolbox', component: () => import('@/views/admin/AdminToolbox.vue'), meta: { title: '工具介绍图' } },
   {
     path: '/ui-components',
     alias: '/admin/ui-components',

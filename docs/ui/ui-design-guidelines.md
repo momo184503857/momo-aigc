@@ -83,3 +83,28 @@ Reka 组件保留受控 v-model、键盘和焦点契约；浮层不得直接挂�
 - 左下角只显示任务面板开关、剩余积分和设置入口，不显示头像；任务开关保留运行中状态及任务数量。
 - 使用帮助移入设置菜单，无文档时保持禁用并说明原因；账户与退出功能继续保留；用户端设置菜单不提供管理后台入口，后台路由与权限不变。
 - 公共 `DsNavigationDock` 支持纵向悬浮和横向分段两种方向；样式统一在公共主题中，展厅提供两种实例。
+
+## 工具入口卡片（2026-09-25）
+
+- `DsToolCard(title, description, imageUrl, disabled)` 为公共工具入口卡，分为 4:3 介绍图、名称与进入按钮、描述三个部分。进入按钮为名称行右侧的小按钮，不含箭头；后台 actions 插槽仍位于描述下方。图片居中裁切；无图或加载失败显示“无图片介绍”，不折叠图片区。
+- 默认操作发出 `enter` 事件；后台可通过 `actions` 插槽替换为图片配置操作。组件不访问业务 API；展厅包含有图、无图、禁用状态。
+- 后台“内容与素材 → 工具介绍图”（独立入口 `/admin.html#/toolbox`）可上传、清空、保存四个批量工具的介绍图。上传复用 `ossApi`，兼容 direct 与 OSS；上传完成后需点击保存才发布到工具箱。清空仅解除图片配置，不删除存储文件。
+- 图片地址按工具分别保存在 `system_config` 的 `toolbox_image_<toolId>`，无需数据库迁移。公开接口只返回这四个介绍图字段；写入接口要求管理员权限。用户端重新进入工具箱时读取配置。
+- 接口隔离回归：`npx tsx scripts/test-toolbox-config.ts`，使用临时数据库与独立测试 JWT，不改业务数据。
+
+- 生成参数区 `DsParameterPanel` 默认将 `reason` 作为禁用按钮的悬浮/键盘聚焦提示，按钮可用时不显示；页面不再在 `after` 插槽重复渲染禁用原因。提交进度、下载等非禁用说明仍可使用 `after` 插槽。页面缓存切换时关闭提示，避免旧页面浮层残留。
+
+
+## 页面顶部区域（2026-09-25）
+
+- 公共 `DsScrollPage` 默认不显示页级标题/说明区（`showHeading=false`），页面不再为此保留高度或分隔线。需要演示完整外壳时可显式开启。
+- 返回、新建等必要入口使用 `actions` 插槽；`extra` 和 `filters` 独立保留在无分隔线的工具栏中，不随标题隐藏。页面内容内的分区标题不受影响。
+
+## 标准生图参数组合（2026-09-25）
+
+- `DsParameterPanel` 统一拥有模型、画面比例、生成数量、分辨率四项控件，不再开放默认插槽让页面自行拼装。仅保留 `after` 插槽承载进度、下载等附加操作。
+- 页面通过 `models/modelsLoading`、`aspectRatios/resolutions/countOptions` 提供选项，通过 `v-model:modelId/aspectRatio/count/resolution` 传递当前值。模型名称与售价由业务适配层 `useGenerationModelOptions` 从模型目录生成，公共 UI 不依赖业务 store/API，不硬编码价格。
+- `model-change` 与 `resolution-change` 在对应值更新后触发，页面保留已有模型能力、比例校正与计费规则。公共控件不提交任务，只有生成按钮发出 `submit`。
+- 单次生成统一数量下拉；批量模式传 `taskCount`，显示只读任务数量，不能误改成一次生成多张。
+- `placement="dock"` 用于无外侧留白的工作区，统一底部 12px/横向 20px 留白且不加顶部横线；`inset` 用于页面外壳已提供留白的区域，避免二次内缩。控件高度、间距与四列/窄屏两列布局统一由主题控制。
+- 契约回归：`node scripts/test-standard-parameters.mjs`。

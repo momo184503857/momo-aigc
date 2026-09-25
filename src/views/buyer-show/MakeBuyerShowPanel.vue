@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
+const generationModels = useGenerationModelOptions()
 import { DsFileInput } from '@/components/design-system'
 /**
  * MakeBuyerShowPanel — 制作买家秀（AI买家秀 · Tab 1）
@@ -36,19 +38,11 @@ import { translateError } from '@/utils/errors'
 import { formatCredits } from '@/types/adapter'
 import { DsParameterPanel, UiImagePreview, UiEmptyState } from '@/components/design-system'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
-import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
 import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
 import { Badge } from '@/components/design-system/primitives/badge'
 import { Button } from '@/components/design-system/primitives/button'
 import { Checkbox } from '@/components/design-system/primitives/checkbox'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/primitives/select'
 import {
   Table,
   TableBody,
@@ -731,11 +725,23 @@ onUnmounted(() => {
           <span class="text-muted-foreground ml-auto text-sm">共 {{ tableData.length }} 条，已选 {{ selectedCount }} 条</span>
         </div>
 
-        <DsParameterPanel :label="`一键生图 · ${submittableCount} 个 · ${formatCredits(estimateCost)}`" :busy="isGenerating" :disabled="submittableCount === 0" @submit="handleGenerate">
-          <div class="ds-parameter"><span class="ds-caption">模型</span><ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" /></div>
-          <div class="ds-parameter"><span class="ds-caption">画面比例</span><Select v-model="aspectRatio"><SelectTrigger aria-label="画面比例"><SelectValue /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent></Select></div>
-          <div class="ds-parameter"><span class="ds-caption">生成数量</span><Select :model-value="String(countN)" @update:model-value="(v) => (countN = Number(v))"><SelectTrigger aria-label="生成数量"><SelectValue /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 张</SelectItem></SelectContent></Select></div>
-          <div class="ds-parameter"><span class="ds-caption">分辨率</span><Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }"><SelectTrigger aria-label="分辨率"><SelectValue /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent></Select></div>
+        <DsParameterPanel
+          :label="`一键生图 · ${submittableCount} 个 · ${formatCredits(estimateCost)}`"
+          :busy="isGenerating"
+          :disabled="submittableCount === 0"
+          :reason="isGenerating ? '正在提交任务，请稍候' : submittableCount === 0 ? '请勾选待生成或失败的任务' : undefined"
+          @submit="handleGenerate"
+          v-model:model-id="selectedModelId"
+          :models="generationModels"
+          :models-loading="!modelCatalog.loaded"
+          v-model:aspect-ratio="aspectRatio"
+          :aspect-ratios="availableAspectRatios"
+          v-model:count="countN"
+          v-model:resolution="resolution"
+          :resolutions="availableResolutions"
+          @model-change="handleModelChange"
+          @resolution-change="handleResolutionChange"
+        >
           <template #after>
             <Button variant="outline" :disabled="zipping || downloadableCount === 0" @click="downloadZip"><LoaderCircle v-if="zipping" class="animate-spin" /><Download v-else />一键下载 · {{ downloadableCount }} 张</Button>
           </template>

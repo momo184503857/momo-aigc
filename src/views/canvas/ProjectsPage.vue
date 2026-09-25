@@ -174,7 +174,7 @@ onActivated(() => { loadProjects() })
 
 <template>
   <PageLayout content-padding="0">
-    <template #header>
+    <template #actions>
       <div class="projects-toolbar">
         <Button @click="openCreateDialog"><Plus />新建项目</Button>
         <Button variant="outline" @click="loadProjects"><RefreshCw />刷新</Button>

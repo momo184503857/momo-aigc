@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
+const generationModels = useGenerationModelOptions()
 import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
 /**
  * 批量换衣服（模特图 × 1  +  衣服图 × N）
@@ -27,18 +29,10 @@ import { DsParameterPanel, DsScrollPage as PageLayout, TooltipProvider, Tooltip,
 import PromptEditorPanel from '@/components/PromptEditorPanel.vue'
 import ImageSlotUpload from '@/components/ImageSlotUpload.vue'
 import type { SlotImage } from '@/components/ImageSlotUpload.vue'
-import ModelChannelSelect from '@/components/ModelChannelSelect.vue'
 import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
 import { Badge } from '@/components/design-system/primitives/badge'
 import { Button } from '@/components/design-system/primitives/button'
 import { Progress } from '@/components/design-system/primitives/progress'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/design-system/primitives/select'
 import { Textarea } from '@/components/design-system/primitives/textarea'
 import { cn } from '@/lib/utils'
 
@@ -346,7 +340,7 @@ onMounted(() => {
 
 <template>
   <PageLayout :dividers="false" inset-content>
-    <template #header>
+    <template #actions>
       <Button variant="ghost" size="icon-sm" aria-label="返回工具箱" @click="router.push('/toolbox')">
         <ArrowLeft class="size-4" />
       </Button>
@@ -459,10 +453,7 @@ onMounted(() => {
           />
         </section>
 
-
       </aside>
-
-
 
     </div>
 
@@ -520,15 +511,27 @@ onMounted(() => {
         </CollapsibleContent>
       </Collapsible>
 
-      <DsParameterPanel :label="`批量生成 · ${taskCount} 个任务 · ${formatCredits(totalCost)}`" :busy="isSubmitting" :busy-label="`提交中 ${submitDone} / ${taskCount}`" :disabled="!canGenerate" @submit="handleGenerate">
-        <div class="ds-parameter"><span class="ds-caption">模型</span><ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" /></div>
-        <div class="ds-parameter"><span class="ds-caption">画面比例</span><Select v-model="aspectRatio"><SelectTrigger aria-label="画面比例"><SelectValue placeholder="选择宽高比" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent></Select></div>
-        <div class="ds-parameter"><span class="ds-caption">任务数量</span><output class="ds-parameter-value tabular-nums">{{ taskCount }} 个</output></div>
-        <div class="ds-parameter"><span class="ds-caption">分辨率</span><Select :model-value="resolution" @update:model-value="(v) => { resolution = String(v); handleResolutionChange() }"><SelectTrigger aria-label="分辨率"><SelectValue placeholder="选择分辨率" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="r in availableResolutions" :key="r" :value="r">{{ r }}</SelectItem></SelectContent></Select></div>
+      <DsParameterPanel
+        :label="`批量生成 · ${taskCount} 个任务 · ${formatCredits(totalCost)}`"
+        :busy="isSubmitting"
+        :busy-label="`提交中 ${submitDone} / ${taskCount}`"
+        :disabled="!canGenerate"
+        :reason="isSubmitting ? '正在提交任务，请稍候' : blockingHint"
+        @submit="handleGenerate"
+        v-model:model-id="selectedModelId"
+        :models="generationModels"
+        :models-loading="!modelCatalog.loaded"
+        v-model:aspect-ratio="aspectRatio"
+        :aspect-ratios="availableAspectRatios"
+        :task-count="taskCount"
+        v-model:resolution="resolution"
+        :resolutions="availableResolutions"
+        @model-change="handleModelChange"
+        @resolution-change="handleResolutionChange"
+      >
         <template #after>
           <div v-if="submitSummary" class="text-muted-foreground flex items-center gap-2 text-sm"><Progress :model-value="submitPercent" class="h-1 w-28" />{{ submitSummary }}</div>
-          <span v-else-if="blockingHint" class="text-destructive text-sm">{{ blockingHint }}</span>
-          <span v-else class="text-muted-foreground text-sm">确认前会再提示一次消耗，提交后在任务面板查看进度</span>
+          <span v-else-if="canGenerate" class="text-muted-foreground text-sm">确认前会再提示一次消耗，提交后在任务面板查看进度</span>
         </template>
       </DsParameterPanel>
     </template>

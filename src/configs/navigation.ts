@@ -15,7 +15,7 @@ export const assetTabs = [resultsItem,...resourceItems].map(entry => ({...entry,
 export const isAssetPath = (path: string) => path === '/assets' || assetTabs.some(entry => path === entry.path || path === entry.legacyPath)
 export const adminSections = [
  {title:'用户与运行',items:[item('/admin/users','用户管理',Users,'AdminUsers'),item('/admin/dashboard','生图日志',ScrollText,'AdminDashboard')]},
- {title:'内容与素材',items:[item('/admin/templates','模板管理',LayoutTemplate,'AdminTemplates'),item('/admin/feature-prompts','功能提示词',PenLine,'AdminFeaturePrompts'),item('/admin/photography','AI摄影配置',Camera,'AdminPhotography')]},
+ {title:'内容与素材',items:[item('/admin/toolbox','工具介绍图',Wrench,'AdminToolbox'),item('/admin/templates','模板管理',LayoutTemplate,'AdminTemplates'),item('/admin/feature-prompts','功能提示词',PenLine,'AdminFeaturePrompts'),item('/admin/photography','AI摄影配置',Camera,'AdminPhotography')]},
  {title:'系统与规范',items:[item('/admin/ai-config','配置',Settings,'AdminAiConfig'),item('/admin/ui-components','UI 组件库',Blocks,'AdminUiComponents')]},
 ]
 const detailItems = [item('/toolbox/batch-clothes-swap','批量换姿势',Wrench,'BatchClothesSwapPage'),item('/toolbox/batch-pose-swap','批量换衣服',Wrench,'BatchPoseSwapPage'),item('/toolbox/batch-spreadsheet','批量传表格做图',Wrench,'BatchSpreadsheetPage'),item('/toolbox/batch-face-swap','批量换脸',Wrench,'BatchFaceSwapPage')]
