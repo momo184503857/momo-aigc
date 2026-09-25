@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DsFileInput, DsUpload } from '@/components/design-system'
+import { DsFileInput, DsUpload, ScrollArea } from '@/components/design-system'
 import { onUnmounted, ref } from 'vue'
 import { Eye, RefreshCw, X } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
@@ -27,6 +27,7 @@ const props = withDefaults(defineProps<{
   showTemplateBtn?: boolean
   size?: number
   alignLeft?: boolean
+  singleRow?: boolean
   useObjectUrls?: boolean
   starredTemplates?: StarredTemplate[]
 }>(), { size: 200, starredTemplates: () => [] })
@@ -156,10 +157,11 @@ function showPreview(dataUrl: string) {
 </script>
 
 <template>
-  <div class="image-slot-upload mb-3.5 flex flex-col" :class="alignLeft ? 'items-start' : 'items-center'">
+  <div class="image-slot-upload mb-3.5 flex flex-col" :class="[alignLeft ? 'items-start' : 'items-center', { 'w-full min-w-0': singleRow }]">
+    <component :is="singleRow ? ScrollArea : 'div'" :orientation="singleRow ? 'horizontal' : undefined" :type="singleRow ? 'auto' : undefined" :class="{ 'w-full min-w-0': singleRow }">
     <div
-      class="flex flex-wrap items-start gap-2.5"
-      :class="alignLeft ? 'justify-start' : 'justify-center'"
+      class="flex items-start gap-2.5"
+      :class="singleRow ? 'w-max flex-nowrap justify-start pb-3' : ['flex-wrap', alignLeft ? 'justify-start' : 'justify-center']"
       @dragover.prevent
       @drop.prevent="handleDrop"
     >
@@ -199,8 +201,9 @@ function showPreview(dataUrl: string) {
       <DsFileInput ref="replaceInputRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
         @change="handleFileReplace" />
       <!-- Add button: visible when slot is not yet filled -->
-      <DsUpload v-if="modelValue.length < maxCount" variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
+      <DsUpload class="shrink-0" v-if="modelValue.length < maxCount" variant="tile" label="点击上传" accept="image/png,image/jpeg,image/webp,image/gif" :style="{ width: size + 'px', height: size + 'px' }" @select="addFromFiles" />
     </div>
+    </component>
     <div v-if="label" class="text-muted-foreground mt-2 text-sm" :class="alignLeft ? 'text-left' : 'text-center'">
       <span v-if="required" class="text-destructive">*</span>
       {{ label }}

@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
 /**
  * 批量换衣服（模特图 × 1  +  衣服图 × N）
  *
- * 结构：主列 = 批量素材与提示词，右栏 = 共用素材与摘要，吸底栏 = 公共参数与提交进度。
+ * 结构：批量素材单行横向滚动，共用素材紧邻右侧；底栏依次为补充提示词、批量摘要和生成参数。
  * 提交循环本身未改动，只额外镜像了 4 个纯视图进度状态（isSubmitting / submitCursor /
  * submitDone / submitFailedAt），用于逐张进度反馈。
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Component } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ChevronRight, CircleCheck, CircleX, LoaderCircle, Minus, TriangleAlert } from '@lucide/vue'
+import { ArrowLeft, ChevronDown, ChevronUp, CircleHelp, CircleCheck, CircleX, LoaderCircle, Minus, TriangleAlert } from '@lucide/vue'
 import { useUiFeedback, confirmDialog } from '@/composables/useUiFeedback'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { featurePromptApi } from '@/services/featurePromptApi'
@@ -22,7 +23,7 @@ import { formatCredits } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import type { CatalogModel } from '@/stores/modelCatalog'
 import type { ModelId } from '@/types/adapter'
-import { DsParameterPanel, DsScrollPage as PageLayout } from '@/components/design-system'
+import { DsParameterPanel, DsScrollPage as PageLayout, TooltipProvider, Tooltip, TooltipTrigger, TooltipContent, Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/design-system'
 import PromptEditorPanel from '@/components/PromptEditorPanel.vue'
 import ImageSlotUpload from '@/components/ImageSlotUpload.vue'
 import type { SlotImage } from '@/components/ImageSlotUpload.vue'
@@ -41,6 +42,8 @@ import {
 import { Textarea } from '@/components/design-system/primitives/textarea'
 import { cn } from '@/lib/utils'
 
+const summaryExpanded = ref(false)
+const userPromptExpanded = ref(false)
 const router = useRouter()
 const { success, warning, error } = useUiFeedback()
 const serverStatus = useServerStatusStore()
@@ -48,6 +51,8 @@ const serverStatus = useServerStatusStore()
 // ─── Images ───
 
 const modelImages = ref<SlotImage[]>([])
+// 缩略图保持单行，共用素材紧邻右侧，超宽时仅批量区横向滚动。
+const batchStripWidth = computed(() => Math.max(160, Math.min(garmentImages.value.length + 1, 100) * 130 - 10))
 const garmentImages = ref<SlotImage[]>([])
 
 // ─── Prompt ───
@@ -199,13 +204,6 @@ const blockingHint = computed(() => {
   return ''
 })
 
-/** 仅 UI：页头步骤指示，与 blockingHint 同源 */
-const steps = computed(() => [
-  { label: '模特图', done: modelImages.value.length > 0 },
-  { label: '衣服图', done: garmentImages.value.length > 0 },
-  { label: '提交', done: submitDone.value > 0 },
-])
-
 // ─── Fetch prompts ───
 
 async function fetchPrompts() {
@@ -347,43 +345,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <PageLayout>
+  <PageLayout :dividers="false" inset-content>
     <template #header>
-      <div class="flex min-w-0 items-center gap-2.5">
-        <Button variant="ghost" size="icon-sm" aria-label="返回工具箱" @click="router.push('/toolbox')">
-          <ArrowLeft class="size-4" />
-        </Button>
-        <div class="min-w-0">
-          <h2 class="truncate">批量换衣服</h2>
-          <p class="text-muted-foreground truncate text-sm">
-            {{ taskCount }} 张衣服图 × 1 张共用模特图 → {{ taskCount }} 个任务
-          </p>
-        </div>
-      </div>
-    </template>
-
-    <template #extra>
-      <ol class="border-border mr-1 hidden items-center gap-1.5 border-r pr-4 md:flex">
-        <li
-          v-for="(s, i) in steps"
-          :key="s.label"
-          class="flex items-center gap-1.5 text-sm"
-        >
-          <span
-            class="flex size-4 items-center justify-center rounded-full border text-sm font-semibold tabular-nums"
-            :class="s.done
-              ? 'border-success bg-success text-white'
-              : 'border-border text-muted-foreground'"
-          >
-            <CircleCheck v-if="s.done" class="size-2.5" />
-            <template v-else>{{ i + 1 }}</template>
-          </span>
-          <span :class="s.done ? 'text-foreground' : 'text-muted-foreground'">{{ s.label }}</span>
-          <ChevronRight v-if="i < steps.length - 1" class="text-muted-foreground/40 size-3" />
-        </li>
-      </ol>
-      <Badge variant="secondary" class="tabular-nums">{{ taskCount }} 个任务</Badge>
-      <Badge variant="outline" class="tabular-nums">{{ formatCredits(totalCost) }} 积分</Badge>
+      <Button variant="ghost" size="icon-sm" aria-label="返回工具箱" @click="router.push('/toolbox')">
+        <ArrowLeft class="size-4" />
+      </Button>
     </template>
 
     <!-- API Key warning -->
@@ -392,17 +358,22 @@ onMounted(() => {
       <AlertTitle>暂无可用模型（渠道未配置或已停用），请联系管理员配置渠道与模型</AlertTitle>
     </Alert>
 
-    <div class="content-max grid min-w-0 items-start gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-      <!-- 主列：批量素材 + 提示词 -->
-      <div class="min-w-0">
+    <div class="content-max flex min-w-0 flex-wrap items-start gap-x-8 gap-y-6">
+      <!-- 衣服图区按内容增长，到可用宽度上限后横向滚动。 -->
+      <div class="min-w-0" :style="{ width: `min(100%, ${batchStripWidth}px)`, maxWidth: 'max(160px, calc(100% - 152px))' }">
         <!-- ① 衣服图（批量源） -->
         <section class="border-border pb-6">
-          <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-sm font-semibold">
+          <div class="mb-2.5 flex flex-wrap items-center gap-2">
+            <h3 class="flex items-center gap-1 text-sm font-semibold">
               衣服图
-              <span class="text-muted-foreground ml-1.5 font-normal">
-                必填 · 每张生成 1 个任务，最多 100 张，可直接拖图
-              </span>
+              <TooltipProvider :delay-duration="200">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button variant="ghost" size="icon-xs" aria-label="衣服图上传说明"><CircleHelp /></Button>
+                  </TooltipTrigger>
+                  <TooltipContent>必填 · 每张生成 1 个任务，最多 100 张，可直接拖图</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </h3>
             <Badge variant="outline" class="h-4 shrink-0 px-1.5 tabular-nums">
               {{ garmentImages.length }} / 100
@@ -411,6 +382,7 @@ onMounted(() => {
           <ImageSlotUpload
             label=""
             :max-count="100"
+            single-row
             use-object-urls
             :required="true"
             :model-value="garmentImages"
@@ -458,42 +430,23 @@ onMounted(() => {
           </ul>
         </section>
 
-        <!-- ③ 提示词 -->
-        <section class="border-border pt-6">
-          <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-sm font-semibold">
-              {{ userPromptLabel }}
-              <LoaderCircle v-if="promptLoading" class="text-muted-foreground ml-1.5 size-3.5 animate-spin" />
-              <span v-if="userPrompt.trim()" class="text-muted-foreground ml-1.5 font-normal">
-                将拼接到全部 {{ taskCount }} 个任务
-              </span>
-            </h3>
-            <span class="text-muted-foreground text-sm tabular-nums">{{ userPrompt.length }} 字</span>
-          </div>
-          <Textarea v-model="userPrompt" :rows="3" :placeholder="userPromptPlaceholder" />
-          <div class="mt-3">
-            <PromptEditorPanel
-              v-model="promptPanelModel"
-              title="查看/编辑完整提示词"
-              :sections="[{ key: 'system', label: '系统提示词' }]"
-              :final-prompt="buildFullPrompt()"
-              :default-value="defaultPromptPanelModel"
-              :rows="4"
-              @reset="resetSystemPrompt"
-            />
-          </div>
-        </section>
       </div>
 
-      <!-- 右栏：共用素材 + 批量摘要 -->
-      <aside class="flex min-w-0 flex-col gap-6">
+      <!-- 右栏：共用素材 -->
+      <aside class="flex w-30 min-w-0 shrink-0 flex-col gap-6">
         <section>
           <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-sm font-semibold">
+            <h3 class="flex items-center gap-1 text-sm font-semibold">
               模特图
-              <span class="text-muted-foreground ml-1.5 font-normal">必填 · 所有任务共用</span>
+              <TooltipProvider :delay-duration="200">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button variant="ghost" size="icon-xs" aria-label="模特图上传说明"><CircleHelp /></Button>
+                  </TooltipTrigger>
+                  <TooltipContent>必填 · 所有任务共用</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </h3>
-            <Badge variant="outline" class="h-4 shrink-0 px-1.5 tabular-nums">× 1</Badge>
           </div>
           <ImageSlotUpload
             label=""
@@ -506,10 +459,47 @@ onMounted(() => {
           />
         </section>
 
-        <section class="border-border border-t pt-5">
-          <h3 class="text-muted-foreground mb-2 text-sm font-medium tracking-wider uppercase">
+
+      </aside>
+
+
+
+    </div>
+
+    <!-- 统一参数与吸底操作栏 -->
+    <template #footer>
+      <!-- 补充提示词位于批量摘要上方，默认折叠。 -->
+      <Collapsible v-model:open="userPromptExpanded" class="mb-3 min-w-0">
+        <CollapsibleTrigger as-child>
+          <Button variant="outline" class="w-full justify-between" :aria-label="`${userPromptExpanded ? '收起' : '展开'}${userPromptLabel}`">
+            <span class="flex items-center gap-2">{{ userPromptLabel }}<LoaderCircle v-if="promptLoading" class="size-3.5 animate-spin" /></span>
+            <span class="flex items-center gap-2"><span class="text-muted-foreground tabular-nums">{{ userPrompt.length }} 字</span><ChevronUp v-if="userPromptExpanded" /><ChevronDown v-else /></span>
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent class="pt-3">
+          <p v-if="userPrompt.trim()" class="ds-caption mb-2">将拼接到全部 {{ taskCount }} 个任务</p>
+          <Textarea v-model="userPrompt" :rows="3" :aria-label="userPromptLabel" :placeholder="userPromptPlaceholder" />
+          <div v-if="SHOW_PROMPT_EDITOR_ENTRY" class="mt-3">
+            <PromptEditorPanel
+              v-model="promptPanelModel"
+              title="查看/编辑完整提示词"
+              :sections="[{ key: 'system', label: '系统提示词' }]"
+              :final-prompt="buildFullPrompt()"
+              :default-value="defaultPromptPanelModel"
+              :rows="4"
+              @reset="resetSystemPrompt"
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+      <Collapsible v-model:open="summaryExpanded" class="mb-3">
+        <CollapsibleTrigger as-child>
+          <Button variant="outline" class="w-full justify-between">
             批量摘要
-          </h3>
+            <ChevronUp v-if="summaryExpanded" /><ChevronDown v-else />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent class="px-3 py-3">
           <dl class="flex flex-col gap-1.5 text-sm">
             <div class="flex items-baseline justify-between gap-3">
               <dt class="text-muted-foreground">任务数</dt>
@@ -521,18 +511,15 @@ onMounted(() => {
             </div>
             <div class="border-border flex items-baseline justify-between gap-3 border-t pt-1.5">
               <dt class="text-muted-foreground">预计消耗</dt>
-              <dd class="font-semibold tabular-nums">{{ formatCredits(totalCost) }} 积分</dd>
+              <dd class="font-semibold tabular-nums">{{ formatCredits(totalCost) }}</dd>
             </div>
-            <p class="text-muted-foreground/80 pt-1 text-sm leading-4">
+            <div class="text-muted-foreground/80 pt-1 text-sm leading-4">
               任务按每 3 秒 1 个的节奏依次提交，中途可切换页面，已提交任务不受影响。
-            </p>
+            </div>
           </dl>
-        </section>
-      </aside>
-    </div>
+        </CollapsibleContent>
+      </Collapsible>
 
-    <!-- 统一参数与吸底操作栏 -->
-    <template #footer>
       <DsParameterPanel :label="`批量生成 · ${taskCount} 个任务 · ${formatCredits(totalCost)}`" :busy="isSubmitting" :busy-label="`提交中 ${submitDone} / ${taskCount}`" :disabled="!canGenerate" @submit="handleGenerate">
         <div class="ds-parameter"><span class="ds-caption">模型</span><ModelChannelSelect v-model="selectedModelId" aria-label="模型" content-position="popper" @change="handleModelChange" /></div>
         <div class="ds-parameter"><span class="ds-caption">画面比例</span><Select v-model="aspectRatio"><SelectTrigger aria-label="画面比例"><SelectValue placeholder="选择宽高比" /></SelectTrigger><SelectContent position="popper"><SelectItem v-for="ar in availableAspectRatios" :key="ar" :value="ar">{{ ar }}</SelectItem></SelectContent></Select></div>

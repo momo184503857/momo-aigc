@@ -11,7 +11,7 @@ import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 import ImageCompareDialog from '@/components/ImageCompareDialog.vue'
 import ImageEditorDialog from '@/components/ImageEditorDialog.vue'
 import type { TaskItem } from '@/components/TaskList.vue'
-import { X, Columns2, PictureInPicture2, Search, GripVertical } from '@lucide/vue'
+import { X, Columns2, PictureInPicture2, Search, GripVertical, ChevronDown, ChevronUp } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/design-system/primitives/toggle-group'
 import { UiDateRangePicker } from '@/components/design-system'
@@ -20,6 +20,7 @@ const taskPanel = useTaskPanelStore()
 const narrowScreen = useMediaQuery('(max-width: 1023px)')
 const { width: viewportWidth } = useWindowSize()
 const tm = useTaskManager()
+const operationsExpanded = ref(false)
 const moreMarker = ref<HTMLElement>()
 const hasMore = computed(() => tm.page.value * tm.pageSize.value < tm.total.value)
 useInfiniteLoader(moreMarker, () => taskPanel.listView === 'legacy' && !taskPanel.isCollapsed && hasMore.value && !tm.loading.value && !tm.loadingMore.value && !tm.historyError.value, () => tm.loadHistory(true))
@@ -186,6 +187,17 @@ function clearRemarkSearch() {
 
     <div class="task-panel-inner">
       <div class="task-panel-view-switch">
+        <Button
+          size="sm"
+          variant="outline"
+          class="task-panel-operations-toggle"
+          :aria-expanded="operationsExpanded"
+          aria-controls="task-panel-filters task-panel-toolbar"
+          @click="operationsExpanded = !operationsExpanded"
+        >
+          <ChevronUp v-if="operationsExpanded" /><ChevronDown v-else />
+          {{ operationsExpanded ? '折叠操作' : '展开操作' }}
+        </Button>
         <ToggleGroup
           type="single"
           variant="outline"
@@ -220,7 +232,7 @@ function clearRemarkSearch() {
       </div>
 
       <!-- Filters -->
-      <div v-if="taskPanel.listView === 'legacy'" class="task-panel-filters">
+      <div v-show="operationsExpanded" id="task-panel-filters" class="task-panel-filters">
         <DsCascaderPicker
           :model-value="tm.filterFeature.value || ALL_FEATURES"
           :options="featureGroups"
@@ -254,7 +266,7 @@ function clearRemarkSearch() {
       </div>
 
       <!-- Bulk / View mode controls -->
-      <div v-if="taskPanel.listView === 'legacy'" class="task-panel-toolbar">
+      <div v-show="operationsExpanded" id="task-panel-toolbar" class="task-panel-toolbar">
         <template v-if="tm.bulkMode.value">
           <span class="bulk-count">已选 {{ tm.selectedIds.value.size }} 项</span>
           <Button size="sm" variant="outline" @click="tm.selectAllTasks">
@@ -344,15 +356,27 @@ function clearRemarkSearch() {
   position: fixed;
   top: var(--ds-space-3);
   right: 0;
-  bottom: var(--ds-space-3);
+  bottom: var(--ds-space-5);
   z-index: 40;
   display: flex;
   border-radius: var(--ds-card-radius) 0 0 var(--ds-card-radius);
-  overflow: hidden;
+  /* 内容由内层裁切，外层允许手柄跨越左边缘。 */
+  overflow: visible;
   background: var(--card);
   box-shadow: var(--ds-shadow);
   max-width: calc(100vw - var(--ds-sidebar-collapsed-width));
   animation: task-panel-slide-in 0.25s ease-out;
+}
+
+/* 与顶部导航及自由生图工作台的响应式内边距保持对齐。 */
+@media (max-width: 800px) {
+  .task-panel {
+    bottom: var(--ds-space-3);
+  }
+}
+
+@media (max-width: 767px) {
+  .task-panel { top: var(--ds-space-2); }
 }
 
 @keyframes task-panel-slide-in {
@@ -374,12 +398,13 @@ function clearRemarkSearch() {
   position: absolute;
   left: 0;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   z-index: 2;
 }
 
-/* Inner container */
+/* 内层继承圆角并裁切内容，不裁切外侧的拖拽手柄。 */
 .task-panel-inner {
+  border-radius: inherit;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -422,7 +447,7 @@ function clearRemarkSearch() {
 .task-panel-view-switch {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
   padding: 8px 16px;
@@ -430,13 +455,14 @@ function clearRemarkSearch() {
   flex-shrink: 0;
 }
 
+.task-panel-operations-toggle { margin-right: auto; }
+
 /* Filters */
 .task-panel-filters {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap; /* 窄面板时搜索框换行，避免被压缩裁切 */
 }
@@ -451,7 +477,6 @@ function clearRemarkSearch() {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap;
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
 import { ref, computed, watch, onMounted } from 'vue'
 import { formatCredits } from '@/types/adapter'
 import { useServerStatusStore } from '@/stores/serverStatus'
@@ -17,11 +18,11 @@ import ModelChannelSelect from './ModelChannelSelect.vue'
 import SupplementaryImageUpload from './SupplementaryImageUpload.vue'
 import type { SupplementaryImage } from './SupplementaryImageUpload.vue'
 import { templateApi } from '@/services/templateApi'
-import { TriangleAlert, Info, LoaderCircle, Wand2, LayoutTemplate, CircleHelp } from '@lucide/vue'
+import { TriangleAlert, Info, LoaderCircle, Wand2, LayoutTemplate, CircleHelp, ChevronDown, ChevronUp } from '@lucide/vue'
 import { Button } from '@/components/design-system/primitives/button'
 import { Textarea } from '@/components/design-system/primitives/textarea'
 import { Alert, AlertTitle } from '@/components/design-system/primitives/alert'
-import { DsParameterPanel, DsLinkedPanel } from '@/components/design-system'
+import { DsParameterPanel, DsLinkedPanel, Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/design-system'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/design-system/primitives/tooltip'
 import {
   Select,
@@ -80,6 +81,7 @@ const resolution = ref('')
 const aspectRatio = ref('')
 const count = ref(1)
 const userPrompt = ref('')
+const userPromptExpanded = ref(false)
 
 // Supplementary images
 const supplementaryImages = ref<SupplementaryImage[]>([])
@@ -504,21 +506,29 @@ defineExpose({ setParams })
         <p v-else class="ds-caption" role="status">还没有收藏的模板</p>
       </DsLinkedPanel>
 
-      <!-- ② 生成描述 -->
-      <section v-if="config.hasUserPrompt" class="pb-3">
-        <div class="mb-3 flex items-center justify-between gap-2">
-          <h2 class="text-sm font-semibold">{{ userPromptLabel }}</h2>
-          <span class="text-muted-foreground text-sm tabular-nums">{{ userPrompt.length }} 字</span>
-        </div>
-        <Textarea
-          v-model="userPrompt"
-          :rows="3"
-          :placeholder="userPromptPlaceholder"
-        />
-      </section>
+      <!-- ② 补充提示词：默认折叠，收起时保留已输入内容。 -->
+      <Collapsible v-if="config.hasUserPrompt" v-model:open="userPromptExpanded" class="pb-3">
+        <CollapsibleTrigger as-child>
+          <Button variant="outline" class="w-full justify-between" :aria-label="`${userPromptExpanded ? '收起' : '展开'}${userPromptLabel}`">
+            <span>{{ userPromptLabel }}</span>
+            <span class="flex items-center gap-2">
+              <span class="text-muted-foreground text-sm tabular-nums">{{ userPrompt.length }} 字</span>
+              <ChevronUp v-if="userPromptExpanded" /><ChevronDown v-else />
+            </span>
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent class="pt-3">
+          <Textarea
+            v-model="userPrompt"
+            :rows="3"
+            :aria-label="userPromptLabel"
+            :placeholder="userPromptPlaceholder"
+          />
+        </CollapsibleContent>
+      </Collapsible>
 
       <!-- ③ 提示词（高级，默认收起） -->
-      <section class="pb-1">
+      <section v-if="SHOW_PROMPT_EDITOR_ENTRY" class="pb-1">
         <PromptEditorPanel
           v-model="promptPanelModel"
           title="查看/编辑完整提示词"

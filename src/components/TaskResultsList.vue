@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, onActivated, onDeactivated, onUnmounted, nextTick } from 'vue'
 import { Image, LoaderCircle, CircleAlert } from '@lucide/vue'
 import { useInfiniteLoader } from '@/composables/useInfiniteLoader'
-import { generationApi } from '@/services/generationApi'
 import { useTaskManager } from '@/composables/useTaskManager'
 import { useUiFeedback } from '@/composables/useUiFeedback'
 import { downloadUrl } from '@/utils/download'
@@ -15,33 +14,20 @@ import { Button, DsImageCard, DsResultGroup } from '@/components/design-system'
 const emit = defineEmits<{ reuse: [task: TaskItem] }>()
 const tm = useTaskManager()
 const feedback = useUiFeedback()
-const history = ref<TaskItem[]>([])
-const page = ref(1)
-const total = ref(0)
-const loading = ref(false)
-const loadError = ref(false)
+// 两种视图共用任务管理器，筛选、批量操作与懒加载保持一致。
+const loading = computed(() => tm.loading.value || tm.loadingMore.value)
+const loadError = tm.historyError
+const hasMore = computed(() => tm.page.value * tm.pageSize.value < tm.total.value)
 const moreMarker = ref<HTMLElement>()
 const active = ref(true)
-useInfiniteLoader(moreMarker, () => active.value && history.value.length < total.value && !loading.value && !loadError.value, () => load(true))
+useInfiniteLoader(moreMarker, () => active.value && hasMore.value && !loading.value && !loadError.value, () => tm.loadHistory(true))
 const previewTaskId = ref(0)
 const previewIndex = ref(0)
 const previewResultIndex = ref(0)
 const previewOpen = ref(false)
 const detail = ref<InstanceType<typeof TaskDetailDialog>>()
 const selected = ref<TaskItem | null>(null)
-const unavailable = ref(new Set<string>())
-const liveTasks = computed(() => tm.tasks.value)
-const tasks = computed(() => {
-  const merged = new Map(history.value.map(t => [t.id, t]))
-  // Global manager owns submission and polling; its active objects always win.
-  for (const task of liveTasks.value) {
-    if (!task.id) continue
-    const saved = merged.get(task.id)
-    if (!saved || ['submitted', 'queued', 'in_progress', 'importing'].includes(task.status) || ['submitted', 'queued', 'in_progress', 'importing'].includes(saved.status)) merged.set(task.id, task)
-  }
-  return [...liveTasks.value.filter(t => !t.id), ...merged.values()]
-    .sort((a, b) => parseUTC(b.created_at) - parseUTC(a.created_at))
-})
+const tasks = computed(() => [...tm.tasks.value].sort((a, b) => parseUTC(b.created_at) - parseUTC(a.created_at)))
 const rounds = computed(() => {
   const groups = new Map<string, { key: string; createdAt: string; items: { task: TaskItem; url: string; index: number; key: string }[] }>()
   tasks.value.forEach((task, taskIndex) => {
@@ -57,24 +43,11 @@ const rounds = computed(() => {
 const selectedTask = computed(() => tasks.value.find(t => t.id === selected.value?.id) || selected.value)
 const labels: Record<string, string> = { submitted: '已提交', queued: '排队中', in_progress: '生成中', importing: '正在保存图片', failed: '生成失败', completed: '图片已就绪' }
 let timer: ReturnType<typeof setInterval> | undefined
-let inFlight = false
-async function load(more = false, quiet = false) {
-  if (inFlight) return
-  inFlight = true
-  loading.value = true
-  const target = more ? page.value + 1 : 1
-  try {
-    const responses = await Promise.all((more ? [target] : Array.from({ length: page.value }, (_, i) => i + 1)).map(p => generationApi.list({ page: p, pageSize: 30 })))
-    const data = { records: responses.flatMap(response => response.data.data.records), total: responses[0]!.data.data.total }
-    const records = data.records.map(r => ({ ...r, aspectRatio: r.aspectRatio ?? r.aspect_ratio, task_no: r.taskNo ?? r.task_no })) as TaskItem[]
-    history.value = more ? [...new Map([...history.value, ...records].map(task => [task.id, task])).values()] : records
-    if (more) page.value = target
-    total.value = data.total
-    loadError.value = false
-  } catch { if (!quiet) loadError.value = true }
-  finally { inFlight = false; loading.value = false }
+function load(more = false) { return tm.loadHistory(more) }
+function start() {
+  if (timer) return
+  timer = setInterval(() => { if (!loading.value && !loadError.value) void load() }, 8000)
 }
-function start() { if (timer) return; void load(); timer = setInterval(() => { void load(false, true) }, 8000) }
 function stop() { clearInterval(timer); timer = undefined }
 onMounted(start)
 onActivated(() => { active.value = true; start() })
@@ -96,13 +69,13 @@ function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
       <div v-else-if="!tasks.length" class="ds-results-empty"><Image :size="40" /><h3>暂无任务</h3><p>开始生成后，任务结果会显示在这里。</p></div>
       <div v-else class="ds-result-list">
         <DsResultGroup v-for="round in rounds" :key="round.key" :label="toBJMinute(round.createdAt)" compact>
-          <DsImageCard v-for="{ task, url, index, key } in round.items" :key="key" :src="url" :title="`图片 ${task.task_no || task.id}-${index + 1}`" external-preview :loading="!url && task.status !== 'failed'" :status-label="labels[task.status] || '等待结果'" :progress="task.progress" @preview="preview(task,index)" @download="download(task,url,index)" @edit="reuse(task)" @detail="showDetail(task)" />
+          <DsImageCard v-for="{ task, url, index, key } in round.items" :key="key" :src="url" :title="`图片 ${task.task_no || task.id}-${index + 1}`" external-preview :loading="!url && task.status !== 'failed'" :status-label="labels[task.status] || '等待结果'" :progress="task.progress" :selectable="tm.bulkMode.value && !!task.id" :selected="tm.selectedIds.value.has(task.id)" @update:selected="tm.handleToggleSelect(task.id)" @preview="preview(task,index)" @download="download(task,url,index)" @edit="reuse(task)" @detail="showDetail(task)" />
         </DsResultGroup>
       </div>
       <div ref="moreMarker" class="ds-infinite-status" role="status">
-        <Button v-if="loadError && tasks.length" variant="outline" @click="load(history.length < total)">加载失败，点击重试</Button>
+        <Button v-if="loadError && tasks.length" variant="outline" @click="load(hasMore)">加载失败，点击重试</Button>
         <span v-else-if="loading && tasks.length">正在加载更多…</span>
-        <span v-else-if="history.length >= total && tasks.length">已加载全部任务</span>
+        <span v-else-if="!hasMore && tasks.length">已加载全部任务</span>
       </div>
     </div>
     <ImageCompareDialog v-model="previewOpen" :tasks="tasks" :task-id="previewTaskId" :initial-index="previewIndex" :initial-result-index="previewResultIndex" studio />

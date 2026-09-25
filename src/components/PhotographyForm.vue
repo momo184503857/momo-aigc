@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
 /**
  * PhotographyForm — AI摄影表单
  *
@@ -679,7 +680,7 @@ onMounted(() => loadElements())
       </div>
 
       <!-- ─── Element prompt editor panel ─── -->
-      <div class="prompt-section">
+      <div v-if="SHOW_PROMPT_EDITOR_ENTRY" class="prompt-section">
         <PromptEditorPanel
           v-model="elementPromptPanelModel"
           title="查看/编辑元素提示词"

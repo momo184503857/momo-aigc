@@ -21,6 +21,10 @@ interface Props {
   contentPadding?: string
   /** 显式控制动作栏是否出现 */
   showFooter?: boolean
+  /** 是否展示标题区和底栏分隔线，默认保留。 */
+  dividers?: boolean
+  /** 滚动容器边缘与底栏内容对齐，横向留白改为外边距。 */
+  insetContent?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -29,6 +33,8 @@ const props = withDefaults(defineProps<Props>(), {
   maxWidth: '',
   contentPadding: 'var(--ds-space-6)',
   showFooter: undefined,
+  dividers: true,
+  insetContent: false,
 })
 
 const slots = useSlots()
@@ -39,7 +45,8 @@ const hasFooter = computed(() => props.showFooter ?? !!slots.footer)
   <div class="page-container flex h-full min-h-0 flex-col">
     <header
       v-if="slots.header || props.title || slots.extra || slots.filters"
-      class="page-header shrink-0 border-b bg-background px-(--ds-space-6) pt-4 pb-3"
+       :class="{ 'border-b': dividers }"
+      class="page-header shrink-0 bg-background px-(--ds-space-6) pt-4 pb-3"
     >
       <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div class="min-w-0 flex-1">
@@ -61,7 +68,7 @@ const hasFooter = computed(() => props.showFooter ?? !!slots.footer)
 
     <div
       class="page-content animate-in min-h-0 flex-1 overflow-auto duration-200 fade-in"
-      :style="{ padding: props.contentPadding }"
+      :style="{ padding: props.contentPadding, marginInline: insetContent ? 'var(--ds-space-6)' : undefined, paddingInline: insetContent ? '0' : undefined }"
     >
       <div v-if="props.maxWidth" class="mx-auto w-full" :style="{ maxWidth: props.maxWidth }">
         <slot />
@@ -71,7 +78,8 @@ const hasFooter = computed(() => props.showFooter ?? !!slots.footer)
 
     <footer
       v-if="hasFooter"
-      class="page-footer shrink-0 border-t bg-background px-(--ds-space-6) py-3"
+      :class="{ 'border-t': dividers }"
+      class="page-footer shrink-0 bg-background px-(--ds-space-6) py-3"
     >
       <slot name="footer" />
     </footer>

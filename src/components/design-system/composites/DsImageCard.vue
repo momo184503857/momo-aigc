@@ -2,15 +2,19 @@
 import { ref, watch } from 'vue'
 import { Download, RotateCcw, Info, Image, LoaderCircle } from '@lucide/vue'
 import { Button } from '../primitives/button'
+import { Checkbox } from '../primitives/checkbox'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../primitives/dialog'
-const props = defineProps<{ src?: string; title: string; loading?: boolean; externalPreview?: boolean; statusLabel?: string; progress?: number }>()
-defineEmits<{ download: []; edit: []; detail: []; preview: [] }>()
+const props = defineProps<{ src?: string; title: string; loading?: boolean; externalPreview?: boolean; statusLabel?: string; progress?: number; selectable?: boolean; selected?: boolean }>()
+defineEmits<{ download: []; edit: []; detail: []; preview: []; 'update:selected': [value: boolean] }>()
 const open = ref(false)
 const unavailable = ref(false)
 watch(() => props.src, () => { unavailable.value = false })
 </script>
 <template>
-  <article class="ds-result-tile" :aria-label="title">
+  <article class="ds-result-tile" :aria-label="title" :data-selected="selectable && selected">
+    <div v-if="selectable" class="ds-result-selection">
+      <Checkbox :model-value="!!selected" :aria-label="`选择任务 ${title}`" @update:model-value="$emit('update:selected', $event === true)" />
+    </div>
     <Button v-if="src && !loading" variant="ghost" class="ds-result-image" :aria-label="`预览${title}`" @click="externalPreview ? $emit('preview') : open = true">
       <img v-if="!unavailable" :src="src" :alt="title" loading="lazy" @error="unavailable = true" />
       <span v-else class="ds-result-placeholder"><Image />图片暂时无法加载</span>

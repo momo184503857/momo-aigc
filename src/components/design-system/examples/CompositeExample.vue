@@ -7,6 +7,7 @@ const props = defineProps<{ family: string; state: string }>()
 const fileControl = ref<InstanceType<typeof U.DsFileInput>>()
 const pickerOpen = ref(false)
 const keyword = ref('')
+const imageSelected = ref(false)
 const prompt = ref('柔和自然光，保留商品细节')
 const model = ref('standard')
 const ratio = ref('1:1')
@@ -21,7 +22,10 @@ const status = computed(() => props.state === 'error' ? 'failed' : props.state =
   <div v-if="family === 'canvas-controls'" class="relative h-40"><U.DsCanvasControls @zoom-in="message = '放大（模拟）'" @zoom-out="message = '缩小（模拟）'" @fit="message = '适配（模拟）'" /></div>
   <U.DsSearchInput v-if="family === 'search-input'" v-model="keyword" aria-label="搜索示例" :disabled="state === 'disabled'" />
   <div v-if="family === 'file-input'"><U.DsFileInput ref="fileControl" accept="image/*" :disabled="state === 'disabled'" @change="message = '文件已选择（模拟）'" /><U.Button :disabled="state === 'disabled'" @click="fileControl?.click()">选择文件（模拟）</U.Button></div>
-  <U.DsScrollPage v-if="family === 'scroll-page'" title="列表页面"><template #filters><U.Input aria-label="页面筛选示例" /></template><p>滚动内容区域</p><template #footer><U.Button>保存（模拟）</U.Button></template></U.DsScrollPage>
+  <div v-if="family === 'scroll-page'" class="ds-stack">
+    <U.DsScrollPage title="无分隔线、内容边缘对齐" :dividers="false" inset-content><p>内容区与底部动作区左右对齐。</p><template #footer><U.Button>保存（模拟）</U.Button></template></U.DsScrollPage>
+    <U.DsScrollPage title="列表页面"><template #filters><U.Input aria-label="页面筛选示例" /></template><p>滚动内容区域</p><template #footer><U.Button>保存（模拟）</U.Button></template></U.DsScrollPage>
+  </div>
   <U.DsField v-if="family === 'password-input'" v-slot="field" label="密码示例" :error="state === 'error' ? '请输入有效密码' : undefined">
     <U.DsPasswordInput :id="field.id" v-model="keyword" :aria-describedby="field.describedby" :aria-invalid="field.invalid" :disabled="state === 'disabled' || state === 'loading'" autocomplete="new-password" />
   </U.DsField>
@@ -48,7 +52,7 @@ const status = computed(() => props.state === 'error' ? 'failed' : props.state =
   <U.DsField v-else-if="family === 'field'" v-slot="field" label="生成描述" help="说明主体、场景与构图" :error="state === 'error' ? '请补充主体描述' : undefined"><U.Textarea :id="field.id" v-model="prompt" :aria-invalid="field.invalid" :aria-describedby="field.describedby" /></U.DsField>
   <U.DsToolbar v-else-if="family === 'toolbar'" v-model="keyword" :selected-count="2" @search="message = '已筛选（模拟）'" @reset="keyword = ''" />
   <U.DsUpload v-else-if="family === 'upload'" :disabled="state === 'disabled'" :busy="state === 'loading'" :error="state === 'error' ? '图片格式不支持，请重新选择' : undefined" @select="fileNames = $event.map(f => f.name)"><p v-for="name in fileNames" :key="name" class="ds-caption">{{ name }}（仅本地选择，未上传）</p></U.DsUpload>
-  <U.DsImageCard v-else-if="family === 'image-card'" :src="state === 'empty' ? undefined : sampleImage" :loading="state === 'loading'" title="服装参考图" @download="message = '下载事件（模拟）'" @edit="message = '重新编辑事件（模拟）'" @detail="message = '详情事件（模拟）'" />
+  <U.DsImageCard v-else-if="family === 'image-card'" selectable v-model:selected="imageSelected" :src="state === 'empty' ? undefined : sampleImage" :loading="state === 'loading'" title="服装参考图" @download="message = '下载事件（模拟）'" @edit="message = '重新编辑事件（模拟）'" @detail="message = '详情事件（模拟）'" />
   <div v-else-if="family === 'status'" class="ds-row"><U.DsStatus v-for="s in (['pending','running','done','failed','cancelled'] as const)" :key="s" :status="s" /></div>
   <U.DsTaskCard v-else-if="family === 'task-card'" title="商品主图 · 第 1 批次" :status="status" :progress="45" :error="state === 'error' ? '服务暂时不可用，请重试' : undefined" @retry="message = '已重试（模拟）'" @reuse="message = '已复用（模拟）'"><p class="ds-caption">标准模型 · 1K · 4:3</p></U.DsTaskCard>
   <U.DsActionBar v-else-if="family === 'action-bar'" :busy="state === 'loading'" :disabled="state === 'disabled'" reason="预计生成 2 张" @submit="message = '生成动作已触发（模拟）'" />

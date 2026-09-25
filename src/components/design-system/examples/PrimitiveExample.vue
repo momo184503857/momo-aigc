@@ -51,7 +51,10 @@ const notice = ref(false)
     </div>
     <U.Breadcrumb v-else-if="family === 'breadcrumb'"><U.BreadcrumbList><U.BreadcrumbItem><U.BreadcrumbLink href="#">组件库</U.BreadcrumbLink></U.BreadcrumbItem><U.BreadcrumbSeparator /><U.BreadcrumbItem><U.BreadcrumbPage>导航组件</U.BreadcrumbPage></U.BreadcrumbItem></U.BreadcrumbList></U.Breadcrumb>
     <U.Collapsible v-else-if="family === 'collapsible'"><U.CollapsibleTrigger as-child><U.Button variant="outline">展开高级参数</U.Button></U.CollapsibleTrigger><U.CollapsibleContent>高级参数内容，重复点击可收起。</U.CollapsibleContent></U.Collapsible>
-    <U.ScrollArea v-else-if="family === 'scroll-area'" class="h-40"><p v-for="i in 20" :key="i">第 {{ i }} 条模拟记录</p><U.ScrollBar /></U.ScrollArea>
+    <div v-else-if="family === 'scroll-area'" class="ds-stack min-w-0">
+      <U.ScrollArea class="h-40"><p v-for="i in 20" :key="i">第 {{ i }} 条模拟记录</p></U.ScrollArea>
+      <U.ScrollArea orientation="horizontal" type="auto" class="w-full min-w-0"><div class="flex w-max gap-3 pb-3"><U.Button v-for="i in 20" :key="i" variant="outline">横向条目 {{ i }}</U.Button></div></U.ScrollArea>
+    </div>
     <U.Dialog v-else-if="family === 'dialog'"><U.DialogTrigger as-child><U.Button variant="outline">打开对话框</U.Button></U.DialogTrigger><U.DialogContent><U.DialogTitle>编辑参数</U.DialogTitle><U.DialogDescription>修改名称后保存。</U.DialogDescription><U.Input v-model="text" aria-label="参数名称" /><U.DialogFooter><U.DialogClose as-child><U.Button>完成</U.Button></U.DialogClose></U.DialogFooter></U.DialogContent></U.Dialog>
     <U.AlertDialog v-else-if="family === 'alert-dialog'"><U.AlertDialogTrigger as-child><U.Button variant="destructive">危险操作示例</U.Button></U.AlertDialogTrigger><U.AlertDialogContent><U.AlertDialogTitle>确认删除？</U.AlertDialogTitle><U.AlertDialogDescription>模拟确认，不会删除真实内容。</U.AlertDialogDescription><U.AlertDialogFooter><U.AlertDialogCancel>取消</U.AlertDialogCancel><U.AlertDialogAction>确认</U.AlertDialogAction></U.AlertDialogFooter></U.AlertDialogContent></U.AlertDialog>
     <U.Sheet v-else-if="family === 'sheet'"><U.SheetTrigger as-child><U.Button variant="outline">打开抽屉</U.Button></U.SheetTrigger><U.SheetContent><U.SheetHeader><U.SheetTitle>任务详情</U.SheetTitle><U.SheetDescription>这是抽屉示例</U.SheetDescription></U.SheetHeader><p>任务参数与结果</p></U.SheetContent></U.Sheet>
