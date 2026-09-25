@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { ref, watch } from 'vue'
 import { CircleCheck } from '@lucide/vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
@@ -128,7 +129,7 @@ function close() {
             :class="selected.has(t.id) ? 'border-primary' : 'border-transparent hover:border-primary/50'"
             @click="toggleSelect(t.id)"
           >
-            <img :src="t.public_url" :alt="t.name || t.original_filename" class="size-full object-cover" />
+            <DsThumbnail :src="t.public_url" :alt="t.name || t.original_filename" class="size-full object-cover" />
             <div class="template-info absolute right-0 bottom-0 left-0 flex flex-col gap-0.5 px-2 py-1.5">
               <span class="truncate text-xs font-medium text-white">{{ t.name || t.original_filename }}</span>
               <span v-if="t.tags && t.tags.length > 0" class="flex flex-wrap gap-0.5">

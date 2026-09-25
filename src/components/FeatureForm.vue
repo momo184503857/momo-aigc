@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
 const generationModels = useGenerationModelOptions()
 import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
@@ -498,7 +499,7 @@ defineExpose({ setParams })
               :title="t.name"
               @click="pickStarred(t)"
             >
-              <img :src="t.public_url" :alt="t.name" loading="lazy" />
+              <DsThumbnail :src="t.public_url" :alt="t.name" loading="lazy" />
             </Button>
           </div>
         </div>

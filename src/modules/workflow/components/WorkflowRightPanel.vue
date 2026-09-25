@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import {
   ArrowLeft,
@@ -267,7 +268,7 @@ const statusLabels: Record<string, string> = { idle: '未运行', running: '运�
               </template>
               <Textarea v-else-if="resultText" :model-value="resultText" :rows="6" readonly />
               <div v-if="resultImages.length" class="panel__image-grid">
-                <img v-for="img in resultImages" :key="img.id" :src="img.previewUrl" :alt="img.fileName" class="panel__image-thumb" />
+                <DsThumbnail v-for="img in resultImages" :key="img.id" :src="img.previewUrl" :alt="img.fileName" class="panel__image-thumb" />
               </div>
               <div v-if="!selectedResult && !isOutputEditable" class="panel__empty">暂无运行结果</div>
             </div>

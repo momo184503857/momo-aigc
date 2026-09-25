@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 /**
  * TemplatesPage - 模板图库
  *
@@ -623,7 +624,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
             :class="starredMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'"
             @click="!starredMode && openPreview(t.public_url)"
           >
-            <img
+            <DsThumbnail
               :src="t.public_url"
               :alt="t.name || t.original_filename"
               draggable="false"
@@ -770,7 +771,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
             @mousedown="handleItemMouseDown($event, index)"
           >
             <div class="border-border group-hover/zone:border-primary relative aspect-square overflow-hidden rounded-md border-2 transition-colors">
-              <img :src="t.public_url" :alt="t.name" class="pointer-events-none size-full object-cover" />
+              <DsThumbnail :src="t.public_url" :alt="t.name" class="pointer-events-none size-full object-cover" />
               <span
                 class="bg-primary text-primary-foreground absolute top-1 left-1 flex size-4.5 items-center justify-center rounded text-sm font-semibold tabular-nums"
               >{{ index + 1 }}</span>
@@ -797,7 +798,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
             top: zoneItemsRef?.getBoundingClientRect().top + 'px',
           }"
         >
-          <img :src="starredList[dragState.index]?.public_url" class="size-full object-cover" />
+          <DsThumbnail :src="starredList[dragState.index]?.public_url" class="size-full object-cover" />
         </div>
       </div>
     </div>

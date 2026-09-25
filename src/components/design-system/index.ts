@@ -99,3 +99,5 @@ export { default as DsLinkedPanel } from './composites/DsLinkedPanel.vue'
 
 export { default as DsCascaderPicker } from './composites/DsCascaderPicker.vue'
 export { default as DsToolCard } from './composites/DsToolCard.vue'
+
+export { default as DsThumbnail } from './composites/DsThumbnail.vue'

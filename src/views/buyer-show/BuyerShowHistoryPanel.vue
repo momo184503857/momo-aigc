@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 /**
  * BuyerShowHistoryPanel — AI 买家秀 · 任务历史（Tab 3）。
  *
@@ -424,9 +425,8 @@ onMounted(() => {
               </template>
               <TableRow v-else v-for="row in items" :key="row.id">
                 <TableCell>
-                  <img
+                  <DsThumbnail
                     v-if="row.mainImageUrl" :src="row.mainImageUrl" class="thumb"
-                    @error="($event.target as HTMLImageElement).style.opacity = '0.3'"
                     @click="openPreview(row)"
                   />
                 </TableCell>
@@ -441,7 +441,7 @@ onMounted(() => {
                   <Badge v-else variant="secondary">待生成</Badge>
                 </TableCell>
                 <TableCell>
-                  <img
+                  <DsThumbnail
                     v-if="row.resultUrl" :src="row.resultUrl" class="thumb result-thumb"
                     @click="openCompare(row)"
                   />

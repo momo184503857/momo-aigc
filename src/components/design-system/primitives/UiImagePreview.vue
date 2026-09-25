@@ -23,7 +23,7 @@ function step(delta: number) { if (images.value.length) index.value = (index.val
         <DialogDescription>{{ images.length ? `${index + 1} / ${images.length}` : '暂无图片' }}</DialogDescription>
       </header>
       <div class="ds-image-preview-stage">
-        <img v-if="images[index]" :src="images[index]" alt="预览图片" @load="handleImageLoad" />
+        <img v-if="modelValue && images[index]" :src="images[index]" alt="预览图片" @load="handleImageLoad" />
       </div>
       <div v-if="images.length > 1" class="ds-row">
         <Button variant="outline" @click="step(-1)">上一张</Button>

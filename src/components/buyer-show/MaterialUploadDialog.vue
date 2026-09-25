@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 /**
  * MaterialUploadDialog — 批量上传素材弹窗。
  * 整批共用一组标签（顶部），每张图一行提示词。
@@ -217,7 +218,7 @@ onUnmounted(() => {
             class="upload-row"
             :class="{ 'is-error': row.status === 'error', 'is-done': row.status === 'done' }"
           >
-            <img class="upload-row-thumb" :src="row.previewUrl" :alt="row.file.name" />
+            <DsThumbnail class="upload-row-thumb" :src="row.previewUrl" :alt="row.file.name" />
             <div class="upload-row-main">
               <div class="upload-row-name">{{ row.file.name }}</div>
               <Textarea

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
 const generationModels = useGenerationModelOptions()
 import { DsFileInput } from '@/components/design-system'
@@ -642,13 +643,12 @@ onUnmounted(() => {
               </TableCell>
               <TableCell>
                 <div class="flex items-center gap-1.5">
-                  <img
+                  <DsThumbnail
                     v-for="(url, j) in row.imageUrls.slice(0, 2)"
                     :key="j"
                     :src="url"
                     class="media-tile size-7 shrink-0"
                     :alt="fileTail(url)"
-                    @error="($event.target as HTMLImageElement).style.display='none'"
                   />
                   <span v-if="row.imageUrls.length > 2" class="text-muted-foreground text-sm tabular-nums">
                     +{{ row.imageUrls.length - 2 }}
@@ -688,7 +688,7 @@ onUnmounted(() => {
                   </p>
                 </TableCell>
                 <TableCell>
-                  <img
+                  <DsThumbnail
                     v-if="row.resultUrl"
                     :src="row.resultUrl"
                     class="media-tile size-10 cursor-pointer"
@@ -811,7 +811,7 @@ onUnmounted(() => {
           </h3>
           <ul class="flex flex-col gap-1.5">
             <li v-for="(url, i) in detailRow.imageUrls" :key="i" class="flex items-center gap-2">
-              <img :src="url" class="media-tile size-8 shrink-0" :alt="fileTail(url)" />
+              <DsThumbnail :src="url" class="media-tile size-8 shrink-0" :alt="fileTail(url)" />
               <a
                 :href="url"
                 target="_blank"

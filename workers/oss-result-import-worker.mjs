@@ -32,6 +32,7 @@ async function putOssObject(body, objectKey, contentType, contentLength) {
     method: 'PUT',
     headers: {
       'content-type': contentType,
+      'cache-control': 'public, max-age=31536000, immutable',
       ...(contentLength ? { 'content-length': contentLength } : {}),
     },
     body,

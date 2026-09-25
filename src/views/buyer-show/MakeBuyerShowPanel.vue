@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
 const generationModels = useGenerationModelOptions()
 import { DsFileInput } from '@/components/design-system'
@@ -780,9 +781,8 @@ onUnmounted(() => {
                   />
                 </TableCell>
                 <TableCell>
-                  <img
+                  <DsThumbnail
                     v-if="row.mainImageUrl" :src="row.mainImageUrl" class="media-tile size-14 cursor-zoom-in"
-                    @error="($event.target as HTMLImageElement).style.opacity = '0.3'"
                     @click="openPreview(row)"
                   />
                 </TableCell>
@@ -802,7 +802,7 @@ onUnmounted(() => {
                   <Badge v-else-if="row.status === 'failed'" variant="destructive" :title="row.errorMsg">失败</Badge>
                 </TableCell>
                 <TableCell>
-                  <img
+                  <DsThumbnail
                     v-if="row.resultUrl" :src="row.resultUrl" class="media-tile size-14 cursor-zoom-in"
                     @click="openCompare(row)"
                   />

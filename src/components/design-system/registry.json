@@ -1174,5 +1174,17 @@
     "usage": "工具入口大图卡片；不请求业务接口。",
     "group": "列表与卡片",
     "events": "enter"
+  },
+  {
+    "id": "composite-thumbnail",
+    "title": "图片缩略图",
+    "category": "公共组合",
+    "family": "thumbnail",
+    "source": "composites/DsThumbnail.vue",
+    "example": "composite",
+    "contract": "src 为原图；固定 400px 展示，失败不回退原图，支持重试。",
+    "usage": "列表和小图；原图预览由调用者控制。",
+    "group": "列表与卡片",
+    "events": "click"
   }
 ]

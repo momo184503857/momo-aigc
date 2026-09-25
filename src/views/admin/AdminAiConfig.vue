@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { DsFileInput } from '@/components/design-system'
 /**
  * AdminAiConfig - 管理后台「配置」页：AI 服务商 / 模型 / Key 池管理。
@@ -1210,7 +1211,7 @@ onMounted(() => {
                         {{ debugImage ? '重新选择图片' : '选择图片' }}
                       </Button>
                       <template v-if="debugImage">
-                        <img :src="debugImage.dataUrl" class="media-tile size-14" alt="调试图片" />
+                        <DsThumbnail :src="debugImage.dataUrl" class="media-tile size-14" alt="调试图片" />
                         <span class="text-muted-foreground max-w-56 truncate text-xs">{{ debugImage.name }}（{{ debugImage.mimeType }}）</span>
                         <Button variant="ghost" size="sm"  @click="debugImage = null">移除</Button>
                       </template>

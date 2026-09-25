@@ -26,7 +26,7 @@
 
 ## 快速开始
 
-环境要求：Node.js 20+；`better-sqlite3` 含原生模块，Windows 需 VS Build Tools，Ubuntu 需 `build-essential`。
+环境要求：Node.js 20.9+；`better-sqlite3` 含原生模块，Windows 需 VS Build Tools，Ubuntu 需 `build-essential`。
 
 ```bash
 git clone https://github.com/momo184503857/momo-aigc.git

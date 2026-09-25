@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 /**
  * SupplementaryImageUpload - 补充图片上传组件
  * 支持最多5张补充图，每张可自定义命名（限制10个字）
@@ -166,7 +167,7 @@ function showPreview(dataUrl: string) {
           @dragend="handleDragEnd"
           @click="showPreview(img.dataUrl)"
         >
-          <img :src="img.dataUrl" :alt="img.name" draggable="false" class="size-full cursor-pointer object-cover" />
+          <DsThumbnail :src="img.dataUrl" :alt="img.name" draggable="false" class="size-full cursor-pointer object-cover" />
           <Button
             variant="destructive"
             size="icon-xs"

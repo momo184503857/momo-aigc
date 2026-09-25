@@ -626,3 +626,9 @@
 .ds-parameter-host { flex-shrink:0; min-width:0; }
 .ds-parameter-dock { padding:var(--ds-space-3) var(--ds-space-5); background:var(--background); }
 .ds-parameter-model-option { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--ds-space-2); }
+
+/* 缩略图失败不回退原图；占位保持可点击预览及键盘重试。 */
+.ds-thumbnail-placeholder { display:inline-flex; min-width:var(--ds-space-8); min-height:var(--ds-space-8); align-items:center; justify-content:center; gap:var(--ds-space-1); background:var(--muted); color:var(--muted-foreground); font-size:var(--ds-font-small); }
+.ds-thumbnail-placeholder > svg { width:var(--ds-space-4); height:var(--ds-space-4); flex-shrink:0; }
+.ds-thumbnail-retry { cursor:pointer; text-decoration:underline; }
+.ds-thumbnail-retry:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { ref } from 'vue'
 import { Copy, Download } from '@lucide/vue'
 import type { TaskItem } from './TaskList.vue'
@@ -6,7 +7,6 @@ import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { getFeatureLabel } from '@/configs/featureConfig'
 import { useClipboard } from '@/composables/useClipboard'
 import { downloadUrl } from '@/utils/download'
-import { useImageRetry } from '@/composables/useImageRetry'
 import { Button } from '@/components/design-system/primitives/button'
 import { Badge } from '@/components/design-system/primitives/badge'
 import {
@@ -17,7 +17,6 @@ import {
   DialogTitle,
 } from '@/components/design-system/primitives/dialog'
 const { copy } = useClipboard()
-const { retryOnError } = useImageRetry()
 
 const modelCatalog = useModelCatalogStore()
 
@@ -135,10 +134,9 @@ function statusVariant(status: string): 'success' | 'destructive' | 'secondary' 
           <h4 class="text-foreground mb-3 text-sm font-semibold">生成结果</h4>
           <div class="flex flex-wrap gap-3">
             <div v-for="(url, i) in task.result_image_urls" :key="i" class="flex flex-col items-center gap-2">
-              <img
+              <DsThumbnail
                 :src="url"
                 class="bg-muted max-h-100 max-w-100 cursor-zoom-in rounded-md object-contain"
-                @error="retryOnError($event, url)"
                 @click="openImage(url)"
               />
               <Button size="sm" variant="outline" @click="handleDownload(url)">
@@ -153,7 +151,7 @@ function statusVariant(status: string): 'success' | 'destructive' | 'secondary' 
         <div v-if="task.input_image_urls?.length" class="mt-5">
           <h4 class="text-foreground mb-3 text-sm font-semibold">参考图片</h4>
           <div class="flex flex-wrap gap-2">
-            <img v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="size-30 rounded-sm object-cover" />
+            <DsThumbnail v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="size-30 rounded-sm object-cover" />
           </div>
         </div>
       </div>

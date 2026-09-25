@@ -1,16 +1,15 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { Input } from '@/components/design-system'
 import { ref, computed, nextTick, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { RefreshCw, Trash2, Eye, LoaderCircle, Image, Copy, Download, Check, Pencil } from '@lucide/vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-import { useImageRetry } from '@/composables/useImageRetry'
 import { parseUTC, toBJMinute } from '@/utils/datetime'
 import { Button } from '@/components/design-system/primitives/button'
 import { Badge } from '@/components/design-system/primitives/badge'
 import { Skeleton } from '@/components/design-system/primitives/skeleton'
 import { UiEmptyState } from '@/components/design-system'
 const { success, info, warning, error } = useUiFeedback()
-const { retryOnError } = useImageRetry()
 import type { ModelId } from '@/types/adapter'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 
@@ -258,9 +257,8 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <Check v-if="isSelected(task.id)" class="size-3.5 text-white" />
         </div>
         <div class="task-thumb" @click="!bulkMode && emit('compareImages', idx)">
-          <img loading="lazy" v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
+          <DsThumbnail loading="lazy" v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
             draggable="true"
-            @error="retryOnError($event, task.result_image_urls[0])"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <div v-else-if="task.is_importing" class="thumb-status">
             <LoaderCircle class="size-7 animate-spin" />
@@ -304,7 +302,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
               </div>
               <!-- Input image thumbs -->
               <div v-if="task.input_image_urls?.length" class="task-input-thumbs">
-                <img loading="lazy" v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
+                <DsThumbnail loading="lazy" v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
               </div>
             </div>
             <div class="task-meta">
@@ -361,9 +359,8 @@ function handleImageDragStart(e: DragEvent, url: string) {
           <Check v-if="isSelected(task.id)" class="size-3.5 text-white" />
         </div>
         <div class="grid-thumb" @click="!bulkMode && emit('compareImages', idx)">
-          <img loading="lazy" v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
+          <DsThumbnail loading="lazy" v-if="task.result_image_urls?.[0]" :src="task.result_image_urls[0]" alt=""
             draggable="true"
-            @error="retryOnError($event, task.result_image_urls[0])"
             @dragstart="handleImageDragStart($event, task.result_image_urls[0])" />
           <div v-else-if="task.is_importing" class="thumb-status grid-thumb-status">
             <LoaderCircle class="size-9 animate-spin" />
@@ -392,7 +389,7 @@ function handleImageDragStart(e: DragEvent, url: string) {
         <div class="grid-card-info">
           <!-- Input image thumbs -->
           <div v-if="task.input_image_urls?.length" class="grid-input-thumbs">
-            <img loading="lazy" v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
+            <DsThumbnail loading="lazy" v-for="(url, i) in task.input_image_urls" :key="i" :src="url" class="input-thumb-img" />
           </div>
           <div class="grid-info-row prompt-row">
             <span class="gi-value prompt-text" :title="displayPrompt(task)">{{ promptSummary(displayPrompt(task), 40) }}</span>

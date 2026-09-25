@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
 const generationModels = useGenerationModelOptions()
 import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
@@ -406,7 +407,7 @@ onMounted(() => {
               <span class="text-muted-foreground w-5 shrink-0 text-right text-sm tabular-nums">
                 {{ i + 1 }}
               </span>
-              <img :src="img.dataUrl" class="media-tile size-8 shrink-0" :alt="imageName(img, i)" />
+              <DsThumbnail :src="img.dataUrl" class="media-tile size-8 shrink-0" :alt="imageName(img, i)" />
               <span class="text-foreground/90 min-w-0 flex-1 truncate text-sm">
                 {{ imageName(img, i) }}
               </span>

@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+const IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 import { getStorageConfig, type OssSettings } from './storageConfig.js'
 import { extFromUrlPathname, resolveImageExt } from './imageExt.js'
 
@@ -40,6 +41,7 @@ export function generateOssUploadToken(
         ['starts-with', '$key', `${scope}/${opts.userId}/`],
         ['content-length-range', 1, opts.sizeBytes || 10485760],
         ['eq', '$success_action_status', '200'],
+        ['eq', '$Cache-Control', IMAGE_CACHE_CONTROL],
       ],
     })
   ).toString('base64')
@@ -60,6 +62,7 @@ export function generateOssUploadToken(
       OSSAccessKeyId: s.accessKeyId,
       key: objectKey,
       success_action_status: '200',
+      'Cache-Control': IMAGE_CACHE_CONTROL,
     },
   }
 }
@@ -156,7 +159,7 @@ export async function uploadToOss(
 
   const resp = await fetch(url, {
     method: 'PUT',
-    headers: { 'Content-Type': mimeType },
+    headers: { 'Content-Type': mimeType, 'Cache-Control': IMAGE_CACHE_CONTROL },
     body: buffer,
   })
 

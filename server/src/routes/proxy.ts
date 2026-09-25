@@ -33,7 +33,7 @@ proxyRouter.post('/image', async (req: AuthRequest, res) => {
 
     const contentType = resp.headers.get('content-type') || 'image/png'
     res.set('Content-Type', contentType)
-    res.set('Cache-Control', 'public, max-age=3600')
+    res.set('Cache-Control', 'no-store')
 
     // Stream the response body instead of buffering entirely in memory
     if (resp.body) {

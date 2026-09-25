@@ -142,12 +142,27 @@ server {
     root /root/momo-aigc/dist;
     index index.html;
 
+    # 带内容哈希的构建产物可长缓存；不存在的文件不回退 HTML、不缓存 404。
+    location ^~ /assets/ {
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # 两个入口均重新验证；不可缓存旧入口导致发布后仍用旧 JS。
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+    location = /admin.html {
+        add_header Cache-Control "no-cache";
+    }
+
     # SPA 路由支持（同时覆盖用户端 index.html 与管理后台 admin.html）
     # admin.html 是 dist 下的真实文件，try_files 第一段 $uri 会直接命中并返回，
     # 因此管理后台无需任何额外 SPA 回退配置；深链刷新（/admin.html#/xxx）由
     # 浏览器侧 hash 路由处理，请求的始终是 /admin.html 本身。
     location / {
         try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
     }
 
     # 用户帮助文档静态目录（与 dist 构建产物解耦：改文档只需 git pull，无需 build）
@@ -157,6 +172,9 @@ server {
         add_header Cache-Control "no-cache";
     }
 
+    # /api/files/ 和 /api/thumbnails/v1/ 的缓存头由后端设置：
+    # 成功图片一年 immutable，缩略图失败 no-store。
+    # 不在这里给全部 /api/ 添加缓存头，也不要隐藏上游 Cache-Control。
     # 后端 API 代理
     location /api/ {
         proxy_pass http://127.0.0.1:3000;
@@ -557,3 +575,19 @@ pm2 restart momo-aigc --update-env   # 仅后端改动时需要
 9. **数据库自动迁移（2026-08-09 作品库 + 提示词工坊上线）**：本次上线涉及数据库迁移--新增 6 张表（`works`/`work_tags`/`work_tag_relations`/`work_likes`/`work_favorites`/`prompt_cases`）+ 3 个迁移列（`prompt_library.segments`、`generation_tasks.prompt_segments`/`negative_prompt`）。迁移在 `server/src/db/schema.ts` 启动时幂等执行（`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN` 用 try/catch 容错），**部署后首次 `pm2 restart` 即自动跑迁移，无需手动 SQL**。观察 PM2 日志确认出现 `[DB] Schema initialized`。
 10. **部署后验证新页面**：访问 `/works`（作品库广场）、`/works/:id`（作品详情）、`/prompt-workshop`（提示词工坊）、`/admin/works`（作品库管理）、`/admin/prompt-cases`（案例管理）确认页面正常加载。
 11. **管理后台独立入口（2026-08-09 上线）**：前端改为双入口构建——`index.html`（用户端）+ `admin.html`（管理后台）。部署 `npm run build` 后确认 `dist/` 下同时存在这两个文件。管理后台访问 `/admin.html`（账号与用户端共用，普通用户登录被拒）；用户端侧边栏不再显示管理员菜单。**Nginx 无需改动**：现有 `try_files $uri $uri/ /index.html` 的 `$uri` 段会直接命中 `admin.html` 这个静态文件。管理后台用 hash 路由（`/admin.html#/users`），深链刷新不会回退到 `index.html`。
+
+
+### 图片两档加载与缓存验收
+
+- 列表使用最长边 400px 缩略图；预览、下载和生图输入保持原图。
+- 本地派生文件位于 `server/data/thumbnails/v1/`，首次请求生成并持久化。发布不得删除 `server/data/uploads/` 或 `server/data/thumbnails/`；不需要迁移数据库或批量重写历史原图。
+- 新增 Sharp 原生依赖（Node.js 20.9+）：在目标 Linux 环境执行 `npm ci`，不要复制 macOS 的 `node_modules`；不要禁用可选依赖。运行 `npm run build:server` 及 `npm run test:images` 验证安装与原生模块可加载。
+- `/api/thumbnails/v1/<原图对象路径>` 仅支持固定尺寸，拒绝任意远程 URL 与自定义查询参数。原图采用不可变 UUID 路径，替换图片必须保存为新对象；修改处理规格须同步升级前后端版本路径。
+- 错误显示占位并允许重试，不回退原图。未知外部图片域名不自动代理或拼接参数，用户仍可显式预览原图；自定义 OSS 域名尚不在支持范围内。
+- 新 OSS PostObject、服务端 PUT 和仓库内 FC Worker 的 PUT 均设置一年缓存。**修改仓库 Worker 不代表线上 FC 已更新**，需在单独授权的发布中同步。历史对象不自动改元数据。
+- OSS 处理规格为 `image/resize,m_lfit,w_400,h_400,limit_1/format,webp/quality,q_80`；验证实际 bucket 支持图片处理，并检查原图与处理图各自的 `Cache-Control`、`Content-Type`、尺寸。签名 URL、未知域名、处理失败均不自动退回原图。
+- 使用实际图片执行 `curl -I '<图片URL>'` 与缩略图 URL 检查缓存头；缩略图重复请求应复用本地文件，携带 ETag 时可返回 304；不存在文件应为 404 且 `no-store`。
+- 浏览器关闭“禁用缓存”，记录首次列表、点击预览、普通重载及发布后重访的请求和传输字节。强制刷新不作为普通缓存命中验收。
+- 动态 API 不缓存；HTML 重新验证；有哈希的静态资源与图片保持长期缓存。不要对整个 `/api/` 配置公共 CDN 或 Nginx proxy_cache。
+
+离线回归：`npm run test:images`；浏览器回归先 `npm run build`，再 `npm run test:images:browser`（需 Playwright 和 Chrome，可用 `PLAYWRIGHT_MODULE` 指向已安装的 Playwright）。脚本创建并清理独立临时图片目录与 HTTP 服务，不启动业务后端、不读生产数据库，输出在 `.ui-test-output/images/`。

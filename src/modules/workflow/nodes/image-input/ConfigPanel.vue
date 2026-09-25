@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { DsFileInput } from '@/components/design-system'
 import { ref } from 'vue'
 import { UiEmptyState } from '@/components/design-system'
@@ -59,7 +60,7 @@ function removeImage(imageId: string) {
     <Button variant="outline" @click="fileInputRef?.click()">添加图片</Button>
     <div v-if="images().length" class="image-list">
       <div v-for="img in images()" :key="img.id" class="image-item">
-        <img :src="img.previewUrl" :alt="img.fileName" />
+        <DsThumbnail :src="img.previewUrl" :alt="img.fileName" />
         <span>{{ img.fileName }}</span>
         <Button variant="link"  @click="removeImage(img.id)">删除</Button>
       </div>

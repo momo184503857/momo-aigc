@@ -19,6 +19,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** 本地存储根目录（server/data 已被 gitignore，密钥/图片均不入库；dist 编译后同层解析） */
 export const UPLOADS_ROOT = path.resolve(__dirname, '../../data/uploads')
 
+/** 缩略图与部署产物分离；原图保持不可变，派生图按版本持久化。 */
+export const THUMBNAILS_ROOT = path.resolve(__dirname, '../../data/thumbnails')
+
 export const LOCAL_URL_PREFIX = '/api/files/'
 
 export interface StoredFile {

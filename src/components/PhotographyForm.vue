@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { useGenerationModelOptions } from '@/composables/useGenerationModelOptions'
 const generationModels = useGenerationModelOptions()
 import { SHOW_PROMPT_EDITOR_ENTRY } from '@/configs/uiFeatures'
@@ -574,7 +575,7 @@ onMounted(() => loadElements())
             @dragover.prevent="handlePoolDragOverItem(index, $event)"
             @dragend="handlePoolDragEnd"
           >
-            <img :src="img.dataUrl" class="size-full object-cover" />
+            <DsThumbnail :src="img.dataUrl" class="size-full object-cover" />
             <span class="pool-label">图{{ ['一','二','三','四','五','六','七','八','九','十'][index] }}</span>
             <Button
               variant="destructive"
@@ -638,7 +639,7 @@ onMounted(() => loadElements())
                   :key="img.id"
                   class="group border-border relative size-18 overflow-hidden rounded-sm border"
                 >
-                  <img :src="img.dataUrl" class="size-full object-cover" />
+                  <DsThumbnail :src="img.dataUrl" class="size-full object-cover" />
                   <Button variant="destructive"
                     type="button"
                     class="absolute top-0.5 right-0.5 flex cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"

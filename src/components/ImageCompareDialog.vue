@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import type { TaskItem } from './TaskList.vue'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -210,7 +211,7 @@ defineExpose({ open })
       <span>按 <kbd>&uarr;</kbd> <kbd>&darr;</kbd> 方向键切换任务</span>
       <span class="compare-nav-pos">{{ currentIndex + 1 }} / {{ tasks.length }}</span>
     </div>
-    <template v-if="currentTask">
+    <template v-if="modelValue && currentTask">
       <div class="compare-layout">
         <!-- 左：参考图 -->
         <div class="compare-side">
@@ -231,7 +232,7 @@ defineExpose({ open })
             />
             <div class="zoom-info">{{ Math.round(refScale * 100) }}%</div>
             <div v-if="refImages.length > 1" class="strip-overlay">
-              <img
+              <DsThumbnail
                 v-for="(url, i) in refImages"
                 :key="i"
                 :src="url"
@@ -268,7 +269,7 @@ defineExpose({ open })
               <span>参数: {{ currentTask.resolution }} / {{ currentTask.aspectRatio }}</span>
             </div>
             <div v-if="resultImages.length > 1" class="strip-overlay" style="bottom: 32px;">
-              <img
+              <DsThumbnail
                 v-for="(url, i) in resultImages"
                 :key="i"
                 :src="url"

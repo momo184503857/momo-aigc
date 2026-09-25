@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 /**
  * MaterialCard — 素材展示卡片（纯展示 + 事件）。
  * 网格/列表两种布局由 CSS 控制；选择/预览/复制/编辑/删除交由父组件处理。
@@ -33,7 +34,7 @@ defineEmits<{
 
     <!-- 缩略图 -->
     <div class="material-thumb" @click.stop="$emit('preview')">
-      <img :src="material.public_url" :alt="material.prompt" loading="lazy" />
+      <DsThumbnail :src="material.public_url" :alt="material.prompt" loading="lazy" />
     </div>
 
     <!-- 主体：提示词 + 标签 -->

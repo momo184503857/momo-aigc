@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { DsFileInput } from '@/components/design-system'
 import { computed, onUnmounted, ref } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
@@ -289,7 +290,7 @@ onUnmounted(() => {
         </div>
         <div v-if="Array.isArray(workflowNode.config.images) && workflowNode.config.images.length" class="workflow-node__inline-images">
           <div v-for="img in workflowNode.config.images" :key="img.id" class="workflow-node__inline-img" @click.stop>
-            <img :src="img.previewUrl" @click.stop="openPreview(img.previewUrl)" />
+            <DsThumbnail :src="img.previewUrl" @click.stop="openPreview(img.previewUrl)" />
             <span class="workflow-node__inline-img-del" @click.stop="removeNodeImage(img.id)">×</span>
           </div>
         </div>
@@ -379,7 +380,7 @@ onUnmounted(() => {
 
     <!-- 图片预览 -->
     <div v-if="previewImages.length" class="workflow-node__images" :style="{ gridTemplateColumns: previewImages.length === 1 ? '1fr' : 'repeat(2, 1fr)' }">
-      <img v-for="img in previewImages" :key="img.id" :src="img.previewUrl" :alt="img.fileName" class="workflow-node__thumb" @click.stop="openPreview(img.previewUrl)" />
+      <DsThumbnail v-for="img in previewImages" :key="img.id" :src="img.previewUrl" :alt="img.fileName" class="workflow-node__thumb" @click.stop="openPreview(img.previewUrl)" />
     </div>
 
     <!-- 图片弹窗预览 -->

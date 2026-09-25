@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { DsFileInput } from '@/components/design-system'
 /**
  * MultiImageUpload — 通用多图上传（OSS 直传，scope=materials）。
@@ -139,7 +140,7 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
         @drop="sortable ? onCellDrop(idx, $event) : undefined"
       >
         <div class="img-wrap">
-          <img :src="url" :alt="`图片 ${idx + 1}`" @click.stop="openPreview(url)" />
+          <DsThumbnail :src="url" :alt="`图片 ${idx + 1}`" @click.stop="openPreview(url)" />
           <div class="img-overlay">
             <Button
               variant="destructive"

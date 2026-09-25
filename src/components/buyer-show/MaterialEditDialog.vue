@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 /**
  * MaterialEditDialog — 编辑单条素材：提示词 + 标签 + 替换图片。
  * 替换的图片在「保存」时才上传 OSS，取消不会产生孤儿对象。
@@ -134,7 +135,7 @@ onUnmounted(() => {
         <div class="grid gap-1.5">
           <Label>图片</Label>
           <div class="edit-image">
-            <img class="edit-image-preview" :src="previewUrl()" :alt="material.prompt" />
+            <DsThumbnail class="edit-image-preview" :src="previewUrl()" :alt="material.prompt" />
             <div class="edit-image-actions">
               <Button variant="outline" size="sm" @click="pickReplace"><RefreshCw />替换图片</Button>
               <Button

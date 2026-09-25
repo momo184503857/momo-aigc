@@ -10,7 +10,8 @@ import { meRouter } from './routes/me.js'
 import { tasksRouter } from './routes/tasks.js'
 import { templatesRouter } from './routes/templates.js'
 import { ossRouter } from './routes/oss.js'
-import { UPLOADS_ROOT } from './utils/storage.js'
+import { UPLOADS_ROOT, THUMBNAILS_ROOT } from './utils/storage.js'
+import { createThumbnailRouter } from './utils/thumbnails.js'
 import { promptsRouter } from './routes/prompts.js'
 import { adminUsersRouter } from './routes/admin/users.js'
 import { adminTasksRouter } from './routes/admin/tasks.js'
@@ -46,7 +47,11 @@ app.use('/docs', express.static(path.resolve(__dirname, '../../docs/help')))
 
 // 直接传模式的本地图片服务（server/data/uploads/）：UUID 文件名可长缓存；
 // 与 OSS 公共读对等，不做鉴权（express.static 自带路径穿越防护）
+app.use('/api/thumbnails', createThumbnailRouter(UPLOADS_ROOT, THUMBNAILS_ROOT))
 app.use('/api/files', express.static(UPLOADS_ROOT, { maxAge: '365d', immutable: true }))
+
+// 动态业务响应不共享缓存；上方不可变图片服务成功时已结束响应。
+app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
 
 // Initialize database
 seed()

@@ -5,6 +5,7 @@ import * as U from '..'
 import { sampleImage } from './sample'
 const props = defineProps<{ family: string; state: string }>()
 const fileControl = ref<InstanceType<typeof U.DsFileInput>>()
+const thumbnailPreview = ref(false)
 const pickerOpen = ref(false)
 const keyword = ref('')
 const imageSelected = ref(false)
@@ -18,6 +19,10 @@ const message = ref('')
 const status = computed(() => props.state === 'error' ? 'failed' : props.state === 'loading' ? 'running' : props.state === 'empty' ? 'pending' : 'done')
 </script>
 <template>
+  <div v-if="family === 'thumbnail'" class="ds-stack">
+    <U.Button variant="ghost" aria-label="预览原图" @click="thumbnailPreview = true"><U.DsThumbnail :src="state === 'error' ? '/api/files/results/example/missing.png' : state === 'empty' ? '' : sampleImage" alt="缩略图示例" class="size-30 object-contain" /></U.Button>
+    <U.UiImagePreview v-model="thumbnailPreview" :url="sampleImage" />
+  </div>
   <div v-if="family === 'tool-card'" class="ds-grid"><U.DsToolCard title="批量工具" description="上传素材，批量生成图片。" :image-url="state === 'empty' ? '' : sampleImage" :disabled="state === 'disabled'" @enter="message = '进入工具（模拟）'" /><U.DsToolCard title="未配置介绍图" description="无图片时保留相同比例的占位区域。" /></div>
   <U.DsCascaderPicker v-if="family === 'cascader-picker'" v-model="keyword" :disabled="state === 'disabled'" :options="state === 'empty' ? [] : [{value:'all',label:'全部功能'},{value:'free',label:'自由生图'},{value:'quick',label:'快速生图',children:[{value:'clothes',label:'换衣服'},{value:'face',label:'换脸'}]}]" @change="message = '已选择：' + $event" />
   <div v-if="family === 'canvas-controls'" class="relative h-40"><U.DsCanvasControls @zoom-in="message = '放大（模拟）'" @zoom-out="message = '缩小（模拟）'" @fit="message = '适配（模拟）'" /></div>

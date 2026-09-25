@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 /**
  * ResultsPage - 生图结果
  *
@@ -9,7 +10,6 @@
 defineOptions({ name: 'ResultsPage' })
 import { ref, computed, nextTick, onMounted } from 'vue'
 import { useUiFeedback } from '@/composables/useUiFeedback'
-import { useImageRetry } from '@/composables/useImageRetry'
 import { useImagePreview } from '@/composables/useImagePreview'
 import { Download, Trash2, Image as ImageIcon, Check, X, Ellipsis, RefreshCw, TriangleAlert, FileText } from '@lucide/vue'
 import { DsScrollPage as PageLayout } from '@/components/design-system'
@@ -34,7 +34,6 @@ import type { TaskItem } from '@/components/TaskList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
 
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
-const { retryOnError } = useImageRetry()
 
 const tasks = ref<TaskItem[]>([])
 const loading = ref(false)
@@ -308,13 +307,12 @@ onMounted(() => { loadResults() })
             :class="cn(bulkMode ? 'cursor-pointer' : 'cursor-zoom-in')"
             @click="!bulkMode && task.result_image_urls?.[0] && openPreview(task.result_image_urls[0])"
           >
-            <img
+            <DsThumbnail
               v-if="task.result_image_urls?.[0]"
               :src="task.result_image_urls[0]"
               :alt="task.prompt || '生成结果'"
               loading="lazy"
               class="size-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
-              @error="retryOnError($event, task.result_image_urls[0])"
             />
             <ImageIcon v-else class="text-muted-foreground/50 size-8" />
 

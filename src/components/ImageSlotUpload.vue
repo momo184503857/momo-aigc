@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { DsFileInput, DsUpload, ScrollArea } from '@/components/design-system'
 import { onUnmounted, ref } from 'vue'
 import { Eye, RefreshCw, X } from '@lucide/vue'
@@ -171,7 +172,7 @@ function showPreview(dataUrl: string) {
         class="border-border relative shrink-0 overflow-hidden rounded-md border"
         :style="{ width: size + 'px', height: size + 'px' }"
       >
-        <img :src="img.dataUrl" class="size-full cursor-zoom-in object-cover" @click="showPreview(img.dataUrl)" />
+        <DsThumbnail :src="img.dataUrl" class="size-full cursor-zoom-in object-cover" @click="showPreview(img.dataUrl)" />
         <Button variant="secondary" size="icon-sm"
           type="button"
           class="absolute top-1.5 right-1.5 z-2 flex cursor-pointer items-center justify-center"
@@ -228,7 +229,7 @@ function showPreview(dataUrl: string) {
         :title="t.name"
         @click="emit('starred-select', t)"
       >
-        <img :src="t.public_url" :alt="t.name" class="size-full object-cover" />
+        <DsThumbnail :src="t.public_url" :alt="t.name" class="size-full object-cover" />
       </div>
     </div>
   </div>

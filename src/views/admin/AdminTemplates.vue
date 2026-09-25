@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { DsSearchInput } from '@/components/design-system'
 defineOptions({ name: 'AdminTemplates' })
 import { ref, computed, onMounted } from 'vue'
@@ -116,7 +117,7 @@ onMounted(() => loadTemplates())
           :title="`查看大图：${row.name}`"
           @click="openPreview(row.public_url)"
         >
-          <img :src="row.public_url" class="size-full object-cover" loading="lazy" alt="模板预览" />
+          <DsThumbnail :src="row.public_url" class="size-full object-cover" loading="lazy" alt="模板预览" />
         </Button>
 
         <Button
