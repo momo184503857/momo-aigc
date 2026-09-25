@@ -8,7 +8,7 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "dev:server": "tsx watch server/src/index.ts",
-    "build:server": "tsc -p server/tsconfig.json",
+    "build:server": "tsc -p server/tsconfig.json && node scripts/copy-server-assets.mjs",
     "start:server": "node server/dist/index.js",
     "check": "vue-tsc -b && tsc -p server/tsconfig.json --noEmit",
     "pull-db": "bash scripts/pull-db.sh",
