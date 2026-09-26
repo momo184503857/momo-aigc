@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Settings, LogOut, CircleHelp } from '@lucide/vue'
+import { Settings, LogOut, CircleHelp, Moon, Sun } from '@lucide/vue'
 import { creationModes, assetTabs, canvasItem, assetItem, accountItems, isCreationPath, isAssetPath } from '@/configs/navigation'
 import { DsBrandLogo, DsNavigationDock, Button } from '@/components/design-system'
 import { Sidebar } from '@/components/design-system/primitives/sidebar'
 import TaskDockEntry from './TaskDockEntry.vue'
 import { useHelp } from '@/composables/useHelp'
 import { useAuthStore } from '@/stores/auth'
+import { useAppearanceStore } from '@/stores/appearance'
 import { formatCredits } from '@/types/adapter'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/design-system/primitives/dropdown-menu'
 
 const auth = useAuthStore()
+const appearance = useAppearanceStore()
 const router = useRouter()
 const route = useRoute()
 const { open: openHelp, available: helpAvailable } = useHelp()
@@ -30,6 +32,7 @@ const menuItems = computed(() => [
 ])
 function navigate(path: string) { router.push(path) }
 function handleLogout() { auth.logout(); router.push('/login') }
+function toggleColorMode() { appearance.mode = appearance.mode === 'dark' ? 'light' : 'dark' }
 </script>
 
 <template>
@@ -53,6 +56,11 @@ function handleLogout() { auth.logout(); router.push('/login') }
           <DropdownMenuLabel>{{ auth.displayName }}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem v-for="item in accountItems" :key="item.path" @select="navigate(item.path)"><component :is="item.icon" />{{ item.title }}</DropdownMenuItem>
+          <DropdownMenuItem @select="toggleColorMode">
+            <Sun v-if="appearance.mode === 'dark'" />
+            <Moon v-else />
+            {{ appearance.mode === 'dark' ? '浅色模式' : '深色模式' }}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem :disabled="!helpAvailable" :title="helpAvailable ? '使用帮助' : '该页面暂未提供帮助文档'" @select="openHelp"><CircleHelp />使用帮助</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" @select="handleLogout"><LogOut />退出登录</DropdownMenuItem>

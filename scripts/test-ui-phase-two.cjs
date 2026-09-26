@@ -42,7 +42,12 @@ let debugPage
  await page.getByRole('button',{name:'设置',exact:true}).click()
  await page.getByRole('menuitem',{name:'个人设置',exact:true}).waitFor()
  assert.equal(await page.getByRole('menuitem',{name:'管理后台',exact:true}).count(),0)
- await page.keyboard.press('Escape')
+ await page.getByRole('menuitem',{name:'切换为深色模式',exact:true}).click()
+ await page.waitForFunction(()=>document.querySelector('.application-theme')?.dataset.theme==='dark')
+ assert.equal(JSON.parse(await page.evaluate(()=>localStorage.getItem('momo_ui_appearance_v1'))).mode,'dark')
+ await page.getByRole('button',{name:'设置',exact:true}).click()
+ await page.getByRole('menuitem',{name:'切换为浅色模式',exact:true}).click()
+ await page.waitForFunction(()=>document.querySelector('.application-theme')?.dataset.theme==='light')
  assert.equal(await page.getByRole('button',{name:'切换导航',exact:true}).count(),0)
  assert.equal(await page.getByRole('button',{name:'外观设置',exact:true}).count(),0)
  await page.getByRole('button',{name:'资产',exact:true}).click()
@@ -66,7 +71,7 @@ let debugPage
  await page.getByRole('button',{name:'预览sample.png',exact:true}).waitFor()
  await page.getByRole('button',{name:'删除sample.png',exact:true}).click()
  assert.equal(await page.getByRole('button',{name:'预览sample.png',exact:true}).count(),0)
- // 用户端已移除外观入口；用测试夹具验证历史外观偏好仍兼容。
+ // 用户端设置菜单可切换主题；这里继续用测试夹具覆盖主题与密度的组合状态。
  async function setAppearance(mode,density) {
   await page.evaluate(value=>{
    localStorage.setItem('momo_ui_appearance_v1',JSON.stringify(value))
