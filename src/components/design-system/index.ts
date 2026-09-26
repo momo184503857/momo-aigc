@@ -1,5 +1,5 @@
 export { default as DsThemeProvider } from './DsThemeProvider.vue'
-export type { ThemeMode } from './context'
+export type { ThemeAccent, ThemeMode } from './context'
 export * from './primitives/alert'
 export * from './primitives/alert-dialog'
 export * from './primitives/avatar'

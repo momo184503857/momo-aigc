@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Settings, LogOut, CircleHelp, Moon, Sun } from '@lucide/vue'
+import { Settings, LogOut, CircleHelp, Moon, Sun, Palette } from '@lucide/vue'
 import { creationModes, assetTabs, canvasItem, assetItem, accountItems, isCreationPath, isAssetPath } from '@/configs/navigation'
 import { DsBrandLogo, DsNavigationDock, Button } from '@/components/design-system'
 import { Sidebar } from '@/components/design-system/primitives/sidebar'
 import TaskDockEntry from './TaskDockEntry.vue'
 import { useHelp } from '@/composables/useHelp'
 import { useAuthStore } from '@/stores/auth'
-import { useAppearanceStore } from '@/stores/appearance'
+import { useThemeAccent } from '@/composables/useThemeAccent'
+import { THEME_ACCENTS } from '@/types/appearance'
 import { formatCredits } from '@/types/adapter'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/design-system/primitives/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/design-system/primitives/dropdown-menu'
 
 const auth = useAuthStore()
-const appearance = useAppearanceStore()
+const { appearance, saving: accentSaving, selectAccent } = useThemeAccent()
 const router = useRouter()
 const route = useRoute()
 const { open: openHelp, available: helpAvailable } = useHelp()
@@ -61,6 +62,16 @@ function toggleColorMode() { appearance.mode = appearance.mode === 'dark' ? 'lig
             <Moon v-else />
             {{ appearance.mode === 'dark' ? '浅色模式' : '深色模式' }}
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger><Palette />主题色</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup :model-value="appearance.accent" @update:model-value="selectAccent">
+                <DropdownMenuRadioItem v-for="option in THEME_ACCENTS" :key="option.value" :value="option.value" :disabled="accentSaving">
+                  <span class="ds-theme-accent-option"><span class="ds-theme-accent-dot" :data-accent="option.value" aria-hidden="true" />{{ option.label }}</span>
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuItem :disabled="!helpAvailable" :title="helpAvailable ? '使用帮助' : '该页面暂未提供帮助文档'" @select="openHelp"><CircleHelp />使用帮助</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" @select="handleLogout"><LogOut />退出登录</DropdownMenuItem>

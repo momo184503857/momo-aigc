@@ -9,6 +9,18 @@ assert(!/(--[\w-]+):\s*var\(\1\)/.test(css), '主题变量不得自引用')
 function luminance(hex){const v=hex.replace('#','').match(/../g).map(x=>parseInt(x,16)/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return v[0]*.2126+v[1]*.7152+v[2]*.0722}
 function contrast(a,b){const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
 for(const [text,bg] of [['#625b54','#f6f6f5'],['#625b54','#ffffff'],['#c0b7ad','#201e1b'],['#974000','#ffffff'],['#ffb66e','#201e1b']])assert(contrast(text,bg)>=4.5,`${text}/${bg} 对比不足`)
+const accentPalettes = {
+ blue: { primary:'#2563eb', lightLink:'#1d4ed8', lightBg:'#dbeafe', lightText:'#1e40af', darkBg:'#172554', darkText:'#93c5fd' },
+ violet: { primary:'#7c3aed', lightLink:'#6d28d9', lightBg:'#ede9fe', lightText:'#5b21b6', darkBg:'#2e1065', darkText:'#c4b5fd' },
+ rose: { primary:'#be123c', lightLink:'#be123c', lightBg:'#ffe4e6', lightText:'#9f1239', darkBg:'#4c0519', darkText:'#fda4af' },
+ cyan: { primary:'#0e7490', lightLink:'#0e7490', lightBg:'#cffafe', lightText:'#155e75', darkBg:'#083344', darkText:'#67e8f9' },
+}
+for(const [name,palette] of Object.entries(accentPalettes)) {
+ assert(css.includes(`[data-accent='${name}']`), `${name} 主题缺少 CSS Token`)
+ for(const [text,bg] of [[palette.primary,'#ffffff'],[palette.lightLink,'#ffffff'],[palette.lightText,palette.lightBg],[palette.darkText,palette.darkBg],[palette.darkText,'#201e1b']]) assert(contrast(text,bg)>=4.5,`${name} ${text}/${bg} 对比不足`)
+}
+assert(fs.readFileSync('src/components/design-system/DsThemeProvider.vue','utf8').includes(':data-accent="accent"'), '主题容器必须暴露 data-accent')
+console.log('五套主题色的语义 Token 与明暗对比度检查通过。')
 const user=fs.readFileSync('src/router/index.ts','utf8')
 assert(/path: '\/admin\/ui-components'[\s\S]{0,250}requiresAdmin: true/.test(user))
 const admin=fs.readFileSync('src/admin/router/index.ts','utf8');assert(admin.includes("alias: '/admin/ui-components'"));assert(admin.includes('if (!auth.isAdmin)'))

@@ -1,5 +1,7 @@
 import { inject, type InjectionKey, type Ref } from 'vue'
+import type { ThemeAccent } from '@/types/appearance'
 export type ThemeMode = 'light' | 'dark'
+export type { ThemeAccent }
 export interface DesignSystemContext { portalTarget: Ref<HTMLElement | undefined>; toastId: string }
 export const designSystemKey: InjectionKey<DesignSystemContext> = Symbol('design-system')
 export function useDesignSystem() {

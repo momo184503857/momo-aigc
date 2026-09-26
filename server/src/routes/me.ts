@@ -4,11 +4,12 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { hashPassword, comparePassword } from '../utils/password.js'
 import { creditsToYuan } from '../utils/credits.js'
 import { sendCode, verifyCode, isEmail, type CodePurpose } from '../utils/email-code.js'
+import { isThemeColor, normalizeThemeColor } from '../utils/appearance.js'
 
 export const meRouter = Router()
 
 meRouter.get('/', authMiddleware, (req: AuthRequest, res) => {
-  const user = db.prepare('SELECT id, username, email, nickname, points FROM users WHERE id = ?').get(req.user!.userId) as any
+  const user = db.prepare('SELECT id, username, email, nickname, points, theme_color FROM users WHERE id = ?').get(req.user!.userId) as any
   res.json({
     success: true,
     data: {
@@ -18,8 +19,21 @@ meRouter.get('/', authMiddleware, (req: AuthRequest, res) => {
       nickname: user?.nickname || '',
       role: req.user!.role,
       points: user?.points ?? 0,
+      theme_color: normalizeThemeColor(user?.theme_color),
     },
   })
+})
+
+// 保存账号级外观偏好
+meRouter.put('/appearance', authMiddleware, (req: AuthRequest, res) => {
+  const { theme_color } = req.body
+  if (!isThemeColor(theme_color)) {
+    res.status(400).json({ success: false, error: '主题色不受支持' })
+    return
+  }
+  db.prepare('UPDATE users SET theme_color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(theme_color, req.user!.userId)
+  res.json({ success: true, data: { theme_color } })
 })
 
 // 修改昵称

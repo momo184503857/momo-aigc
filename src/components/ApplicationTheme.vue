@@ -7,4 +7,4 @@ import FeedbackHost from './FeedbackHost.vue'
 const appearance = useAppearanceStore()
 const parentTheme = inject(designSystemKey, null)
 </script>
-<template><slot v-if="parentTheme" /><DsThemeProvider v-else class="application-theme" :mode="appearance.mode" :density="appearance.density" toast-id="momo-application"><TooltipProvider><slot /><FeedbackHost /></TooltipProvider></DsThemeProvider></template>
+<template><slot v-if="parentTheme" /><DsThemeProvider v-else class="application-theme" :mode="appearance.mode" :accent="appearance.accent" :density="appearance.density" toast-id="momo-application"><TooltipProvider><slot /><FeedbackHost /></TooltipProvider></DsThemeProvider></template>

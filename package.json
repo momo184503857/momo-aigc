@@ -18,6 +18,8 @@
     "test:ui:phase-two": "node scripts/test-ui-phase-two.cjs && node scripts/test-ui-full.cjs && node scripts/test-ui-workflows.cjs",
     "test:ui:auth": "node scripts/test-ui-auth.cjs",
     "test:ui:prompts": "node scripts/test-ui-prompts.cjs",
+    "test:appearance": "tsx scripts/test-user-appearance.ts",
+    "test:appearance:browser": "node scripts/test-theme-accent-browser.cjs",
     "test:images": "tsx scripts/test-thumbnails.ts",
     "test:images:browser": "tsx scripts/test-images-browser.ts"
   },

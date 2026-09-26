@@ -1,4 +1,5 @@
 import http from './http'
+import type { ThemeAccent } from '@/types/appearance'
 
 export interface UserInfo {
   id: number
@@ -7,6 +8,7 @@ export interface UserInfo {
   nickname?: string
   role: string
   points: number
+  theme_color?: ThemeAccent
 }
 
 export interface LoginResponse {
@@ -49,5 +51,8 @@ export const authApi = {
   },
   bindEmail(email: string, code: string) {
     return http.put<{ success: boolean; data: { email: string } }>('/me/bind-email', { email, code })
+  },
+  updateAppearance(themeColor: ThemeAccent) {
+    return http.put<{ success: boolean; data: { theme_color: ThemeAccent } }>('/me/appearance', { theme_color: themeColor })
   },
 }

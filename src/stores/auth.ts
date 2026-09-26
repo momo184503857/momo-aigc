@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi, type UserInfo, type CodePurpose } from '@/services/authApi'
+import { useAppearanceStore } from '@/stores/appearance'
+import type { ThemeAccent } from '@/types/appearance'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('auth_token') || '')
@@ -16,6 +18,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = t
     user.value = u
     localStorage.setItem('auth_token', t)
+    useAppearanceStore().hydrateAccent(u.theme_color)
   }
 
   async function login(account: string, password: string) {
@@ -56,6 +59,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authApi.me()
       user.value = res.data.data
+      useAppearanceStore().hydrateAccent(res.data.data.theme_color)
       return true
     } catch {
       clear()
@@ -72,7 +76,14 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = ''
     user.value = null
     localStorage.removeItem('auth_token')
+    useAppearanceStore().resetAccent()
   }
 
-  return { token, user, loading, isLoggedIn, isAdmin, displayName, login, register, loginWithCode, fetchUser, logout, clear }
+  async function updateThemeColor(themeColor: ThemeAccent) {
+    const res = await authApi.updateAppearance(themeColor)
+    if (user.value) user.value = { ...user.value, theme_color: res.data.data.theme_color }
+    return res.data.data.theme_color
+  }
+
+  return { token, user, loading, isLoggedIn, isAdmin, displayName, login, register, loginWithCode, fetchUser, logout, clear, updateThemeColor }
 })

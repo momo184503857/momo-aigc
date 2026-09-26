@@ -3,6 +3,7 @@ import { db } from '../db/index.js'
 import { comparePassword, hashPassword } from '../utils/password.js'
 import { signToken } from '../utils/jwt.js'
 import { sendCode, verifyCode, isEmail, type CodePurpose } from '../utils/email-code.js'
+import { normalizeThemeColor } from '../utils/appearance.js'
 
 export const authRouter = Router()
 
@@ -15,6 +16,7 @@ function publicUser(user: any) {
     nickname: user.nickname || '',
     role: user.role,
     points: user.points || 0,
+    theme_color: normalizeThemeColor(user.theme_color),
   }
 }
 

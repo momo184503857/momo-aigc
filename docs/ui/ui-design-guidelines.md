@@ -11,7 +11,7 @@
 ## 2. 唯一视觉源与主题
 
 新体系：`src/components/design-system/theme.css`。基础 Token → 语义 Token → 组件 Token。
-品牌为荧光橙 `#FF7A00`；所有品牌橙色实底公共组件统一白色文字与图标（`--primary-foreground`），图标继承 currentColor；浅橙色辅助背景不套用白字；链接使用深橙/浅橙语义色而非直接使用品牌色。
+平台品牌基准色为荧光橙 `#FF7A00`；登录后用户可在橙、蓝、紫、玫红、青五套预设中选择主题色。主题必须同时替换 `--primary`、`--ds-hover`、`--accent`、`--accent-foreground`、`--ring`、`--ds-link`，不改变品牌 Logo、状态色或图表系列色。实底主操作统一白色文字与图标（`--primary-foreground`），图标继承 currentColor；浅色辅助背景不套用白字；链接使用独立语义色。
 浅色与深色模式均为正式规范。`DsThemeProvider` 控制局部主题与密度，不修改 document 根节点。
 正式应用不再加载旧主题；唯一视觉源为公共主题。开发原型保留的旧组件不进入生产依赖图。
 
@@ -39,7 +39,7 @@
 
 ## 4. 接口约定
 
-- `DsThemeProvider(mode, density)`：light/dark、comfortable/compact；浮层必须使用 context 中 portalTarget。
+- `DsThemeProvider(mode, accent, density)`：light/dark、orange/blue/violet/rose/cyan、comfortable/compact；浮层必须使用 context 中 portalTarget。
 - `Button(variant, size)`：default/outline/secondary/ghost/destructive/link；不要用 class 更换语义。
 - `DsField(label, help, error, required)`：插槽提供 id/describedby/invalid，必须绑定到真实输入控件。
 - `DsUpload(disabled,busy,error,accept)`：`select(File[])`；仅选择，不校验、不上传、不扣费。
@@ -77,10 +77,10 @@ Reka 组件保留受控 v-model、键盘和焦点契约；浮层不得直接挂�
 - 用户端取消打开页签、关闭页签和页签状态持久化；页面草稿由独立的有限 KeepAlive 缓存保留。
 - 用户端删除顶部工具区和导航折叠按钮；深浅色模式切换收纳到左下角设置菜单。管理后台保持原有顶栏和外观设置。
 - 左侧常驻悬浮导航只保留创作工作台、AI画布、资产；小屏也保持可见，不依赖已移除的展开按钮。
-- 创作模式与资产分类统一放入左侧主导航的二级入口，不再显示顶部 tab（2026-09-25）。点击一级入口直接进入第一个子页面，一级入口不内嵌子页面按钮；鼠标悬浮或键盘聚焦时在右侧浮窗显示子页面；当前子页面使用品牌橙底白字。创作工作台首项为快速生图，其后为自由生图、AI摄影、AI买家秀、批量工具；资产首项为生图记录，其后为模板图库、提示词库。AI画布保持直接进入项目列表。
+- 创作模式与资产分类统一放入左侧主导航的二级入口，不再显示顶部 tab（2026-09-25）。点击一级入口直接进入第一个子页面，一级入口不内嵌子页面按钮；鼠标悬浮或键盘聚焦时在右侧浮窗显示子页面；当前子页面使用账号主题色底白字。创作工作台首项为快速生图，其后为自由生图、AI摄影、AI买家秀、批量工具；资产首项为生图记录，其后为模板图库、提示词库。AI画布保持直接进入项目列表。
 - 公共 `DsNavigationDock` 支持 `items[].children`，一级点击默认导航到首个子项；垂直模式通过右侧悬浮菜单展示子项，横向模式保持原行为。
 - 资产内有生图记录、模板图库、提示词库三个分类；提供 `/assets/results`、`/assets/templates`、`/assets/prompts`，原有链接继续兼容，资产高亮一致。
-- 左下角只显示任务面板开关、剩余积分和设置入口，不显示头像；任务开关保留运行中状态及任务数量。设置菜单提供深浅色模式切换，切换结果复用全局外观偏好并持久化。
+- 左下角只显示任务面板开关、剩余积分和设置入口，不显示头像；任务开关保留运行中状态及任务数量。设置菜单提供深浅色模式与主题色切换；深浅色和密度保持设备级，主题色绑定账号并与管理后台共享。
 - 使用帮助移入设置菜单，无文档时保持禁用并说明原因；账户与退出功能继续保留；用户端设置菜单不提供管理后台入口，后台路由与权限不变。
 - 公共 `DsNavigationDock` 支持纵向悬浮和横向分段两种方向；样式统一在公共主题中，展厅提供两种实例。
 
