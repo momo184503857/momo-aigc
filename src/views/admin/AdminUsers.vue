@@ -135,13 +135,13 @@ const pointsVisible = ref(false)
 const pointsUserId = ref(0)
 const pointsUsername = ref('')
 const pointsMode = ref<'recharge' | 'deduct'>('recharge')
-const pointsAmount = ref<string>('')
+const pointsAmount = ref<string | number>('')
 const pointsNote = ref('')
 const pointsLoading = ref(false)
 
 // 解析后的积分数值（无效或为空时返回 0）
 const pointsValue = computed(() => {
-  const n = parseFloat(pointsAmount.value)
+  const n = Number(pointsAmount.value)
   return Number.isFinite(n) && n > 0 ? n : 0
 })
 
@@ -270,7 +270,7 @@ function openPoints(user: UserItem) {
 
 // 校验输入：正数，最多 2 位小数
 function validatePointsInput(): number | null {
-  const raw = pointsAmount.value.trim()
+  const raw = String(pointsAmount.value).trim()
   if (!raw) {
     warning('请输入积分数量')
     return null

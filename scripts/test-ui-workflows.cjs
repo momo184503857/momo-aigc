@@ -19,6 +19,7 @@ const model={id:1,code:'fixture',name:'验收模型',kind:'image',enabled:1,pric
    if(u.pathname==='/api/canvas/projects'){project={...project,...body,workflow_data:body.workflowData};data=project}
    else if(u.pathname==='/api/canvas/projects/1'){project={...project,...body,workflow_data:body.workflowData||project.workflow_data};data=project}
    else if(u.pathname==='/api/admin/users')data={id:2,...body}
+   else if(u.pathname==='/api/admin/users/1/points')data={balance:112.34}
    else return route.fulfill({status:402,json:{success:false,error:'模拟拒绝生图'}})
   }else{
    if(u.pathname==='/api/me')data={id:1,username:'验收管理员',role:'admin',points:100}
@@ -64,8 +65,12 @@ const model={id:1,code:'fixture',name:'验收模型',kind:'image',enabled:1,pric
  await page.getByRole('dialog').locator('input[type=password]').fill('fixture-password')
  await page.getByRole('dialog').getByRole('button',{name:'创建',exact:true}).click();await page.getByRole('dialog').waitFor({state:'detached'})
  const create=writes.filter(w=>w.url==='/api/admin/users');assert.equal(create.length,1);assert.equal(create[0].body.username,'fixture-created')
+ await page.getByRole('button',{name:'打开操作菜单'}).click();await page.getByRole('menuitem',{name:'调整积分'}).click()
+ const pointsDialog=page.getByRole('dialog');await pointsDialog.getByLabel('积分数量').fill('12.34');await pointsDialog.getByLabel('备注').fill('专项验收')
+ await pointsDialog.getByRole('button',{name:'确认充值',exact:true}).click();await pointsDialog.waitFor({state:'detached'})
+ const recharge=writes.filter(w=>w.url==='/api/admin/users/1/points');assert.equal(recharge.length,1);assert.deepEqual(recharge[0].body,{amount:12.34,note:'专项验收'})
  await page.screenshot({path:path.join(output,'admin-users.png')})
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'report.json'),JSON.stringify({result:'passed',writes},null,2))
- console.log('工作流回归通过：图片添加/替换/删除、功能切换、Excel导入校对、项目创建、画布加节点和拖动、后台创建用户；所有写请求为模拟。')
+ console.log('工作流回归通过：图片添加/替换/删除、功能切换、Excel导入校对、项目创建、画布加节点和拖动、后台创建用户和积分充值；所有写请求为模拟。')
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1})
