@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import DsThumbnail from '@/components/design-system/composites/DsThumbnail.vue'
 import { ref, watch } from 'vue'
-import { CircleCheck } from '@lucide/vue'
+import { CircleCheck, Plus, LoaderCircle } from '@lucide/vue'
+import { useTemplateUpload } from '@/composables/useTemplateUpload'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
 import { Button } from '@/components/design-system/primitives/button'
 import { Badge } from '@/components/design-system/primitives/badge'
@@ -26,6 +27,10 @@ const templates = ref<any[]>([])
 const selected = ref<Set<number>>(new Set())
 const tags = ref<TemplateTag[]>([])
 const selectedTagId = ref<number | undefined>(undefined)
+const { uploading, handleUpload } = useTemplateUpload(async () => {
+  selectedTagId.value = undefined
+  await Promise.all([loadTemplates(), loadTags()])
+})
 
 watch(() => props.visible, (v) => {
   if (v) {
@@ -96,6 +101,14 @@ function close() {
         <DialogTitle>从模板库选择</DialogTitle>
       </DialogHeader>
 
+      <div class="flex items-center">
+        <Button variant="outline" size="sm" :disabled="uploading" @click="handleUpload">
+          <LoaderCircle v-if="uploading" class="animate-spin" />
+          <Plus v-else />
+          {{ uploading ? '添加中…' : '添加模板' }}
+        </Button>
+      </div>
+
       <!-- Tag filter -->
       <div v-if="tags.length > 0" class="mb-3.5 flex flex-wrap gap-1.5">
         <Badge
@@ -120,7 +133,7 @@ function close() {
         <div v-if="loading" class="grid grid-cols-6 gap-2.5">
           <Skeleton v-for="i in 12" :key="i" class="aspect-square w-full rounded-md" />
         </div>
-        <UiEmptyState v-else-if="templates.length === 0" title="暂无模板图，请先在图库中上传" />
+        <UiEmptyState v-else-if="templates.length === 0" title="暂无模板图" description="点击左上方「添加模板」上传图片" />
         <div v-else class="grid max-h-130 grid-cols-6 gap-2.5 overflow-y-auto">
           <div
             v-for="t in templates"

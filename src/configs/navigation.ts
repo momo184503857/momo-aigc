@@ -14,7 +14,7 @@ export const assetItem = item('/assets','资产',FolderOpen,'Assets')
 export const assetTabs = [resultsItem,...resourceItems].map(entry => ({...entry, legacyPath:entry.path, path:`/assets${entry.path}`}))
 export const isAssetPath = (path: string) => path === '/assets' || assetTabs.some(entry => path === entry.path || path === entry.legacyPath)
 export const adminSections = [
- {title:'用户与运行',items:[item('/admin/users','用户管理',Users,'AdminUsers'),item('/admin/dashboard','生图日志',ScrollText,'AdminDashboard')]},
+ {title:'用户与运行',items:[item('/admin/users','用户管理',Users,'AdminUsers'),item('/admin/dashboard','生图日志',ScrollText,'AdminDashboard'),item('/admin/consumption','用户消耗',TrendingUp,'AdminConsumption')]},
  {title:'内容与素材',items:[item('/admin/toolbox','工具介绍图',Wrench,'AdminToolbox'),item('/admin/templates','模板管理',LayoutTemplate,'AdminTemplates'),item('/admin/feature-prompts','功能提示词',PenLine,'AdminFeaturePrompts'),item('/admin/photography','AI摄影配置',Camera,'AdminPhotography')]},
  {title:'系统与规范',items:[item('/admin/ai-config','配置',Settings,'AdminAiConfig'),item('/admin/ui-components','UI 组件库',Blocks,'AdminUiComponents')]},
 ]

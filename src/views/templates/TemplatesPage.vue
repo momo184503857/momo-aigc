@@ -16,10 +16,10 @@ import { useUiFeedback } from '@/composables/useUiFeedback'
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
 import {
   Upload, Pencil, Trash2, Check, X, Star, LoaderCircle,
-  ChevronDown, Ellipsis, Eye, GripVertical, RefreshCw, TriangleAlert,
+  Eye, GripVertical, RefreshCw, TriangleAlert,
 } from '@lucide/vue'
 import { templateApi, type TemplateTag } from '@/services/templateApi'
-import { ossApi } from '@/services/ossApi'
+import { useTemplateUpload } from '@/composables/useTemplateUpload'
 import { DsScrollPage as PageLayout } from '@/components/design-system'
 import GalleryTagInput from '@/components/gallery/GalleryTagInput.vue'
 import { UiEmptyState, UiImagePreview, UiPagination } from '@/components/design-system'
@@ -30,18 +30,6 @@ import { Badge } from '@/components/design-system/primitives/badge'
 import { Skeleton } from '@/components/design-system/primitives/skeleton'
 import { Separator } from '@/components/design-system/primitives/separator'
 import { cn } from '@/lib/utils'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/design-system/primitives/popover'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/design-system/primitives/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -71,16 +59,14 @@ interface TemplateItem {
 const templates = ref<TemplateItem[]>([])
 const tags = ref<TemplateTag[]>([])
 const loading = ref(false)
-const uploading = ref(false)
+const { uploading, handleUpload } = useTemplateUpload(loadTemplates)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
-const selectedTagId = ref<number | undefined>(undefined)
+const selectedTagId = ref<number | 'starred' | undefined>(undefined)
 const pageSizeOptions = [20, 40, 60, 100]
 // 仅 UI：首屏拉取失败时的可重试落点
 const loadFailed = ref(false)
-// 仅 UI：标签筛选弹层
-const tagPopoverOpen = ref(false)
 
 // Selection
 const selectedIds = ref(new Set<number>())
@@ -95,6 +81,7 @@ const { visible: previewVisible, url: previewUrl, open: openPreview } = useImage
 // ─── Starred management mode ───
 const starredMode = ref(false)
 const starredList = ref<TemplateItem[]>([])
+const updatingStarIds = ref(new Set<number>())
 const isDropZoneActive = ref(false)
 
 // Manual mouse-based drag for reorder within starred zone
@@ -108,11 +95,6 @@ const dragState = ref<{
 const zoneItemsRef = ref<HTMLElement | null>(null)
 
 // ─── 仅 UI：派生展示信息 ───
-const activeTagName = computed(() =>
-  selectedTagId.value
-    ? (tags.value.find((t) => t.id === selectedTagId.value)?.name || '未知标签')
-    : '全部标签',
-)
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / (pageSize.value || 1))))
 /** 尺寸/体积/标签压成一行次要信息 */
 function templateSpec(t: TemplateItem): string {
@@ -130,7 +112,8 @@ async function loadTemplates() {
     const res = await templateApi.list({
       page: currentPage.value,
       pageSize: pageSize.value,
-      tagId: selectedTagId.value,
+      tagId: typeof selectedTagId.value === 'number' ? selectedTagId.value : undefined,
+      starred: selectedTagId.value === 'starred' ? true : undefined,
     })
     const data = res.data.data
     templates.value = data.records || []
@@ -171,52 +154,6 @@ function clearSelection() {
   selectedIds.value = new Set()
 }
 
-async function handleUpload() {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/png,image/jpeg,image/webp'
-  input.multiple = true
-  input.onchange = async () => {
-    const files = Array.from(input.files || [])
-    if (files.length === 0) return
-
-    uploading.value = true
-    let uploaded = 0
-    for (const file of files) {
-      try {
-        if (file.size > 10 * 1024 * 1024) {
-          warning(`${file.name} 超过 10MB，已跳过`)
-          continue
-        }
-        const { objectKey, publicUrl, ossBucket } = await ossApi.upload(file, 'templates')
-        const img = new Image()
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve()
-          img.onerror = () => reject(new Error('图片加载失败'))
-          img.src = URL.createObjectURL(file)
-        })
-        await templateApi.create({
-          name: file.name.replace(/\.[^.]+$/, ''),
-          oss_bucket: ossBucket,
-          oss_object_key: objectKey,
-          public_url: publicUrl,
-          original_filename: file.name,
-          mime_type: file.type,
-          size_bytes: file.size,
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-        })
-        uploaded++
-      } catch (e: any) {
-        error(`${file.name}: ${e.message || '上传失败'}`)
-      }
-    }
-    if (uploaded > 0) success(`成功上传 ${uploaded} 张图片`)
-    uploading.value = false
-    await loadTemplates()
-  }
-  input.click()
-}
 
 function openEdit(tmpl: TemplateItem) {
   editingImage.value = tmpl
@@ -246,13 +183,43 @@ async function saveEdit() {
 
 async function handleDelete(tmpl: TemplateItem) {
   try {
-    await confirmDanger({ title: '确认删除', message: '确定删除该图片吗？', confirmText: '删除' })
+    await confirmDanger({ title: '确认删除', message: `确定删除「${tmpl.name || tmpl.original_filename}」吗？此操作不可恢复。`, confirmText: '删除' })
+  } catch { return }
+  try {
     await templateApi.delete(tmpl.id)
     success('已删除')
     await loadTemplates()
     await loadTags()
     if (starredMode.value) await loadStarredList()
-  } catch { /* cancelled */ }
+  } catch {
+    error('删除失败，请重试')
+  }
+}
+
+async function toggleStarred(tmpl: TemplateItem) {
+  if (updatingStarIds.value.has(tmpl.id)) return
+  updatingStarIds.value.add(tmpl.id)
+  const isStarred = !tmpl.is_starred
+  try {
+    let sortOrder = 0
+    if (isStarred) {
+      const res = await templateApi.list({ starred: true, pageSize: 100 })
+      const records: TemplateItem[] = res.data.data?.records || []
+      sortOrder = Math.max(-1, ...records.map(t => t.sort_order)) + 1
+    }
+    await templateApi.updateStar(tmpl.id, isStarred, sortOrder)
+    tmpl.is_starred = isStarred ? 1 : 0
+    tmpl.sort_order = sortOrder
+    success(isStarred ? '已收藏' : '已取消收藏')
+    if (selectedTagId.value === 'starred') {
+      selectedIds.value.delete(tmpl.id)
+      await loadTemplates()
+    }
+  } catch {
+    error(isStarred ? '收藏失败，请重试' : '取消收藏失败，请重试')
+  } finally {
+    updatingStarIds.value.delete(tmpl.id)
+  }
 }
 
 async function batchDelete() {
@@ -281,7 +248,7 @@ async function batchDelete() {
 function handlePageChange(p: number) { currentPage.value = p; loadTemplates() }
 function handlePageSizeChange(s: number) { pageSize.value = s; currentPage.value = 1; loadTemplates() }
 
-watch(selectedTagId, () => { currentPage.value = 1; loadTemplates() })
+watch(selectedTagId, () => { currentPage.value = 1; clearSelection(); loadTemplates() })
 
 onMounted(() => { loadTemplates(); loadTags() })
 
@@ -479,57 +446,40 @@ async function removeFromStarred(tmpl: TemplateItem) {
     <!-- 吸顶工具栏：标签筛选 / 列表概览 / 选择态动作 -->
     <div class="bg-background sticky top-0 z-20 mb-3 border-b pb-2.5">
       <div class="flex flex-wrap items-center gap-2">
-        <Popover v-model:open="tagPopoverOpen">
-          <PopoverTrigger as-child>
-            <Button variant="outline" size="sm" class="max-w-60 gap-1.5">
-              <span class="text-muted-foreground">标签</span>
-              <span class="truncate">{{ activeTagName }}</span>
-              <ChevronDown class="size-3.5 shrink-0" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" class="w-64 p-0">
-            <div class="px-3 pt-3 pb-2">
-              <p class="text-muted-foreground text-sm font-medium tracking-wider uppercase">
-                按标签筛选
-              </p>
-            </div>
-            <div v-if="tags.length" class="max-h-72 overflow-y-auto px-2 pb-2">
-              <Button variant="ghost"
-                type="button"
-                class="flex w-full cursor-pointer items-center justify-between gap-2 transition-colors"
-                :class="cn(
-                  selectedTagId === undefined
-                    ? 'bg-muted font-medium text-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )"
-                @click="selectedTagId = undefined; tagPopoverOpen = false"
-              >
-                <span>全部标签</span>
-                <Check v-if="selectedTagId === undefined" class="size-3.5 shrink-0" />
-              </Button>
-              <Button variant="ghost"
-                v-for="tag in tags"
-                :key="tag.id"
-                type="button"
-                class="flex w-full cursor-pointer items-center justify-between gap-2 transition-colors"
-                :class="cn(
-                  selectedTagId === tag.id
-                    ? 'bg-muted font-medium text-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )"
-                @click="selectedTagId = tag.id; tagPopoverOpen = false"
-              >
-                <span class="truncate">{{ tag.name }}</span>
-                <span class="text-muted-foreground/70 shrink-0 text-sm tabular-nums">
-                  {{ tag.usage_count }}
-                </span>
-              </Button>
-            </div>
-            <p v-else class="text-muted-foreground px-3 py-6 text-center text-sm">
-              还没有标签，编辑图片时可新建
-            </p>
-          </PopoverContent>
-        </Popover>
+        <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="按标签筛选">
+          <Badge
+            as="button"
+            type="button"
+            :variant="selectedTagId === undefined ? 'default' : 'secondary'"
+            :aria-pressed="selectedTagId === undefined"
+            class="cursor-pointer select-none"
+            @click="selectedTagId = undefined"
+          >
+            全部
+          </Badge>
+          <Badge
+            as="button"
+            type="button"
+            :variant="selectedTagId === 'starred' ? 'default' : 'secondary'"
+            :aria-pressed="selectedTagId === 'starred'"
+            class="cursor-pointer select-none"
+            @click="selectedTagId = 'starred'"
+          >
+            我的收藏
+          </Badge>
+          <Badge
+            v-for="tag in tags"
+            :key="tag.id"
+            as="button"
+            type="button"
+            :variant="selectedTagId === tag.id ? 'default' : 'secondary'"
+            :aria-pressed="selectedTagId === tag.id"
+            class="cursor-pointer select-none"
+            @click="selectedTagId = tag.id"
+          >
+            {{ tag.name }} ({{ tag.usage_count }})
+          </Badge>
+        </div>
 
         <Separator orientation="vertical" class="h-4" />
 
@@ -597,8 +547,8 @@ async function removeFromStarred(tmpl: TemplateItem) {
       <template v-else-if="templates.length === 0">
         <div class="col-span-full">
           <UiEmptyState
-            title="图库还是空的"
-            description="上传 PNG / JPG / WebP 参考图（单张 ≤10MB），打上标签后即可在工作台按标签取用。"
+            :title="selectedTagId === 'starred' ? '暂无收藏图片' : '图库还是空的'"
+            :description="selectedTagId === 'starred' ? '在「全部」中点击图片上的星形按钮即可收藏。' : '上传 PNG / JPG / WebP 参考图（单张 ≤10MB），打上标签后即可在工作台按标签取用。'"
           >
             <Button size="sm" class="gap-1.5" :disabled="uploading" @click="handleUpload">
               <Upload class="size-3.5" />上传图片
@@ -633,7 +583,7 @@ async function removeFromStarred(tmpl: TemplateItem) {
             />
 
             <!-- 收藏状态：图块角标 -->
-            <div v-if="t.is_starred" class="absolute top-1.5 right-1.5 z-10">
+            <div v-if="t.is_starred" class="absolute top-1.5 left-1.5 z-10">
               <Badge variant="warning" class="h-5 gap-1 border border-border/60 px-1.5">
                 <Star class="size-3 fill-current" />收藏
               </Badge>
@@ -642,30 +592,27 @@ async function removeFromStarred(tmpl: TemplateItem) {
             <!-- 拖拽模式下的把手：明确「这张可以拖」 -->
             <div
               v-if="starredMode"
-              class="bg-background/90 absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-sm"
+              class="bg-background/90 absolute top-1.5 right-1.5 z-10 flex items-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-sm"
             >
               <GripVertical class="text-muted-foreground size-3.5" />拖入下方
             </div>
 
             <!-- 批量选择圈：悬停或已选时才现身 -->
-            <Button variant="ghost"
+            <Button :variant="selectedIds.has(t.id) ? 'default' : 'secondary'"
               v-else
+              size="icon-sm"
               type="button"
+              :title="selectedIds.has(t.id) ? '取消选择' : '选择这张'"
               :aria-label="selectedIds.has(t.id) ? '取消选择' : '选择这张'"
               :aria-pressed="selectedIds.has(t.id)"
-              class="absolute right-1.5 bottom-1.5 z-20 flex cursor-pointer items-center justify-center border transition-[opacity,background-color,color]"
-              :class="cn(
-                'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
-                selectedIds.has(t.id)
-                  ? 'border-primary bg-primary text-primary-foreground opacity-100'
-                  : 'border-background/80 bg-foreground/35 text-transparent hover:bg-foreground/55',
-              )"
+              class="absolute top-1.5 right-1.5 z-20 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+              :class="selectedIds.has(t.id) && 'opacity-100'"
               @click.stop="toggleSelect(t.id)"
             >
               <Check class="size-3.5" />
             </Button>
 
-            <!-- 悬停操作层：预览 + 更多 -->
+            <!-- 悬停操作层：预览、编辑、收藏与删除 -->
             <div
               v-if="!starredMode"
               class="absolute left-1.5 bottom-1.5 z-20 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"
@@ -680,27 +627,24 @@ async function removeFromStarred(tmpl: TemplateItem) {
               >
                 <Eye class="size-3.5" />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger as-child>
-                  <Button
-                    variant="secondary"
-                    size="icon-sm"
-                    title="更多操作"
-                    aria-label="更多操作"
-
-                    @click.stop
-                  >
-                    <Ellipsis class="size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" class="w-40" @click.stop>
-                  <DropdownMenuItem @click="openEdit(t)"><Pencil />编辑名称与标签</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem class="text-destructive" @click="handleDelete(t)">
-                    <Trash2 />删除图片
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button variant="secondary" size="icon-sm" title="编辑名称与标签" aria-label="编辑名称与标签" @click.stop="openEdit(t)">
+                <Pencil class="size-3.5" />
+              </Button>
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                :title="t.is_starred ? '取消收藏' : '收藏图片'"
+                :aria-label="t.is_starred ? '取消收藏' : '收藏图片'"
+                :aria-pressed="!!t.is_starred"
+                :disabled="updatingStarIds.has(t.id)"
+                @click.stop="toggleStarred(t)"
+              >
+                <LoaderCircle v-if="updatingStarIds.has(t.id)" class="size-3.5 animate-spin" />
+                <Star v-else class="size-3.5" :class="{ 'fill-current': !!t.is_starred }" />
+              </Button>
+              <Button variant="secondary" size="icon-sm" title="删除图片" aria-label="删除图片" @click.stop="handleDelete(t)">
+                <Trash2 class="size-3.5 text-destructive" />
+              </Button>
             </div>
           </div>
 

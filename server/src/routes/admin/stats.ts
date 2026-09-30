@@ -4,9 +4,12 @@ import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
 import { bjDay, bjWeek, bjMonth, bjDateRangeClause } from '../../utils/datetime.js'
 
+import { adminConsumptionRouter } from './consumption.js'
+
 export const adminStatsRouter = Router()
 
 adminStatsRouter.use(authMiddleware, adminMiddleware)
+adminStatsRouter.use('/consumption', adminConsumptionRouter)
 
 adminStatsRouter.get('/users', (req: AuthRequest, res) => {
   const { start_date, end_date, user_id } = req.query

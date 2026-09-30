@@ -1,4 +1,5 @@
 import http from './http'
+import type { ConsumptionFilter, ConsumptionOverview, ConsumptionPage, ConsumptionUser, ConsumptionUsersQuery, ConsumptionRecords, ConsumptionRecordsQuery } from './consumptionTypes'
 
 export const adminApi = {
   // Users
@@ -37,6 +38,20 @@ export const adminApi = {
   },
   deleteTemplate(id: number) {
     return http.delete(`/admin/templates/${id}`)
+  },
+
+  // 独立用户消耗统计（保持旧统计接口行为）
+  async getConsumptionOverview(params: ConsumptionFilter): Promise<ConsumptionOverview> {
+    const { data } = await http.get<{ success: boolean; data: ConsumptionOverview }>('/admin/stats/consumption/overview', { params })
+    return data.data
+  },
+  async getConsumptionUsers(params: ConsumptionUsersQuery): Promise<ConsumptionPage<ConsumptionUser>> {
+    const { data } = await http.get<{ success: boolean; data: ConsumptionPage<ConsumptionUser> }>('/admin/stats/consumption/users', { params })
+    return data.data
+  },
+  async getConsumptionRecords(params: ConsumptionRecordsQuery): Promise<ConsumptionRecords> {
+    const { data } = await http.get<{ success: boolean; data: ConsumptionRecords }>('/admin/stats/consumption/records', { params })
+    return data.data
   },
 
   // Stats

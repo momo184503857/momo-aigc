@@ -38,6 +38,13 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '用户管理' },
   },
   {
+    path: '/consumption',
+    alias: '/admin/consumption',
+    name: 'AdminConsumption',
+    component: () => import('@/views/admin/AdminConsumption.vue'),
+    meta: { title: '用户消耗' },
+  },
+  {
     path: '/dashboard',
     alias: '/admin/dashboard',
     name: 'AdminDashboard',

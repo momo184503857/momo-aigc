@@ -168,6 +168,12 @@ const router = createRouter({
       meta: { title: '用户管理', requiresAuth: true, requiresAdmin: true },
     },
     {
+      path: '/admin/consumption',
+      name: 'AdminConsumption',
+      component: () => import('@/views/admin/AdminConsumption.vue'),
+      meta: { title: '用户消耗', requiresAuth: true, requiresAdmin: true },
+    },
+    {
       path: '/admin/dashboard',
       name: 'AdminDashboard',
       component: () => import('@/views/admin/AdminDashboard.vue'),
