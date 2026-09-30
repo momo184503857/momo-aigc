@@ -39,7 +39,7 @@ function selectResolution(value: string) {
             <SelectTrigger aria-label="模型"><span class="min-w-0 flex-1 truncate text-left">{{ models.find(m => m.value === modelId)?.label || (modelsLoading ? '加载中…' : '选择模型') }}</span></SelectTrigger>
             <SelectContent position="popper" align="start">
               <SelectItem v-for="model in models" :key="model.value" :value="String(model.value)">
-                <span class="ds-parameter-model-option"><span>{{ model.label }}</span><span v-if="model.description" class="ds-caption">{{ model.description }}</span></span>
+                <span class="ds-parameter-model-option"><span>{{ model.label }}</span><span v-if="model.description" class="ds-parameter-model-price">{{ model.description }}</span></span>
               </SelectItem>
             </SelectContent>
           </Select>

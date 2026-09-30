@@ -11,6 +11,7 @@ const keyword = ref('')
 const imageSelected = ref(false)
 const prompt = ref('柔和自然光，保留商品细节')
 const model = ref('standard')
+const parameterModel = ref(1)
 const ratio = ref('1:1')
 const resolution = ref('1K')
 const count = ref<number | undefined>(2)
@@ -67,7 +68,7 @@ const status = computed(() => props.state === 'error' ? 'failed' : props.state =
   <div v-else-if="family === 'parameters'" class="ds-stack"><U.DsField v-slot="field" label="模型"><U.Select v-model="model"><U.SelectTrigger :id="field.id"><U.SelectValue /></U.SelectTrigger><U.SelectContent><U.SelectItem value="standard">标准模型（模拟）</U.SelectItem><U.SelectItem value="detail">细节模型（模拟）</U.SelectItem></U.SelectContent></U.Select></U.DsField><U.DsField v-slot="field" label="生成数量"><U.UiNumberInput :id="field.id" v-model="count" :min="1" :max="8" /></U.DsField></div>
   <div v-else-if="family === 'data-state'" class="ds-stack"><U.UiEmptyState v-if="state === 'empty'" title="暂无数据" description="调整筛选条件后重试" /><U.Skeleton v-else-if="state === 'loading'" class="h-20" /><U.DsNotice v-else-if="state === 'error'" title="加载失败" error description="网络异常，请重新加载" /><U.Table v-else><U.TableHeader><U.TableRow><U.TableHead>任务</U.TableHead><U.TableHead>结果</U.TableHead></U.TableRow></U.TableHeader><U.TableBody><U.TableRow><U.TableCell>任务一</U.TableCell><U.TableCell>已完成</U.TableCell></U.TableRow></U.TableBody></U.Table></div>
   <U.DsStudio v-if="family === 'studio'"><U.DsSection title="创作参数"><U.Input v-model="prompt" aria-label="创作描述示例" /></U.DsSection><U.DsImageCard :src="sampleImage" title="创作结果示例" /></U.DsStudio>
-  <U.DsParameterPanel v-if="family === 'parameter-panel'" label="生成图片 · 0.20 积分（模拟）" :models="[{value:1,label:'标准模型（模拟）',description:'1K 0.10'}]" :model-id="1" v-model:aspect-ratio="ratio" :aspect-ratios="['1:1','3:4']" :count="count || 1" @update:count="count = $event" v-model:resolution="resolution" :resolutions="['1K','2K']" :disabled="state === 'disabled'" :busy="state === 'loading'" :reason="state === 'disabled' ? '请先上传参考图' : undefined" @submit="message = '生成事件（模拟）'" />
+  <U.DsParameterPanel v-if="family === 'parameter-panel'" label="生成图片 · 0.20 积分（模拟）" :models="[{value:1,label:'标准模型（模拟）',description:'1K 0.10 · 2K 0.15 · 4K 0.20'},{value:2,label:'高清模型（模拟）',description:'1K 0.35 · 2K 0.42 · 4K 0.56'}]" v-model:model-id="parameterModel" v-model:aspect-ratio="ratio" :aspect-ratios="['1:1','3:4']" :count="count || 1" @update:count="count = $event" v-model:resolution="resolution" :resolutions="['1K','2K']" :disabled="state === 'disabled'" :busy="state === 'loading'" :reason="state === 'disabled' ? '请先上传参考图' : undefined" @submit="message = '生成事件（模拟）'" />
   <U.DsResultGroup v-if="family === 'result-group'" label="今日 12:30"><U.DsImageCard v-for="i in 5" :key="i" :src="sampleImage" :title="`示例 ${i}`" /></U.DsResultGroup>
   <U.DsReferenceImage v-if="family === 'reference-image'" :src="sampleImage" label="参考图示例" @remove="message = '移除事件（模拟）'" @preview="message = '预览事件（模拟）'" />
   <U.DsNotice v-if="message" :title="message" />
