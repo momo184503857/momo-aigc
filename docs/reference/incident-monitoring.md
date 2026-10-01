@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-2026-10-01：本地实现，生产尚未安装或启用。设计规格见 `incident-monitoring-spec.md`。
+2026-10-01 16:15:41（北京时间）：已在生产安装并启用；16:17:04 完成只读验收。设计规格见 `incident-monitoring-spec.md`。
 
 - 独立 Python 服务探测 Node / Nginx / SQLite，业务进程卡死或退出不会停止监控。
 - 项目内诊断记录请求、事件循环、SQLite 慢执行及生图提交/轮询/转存/图片代理阶段。
@@ -65,7 +65,7 @@ npm run build:server
 测试使用临时目录、内存数据库及回环端口：包含真实独立 Node 进程的主线程阻塞与退出。
 集成测试的 Nginx 探测使用回环 HTTP 替身，不代表生产 Nginx 配置验收；生产故障注入禁止执行。
 
-## 生产安装流程（另需授权；不是自动部署脚本）
+## 安装流程（用于后续环境；执行需授权，不是自动部署脚本）
 
 以下以 `/root/momo-aigc` 为生产代码目录。必须先审查所有配置；不改变现有业务 location、超时或缓存规则。
 代码部署遵循 `deployment.md`；不要为启用监控默认执行 git pull、提交或推送。
@@ -187,3 +187,16 @@ PY
 停用项目内诊断：将 `MONITOR_ENABLED` 改为 `0`，经授权重启后端；保留 Nginx 公网拒绝规则。
 升级独立脚本：经授权替换 `/opt/momo-aigc-monitor/incident-watchdog.py` 并重启独立服务，无需重启业务进程。
 改变目录时，同时修改项目环境、watcher config 及 systemd ReadWritePaths；不能只修改其中一处。
+
+
+## 生产部署记录（2026-10-01）
+
+- 用户明确授权提交、推送和部署；代码提交 `eacbde0217bdeb15796bbafad5099266e2e6bcc1`，服务器与 GitHub `master` 同步。
+- 仅构建后端，无依赖版本变化，无前端构建；重启前确认无进行中的生图任务。只重启 `momo-aigc`，同机其他服务未重启。
+- 独立服务 `momo-aigc-monitor` 已 `active/running` 并设为开机自启，验收时 `NRestarts=0`。
+- Nginx 原有路径、业务超时和默认 access log 均保留；新增监控访问限制及独立时序日志。`nginx -t`、systemd unit 校验和 logrotate dry-run 通过。unit 校验输出了系统自带 XFS unit 的 CPUAccounting 弃用提示，不属于本监控配置错误。
+- 三项带令牌的回环探测均成功；连续三轮常驻采样均健康。无令牌的本机健康请求返回 404；开发机公网请求两个健康端点均返回 403，包括伪造 X-Forwarded-For 的请求。公网首页返回 200。
+- 使用不调用上游的模型目录请求确认鉴权返回 401，应用请求结束日志与 Nginx `backendRequestId` 关联成功；事件循环指标已落盘、验收时 `droppedLogs=0`，没有事故报警。
+- 配置、令牌及应用/监控日志为 0600，黑匣子根目录为 0700。凭据未输出或提交。
+- 私有备份目录 `/root/monitor-deploy-backups/20261001-161337` 保存旧 HEAD、旧后端产物、旧 Nginx 站点与旧环境文件；定位入口 `/root/.momo-monitor-last-backup`。恢复操作须经授权，禁止直接输出备份环境文件内容。
+- 未在生产执行阻塞、停业务进程等故障注入，未调用付费生图，未做登录后真实生图验收。报警/恢复行为由本地隔离故障测试覆盖，生产验收为运行和只读探测。

@@ -39,3 +39,5 @@
 - [x] 联合故障注入、npm run check、npm run build:server
 
 验证记录：`npm run test:monitor`（7 项 TypeScript + 9 项 Python，全部通过）、`npm run check`、`npm run build:server`、`git diff --check`。生产 systemd/Nginx 实装、公网拒绝验证及真实业务验收尚未执行；不提交、推送或部署。
+
+2026-10-01 后续部署：用户明确授权提交、推送和部署。`eacbde0` 已推送并部署；16:15:41 启用 systemd 常驻监控，16:17:04 完成连续健康采样、日志/请求 ID 关联、文件权限、Nginx 和公网拒绝验收。其他 PM2 服务保持原 PID；生产未注入故障，未调用付费接口。

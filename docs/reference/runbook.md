@@ -130,9 +130,9 @@ ssh root@<生产服务器IP> 'cd ~/momo-aigc && git pull origin master && npm ru
 
 ## 故障排查
 
-### 故障黑匣子与本地报警（2026-10-01，本地实现，未部署）
+### 故障黑匣子与本地报警（2026-10-01，已部署）
 
-独立探测服务与项目内诊断的安装、只读查询和停用步骤见 [`incident-monitoring.md`](./incident-monitoring.md)。默认不启用；安装需要 Nginx 入口限制、专用令牌、后端环境配置及独立 systemd 服务。未完成生产安装验收前，不应认为服务器已有此报警。
+独立探测服务与项目内诊断的安装、只读查询和停用步骤见 [`incident-monitoring.md`](./incident-monitoring.md)。生产已启用，独立服务为 `momo-aigc-monitor`，报警及现场保存于 `/var/log/momo-aigc-monitor/`。其他环境默认不启用；安装需要 Nginx 入口限制、专用令牌、后端环境配置及独立 systemd 服务。
 
 
 ### 现象：访问首页返回 502 Bad Gateway
