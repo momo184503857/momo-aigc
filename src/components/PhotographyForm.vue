@@ -37,7 +37,7 @@ const emit = defineEmits<{
     featureId: string
     userPrompt: string
     systemPrompt: string
-    supplementaryImages: { name: string; url: string }[]
+    supplementaryImages: Array<{ name: string; url?: string; file?: File }>
   }): void
 }>()
 
@@ -430,7 +430,7 @@ function handleGenerate() {
   // Build refImages list from unique assigned images (deduplicated, ordered by element sort_order first appearance)
   const seenIds = new Set<string>()
   const refImages: Array<{ url?: string; file?: File }> = []
-  const supplementaryImages: { name: string; url: string }[] = []
+  const supplementaryImages: Array<{ name: string; url?: string; file?: File }> = []
 
   const activeElements = photoElements.value
     .filter(el => getAssignedCount(el.id) > 0)
@@ -452,7 +452,7 @@ function handleGenerate() {
         }
       }
       // supplementaryImages records the full mapping for task detail
-      supplementaryImages.push({ name: el.label, url: poolImg.sourceUrl || poolImg.dataUrl })
+      supplementaryImages.push({ name: el.label, url: poolImg.sourceUrl || poolImg.dataUrl, file: poolImg.file })
     }
   }
 

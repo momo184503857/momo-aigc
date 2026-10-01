@@ -42,10 +42,30 @@ const pageSize = ref(24)
 const total = ref(0)
 const taskDetailDialog = ref<InstanceType<typeof TaskDetailDialog>>()
 const detailTask = ref<TaskItem | null>(null)
+const detailCache = new Map<number, TaskItem>()
 
 function showDetail(task: TaskItem) {
   detailTask.value = task
   nextTick(() => taskDetailDialog.value?.open())
+}
+
+async function loadTaskDetail(task: TaskItem): Promise<TaskItem> {
+  const cached = detailCache.get(task.id)
+  if (cached) return cached
+  const raw = (await taskApi.get(task.id)).data.data || {}
+  const detail = {
+    ...task,
+    ...raw,
+    aspectRatio: raw.aspectRatio ?? raw.aspect_ratio ?? task.aspectRatio,
+    task_no: raw.taskNo ?? raw.task_no ?? task.task_no,
+    supplementaryImages: raw.supplementaryImages ?? raw.supplementary_images ?? [],
+  } as TaskItem
+  if (detailCache.size >= 100) {
+    const oldest = detailCache.keys().next().value
+    if (oldest !== undefined) detailCache.delete(oldest)
+  }
+  detailCache.set(task.id, detail)
+  return detail
 }
 
 // 仅 UI：请求失败时把原因显性化（原来只 console.error，页面看起来像“空的”）
@@ -412,5 +432,5 @@ onMounted(() => { loadResults() })
 
   <!-- Preview -->
   <UiImagePreview v-model="previewVisible" :url="previewUrl" />
-  <TaskDetailDialog ref="taskDetailDialog" :task="detailTask" @close="detailTask = null" />
+  <TaskDetailDialog ref="taskDetailDialog" :task="detailTask" :load-task="loadTaskDetail" @loaded="detailTask = $event" @close="detailTask = null" />
 </template>

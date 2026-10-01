@@ -41,7 +41,7 @@ const emit = defineEmits<{
     refImages?: Array<{ url?: string; file?: File }>
     userPrompt: string
     systemPrompt: string
-    supplementaryImages?: { name: string; url: string }[]
+    supplementaryImages?: Array<{ name: string; url?: string; file?: File }>
   }): void
 }>()
 
@@ -282,7 +282,7 @@ function handleGenerate() {
     userPrompt: userPrompt.value.trim(),
     systemPrompt: systemPrompt.value,
     supplementaryImages: supplementaryImages.value.length > 0
-      ? supplementaryImages.value.map(img => ({ name: img.name, url: img.sourceUrl || img.dataUrl }))
+      ? supplementaryImages.value.map(img => ({ name: img.name, url: img.sourceUrl || img.dataUrl, file: img.file }))
       : undefined,
   })
 }

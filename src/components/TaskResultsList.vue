@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onActivated, onDeactivated, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onActivated, onDeactivated, nextTick } from 'vue'
 import { Image, LoaderCircle, CircleAlert } from '@lucide/vue'
 import { useInfiniteLoader } from '@/composables/useInfiniteLoader'
 import { useTaskManager } from '@/composables/useTaskManager'
@@ -42,23 +42,23 @@ const rounds = computed(() => {
 })
 const selectedTask = computed(() => tasks.value.find(t => t.id === selected.value?.id) || selected.value)
 const labels: Record<string, string> = { submitted: '已提交', queued: '排队中', in_progress: '生成中', importing: '正在保存图片', failed: '生成失败', completed: '图片已就绪' }
-let timer: ReturnType<typeof setInterval> | undefined
 function load(more = false) { return tm.loadHistory(more) }
-function start() {
-  if (timer) return
-  timer = setInterval(() => { if (!loading.value && !loadError.value) void load() }, 8000)
-}
-function stop() { clearInterval(timer); timer = undefined }
-onMounted(start)
-onActivated(() => { active.value = true; start() })
-onDeactivated(() => { active.value = false; stop() })
-onUnmounted(stop)
+onMounted(() => { void tm.refreshHistoryIfStale() })
+onActivated(() => { active.value = true; void tm.refreshHistoryIfStale() })
+onDeactivated(() => { active.value = false })
 async function showDetail(task: TaskItem) { selected.value = task; await nextTick(); detail.value?.open() }
 async function download(task: TaskItem, url: string, index: number) {
   try { await downloadUrl(url, `${task.task_no || task.id}-${index + 1}.png`) } catch (e) { feedback.error(e) }
 }
 function preview(task: TaskItem, index: number) { previewTaskId.value = task.id; previewIndex.value = tasks.value.indexOf(task); previewResultIndex.value = index; previewOpen.value = true }
-function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
+async function reuse(task: TaskItem) {
+  try {
+    emit('reuse', await tm.loadTaskDetail(task))
+    detail.value?.close()
+  } catch (e) {
+    feedback.error(e, '任务详情加载失败')
+  }
+}
 </script>
 
 <template>
@@ -79,7 +79,7 @@ function reuse(task: TaskItem) { emit('reuse', task); detail.value?.close() }
       </div>
     </div>
     <ImageCompareDialog v-model="previewOpen" :tasks="tasks" :task-id="previewTaskId" :initial-index="previewIndex" :initial-result-index="previewResultIndex" studio />
-    <TaskDetailDialog ref="detail" :task="selectedTask">
+    <TaskDetailDialog ref="detail" :task="selectedTask" :load-task="tm.loadTaskDetail" @loaded="selected = $event">
       <template #actions>
         <template v-if="selectedTask">
           <Button variant="outline" @click="reuse(selectedTask)">重新编辑</Button>

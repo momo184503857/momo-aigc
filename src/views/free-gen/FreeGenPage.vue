@@ -27,7 +27,7 @@ async function handleGenerate(params: {
   featureId?: string
   userPrompt?: string
   systemPrompt?: string
-  supplementaryImages?: { name: string; url: string }[]
+  supplementaryImages?: Array<{ name: string; url?: string; file?: File }>
 }) {
   await tm.handleGenerate(params)
 }

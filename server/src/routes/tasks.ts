@@ -3,6 +3,8 @@ import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { bjDateRangeClause } from '../utils/datetime.js'
 import { isStoredUrl } from '../utils/storage.js'
+import { userRateLimit } from '../middleware/userRateLimit.js'
+import { parseTaskListRow, positiveInt, TASK_PAGE_MAX, taskListSelect, USER_TASK_PAGE_SIZE_MAX } from '../utils/taskList.js'
 
 function parseRow(row: any): any {
   if (!row) return row
@@ -41,9 +43,9 @@ export const tasksRouter = Router()
 tasksRouter.use(authMiddleware)
 
 // List user's tasks
-tasksRouter.get('/', (req: AuthRequest, res) => {
-  const page = parseInt(req.query.page as string) || 1
-  const pageSize = parseInt(req.query.pageSize as string) || 20
+tasksRouter.get('/', userRateLimit('tasks-list', 30), (req: AuthRequest, res) => {
+  const page = positiveInt(req.query.page, 1, TASK_PAGE_MAX)
+  const pageSize = positiveInt(req.query.pageSize, 20, USER_TASK_PAGE_SIZE_MAX)
   const status = req.query.status as string | undefined
   const model = req.query.model as string | undefined
   const featureId = req.query.feature_id as string | undefined
@@ -85,13 +87,13 @@ tasksRouter.get('/', (req: AuthRequest, res) => {
 
   const countRow = db.prepare(`SELECT COUNT(*) as total FROM generation_tasks ${where}`).get(...params) as any
   const rows = db.prepare(
-    `SELECT * FROM generation_tasks ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    `SELECT ${taskListSelect('generation_tasks')} FROM generation_tasks ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
   ).all(...params, pageSize, (page - 1) * pageSize)
 
   res.json({
     success: true,
     data: {
-      records: (rows as any[]).map(parseRow),
+      records: (rows as any[]).map(parseTaskListRow),
       total: countRow.total,
       page,
       pageSize,

@@ -324,7 +324,7 @@ function clearRemarkSearch() {
   </div>
 
   <!-- Task Detail Dialog -->
-  <TaskDetailDialog ref="taskDetailDialog" :task="detailTask" @close="detailTask = null" />
+  <TaskDetailDialog ref="taskDetailDialog" :task="detailTask" :load-task="tm.loadTaskDetail" @loaded="detailTask = $event" @close="detailTask = null" />
 
   <!-- Image Compare Dialog -->
   <ImageCompareDialog

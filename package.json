@@ -22,7 +22,9 @@
     "test:appearance:browser": "node scripts/test-theme-accent-browser.cjs",
     "test:images": "tsx scripts/test-thumbnails.ts",
     "test:images:browser": "tsx scripts/test-images-browser.ts",
-    "test:monitor": "node --import tsx --test scripts/test-incident-diagnostics.ts && PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-incident-watchdog.py"
+    "test:monitor": "node --import tsx --test scripts/test-incident-diagnostics.ts && PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-incident-watchdog.py",
+    "test:traffic": "tsx scripts/test-generation-traffic.ts",
+    "test:traffic:browser": "node scripts/test-traffic-browser.cjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.47.0",

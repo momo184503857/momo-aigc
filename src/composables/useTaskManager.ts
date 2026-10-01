@@ -47,6 +47,10 @@ const viewMode = ref<'list' | 'grid'>('list')
 const userPoints = ref(0)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let lastHistoryLoadedAt = 0
+const taskDetailCache = new Map<number, TaskItem>()
+const taskDetailRequests = new Map<number, Promise<TaskItem>>()
+let visibilityListenerAdded = false
 
 // Bulk mode
 const bulkMode = ref(false)
@@ -177,26 +181,27 @@ export function useTaskManager() {
     } catch { /* keep the last known counts until the next refresh */ }
   }
 
-  async function loadHistory(more = false) {
+  async function loadHistory(more = false, requestedPage?: number) {
     if (more && (loading.value || loadingMore.value || page.value * pageSize.value >= total.value)) return
     const request = ++historyRequest
-    const targetPage = more ? page.value + 1 : page.value
+    const targetPage = more ? page.value + 1 : Math.max(1, requestedPage || 1)
     if (more) loadingMore.value = true
     else { loading.value = true; loadingMore.value = false }
     historyError.value = false
     try {
-      const responses = await Promise.all((more ? [targetPage] : Array.from({ length: targetPage }, (_, i) => i + 1)).map(requestPage => generationApi.list({
-        page: requestPage,
+      const res = await generationApi.list({
+        page: targetPage,
         pageSize: pageSize.value,
         feature_id: filterFeatureId.value || undefined,
         start_date: filterStartDate.value || undefined,
         end_date: filterEndDate.value || undefined,
         remark: filterRemarkKw.value || undefined,
-      })))
+      })
       if (request !== historyRequest) return
-      const records = responses.flatMap(res => res.data.data?.records || [])
-      total.value = responses[0]?.data.data?.total || 0
+      const records = res.data.data?.records || []
+      total.value = res.data.data?.total || 0
       page.value = targetPage
+      lastHistoryLoadedAt = Date.now()
 
       // Merge: keep in-progress local tasks that haven't appeared in API response yet
       const apiTasks: TaskItem[] = records.map((r: any) => ({
@@ -224,12 +229,18 @@ export function useTaskManager() {
     }
   }
 
+  function refreshHistoryIfStale(maxAgeMs = 60_000) {
+    if (loading.value || loadingMore.value) return Promise.resolve()
+    if (Date.now() - lastHistoryLoadedAt < maxAgeMs) return Promise.resolve()
+    return loadHistory(false)
+  }
+
   // Register canvas task event listener
   ensureCanvasEventListener(loadHistory)
 
   function handlePageChange(p: number) {
     page.value = p
-    loadHistory()
+    loadHistory(false, p)
   }
 
   function handlePageSizeChange(s: number) {
@@ -250,7 +261,7 @@ export function useTaskManager() {
     featureId?: string
     userPrompt?: string
     systemPrompt?: string
-    supplementaryImages?: { name: string; url: string }[]
+    supplementaryImages?: Array<{ name: string; url?: string; file?: File }>
     promptSegments?: Record<string, string>
     negativePrompt?: string
     suiteId?: number
@@ -294,7 +305,7 @@ export function useTaskManager() {
         completed_at: null,
         feature_id: params.featureId,
         user_prompt: params.userPrompt || '',
-        supplementaryImages: params.supplementaryImages,
+        supplementaryImages: undefined,
       })
 
       tasks.value.unshift(newTask)
@@ -322,6 +333,7 @@ export function useTaskManager() {
         newTask.id = result.dbTaskId
         newTask.task_no = result.taskNo
         newTask.input_image_urls = result.inputImageUrls
+        newTask.supplementaryImages = result.supplementaryImages
 
         await pollTask(newTask)
 
@@ -353,6 +365,7 @@ export function useTaskManager() {
   // ─── Polling ───
 
   async function pollAllTasks() {
+    if (document.hidden) return
     for (const task of tasks.value) {
       if (task.status === 'completed' || task.status === 'failed') continue
       if (!task.id) continue
@@ -369,6 +382,7 @@ export function useTaskManager() {
       // 服务端在轮询路径内查上游状态并完成转存/退款
       const res = await generationApi.getStatus(task.id)
       const result = res.data.data
+      taskDetailCache.delete(task.id)
 
       task.status = result.status
       task.progress = result.progress ?? 0
@@ -392,7 +406,7 @@ export function useTaskManager() {
   }
 
   function startPolling() {
-    if (!pollTimer) {
+    if (!document.hidden && !pollTimer) {
       pollTimer = setInterval(pollAllTasks, 4000)
     }
   }
@@ -413,9 +427,53 @@ export function useTaskManager() {
     }
   })
 
+  if (!visibilityListenerAdded) {
+    visibilityListenerAdded = true
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { stopPolling(); return }
+      void refreshHistoryIfStale()
+      if (hasActiveJobs.value || taskSummary.value.active > 0) {
+        void pollAllTasks()
+        startPolling()
+      }
+    })
+  }
+
   // ─── Task operations ───
 
+  async function loadTaskDetail(task: TaskItem): Promise<TaskItem> {
+    if (!task.id) return task
+    const cached = taskDetailCache.get(task.id)
+    if (cached) return cached
+    const existing = taskDetailRequests.get(task.id)
+    if (existing) return existing
+    const pending = taskApi.get(task.id).then((res) => {
+      const raw = res.data.data || {}
+      const detail = {
+        ...task,
+        ...raw,
+        aspectRatio: raw.aspectRatio ?? raw.aspect_ratio ?? task.aspectRatio,
+        task_no: raw.taskNo ?? raw.task_no ?? task.task_no,
+        supplementaryImages: raw.supplementaryImages ?? raw.supplementary_images ?? [],
+      } as TaskItem
+      if (taskDetailCache.size >= 100) {
+        const oldest = taskDetailCache.keys().next().value
+        if (oldest !== undefined) taskDetailCache.delete(oldest)
+      }
+      taskDetailCache.set(task.id, detail)
+      return detail
+    }).finally(() => taskDetailRequests.delete(task.id))
+    taskDetailRequests.set(task.id, pending)
+    return pending
+  }
+
   async function handleRegenerate(task: TaskItem) {
+    try {
+      task = await loadTaskDetail(task)
+    } catch (detailError) {
+      error(detailError, '任务详情加载失败')
+      return
+    }
     // Navigate to the correct page if not there
     const currentRoute = router.currentRoute.value
     const isPhotography = task.feature_id === 'ai-photography'
@@ -488,6 +546,7 @@ export function useTaskManager() {
     try {
       await confirmDanger({ title: '确认删除', message: '确定要删除该任务记录吗？', confirmText: '删除', cancelText: '取消' })
       tasks.value = tasks.value.filter((t) => t.id !== task.id)
+      taskDetailCache.delete(task.id)
       success('已移除')
     } catch { /* cancelled */ }
   }
@@ -498,6 +557,8 @@ export function useTaskManager() {
       await taskApi.updateRemark(task.id, remark)
       const target = tasks.value.find((t) => t.id === task.id)
       if (target) target.remark = remark
+      const cached = taskDetailCache.get(task.id)
+      if (cached) cached.remark = remark
       success(remark ? '备注已保存' : '备注已清除')
     } catch (e) {
       error(e, '备注保存失败')
@@ -514,7 +575,13 @@ export function useTaskManager() {
     }
   }
 
-  function handleCopyParams(task: TaskItem) {
+  async function handleCopyParams(task: TaskItem) {
+    try {
+      task = await loadTaskDetail(task)
+    } catch (detailError) {
+      error(detailError, '任务详情加载失败')
+      return
+    }
     const currentRoute = router.currentRoute.value
     const isPhotography = task.feature_id === 'ai-photography'
     const isFreeGen = !task.feature_id || task.feature_id === 'free-gen'
@@ -602,6 +669,7 @@ export function useTaskManager() {
       const res = await generationApi.reimport(task.id)
       task.result_image_urls = res.data.data?.resultUrls ?? []
       task.error_message = ''
+      taskDetailCache.delete(task.id)
       success('图片已刷新')
     } catch (e: any) {
       error('刷新失败: ' + (e?.response?.data?.error || e.message || '未知错误'))
@@ -617,6 +685,7 @@ export function useTaskManager() {
     task: TaskItem | null,
   ) {
     try {
+      if (task) task = await loadTaskDetail(task)
       // Upload edited image to OSS (inputs scope) so it can be used as a reference image
       const { publicUrl } = await ossApi.upload(result.file, 'inputs')
 
@@ -658,7 +727,7 @@ export function useTaskManager() {
   // ─── Lifecycle ───
 
   async function init() {
-    await loadHistory()
+    await refreshHistoryIfStale(0)
     if (hasActiveJobs.value) startPolling()
     loadUserPoints()
   }
@@ -697,6 +766,8 @@ export function useTaskManager() {
     init,
     cleanup,
     loadHistory,
+    refreshHistoryIfStale,
+    loadTaskDetail,
     loadUserPoints,
     handleGenerate,
     handleRegenerate,

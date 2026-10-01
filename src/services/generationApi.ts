@@ -10,6 +10,7 @@ export interface GenerationSubmitParams {
   /** 逻辑模型 id；服务端按成本自动选择渠道 */
   logicalModelId: number
   prompt: string
+  prompt_truncated?: boolean
   userPrompt?: string
   systemPrompt?: string
   aspectRatio: string

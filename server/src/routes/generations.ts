@@ -8,6 +8,9 @@ import type { ImageGenRequest, GeneratedImage } from '../providers/types.js'
 import { saveImage, importResultFromUrl, isStoredUrl } from '../utils/storage.js'
 import { bjDateRangeClause } from '../utils/datetime.js'
 import { roundCredits } from '../utils/credits.js'
+import { userRateLimit } from '../middleware/userRateLimit.js'
+import { parseTaskListRow, positiveInt, TASK_PAGE_MAX, taskListSelect, USER_TASK_PAGE_SIZE_MAX } from '../utils/taskList.js'
+import { TaskSubmissionValidationError, validateReferenceImageUrls, validateSupplementaryImages } from '../utils/taskSubmission.js'
 import {
   getChannelModelCapabilities,
   aspectRatiosAtResolution,
@@ -407,9 +410,16 @@ generationsRouter.post('/', (req: AuthRequest, res) => {
   if (allowedRatios.length > 0 && !allowedRatios.includes(effRatio)) {
     res.status(400).json({ success: false, error: `分辨率 ${effResolution} 下不支持宽高比 ${effRatio}` }); return
   }
-  const refUrls = Array.isArray(refImageUrls) ? refImageUrls.filter((u: unknown) => typeof u === 'string') : []
-  if (refUrls.length > (caps.maxReferenceImages ?? 14)) {
-    res.status(400).json({ success: false, error: `参考图最多 ${caps.maxReferenceImages ?? 14} 张` }); return
+  let refUrls: string[]
+  let safeSupplementaryImages: Array<{ name: string; url: string }>
+  try {
+    refUrls = validateReferenceImageUrls(refImageUrls, caps.maxReferenceImages ?? 14)
+    safeSupplementaryImages = validateSupplementaryImages(supplementaryImages)
+  } catch (error) {
+    if (error instanceof TaskSubmissionValidationError) {
+      res.status(400).json({ success: false, error: error.message }); return
+    }
+    throw error
   }
   const finalPrompt = prompt.trim()
   if (finalPrompt.length > (caps.maxPromptChars ?? 32000)) {
@@ -467,7 +477,7 @@ generationsRouter.post('/', (req: AuthRequest, res) => {
           no, userId, clientBusinessId || null, logical.code, finalPrompt, effRatio, effResolution, effRatio,
           templateImageIds ? JSON.stringify(templateImageIds) : null, JSON.stringify(refUrls),
           featureId || null, userPrompt || '', cost, balance,
-          JSON.stringify(supplementaryImages || []), JSON.stringify(promptSegments || {}), negativePrompt || '',
+          JSON.stringify(safeSupplementaryImages), JSON.stringify(promptSegments || {}), negativePrompt || '',
           suiteId ? Number(suiteId) : null,
           pointIndex !== undefined && pointIndex !== null ? Number(pointIndex) : null,
           resolvedLogicalId,
@@ -691,7 +701,7 @@ generationsRouter.post('/:id/reimport', async (req: AuthRequest, res) => {
 
 // ── GET /api/generations/summary（全量待完成任务数，不受列表分页或筛选影响）──
 
-generationsRouter.get('/summary', (req: AuthRequest, res) => {
+generationsRouter.get('/summary', userRateLimit('generations-summary', 120), (req: AuthRequest, res) => {
   const counts = db.prepare(`
     SELECT
       COALESCE(SUM(CASE WHEN status IN ('submitted', 'queued') THEN 1 ELSE 0 END), 0) AS queued,
@@ -704,9 +714,9 @@ generationsRouter.get('/summary', (req: AuthRequest, res) => {
 
 // ── GET /api/generations（列表，兼容旧 /api/tasks 过滤参数）──
 
-generationsRouter.get('/', (req: AuthRequest, res) => {
-  const page = parseInt(req.query.page as string) || 1
-  const pageSize = parseInt(req.query.pageSize as string) || 20
+generationsRouter.get('/', userRateLimit('generations-list', 30), (req: AuthRequest, res) => {
+  const page = positiveInt(req.query.page, 1, TASK_PAGE_MAX)
+  const pageSize = positiveInt(req.query.pageSize, 20, USER_TASK_PAGE_SIZE_MAX)
   const status = req.query.status as string | undefined
   const model = req.query.model as string | undefined
   const featureId = req.query.feature_id as string | undefined
@@ -733,7 +743,7 @@ generationsRouter.get('/', (req: AuthRequest, res) => {
 
   const countRow = db.prepare(`SELECT COUNT(*) as total FROM generation_tasks t ${where}`).get(...params) as any
   const rows = db.prepare(`
-    SELECT t.*, lm.code AS logical_code
+    SELECT ${taskListSelect('t')}, lm.code AS logical_code
     FROM generation_tasks t
     LEFT JOIN ai_logical_models lm ON lm.id = t.logical_model_id
     ${where} ORDER BY t.created_at DESC LIMIT ? OFFSET ?
@@ -743,7 +753,7 @@ generationsRouter.get('/', (req: AuthRequest, res) => {
     success: true,
     data: {
       records: rows.map((r) => {
-        const parsed = parseTaskRow(r)
+        const parsed = parseTaskListRow(r)
         parsed.taskNo = r.task_no
         parsed.logicalCode = r.logical_code
         delete parsed.provider_task_id

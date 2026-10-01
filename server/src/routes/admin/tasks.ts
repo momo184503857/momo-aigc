@@ -3,21 +3,7 @@ import { db } from '../../db/index.js'
 import { authMiddleware, AuthRequest } from '../../middleware/auth.js'
 import { adminMiddleware } from '../../middleware/admin.js'
 import { bjDateRangeClause } from '../../utils/datetime.js'
-
-function parseRow(row: any): any {
-  if (!row) return row
-  const parsed = { ...row }
-  for (const key of ['template_image_ids', 'input_image_urls', 'result_image_urls', 'raw_error']) {
-    if (typeof parsed[key] === 'string') {
-      try { parsed[key] = JSON.parse(parsed[key]) } catch { /* keep as-is */ }
-    }
-  }
-  if ('aspect_ratio' in parsed) {
-    parsed.aspectRatio = parsed.aspect_ratio
-    delete parsed.aspect_ratio
-  }
-  return parsed
-}
+import { ADMIN_TASK_PAGE_SIZE_MAX, parseTaskListRow, positiveInt, TASK_PAGE_MAX, taskListSelect } from '../../utils/taskList.js'
 
 export const adminTasksRouter = Router()
 
@@ -25,8 +11,8 @@ adminTasksRouter.use(authMiddleware, adminMiddleware)
 
 // List all tasks
 adminTasksRouter.get('/', (req: AuthRequest, res) => {
-  const page = parseInt(req.query.page as string) || 1
-  const pageSize = parseInt(req.query.pageSize as string) || 20
+  const page = positiveInt(req.query.page, 1, TASK_PAGE_MAX)
+  const pageSize = positiveInt(req.query.pageSize, 20, ADMIN_TASK_PAGE_SIZE_MAX)
   const status = req.query.status as string | undefined
   const userId = req.query.user_id as string | undefined
   const startDate = req.query.start_date as string | undefined
@@ -54,7 +40,7 @@ adminTasksRouter.get('/', (req: AuthRequest, res) => {
   ).get(...params) as any
 
   const rows = db.prepare(`
-    SELECT t.*, u.username
+    SELECT ${taskListSelect('t')}, t.provider_task_id, u.username
     FROM generation_tasks t
     LEFT JOIN users u ON t.user_id = u.id
     ${where}
@@ -66,7 +52,7 @@ adminTasksRouter.get('/', (req: AuthRequest, res) => {
     success: true,
     data: {
       records: (rows as any[]).map((row) => {
-        const parsed = parseRow(row)
+        const parsed = parseTaskListRow(row)
         parsed.route_attempts = db.prepare(`
           SELECT a.*, p.name AS provider_name, m.display_name AS channel_model_name, k.name AS key_name
           FROM generation_route_attempts a

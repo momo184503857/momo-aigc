@@ -25,6 +25,8 @@ export interface TaskItem {
   toapis_task_id?: string
   model: ModelId
   prompt: string
+  /** 列表接口只返回前 500 字；完整值由详情接口按需加载。 */
+  prompt_truncated?: boolean
   resolution: string
   aspectRatio: string
   status: string
