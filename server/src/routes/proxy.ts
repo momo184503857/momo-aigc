@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
+import { diagnostics, diagnosticFetch as fetch } from '../utils/diagnostics.js'
 
 export const proxyRouter = Router()
 
@@ -24,9 +25,17 @@ proxyRouter.post('/image', async (req: AuthRequest, res) => {
     return
   }
 
+  const end = diagnostics.begin('image_proxy')
+  let bytes = 0
+  let failure: unknown
+  const onClientClose = () => {
+    if (!res.writableFinished) end(new DOMException('Client disconnected', 'AbortError'), { bytes })
+  }
+  res.once('close', onClientClose)
   try {
     const resp = await fetch(url, { signal: AbortSignal.timeout(30000) })
     if (!resp.ok) {
+      end(new Error('http_error'), { httpStatus: resp.status })
       res.status(502).json({ success: false, error: `下载失败: HTTP ${resp.status}` })
       return
     }
@@ -52,6 +61,7 @@ proxyRouter.post('/image', async (req: AuthRequest, res) => {
           const { done, value } = await reader.read()
           if (done) { res.end(); return }
           if (clientDisconnected) return
+          bytes += value.byteLength
           if (!res.write(value)) {
             // Back-pressure: wait for drain
             await new Promise<void>((resolve) => res.once('drain', resolve))
@@ -62,12 +72,17 @@ proxyRouter.post('/image', async (req: AuthRequest, res) => {
     } else {
       // Fallback: no stream support
       const buffer = Buffer.from(await resp.arrayBuffer())
+      bytes = buffer.length
       res.send(buffer)
     }
   } catch (err: any) {
+    failure = err
     console.error('Proxy image error:', err.message)
     if (!res.headersSent) {
       res.status(502).json({ success: false, error: '图片下载失败: ' + err.message })
     }
+  } finally {
+    res.off('close', onClientClose)
+    end(failure, { bytes })
   }
 })

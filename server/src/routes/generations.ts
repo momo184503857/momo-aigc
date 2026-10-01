@@ -3,6 +3,7 @@ import { db } from '../db/index.js'
 import { authMiddleware, AuthRequest } from '../middleware/auth.js'
 import { getImageAdapter } from '../providers/index.js'
 import { ProviderCallError } from '../providers/http.js'
+import { diagnostics } from '../utils/diagnostics.js'
 import type { ImageGenRequest, GeneratedImage } from '../providers/types.js'
 import { saveImage, importResultFromUrl, isStoredUrl } from '../utils/storage.js'
 import { bjDateRangeClause } from '../utils/datetime.js'
@@ -150,7 +151,8 @@ async function importImages(
         continue
       }
       try {
-        const res = await importResultFromUrl({ userId: task.user_id, taskNo: task.task_no, sourceUrl: img.url })
+        const res = await diagnostics.operation('result_import', { taskNo: task.task_no, providerId: task.channel_provider_id },
+          () => importResultFromUrl({ userId: task.user_id, taskNo: task.task_no, sourceUrl: img.url! }))
         imported.push(res.url)
       } catch (e: any) {
         console.warn(`[generations] 转存失败（任务 ${task.task_no}）：${img.url} → ${e.message}`)
@@ -158,12 +160,12 @@ async function importImages(
     } else if (img.base64) {
       try {
         const buffer = Buffer.from(img.base64, 'base64')
-        const stored = await saveImage({
+        const stored = await diagnostics.operation('result_import', { taskNo: task.task_no, providerId: task.channel_provider_id }, () => saveImage({
           scope: 'results',
           userId: task.user_id,
           buffer,
           mimeType: img.mimeType || 'image/png',
-        })
+        }))
         imported.push(stored.url)
       } catch (e: any) {
         console.warn(`[generations] base64 结果保存失败（任务 ${task.task_no}）：${e.message}`)
@@ -310,7 +312,8 @@ async function runRoutedTask(taskId: number): Promise<void> {
       `).run(cm.p_code, cm.id, cm.p_id, ctx.config.keyId ?? null, task.id)
 
       const adapter = getImageAdapter(cm.p_adapter)
-      const result = await adapter.submitImageTask(buildImageGenRequest(task, cm), ctx.config)
+      const result = await diagnostics.operation('submit', { taskNo: task.task_no, providerId: cm.p_id },
+        () => adapter.submitImageTask(buildImageGenRequest(task, cm), ctx.config))
       if (cm.p_adapter === 'toapis') {
         if (!result.providerTaskId) throw new Error('异步渠道未返回任务号')
         db.prepare(`UPDATE generation_tasks SET status = 'submitted', provider_task_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
@@ -569,7 +572,8 @@ generationsRouter.get('/:id/status', async (req: AuthRequest, res) => {
       // 但必须用任务提交时的 Key 查询：toapis 任务按 Key 隔离，用错 Key 会得到 task_not_exist
       const ctx = resolveProviderContext(cm.p_id, 'image', { preferKeyId: task.provider_key_id })
       const adapter = getImageAdapter(cm.p_adapter)
-      const result = await adapter.queryImageTask(task.provider_task_id, ctx.config)
+      const result = await diagnostics.operation('poll', { taskNo: task.task_no, providerId: task.channel_provider_id },
+        () => adapter.queryImageTask(task.provider_task_id, ctx.config))
 
       if (result.status === 'completed') {
         // 抢占转存权
@@ -661,7 +665,8 @@ generationsRouter.post('/:id/reimport', async (req: AuthRequest, res) => {
       const cm = loadChannelModel(task.channel_model_id)
       const ctx = resolveProviderContext(cm.p_id, 'image', { preferKeyId: task.provider_key_id })
       const adapter = getImageAdapter(cm.p_adapter)
-      const result = await adapter.queryImageTask(task.provider_task_id, ctx.config)
+      const result = await diagnostics.operation('poll', { taskNo: task.task_no, providerId: task.channel_provider_id },
+        () => adapter.queryImageTask(task.provider_task_id, ctx.config))
       if (result.status === 'completed') images = result.resultUrls.map((url) => ({ url }))
     } catch (e: any) {
       res.status(502).json({ success: false, error: `重新转存失败：${e.message}` })

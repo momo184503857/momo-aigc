@@ -1,0 +1,18 @@
+# Optional diagnostic Nginx log only; no business-log or monitor-state truncation.
+# Install under /etc/logrotate.d/momo-diagnostics after enabling Nginx logging.
+/var/log/nginx/momo-diagnostics.jsonl {
+    daily
+    maxsize 10M
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 root adm
+    sharedscripts
+    postrotate
+        if [ -s /run/nginx.pid ]; then
+            kill -USR1 "$(cat /run/nginx.pid)"
+        fi
+    endscript
+}

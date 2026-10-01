@@ -1,3 +1,4 @@
+import { diagnosticFetch as fetch } from './diagnostics.js'
 import { readLocalImage, isLocalFileUrl } from './storage.js'
 import { postForm, joinUrl, extractErrorMessage, ProviderCallError } from '../providers/http.js'
 

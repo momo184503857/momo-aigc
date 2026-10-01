@@ -31,8 +31,16 @@ import { buyerShowBatchRouter } from './routes/buyerShowBatch.js'
 import { adminAiConfigRouter } from './routes/admin/aiConfig.js'
 import { generationsRouter, sweepOrphanTasks, waitForSyncTasks } from './routes/generations.js'
 import { modelsRouter } from './routes/models.js'
+import { diagnostics } from './utils/diagnostics.js'
+import { createDatabaseProbe } from './utils/databaseProbe.js'
 
 const app = express()
+
+const databaseProbe = diagnostics.enabled ? createDatabaseProbe(config.dbPath) : undefined
+diagnostics.start()
+app.use(diagnostics.middleware())
+app.get('/api/internal/monitor/health', diagnostics.health(() => {}))
+app.get('/api/internal/monitor/database', diagnostics.health(() => databaseProbe?.check()))
 
 app.use(cors())
 
@@ -96,7 +104,9 @@ const server = app.listen(config.port, () => {
 // 优雅停机：等待同步渠道在途任务落库（最多 10s）
 function shutdown() {
   console.log('[Server] Shutting down…')
-  waitForSyncTasks().finally(() => server.close(() => process.exit(0)))
+  waitForSyncTasks().finally(() => server.close(() => {
+    void Promise.all([diagnostics.stop(), databaseProbe?.stop()]).finally(() => process.exit(0))
+  }))
   // 兜底：15s 后强制退出
   setTimeout(() => process.exit(0), 15_000).unref()
 }

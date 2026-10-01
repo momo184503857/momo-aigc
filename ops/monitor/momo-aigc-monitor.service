@@ -1,0 +1,33 @@
+[Unit]
+Description=momoAigc independent local incident monitor
+After=network.target nginx.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/momo-aigc-monitor/incident-watchdog.py --config /etc/momo-aigc-monitor/config.json
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/momo-aigc-monitor
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+MemoryMax=128M
+TasksMax=16
+CPUQuota=20%
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

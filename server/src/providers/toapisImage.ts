@@ -1,3 +1,4 @@
+import { diagnosticFetch as fetch } from '../utils/diagnostics.js'
 import type {
   ImageProviderAdapter,
   ImageGenRequest,

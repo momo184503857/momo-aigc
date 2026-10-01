@@ -1,0 +1,9 @@
+{
+  "directory": "/var/log/momo-aigc-monitor",
+  "token_file": "/etc/momo-aigc-monitor/token",
+  "backend_port": 3000,
+  "nginx_port": 80,
+  "nginx_log": "/var/log/nginx/momo-diagnostics.jsonl",
+  "interval_seconds": 5,
+  "timeout_seconds": 2
+}

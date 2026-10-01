@@ -49,6 +49,7 @@ docs/
 | UI 设计规范（唯一现行） | `ui/ui-design-guidelines.md` |
 | 部署运维 | `reference/deployment.md` |
 | 运维手册 | `reference/runbook.md` |
+| 故障黑匣子与本地报警（本地实现，未部署） | `reference/incident-monitoring.md` |
 | 测试计划 | `reference/test-plan.md` |
 | 项目交接 | `reference/handoff.md` |
 | OSS 结果导入 Worker | `reference/oss-result-import-worker.md` |

@@ -1,3 +1,4 @@
+import { diagnosticFetch as fetch } from './diagnostics.js'
 import crypto from 'crypto'
 const IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 import { getStorageConfig, type OssSettings } from './storageConfig.js'

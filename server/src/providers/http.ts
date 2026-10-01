@@ -1,3 +1,4 @@
+import { diagnosticFetch as fetch } from '../utils/diagnostics.js'
 /**
  * 适配器共享的 HTTP 工具：超时控制、JSON 解析、错误信息归一化。
  * 各适配器不再各自手写 fetch 细节。

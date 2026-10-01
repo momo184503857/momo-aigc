@@ -1,0 +1,34 @@
+# Add at http{} scope (e.g. /etc/nginx/conf.d/momo-diagnostics.conf).
+# Route labels only: do not log URLs, query strings, referers, bodies, headers or tokens.
+map $uri $momo_diag_route {
+    default /other;
+    ~^/api/generations(?:/|$) /api/generations;
+    ~^/api/proxy(?:/|$) /api/proxy;
+    ~^/api/admin(?:/|$) /api/admin;
+    ~^/api/models(?:/|$) /api/models;
+    ~^/api/points(?:/|$) /api/points;
+    ~^/api/auth(?:/|$) /api/auth;
+    ~^/api/oss(?:/|$) /api/oss;
+    ~^/api/internal/monitor(?:/|$) /monitor;
+}
+map $momo_diag_route $momo_diag_loggable {
+    default 1;
+    /monitor 0;
+}
+map $request_method $momo_diag_method {
+    default OTHER;
+    GET GET;
+    POST POST;
+    PUT PUT;
+    PATCH PATCH;
+    DELETE DELETE;
+    OPTIONS OPTIONS;
+    HEAD HEAD;
+}
+log_format momo_diagnostics escape=json
+    '{"timestamp":"$time_iso8601","event":"nginx_request",'
+    '"requestId":"$request_id","backendRequestId":"$upstream_http_x_request_id",'
+    '"route":"$momo_diag_route","method":"$momo_diag_method",'
+    '"status":$status,"requestSeconds":"$request_time",'
+    '"connectSeconds":"$upstream_connect_time","headerSeconds":"$upstream_header_time",'
+    '"upstreamSeconds":"$upstream_response_time","bytes":$body_bytes_sent}';
