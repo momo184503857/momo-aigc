@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { authApi, type UserInfo, type CodePurpose } from '@/services/authApi'
 import { useAppearanceStore } from '@/stores/appearance'
 import type { ThemeAccent } from '@/types/appearance'
+import { clearTaskListCaches } from '@/services/taskListCache'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('auth_token') || '')
@@ -76,6 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = ''
     user.value = null
     localStorage.removeItem('auth_token')
+    clearTaskListCaches()
     useAppearanceStore().resetAccent()
   }
 

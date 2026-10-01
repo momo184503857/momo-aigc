@@ -14,6 +14,8 @@ import { downloadUrl } from '@/utils/download'
 import { ossApi } from '@/services/ossApi'
 import { FEATURE_CONFIGS } from '@/configs/featureConfig'
 import type { TaskItem } from '@/components/TaskList.vue'
+import { useAuthStore } from '@/stores/auth'
+import { readTaskListCache, writeTaskListCache, type TaskListCacheHit } from '@/services/taskListCache'
 
 /**
  * 全局任务面板管理（ai-provider 重构版）。
@@ -51,6 +53,14 @@ let lastHistoryLoadedAt = 0
 const taskDetailCache = new Map<number, TaskItem>()
 const taskDetailRequests = new Map<number, Promise<TaskItem>>()
 let visibilityListenerAdded = false
+let hydratedUserId: number | null = null
+let historyRefreshPromise: Promise<void> | null = null
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+let authWatcherAdded = false
+let initializingUserId: number | null = null
+let initializationPromise: Promise<void> | null = null
+let historyStateEpoch = 0
+let historyContainsFirstPage = false
 
 // Bulk mode
 const bulkMode = ref(false)
@@ -123,6 +133,7 @@ function sleep(ms: number): Promise<void> {
 export function useTaskManager() {
   const { success, info, warning, error, confirmDanger } = useUiFeedback()
   const serverStatus = useServerStatusStore()
+  const auth = useAuthStore()
   const router = useRouter()
 
   // ─── Points ───
@@ -174,6 +185,72 @@ export function useTaskManager() {
 
   // ─── Load history ───
 
+  function isDefaultHistoryQuery(): boolean {
+    return pageSize.value === 20 && !filterFeatureId.value && !filterStartDate.value
+      && !filterEndDate.value && !filterRemarkKw.value
+  }
+
+  function isDefaultHistoryView(): boolean {
+    return historyContainsFirstPage && isDefaultHistoryQuery()
+  }
+
+  function persistHistoryCache(): void {
+    const userId = auth.user?.id
+    if (!userId || !isDefaultHistoryView()) return
+    writeTaskListCache('panel', userId, tasks.value.filter((task) => task.id > 0).slice(0, 20), total.value)
+  }
+
+  function scheduleHistoryCachePersist(): void {
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = setTimeout(() => {
+      persistTimer = null
+      persistHistoryCache()
+    }, 500)
+  }
+
+  function hydrateHistoryCache(userId: number): TaskListCacheHit | undefined {
+    const hit = readTaskListCache('panel', userId)
+    hydratedUserId = userId
+    if (!hit) return undefined
+    tasks.value = hit.records as TaskItem[]
+    total.value = hit.total
+    page.value = 1
+    historyContainsFirstPage = true
+    lastHistoryLoadedAt = hit.savedAt
+    historyError.value = false
+    return hit
+  }
+
+  function clearHistoryState(): void {
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = null
+    historyRequest++
+    historyStateEpoch++
+    historyRefreshPromise = null
+    hydratedUserId = null
+    lastHistoryLoadedAt = 0
+    tasks.value = []
+    total.value = 0
+    page.value = 1
+    historyContainsFirstPage = false
+    pageSize.value = 20
+    filterFeatureId.value = ''
+    filterStartDate.value = ''
+    filterEndDate.value = ''
+    filterFeature.value = ''
+    filterDateRange.value = null
+    filterRemark.value = ''
+    filterRemarkKw.value = ''
+    loading.value = false
+    loadingMore.value = false
+    historyError.value = false
+    selectedIds.value.clear()
+    taskDetailCache.clear()
+    taskDetailRequests.clear()
+    userPoints.value = 0
+    taskSummary.value = { queued: 0, generating: 0, importing: 0, active: 0 }
+  }
+
   async function loadTaskSummary() {
     try {
       const res = await generationApi.summary()
@@ -181,7 +258,7 @@ export function useTaskManager() {
     } catch { /* keep the last known counts until the next refresh */ }
   }
 
-  async function loadHistory(more = false, requestedPage?: number) {
+  async function performLoadHistory(more = false, requestedPage?: number) {
     if (more && (loading.value || loadingMore.value || page.value * pageSize.value >= total.value)) return
     const request = ++historyRequest
     const targetPage = more ? page.value + 1 : Math.max(1, requestedPage || 1)
@@ -201,6 +278,7 @@ export function useTaskManager() {
       const records = res.data.data?.records || []
       total.value = res.data.data?.total || 0
       page.value = targetPage
+      historyContainsFirstPage = more ? historyContainsFirstPage : targetPage === 1
       lastHistoryLoadedAt = Date.now()
 
       // Merge: keep in-progress local tasks that haven't appeared in API response yet
@@ -220,6 +298,7 @@ export function useTaskManager() {
       tasks.value = more
         ? [...tasks.value.filter(t => !apiTaskIds.has(t.id)), ...apiTasks]
         : [...localPending, ...localPolling, ...apiTasks]
+      if (!more && targetPage === 1 && isDefaultHistoryView()) persistHistoryCache()
     } catch (e) {
       if (request === historyRequest) historyError.value = true
       console.error('Load history error:', e)
@@ -227,6 +306,19 @@ export function useTaskManager() {
       if (request === historyRequest) { loading.value = false; loadingMore.value = false }
       await loadTaskSummary()
     }
+  }
+
+  function loadHistory(more = false, requestedPage?: number): Promise<void> {
+    const targetPage = more ? page.value + 1 : Math.max(1, requestedPage || 1)
+    const dedupe = !more && targetPage === 1 && isDefaultHistoryQuery()
+    if (dedupe && historyRefreshPromise) return historyRefreshPromise
+    const pending = performLoadHistory(more, requestedPage)
+    if (!dedupe) return pending
+    historyRefreshPromise = pending
+    void pending.finally(() => {
+      if (historyRefreshPromise === pending) historyRefreshPromise = null
+    })
+    return pending
   }
 
   function refreshHistoryIfStale(maxAgeMs = 60_000) {
@@ -334,6 +426,7 @@ export function useTaskManager() {
         newTask.task_no = result.taskNo
         newTask.input_image_urls = result.inputImageUrls
         newTask.supplementaryImages = result.supplementaryImages
+        scheduleHistoryCachePersist()
 
         await pollTask(newTask)
 
@@ -353,6 +446,7 @@ export function useTaskManager() {
         }
         newTask.status = 'failed'
         newTask.error_message = translateError(e)
+        scheduleHistoryCachePersist()
         error(e)
       }
 
@@ -402,6 +496,8 @@ export function useTaskManager() {
     } catch (e: any) {
       task.status = 'unknown'
       task.error_message = translateError(e)
+    } finally {
+      scheduleHistoryCachePersist()
     }
   }
 
@@ -439,6 +535,19 @@ export function useTaskManager() {
     })
   }
 
+  if (!authWatcherAdded) {
+    authWatcherAdded = true
+    watch(() => auth.user?.id, (userId, previousUserId) => {
+      if (userId === previousUserId) return
+      if (!userId) {
+        stopPolling()
+        clearHistoryState()
+        return
+      }
+      void initializeForUser(userId)
+    })
+  }
+
   // ─── Task operations ───
 
   async function loadTaskDetail(task: TaskItem): Promise<TaskItem> {
@@ -447,6 +556,8 @@ export function useTaskManager() {
     if (cached) return cached
     const existing = taskDetailRequests.get(task.id)
     if (existing) return existing
+    const requestEpoch = historyStateEpoch
+    const requestUserId = auth.user?.id
     const pending = taskApi.get(task.id).then((res) => {
       const raw = res.data.data || {}
       const detail = {
@@ -456,11 +567,13 @@ export function useTaskManager() {
         task_no: raw.taskNo ?? raw.task_no ?? task.task_no,
         supplementaryImages: raw.supplementaryImages ?? raw.supplementary_images ?? [],
       } as TaskItem
-      if (taskDetailCache.size >= 100) {
-        const oldest = taskDetailCache.keys().next().value
-        if (oldest !== undefined) taskDetailCache.delete(oldest)
+      if (requestEpoch === historyStateEpoch && requestUserId === auth.user?.id) {
+        if (taskDetailCache.size >= 100) {
+          const oldest = taskDetailCache.keys().next().value
+          if (oldest !== undefined) taskDetailCache.delete(oldest)
+        }
+        taskDetailCache.set(task.id, detail)
       }
-      taskDetailCache.set(task.id, detail)
       return detail
     }).finally(() => taskDetailRequests.delete(task.id))
     taskDetailRequests.set(task.id, pending)
@@ -546,7 +659,9 @@ export function useTaskManager() {
     try {
       await confirmDanger({ title: '确认删除', message: '确定要删除该任务记录吗？', confirmText: '删除', cancelText: '取消' })
       tasks.value = tasks.value.filter((t) => t.id !== task.id)
+      total.value = Math.max(0, total.value - 1)
       taskDetailCache.delete(task.id)
+      scheduleHistoryCachePersist()
       success('已移除')
     } catch { /* cancelled */ }
   }
@@ -559,6 +674,7 @@ export function useTaskManager() {
       if (target) target.remark = remark
       const cached = taskDetailCache.get(task.id)
       if (cached) cached.remark = remark
+      scheduleHistoryCachePersist()
       success(remark ? '备注已保存' : '备注已清除')
     } catch (e) {
       error(e, '备注保存失败')
@@ -653,7 +769,10 @@ export function useTaskManager() {
 
     const ids = new Set(selected.map((t) => t.id))
     tasks.value = tasks.value.filter((t) => !ids.has(t.id))
+    total.value = Math.max(0, total.value - ids.size)
     selectedIds.value.clear()
+    ids.forEach((id) => taskDetailCache.delete(id))
+    scheduleHistoryCachePersist()
     success(`已删除 ${selected.length} 个任务`)
   }
 
@@ -670,6 +789,7 @@ export function useTaskManager() {
       task.result_image_urls = res.data.data?.resultUrls ?? []
       task.error_message = ''
       taskDetailCache.delete(task.id)
+      scheduleHistoryCachePersist()
       success('图片已刷新')
     } catch (e: any) {
       error('刷新失败: ' + (e?.response?.data?.error || e.message || '未知错误'))
@@ -726,14 +846,43 @@ export function useTaskManager() {
 
   // ─── Lifecycle ───
 
+  function initializeForUser(userId: number): Promise<void> {
+    if (initializationPromise && initializingUserId === userId) return initializationPromise
+    initializingUserId = userId
+    const pending = (async () => {
+      let cacheHit: TaskListCacheHit | undefined
+      if (hydratedUserId !== userId) {
+        stopPolling()
+        clearHistoryState()
+        cacheHit = hydrateHistoryCache(userId)
+      }
+      void loadTaskSummary()
+      if (!cacheHit && lastHistoryLoadedAt === 0) {
+        await loadHistory(false)
+      } else if (cacheHit?.freshness === 'stale' || Date.now() - lastHistoryLoadedAt > 60_000) {
+        void loadHistory(false)
+      }
+      if (hasActiveJobs.value) startPolling()
+      loadUserPoints()
+    })()
+    initializationPromise = pending
+    void pending.finally(() => {
+      if (initializationPromise === pending) {
+        initializationPromise = null
+        initializingUserId = null
+      }
+    })
+    return pending
+  }
+
   async function init() {
-    await refreshHistoryIfStale(0)
-    if (hasActiveJobs.value) startPolling()
-    loadUserPoints()
+    const userId = auth.user?.id
+    if (userId) await initializeForUser(userId)
   }
 
   function cleanup() {
     stopPolling()
+    if (!auth.user) clearHistoryState()
   }
 
   return {

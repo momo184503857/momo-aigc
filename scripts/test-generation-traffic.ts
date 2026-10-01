@@ -5,9 +5,26 @@ import { parseTaskListRow, positiveInt, taskListSelect } from '../server/src/uti
 import { resetUserRateLimits, userRateLimit } from '../server/src/middleware/userRateLimit.js'
 import { TaskSubmissionValidationError, validateReferenceImageUrls, validateSupplementaryImages } from '../server/src/utils/taskSubmission.js'
 import { createStoredImageResolver } from '../src/services/storedImageResolver.js'
+import {
+  clearTaskListCaches,
+  readTaskListCache,
+  TASK_LIST_CACHE_FRESH_MS,
+  TASK_LIST_CACHE_MAX_AGE_MS,
+  writeTaskListCache,
+  type StorageLike,
+} from '../src/services/taskListCache.js'
 
 // Browser upload resolver also runs under this Node test without a DOM.
 Object.defineProperty(globalThis, 'File', { configurable: true, value: NodeFile })
+
+class MemoryStorage implements StorageLike {
+  values = new Map<string, string>()
+  get length() { return this.values.size }
+  key(index: number) { return [...this.values.keys()][index] ?? null }
+  getItem(key: string) { return this.values.get(key) ?? null }
+  setItem(key: string, value: string) { this.values.set(key, value) }
+  removeItem(key: string) { this.values.delete(key) }
+}
 
 const db = new Database(':memory:')
 db.exec(`
@@ -111,5 +128,61 @@ try {
   console.warn = originalWarn
 }
 
+const cacheStorage = new MemoryStorage()
+const cacheNow = Date.now()
+const cacheRecord = {
+  ...rows[0],
+  prompt: 'P'.repeat(900),
+  input_image_urls: [embedded, '/api/files/inputs/a.png'],
+  result_image_urls: ['blob:https://example.com/x', 'https://example.com/result.png'],
+  supplementaryImages: [{ name: '秘密', url: embedded }],
+  prompt_segments: { huge: embedded },
+  raw_error: embedded,
+  token: 'must-not-persist',
+}
+assert.equal(writeTaskListCache('panel', 7, [cacheRecord], 1, { storage: cacheStorage, now: cacheNow }), true)
+const cacheRaw = cacheStorage.getItem('momo_task_list_cache_v1:panel:7')!
+assert(!cacheRaw.includes('data:image/'))
+assert(!cacheRaw.includes('must-not-persist'))
+assert(!cacheRaw.includes('supplementaryImages'))
+assert(!cacheRaw.includes('prompt_segments'))
+assert(!cacheRaw.includes('raw_error'))
+const freshCache = readTaskListCache('panel', 7, { storage: cacheStorage, now: cacheNow + TASK_LIST_CACHE_FRESH_MS })!
+assert.equal(freshCache.freshness, 'fresh')
+assert.equal(freshCache.records[0].prompt.length, 500)
+assert.deepEqual(freshCache.records[0].input_image_urls, ['/api/files/inputs/a.png'])
+assert.deepEqual(freshCache.records[0].result_image_urls, ['https://example.com/result.png'])
+assert.equal(readTaskListCache('panel', 7, { storage: cacheStorage, now: cacheNow + TASK_LIST_CACHE_FRESH_MS + 1 })?.freshness, 'stale')
+assert.equal(readTaskListCache('panel', 7, { storage: cacheStorage, now: cacheNow + TASK_LIST_CACHE_MAX_AGE_MS + 1 }), undefined)
+assert.equal(cacheStorage.getItem('momo_task_list_cache_v1:panel:7'), null)
+
+cacheStorage.setItem('momo_task_list_cache_v1:panel:7', '{broken')
+assert.equal(readTaskListCache('panel', 7, { storage: cacheStorage, now: cacheNow }), undefined)
+cacheStorage.setItem('momo_task_list_cache_v1:panel:7', JSON.stringify({ version: 999, namespace: 'panel', userId: 7, savedAt: cacheNow, total: 0, records: [] }))
+assert.equal(readTaskListCache('panel', 7, { storage: cacheStorage, now: cacheNow }), undefined)
+cacheStorage.setItem('momo_task_list_cache_v1:panel:7', JSON.stringify({ version: 1, namespace: 'panel', userId: 8, savedAt: cacheNow, total: 0, records: [] }))
+assert.equal(readTaskListCache('panel', 7, { storage: cacheStorage, now: cacheNow }), undefined)
+
+const oversizedRecords = Array.from({ length: 2500 }, (_, index) => ({ ...cacheRecord, id: index + 1, task_no: `gen-cache-${index}` }))
+assert.equal(writeTaskListCache('panel', 7, oversizedRecords, oversizedRecords.length, { storage: cacheStorage, now: cacheNow }), false)
+assert.equal(cacheStorage.getItem('momo_task_list_cache_v1:panel:7'), null)
+
+const throwingStorage: StorageLike = {
+  get length() { throw new Error('blocked') },
+  key() { throw new Error('blocked') },
+  getItem() { throw new Error('blocked') },
+  setItem() { throw new Error('quota') },
+  removeItem() { throw new Error('blocked') },
+}
+assert.equal(writeTaskListCache('panel', 7, [cacheRecord], 1, { storage: throwingStorage, now: cacheNow }), false)
+assert.equal(readTaskListCache('panel', 7, { storage: throwingStorage, now: cacheNow }), undefined)
+cacheStorage.setItem('momo_task_list_cache_v1:panel:7', '{}')
+cacheStorage.setItem('momo_task_list_cache_v1:results:7', '{}')
+cacheStorage.setItem('unrelated', 'keep')
+clearTaskListCaches(cacheStorage)
+assert.equal(cacheStorage.getItem('momo_task_list_cache_v1:panel:7'), null)
+assert.equal(cacheStorage.getItem('momo_task_list_cache_v1:results:7'), null)
+assert.equal(cacheStorage.getItem('unrelated'), 'keep')
+
 db.close()
-console.log('流量回归测试通过：轻量列表、持久化 URL 校验、分页、用户限流、上传去重与失败阻断。')
+console.log('流量回归测试通过：轻量列表、持久化 URL、分页限流、上传去重，以及任务缓存白名单/过期/降级/清理。')

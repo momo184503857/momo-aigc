@@ -13,6 +13,7 @@ const completedTask = { ...task, id: 2, task_no: 'gen-traffic-2', taskNo: 'gen-t
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
     await context.addInitScript(() => localStorage.setItem('auth_token', 'traffic-fixture'))
     const reads = []
+    let listDelayMs = 0
     await context.route('**/api/**', async route => {
       const request = route.request()
       const url = new URL(request.url())
@@ -21,9 +22,13 @@ const completedTask = { ...task, id: 2, task_no: 'gen-traffic-2', taskNo: 'gen-t
       if (url.pathname === '/api/files/traffic.svg') return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" />' })
       if (url.pathname === '/api/me') data = { id: 1, username: '流量验收用户', role: 'user', points: 100 }
       else if (url.pathname === '/api/models/catalog') data = { models: [model], platform: [] }
-      else if (url.pathname === '/api/generations') data = { records: [completedTask, task], total: 2, page: 1, pageSize: 20 }
+      else if (url.pathname === '/api/generations') {
+        if (listDelayMs) await new Promise(resolve => setTimeout(resolve, listDelayMs))
+        data = { records: [completedTask, task], total: 2, page: 1, pageSize: 20 }
+      }
       else if (url.pathname === '/api/generations/summary') data = { queued: 0, generating: 1, importing: 0, active: 1 }
       else if (url.pathname === '/api/generations/1/status') data = { status: 'in_progress', progress: 45, resultUrls: [] }
+      else if (url.pathname === '/api/tasks') data = { records: [completedTask], total: 1, page: 1, pageSize: 24 }
       else if (url.pathname === '/api/tasks/2') data = { ...completedTask, supplementaryImages: [{ name: '参考', url: 'https://example.test/a.png' }], prompt_segments: { scene: 'studio' } }
       else if (url.pathname.includes('templates')) data = { records: [], total: 0, tags: [] }
       else if (url.pathname.includes('prompts') || url.pathname.includes('/tags')) data = []
@@ -34,10 +39,49 @@ const completedTask = { ...task, id: 2, task_no: 'gen-traffic-2', taskNo: 'gen-t
     page.setDefaultTimeout(12_000)
     await page.goto(base + '/#/free-gen')
     await page.getByRole('textbox', { name: '画面描述', exact: true }).waitFor()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(2_000)
     const listBaseline = reads.filter(path => path === '/api/generations').length
+    assert.equal(listBaseline, 1, '首次访问应请求一次任务列表')
+    assert(await page.evaluate(() => Boolean(localStorage.getItem('momo_task_list_cache_v1:panel:1'))), '首次请求后必须写入面板缓存')
+
+    const resultsPage = await context.newPage()
+    resultsPage.setDefaultTimeout(12_000)
+    await resultsPage.goto(base + '/#/free-gen')
+    await resultsPage.getByRole('textbox', { name: '画面描述', exact: true }).waitFor()
+    await resultsPage.evaluate(() => { window.location.hash = '#/assets/results' })
+    await resultsPage.waitForTimeout(1_500)
+    const resultsBaseline = reads.filter(path => path === '/api/tasks').length
+    assert.equal(resultsBaseline, 1, '首次进入结果页应请求一次列表')
+    assert(await resultsPage.evaluate(() => Boolean(localStorage.getItem('momo_task_list_cache_v1:results:1'))), '结果页必须写入独立缓存')
+    await resultsPage.reload()
+    await resultsPage.waitForTimeout(500)
+    assert.equal(reads.filter(path => path === '/api/tasks').length, resultsBaseline, '60 秒内刷新结果页不得请求列表')
+    await resultsPage.close()
+
+    await page.reload()
+    await page.getByRole('textbox', { name: '画面描述', exact: true }).waitFor()
+    await page.waitForTimeout(500)
+    assert.equal(reads.filter(path => path === '/api/generations').length, listBaseline, '60 秒内刷新不得请求任务列表')
+
+    await page.evaluate(() => {
+      const key = 'momo_task_list_cache_v1:panel:1'
+      const value = JSON.parse(localStorage.getItem(key))
+      value.savedAt = Date.now() - 61_000
+      localStorage.setItem(key, JSON.stringify(value))
+    })
+    listDelayMs = 1_500
+    const beforeStaleReload = reads.filter(path => path === '/api/generations').length
+    await page.reload()
+    await page.getByRole('textbox', { name: '画面描述', exact: true }).waitFor()
+    const stalePanelButton = page.getByRole('button', { name: /打开任务面板/ })
+    if (await stalePanelButton.count()) await stalePanelButton.click()
+    await page.getByRole('button', { name: '详情', exact: true }).first().waitFor({ timeout: 1_000 })
+    await page.waitForTimeout(1_800)
+    assert.equal(reads.filter(path => path === '/api/generations').length, beforeStaleReload + 1, '旧缓存后台只能刷新一次列表')
+    listDelayMs = 0
+
     await page.waitForTimeout(9_000)
-    assert.equal(reads.filter(path => path === '/api/generations').length, listBaseline, '9 秒内不得重载任务历史列表')
+    assert.equal(reads.filter(path => path === '/api/generations').length, beforeStaleReload + 1, '9 秒内不得再次重载任务历史列表')
     assert(reads.filter(path => path === '/api/generations/1/status').length >= 1, '可见页面应轮询进行中任务')
 
     await page.evaluate(() => {
@@ -65,9 +109,17 @@ const completedTask = { ...task, id: 2, task_no: 'gen-traffic-2', taskNo: 'gen-t
     await detailButton.evaluate(element => element.click())
     await page.getByRole('dialog').getByText('任务详情', { exact: true }).waitFor()
     assert.equal(reads.filter(path => path === '/api/tasks/2').length, 1, '任务详情必须命中缓存，不得重复下载')
+    await page.keyboard.press('Escape')
+    const closePanel = page.locator('.task-panel button[title=收起]')
+    if (await closePanel.count()) await closePanel.click()
+
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    await page.getByRole('menuitem', { name: '退出登录', exact: true }).click()
+    await page.waitForURL('**/#/login')
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('momo_task_list_cache_v1:')).length), 0, '退出登录必须清空任务缓存')
 
     await context.close()
-    console.log('浏览器流量回归通过：历史不轮询、隐藏暂停、恢复同步、详情缓存。')
+    console.log('浏览器流量回归通过：刷新缓存、旧缓存后台更新、历史不轮询、隐藏暂停、详情缓存和登出清理。')
   } finally {
     await browser.close()
   }

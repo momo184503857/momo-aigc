@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onActivated, onDeactivated, nextTick } from 'vue'
+import { ref, computed, onActivated, onDeactivated, nextTick } from 'vue'
 import { Image, LoaderCircle, CircleAlert } from '@lucide/vue'
 import { useInfiniteLoader } from '@/composables/useInfiniteLoader'
 import { useTaskManager } from '@/composables/useTaskManager'
@@ -43,8 +43,7 @@ const rounds = computed(() => {
 const selectedTask = computed(() => tasks.value.find(t => t.id === selected.value?.id) || selected.value)
 const labels: Record<string, string> = { submitted: '已提交', queued: '排队中', in_progress: '生成中', importing: '正在保存图片', failed: '生成失败', completed: '图片已就绪' }
 function load(more = false) { return tm.loadHistory(more) }
-onMounted(() => { void tm.refreshHistoryIfStale() })
-onActivated(() => { active.value = true; void tm.refreshHistoryIfStale() })
+onActivated(() => { active.value = true })
 onDeactivated(() => { active.value = false })
 async function showDetail(task: TaskItem) { selected.value = task; await nextTick(); detail.value?.open() }
 async function download(task: TaskItem, url: string, index: number) {

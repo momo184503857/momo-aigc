@@ -32,8 +32,11 @@ import { cn } from '@/lib/utils'
 import { toBJDate } from '@/utils/datetime'
 import type { TaskItem } from '@/components/TaskList.vue'
 import TaskDetailDialog from '@/components/TaskDetailDialog.vue'
+import { useAuthStore } from '@/stores/auth'
+import { readTaskListCache, writeTaskListCache } from '@/services/taskListCache'
 
 const { success, info, warning, error, confirmDanger } = useUiFeedback()
+const auth = useAuthStore()
 
 const tasks = ref<TaskItem[]>([])
 const loading = ref(false)
@@ -82,11 +85,14 @@ function featureLabel(id?: string) {
 }
 
 async function loadResults() {
-  loading.value = true
+  loading.value = tasks.value.length === 0
   try {
     const res = await taskApi.list({ page: page.value, pageSize: pageSize.value, status: 'completed' })
     tasks.value = res.data.data?.records || []
     total.value = res.data.data?.total || 0
+    if (page.value === 1 && pageSize.value === 24 && auth.user?.id) {
+      writeTaskListCache('results', auth.user.id, tasks.value, total.value)
+    }
     loadFailed.value = false
   } catch (e) {
     console.error('Load results error:', e)
@@ -197,7 +203,18 @@ function openPreview(url: string) { if (!bulkMode.value) openPreviewRaw(url) }
 function handlePageChange(p: number) { page.value = p; loadResults() }
 function handlePageSizeChange(s: number) { pageSize.value = s; page.value = 1; loadResults() }
 
-onMounted(() => { loadResults() })
+onMounted(() => {
+  const userId = auth.user?.id
+  const cached = userId ? readTaskListCache('results', userId) : undefined
+  if (cached) {
+    tasks.value = cached.records as TaskItem[]
+    total.value = cached.total
+    loadFailed.value = false
+    if (cached.freshness === 'stale') void loadResults()
+    return
+  }
+  void loadResults()
+})
 </script>
 
 <template>
